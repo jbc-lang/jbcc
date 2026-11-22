@@ -6,6 +6,8 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
+import subprocess
 import sys
 import tempfile
 
@@ -859,18 +861,42 @@ def compile_program(paths, directories, memory_files=()):
     return "\n".join([runtime] + prototypes + [u.render(memory_files) for u in units])
 
 
+def build_executable(source, output):
+    try:
+        compiler = shlex.split(os.environ.get('CC') or 'cc')
+        flags = shlex.split(os.environ.get('CC_FLAGS', ''))
+    except ValueError as error:
+        raise Diagnostic(f"invalid CC or CC_FLAGS: {error}") from error
+    if not compiler:
+        raise Diagnostic("CC must name a C compiler")
+    # Linking beside the destination keeps the final rename atomic.
+    with tempfile.TemporaryDirectory(dir=output.parent) as directory:
+        c_file = Path(directory) / 'program.c'
+        binary = Path(directory) / 'program'
+        c_file.write_text(source, encoding='utf-8')
+        command = compiler + ['-std=c99', str(c_file)] + flags + ['-o', str(binary)]
+        completed = subprocess.run(command)
+        if completed.returncode:
+            raise Diagnostic(f"C compiler exited with status {completed.returncode}")
+        os.replace(binary, output)
+
+
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument('source', nargs='+', type=Path)
     cli.add_argument('--memory-file', dest='memory_files', action='append', default=[], metavar='NAME',
                      help='provide an empty named file in the in-memory test backend (repeatable)')
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
-    cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT.c')
+    cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
+    cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
     args = cli.parse_args()
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
         result = compile_program(args.source, args.directories, args.memory_files)
+        if args.exe:
+            build_executable(result, args.o)
+            return 0
         with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
                                          encoding='utf-8') as output:
             try:

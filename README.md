@@ -13,6 +13,13 @@ cc -std=c99 /tmp/coercion.c -o /tmp/coercion
 /tmp/coercion
 ```
 
+To build and link in one step, use `./jbcc --exe tests/snippets/coercion.b -o /tmp/coercion`.
+Native builds default to `cc -std=c99`. Set `CC` to select the compiler and
+`CC_FLAGS` to pass additional compile or link options, for example
+`CC=clang CC_FLAGS="-O2 -Wall" ./jbcc --exe tests/snippets/coercion.b -o /tmp/coercion`.
+Both variables accept shell-style quoting. The compiler is invoked directly
+with the resulting arguments.
+
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
 

@@ -1,4 +1,6 @@
 import json
+import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -176,3 +178,22 @@ RETURN
         result = subprocess.run([CLI, caller, sub, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('incompatible COMMON layout', result.stderr)
+
+    def test_executable_mode(self):
+        binary = self.work / 'output with spaces'
+        cmd = [CLI, '--exe', ROOT / 'tests/snippets/coercion.b', '-o', binary]
+        env = os.environ.copy()
+        env.pop('CC', None)
+        env.pop('CC_FLAGS', None)
+        subprocess.run(cmd, env=env, check=True)
+        expected = binary.read_bytes()
+        self.assertEqual(subprocess.check_output([binary]), b'5\n23\n')
+
+        wrapper = self.work / 'check flags.py'
+        wrapper.write_text("import sys\nassert '--argument with spaces' in sys.argv\nsys.exit(42)\n")
+        env.update(CC=shlex.quote(sys.executable) + ' ' + shlex.quote(str(wrapper)),
+                   CC_FLAGS="'--argument with spaces'")
+        run = subprocess.run(cmd, env=env, text=True, capture_output=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn('status 42', run.stderr)
+        self.assertEqual(binary.read_bytes(), expected)
