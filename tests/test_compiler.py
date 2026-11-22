@@ -101,6 +101,17 @@ class CompilerTest(unittest.TestCase):
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: PRECISION'.encode(), run.stderr)
 
+    def test_locate_diagnostics(self):
+        main = self.work / 'main.b'
+        for clause, message in [("BY 'XX'", 'unsupported LOCATE order'),
+                                (',0', 'LOCATE positions start at one'),
+                                (',1.5', 'LOCATE start must be a positive integer')]:
+            with self.subTest(clause=clause):
+                main.write_text(f"LOCATE 'x' IN 'x' {clause} SETTING P ELSE NULL\n")
+                run = self.run_native(main)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
+
     def test_division_by_zero(self):
         source = self.work / 'division.b'
         source.write_text('PRINT 7 / 0\n')

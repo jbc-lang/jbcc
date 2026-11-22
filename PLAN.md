@@ -118,6 +118,15 @@ After MAT fill and copy, 4,309 of 17,336 candidate units passed C99 checking,
 including all 3,596 previous passes. The scan reported 12,799 compiler
 diagnostics and 228 encoding errors.
 
-- [ ] Implement LOCATE, the first unsupported statement in 1,329 units.
+- [x] Implement LOCATE, the first unsupported statement in 1,329 units.
   Check the corpus syntax against the guide. Test the returned position and
   THEN/ELSE branches for successful and unsuccessful searches.
+
+After LOCATE and NULL, 4,639 of 17,336 candidate units passed C99 checking,
+including all 4,309 previous passes. The scan reported 12,469 compiler
+diagnostics and 228 encoding errors. All 1,329 original LOCATE first blockers
+used the IN form.
+
+- [ ] Implement REMOVE, the first unsupported statement in 966 units. Test
+  successive extractions, delimiter codes, end of input and cursor state
+  after reassignment against the guide.

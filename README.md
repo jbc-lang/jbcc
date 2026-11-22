@@ -191,6 +191,20 @@ ON ERROR remain outside this test backend.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
 [WRITE](https://jbc-lang.org/pages/write.html).
 
+## Search a dynamic array
+
+`LOCATE key IN record SETTING pos THEN ... ELSE ...` searches fields.
+Use `record<field>` to search values in a field and `record<field,value>`
+to search subvalues. An optional comma and starting position restrict the
+search. Positions are one-based within the selected dimension.
+
+A match sets `pos` and takes the THEN branch. An unordered miss sets it
+one past the end. With `BY`, a miss returns the insertion position for
+an already sorted array. jbcc supports AL/DL (byte order), AR/DR
+(right-justified), and AN/DN (numeric). Either branch can use `NULL`
+as a no-op. This implements the guide's `IN ... SETTING` form with
+byte-oriented strings. [LOCATE](https://jbc-lang.org/pages/locate.html).
+
 ## User-defined functions
 
 Declare a function before its first use with `DEFFUN DOUBLE.IT()`. Parameter

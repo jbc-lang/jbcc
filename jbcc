@@ -248,12 +248,12 @@ class Compiler:
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
 
-    def primary(self):
+    def primary(self, locate_source=False):
         word = self.word
         if word == '-':
             operator = self.current
             self.advance()
-            return self.arithmetic(operator, '"0"', self.primary(), '-')
+            return self.arithmetic(operator, '"0"', self.primary(locate_source), '-')
         if word == '(':
             self.advance()
             value = self.expression()
@@ -267,7 +267,7 @@ class Compiler:
                 self.advance()
                 code = self.expression()
                 self.expect(')')
-                return self.postfix(self.temporary(f"jbc_cursor({code}, {self.location(target)})"))
+                return self.postfix(self.temporary(f"jbc_cursor({code}, {self.location(target)})"), locate_source)
             marks = {'AM': 254, 'FM': 254, 'VM': 253, 'SM': 252}
             if self.word not in marks:
                 self.error("expected a dynamic-array mark")
@@ -277,14 +277,14 @@ class Compiler:
             self.advance()
             slot = self.matrix_slot(target)
             value = self.checked_read(slot, target)
-            return self.postfix(value)
+            return self.postfix(value, locate_source)
         elif word in self.functions and self.following.word == '(':
             target = self.identifier()
             args = self.call_arguments()
             self.calls.append((target, len(args), True))
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
-            return self.postfix(result)
+            return self.postfix(result, locate_source)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
             self.advance()
@@ -320,14 +320,16 @@ class Compiler:
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
         self.advance()
-        return self.postfix(value)
+        return self.postfix(value, locate_source)
 
-    def postfix(self, value):
+    def postfix(self, value, locate_source=False):
         while self.current.kind == 'array_open' or self.word == '[':
             if self.word == '[':
                 args = self.substring_indices()
                 value = self.temporary(f"jbc_substring({value}, {args}, NULL)")
             else:
+                if locate_source:
+                    break
                 indices = self.array_indices()
                 value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         return value
@@ -341,7 +343,7 @@ class Compiler:
         self.expect(']')
         return f"{start}, {length}, {self.location(token)}"
 
-    def array_indices(self):
+    def index_expressions(self):
         token = self.current
         self.advance()
         indices = [self.expression()]
@@ -351,22 +353,26 @@ class Compiler:
         if self.current.kind != 'array_close' or len(indices) > 3:
             self.error("expected one to three dynamic-array indices", token)
         self.advance()
+        return indices
+
+    def array_indices(self):
+        indices = self.index_expressions()
         return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
-    def expression(self, minimum=1, output=False):
-        return self.expression_tail(self.primary(), minimum, output)
+    def expression(self, minimum=1, output=False, locate_source=False):
+        return self.expression_tail(self.primary(locate_source), minimum, output, locate_source)
 
-    def expression_tail(self, left, minimum=1, output=False):
-        while self.current.kind != 'array_close' and PRECEDENCE.get(self.word, 0) >= minimum:
+    def expression_tail(self, left, minimum=1, output=False, locate_source=False):
+        while self.current.kind not in ('array_open', 'array_close') and PRECEDENCE.get(self.word, 0) >= minimum:
             if output and self.word == ':' and self.following.word in OUTPUT_END:
                 break
             operator = self.word
             token = self.current
             self.advance()
             if operator in LOGICAL:
-                left = self.logical_expression(left, operator, output)
+                left = self.logical_expression(left, operator, output, locate_source)
                 continue
-            right = self.expression(PRECEDENCE[operator] + 1, output)
+            right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator == ':':
@@ -377,14 +383,14 @@ class Compiler:
             left = self.temporary(call)
         return left
 
-    def logical_expression(self, left, operator, output):
+    def logical_expression(self, left, operator, output, locate_source):
         result = self.temporary(f'jbc_truth({left}) ? "1" : "0"')
         evaluate_at = '0' if operator in ('OR', '!') else '1'
         self.emit(f"if (*{result} == '{evaluate_at}') {{")
         self.depth += 1
         # A call on the skipped path cannot definitely initialize an argument.
         before = self.assigned.copy()
-        right = self.expression(PRECEDENCE[operator] + 1, output)
+        right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
         self.assigned = before
         self.emit(f'{result} = jbc_truth({right}) ? "1" : "0";')
         self.depth -= 1
@@ -434,6 +440,39 @@ class Compiler:
             self.clause(opening)
         self.assigned = taken & self.assigned
         self.emit("}")
+
+    def locate_statement(self):
+        opening = self.current
+        self.advance()
+        needle = self.expression()
+        self.expect('IN')
+        source = self.expression(locate_source=True)
+        indices = []
+        if self.current.kind == 'array_open':
+            selector = self.current
+            indices = self.index_expressions()
+            if len(indices) > 2:
+                self.error("LOCATE expects a field and optional value selector", selector)
+            args = ', '.join(indices)
+            source = self.temporary(f"jbc_array({source}, (const char *[]){{{args}}}, {len(indices)}, NULL)")
+        start = '"1"'
+        if self.word == ',':
+            self.advance()
+            start = self.expression()
+        order = '""'
+        if self.word == 'BY':
+            self.advance()
+            order = self.expression()
+        self.expect('SETTING')
+        target = self.identifier()
+        if target.word in self.matrices:
+            slot = self.matrix_slot(target)
+        else:
+            slot = self.variable(target.word)
+            self.assigned.add(target.word)
+        call = (f"jbc_locate({needle}, {source}, {254 - len(indices)}, {start}, "
+                f"{order}, &{slot}, {self.location(opening)})")
+        self.conditional_arms(opening, call)
 
     def file_statement(self):
         opening = self.current
@@ -759,6 +798,10 @@ class Compiler:
                 self.statement()
         elif self.word == 'MAT':
             self.matrix_assignment()
+        elif self.word == 'LOCATE':
+            self.locate_statement()
+        elif self.word == 'NULL':
+            self.advance()
         elif self.word == 'PRECISION':
             token = self.current
             self.advance()

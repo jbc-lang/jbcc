@@ -416,6 +416,58 @@ static const char *size_value(size_t n)
     return out;
 }
 
+/* Compare as if the shorter item were padded on the left with spaces. */
+static int compare_right(const char *a, const char *b)
+{
+    size_t na = strlen(a), nb = strlen(b);
+    while (na != nb) {
+        int cmp;
+        if (na > nb) {
+            cmp = (unsigned char)*a++ - ' ';
+            --na;
+        } else {
+            cmp = ' ' - (unsigned char)*b++;
+            --nb;
+        }
+        if (cmp) return cmp;
+    }
+    return strcmp(a, b);
+}
+
+int jbc_locate(const char *needle, const char *source, int mark, const char *start,
+               const char *order, const char **position, const char *file, int line, int column)
+{
+    if (*order && (strlen(order) != 2 || !strchr("AD", order[0]) || !strchr("LRN", order[1])))
+        numeric_error(file, line, column, "unsupported LOCATE order");
+    if (!*start || start[strspn(start, "0123456789")])
+        numeric_error(file, line, column, "LOCATE start must be a positive integer");
+    int64_t first = integer(start, file, line, column);
+    if (first < 1) numeric_error(file, line, column, "LOCATE positions start at one");
+
+    size_t index = 1;
+    int found = 0;
+    if (*source || !*needle) {
+        char *item = strcpy(allocate(strlen(source)), source);
+        for (;;) {
+            char *next = strchr(item, mark);
+            if (next) *next++ = '\0';
+            if (index >= (uint64_t)first) {
+                int cmp;
+                if (*order && order[1] == 'N') cmp = jbc_compare(item, needle, -1);
+                else if (*order && order[1] == 'R') cmp = compare_right(item, needle);
+                else cmp = strcmp(item, needle);
+                found = cmp == 0;
+                if (found || (*order == 'A' && cmp > 0) || (*order == 'D' && cmp < 0)) break;
+            }
+            ++index;
+            if (!next) break;
+            item = next;
+        }
+    }
+    *position = size_value(index);
+    return found;
+}
+
 const char *jbc_len(const char *s)
 {
     return size_value(strlen(s));

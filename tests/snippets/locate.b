@@ -1,0 +1,24 @@
+Fields = 'red' : @AM : 'blue' : @AM : 'blue'
+LOCATE 'blue' IN Fields SETTING P THEN PRINT 'hit ':P ELSE PRINT 'wrong'
+LOCATE 'green' IN Fields SETTING P THEN PRINT 'wrong' ELSE PRINT 'miss ':P
+LOCATE 'blue' IN Fields,3 SETTING P ELSE NULL
+PRINT P
+DIM M(1), Pos(1)
+M(1)<2> = 'x' : @VM : 'a' : @SM : 'b'
+LOCATE 'b' IN M(1)<2,2> SETTING Pos(0) THEN PRINT Pos(0)
+LOCATE 'x' IN M(1)<2> SETTING P THEN PRINT P
+LOCATE 'b' IN M(1)<2> SETTING P ELSE PRINT P
+LOCATE 'b' IN M(1)<3> SETTING P ELSE PRINT P
+LOCATE '' IN ('a' : @AM : '' : @AM : 'b') SETTING P THEN PRINT P
+LOCATE 'x' IN '' SETTING P ELSE PRINT P
+LOCATE 'x' IN ('x' : @AM : 'z'),4 SETTING P ELSE PRINT P
+LOCATE 'a' IN ('b' : @AM : 'd') BY 'AL' SETTING P ELSE PRINT P
+LOCATE 'c' IN ('d' : @AM : 'b') BY 'DL' SETTING P ELSE PRINT P
+LOCATE '9' IN ('2' : @AM : '10') BY 'AR' SETTING P ELSE PRINT P
+LOCATE '9' IN ('10' : @AM : '2') BY 'DR' SETTING P ELSE PRINT P
+LOCATE '-2' IN ('-10' : @AM : '0') BY 'AN' SETTING P ELSE PRINT P
+Order = 'DN'
+LOCATE '2' IN ('9' : @AM : '2' : @AM : '-1') BY Order SETTING P THEN PRINT P
+LOCATE P IN ('a' : @AM : '2') SETTING P THEN
+  PRINT 'alias ':P
+END
