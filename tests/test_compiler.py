@@ -53,6 +53,22 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(str(source) + location, run.stderr)
                 self.assertEqual(self.c.read_text(), 'previous output')
 
+    def test_ins_diagnostics(self):
+        source = self.work / 'ins.b'
+        for program, diagnostic in [
+                ("INS 'x' R<1>", ":1:9: expected 'BEFORE'"),
+                ("INS 'x' BEFORE R", ':1:17: expected dynamic-array indices'),
+                ("INS 'x' BEFORE R<1,1,1,1>", ':1:17: expected one to three dynamic-array indices')]:
+            with self.subTest(program=program):
+                source.write_text(program + '\n')
+                run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(str(source) + diagnostic, run.stderr)
+        source.write_text("INS 'x' BEFORE R<1,'bad'>\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:16: expected a numeric value'.encode(), run.stderr)
+
     def test_del_diagnostics(self):
         source = self.work / 'del.b'
         for program, diagnostic in [

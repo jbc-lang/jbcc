@@ -173,6 +173,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
   operators. Missing components read as empty strings. Sparse assignments
   fill intervening positions with marks. The runtime uses single-byte
   `@FM` (also `@AM`), `@VM` and `@SM`. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
+- `INS X BEFORE R<field[,value[,subvalue]]>` inserts X at the selected
+  level, shifting later siblings and padding missing positions with empty
+  components. The first negative index appends at its level and subsequent
+  negative indices select position one. jbcc treats an unassigned target
+  as empty, truncates fractional indices, and treats trailing zero indices
+  as omitted and other zeros as one. These choices are provisional pending
+  a reference run. [INS](https://jbc-lang.org/pages/ins.html)
 - `DEL R<field[,value[,subvalue]]>` removes the selected component and
   closes the gap between its siblings. The target can be an assigned scalar
   or a matrix element. Fractional positions truncate toward zero. A missing

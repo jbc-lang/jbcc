@@ -394,7 +394,7 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
 /* Locate a component at this level, recurse within its byte range, then
    splice the replacement back into the enclosing value. */
 static const char *array_part(const char *s, size_t len, const int64_t *index,
-                              int count, int level, const char *replacement)
+                              int count, int level, const char *replacement, int inserting)
 {
     if (level == count) {
         if (replacement) return replacement;
@@ -415,6 +415,7 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
             const char *next = memchr(s + begin, mark, len - begin);
             if (!next) {
                 if (!replacement) return "";
+                if ((uintmax_t)(target - n) > SIZE_MAX) fail("dynamic array is too large");
                 padding = (size_t)(target - n);
                 begin = len;
                 break;
@@ -424,7 +425,14 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
         const char *next = memchr(s + begin, mark, len - begin);
         end = next ? (size_t)(next - s) : len;
     }
-    const char *part = array_part(s + begin, end - begin, index, count, level + 1, replacement);
+    const char *part;
+    if (inserting && level + 1 == count && len && target > 0 && !padding) {
+        /* Keep the existing component (including an empty one) after the insertion. */
+        part = jbc_concat(replacement, (const char[]){(char)mark, 0});
+        end = begin;
+    } else {
+        part = array_part(s + begin, end - begin, index, count, level + 1, replacement, inserting);
+    }
     if (!replacement) return part;
     size_t bytes = strlen(part), kept = len - (end - begin);
     if (padding > SIZE_MAX - kept || bytes > SIZE_MAX - kept - padding)
@@ -450,7 +458,7 @@ const char *jbc_array(const char *s, const char **indices, int count, const char
         if (replacement && n == 0) fail("dynamic-array indices start at one");
         index[i] = n;
     }
-    return array_part(s, strlen(s), index, count, 0, replacement);
+    return array_part(s, strlen(s), index, count, 0, replacement, 0);
 }
 
 const char *jbc_read(const char *value, const char *name, const char *file, int line, int column)
@@ -927,6 +935,26 @@ static int64_t truncated(const char *value, const char *file, int line, int colu
     if (!parse_decimal(value, &n)) numeric_error(file, line, column, "expected a numeric value");
     if (!n.digits) return 0;
     return integer(value, file, line, column);
+}
+
+void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int count,
+             const char *file, int line, int column)
+{
+    int64_t index[3];
+    int appended = 0;
+    for (int i = 0; i < count; ++i) {
+        index[i] = truncated(indices[i], file, line, column);
+        if (index[i] < 0) {
+            index[i] = appended ? 1 : -1;
+            appended = 1;
+        }
+    }
+    while (count > 1 && index[count - 1] == 0) --count;
+    for (int i = 0; i < count; ++i) {
+        if (!index[i]) index[i] = 1;
+    }
+    const char *text = slot->value ? slot->value : "";
+    assign_value(slot, array_part(text, strlen(text), index, count, 0, value, 1));
 }
 
 const char *jbc_index(const char *text, const char *needle, const char *occurrence,

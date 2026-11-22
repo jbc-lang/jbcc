@@ -541,6 +541,19 @@ class Compiler:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
 
+    def ins_statement(self):
+        self.advance()
+        value = self.expression()
+        self.expect('BEFORE')
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        if self.current.kind != 'array_open':
+            self.error("expected dynamic-array indices after INS target")
+        indices = self.array_indices()
+        self.emit(f"jbc_ins(&{slot}, {value}, {indices}, {self.location(target)});")
+        if target.word not in self.matrices:
+            self.assigned.add(target.word)
+
     def del_statement(self):
         self.advance()
         target = self.identifier()
@@ -975,6 +988,8 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'CONVERT':
             self.convert_statement()
+        elif self.word == 'INS':
+            self.ins_statement()
         elif self.word == 'DEL':
             self.del_statement()
         elif self.word == 'REMOVE':

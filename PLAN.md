@@ -264,6 +264,14 @@ After DEL, 9,151 of 17,336 candidates pass strict C99 checking, including
 all 9,020 previous passes. Of the 269 units stopped at DEL, 131 now pass
 and 138 reach another diagnostic.
 
-- [ ] Implement `INS expression BEFORE target<...>`, the first blocker
+- [x] Implement `INS expression BEFORE target<...>`, the first blocker
   in 230 units. Test insertion before existing fields, values and subvalues,
   padding beyond the last element and the guide's negative-index append rule.
+
+After INS, 9,276 of 17,336 candidates pass strict C99 checking, including
+all 9,151 previous passes. Of the 230 units stopped at INS, 125 now pass
+and 105 reach another diagnostic.
+
+- [ ] Implement MATBUILD, the first blocker in 210 units. Check how the
+  guide maps matrix elements to a dynamic array, including the default
+  delimiter, explicit delimiters and optional element ranges.
