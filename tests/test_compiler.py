@@ -593,6 +593,37 @@ CRT UPCASE(''):LOWCASE('')
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'10\n')
 
+    def test_indirect_call(self):
+        main = self.work / 'main.b'
+        work = self.work / 'work.b'
+        done = self.work / 'done.b'
+        switch = self.work / 'switch.b'
+        main.write_text("EQU Which TO Name\nDEFFUN SWITCH(N)\nDIM M(2)\nM(1) = 4\nX = 1\nName = '!WORK'\n"
+                        "CALL @Which(MAT M, X, X, SWITCH(Name))\nCRT M(1), X\nCALL @ Name\n")
+        work.write_text("SUBROUTINE !WORK(MAT A, B, C, D)\nA(1) += D\nB += A(1)\nC += 1\n")
+        switch.write_text("FUNCTION SWITCH(N)\nN = 'DONE'\nRETURN 2\n")
+        done.write_text("SUBROUTINE DONE()\nCRT 'done'\n")
+        run = self.run_native(main, work, switch, done)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'6\t8\ndone\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_indirect_call_diagnostics(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'update.b'
+        sub.write_text("SUBROUTINE UPDATE(MAT M)\nCRT 'unexpected'\n")
+        for name, args, units, message in [
+                ('MISSING', '', [], 'unknown subroutine'),
+                ('update', '(MAT M)', [sub], 'unknown subroutine'),
+                ('UPDATE', '()', [sub], 'incompatible arguments for subroutine'),
+                ('UPDATE', '(M(1))', [sub], 'incompatible arguments for subroutine')]:
+            with self.subTest(name=name, args=args):
+                main.write_text(f"DIM M(2)\nName = '{name}'\nCALL @Name{args}\n")
+                run = self.run_native(main, *units)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b'')
+                self.assertIn(f"{main}:3:6: {message} '{name}'".encode(), run.stderr)
+
     def test_multiline_call(self):
         caller = self.work / 'caller.b'
         callee = self.work / 'callee.b'
@@ -874,7 +905,7 @@ RETURN M(2,3)
 
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
-                                      'X = F(X)\nIF X THEN CALL S(X)\n')
+                                      'X = F(X)\nIF X THEN CALL S(X)\nCALL @X(X)\n')
         (self.work / 'bad').write_text('MAT A = 2\n')
         (self.work / 'I_SHARED').write_text('EQU X TO 1\n')
         report = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', self.work],

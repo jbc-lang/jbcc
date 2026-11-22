@@ -762,7 +762,16 @@ All 14,026 of the 17,336 candidates that passed strict C99 checking before
 the screen-code runtime change still pass. Native tests check the bytes
 for a stored clear-and-home sequence and both partial clears.
 
-- [ ] Implement indirect `CALL @Name(args)`. In 376 units the first
+- [x] Implement indirect `CALL @Name(args)`. In 376 units the first
   diagnostic points at the `@` after CALL. Resolve the variable's value
   against the subroutines supplied to the compiler and test by-reference
   updates, missing targets, and incompatible argument lists.
+
+After indirect CALL, 14,324 of 17,336 candidates pass strict C99
+checking, including all 14,026 previous passes. Of the 376 units blocked
+at the target variable, 298 now pass and 78 reach another diagnostic.
+
+- [ ] Implement READU for the in-memory file backend. It is the first
+  blocker in 187 units. Check the guide’s lock lifetime for existing and
+  missing keys, and exercise the success, missing-record and lock-conflict
+  branches with explicit and default file descriptors.

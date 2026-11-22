@@ -42,6 +42,10 @@ def check(relative, root, directories):
                 unit.error("external calls disagree on signature", target)
         prototypes = [COMPILER["routine_signature"](name, kinds, is_function) + ";"
                       for name, (kinds, is_function) in externals.items()]
+        if unit.has_indirect_call:
+            if unit.routine:
+                prototypes.append(unit.signature() + ";")
+            prototypes.append(COMPILER["render_indirect_calls"]([unit]))
         generated = "\n".join([COMPILER["runtime_features"]([unit]), RUNTIME] + prototypes + [unit.render()])
         result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],

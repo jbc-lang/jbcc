@@ -396,7 +396,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   A static subroutine name can start with `!`, as in the T24 call
   `CALL !HUSHIT(1)`. The prefix is part of the name when matching a CALL
   to a SUB or SUBROUTINE definition, following the reference compiler’s
-  direct call-name reader.
+  direct call-name reader. In `CALL @Name(args)`, the value of Name selects
+  a subroutine supplied to jbcc. Lookup is case-sensitive. The target's
+  parameter count and scalar or MAT parameters are checked at runtime.
+  For example, `Name = 'GET.STATUS'; CALL @Name(Rec, Answer)` can update
+  Answer just like a direct call.
   A comma at the end of a line continues the argument list on the next
   line. The reference preprocessor applies this rule before parsing, so
   it also works in routine headers and expressions. A trailing semicolon
@@ -704,8 +708,10 @@ python3 tools/check_corpus.py ~/Downloads/t24 -j 8 > /tmp/jbcc-corpus.json
 The checker visits regular files recursively. It counts `I_` files as include
 fragments and expands them when referenced by a compilation unit. It runs
 the compiler's preprocessor, parser and C generator on each remaining file.
-For external calls it declares the observed signature so that the system C
+For direct external calls it declares the observed signature so that the system C
 compiler can check the complete generated unit with C99 warnings as errors.
+For indirect calls it checks the dispatch code using the current unit. Native
+tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
 
 The JSON report records a status per relative path, diagnostic locations,

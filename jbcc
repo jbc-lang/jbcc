@@ -105,7 +105,9 @@ def lex_line(line, n, path, words, parentheses):
             word = word[0] + '='
             kind = 'symbol'
         if kind == 'name' and words and words[-1].word == '@':
-            kind = 'system_name'
+            # jpp expands equates in CALL @ targets but protects system names.
+            if len(words) < 2 or words[-2].word != 'CALL':
+                kind = 'system_name'
         if word == 'PROGRAM' and (len(words) == statement_start
                                   or words[-1].word in ('THEN', 'ELSE')):
             name = PROGRAM_NAME.match(line, offset)
@@ -295,6 +297,7 @@ class Compiler:
         self.labels = {}
         self.targets = {}
         self.calls = []
+        self.has_indirect_call = False
         self.references = []
         self.return_targets = {}
         self.gosub_sites = {}
@@ -1258,6 +1261,20 @@ class Compiler:
 
     def call_statement(self):
         self.advance()
+        if self.word == '@':
+            opening = self.current
+            self.advance()
+            target = self.current
+            if target.kind not in ('name', 'system_name'):
+                self.error("expected a variable after CALL @")
+            self.advance()
+            name = self.temporary(self.read_variable(target))
+            args, kinds = self.call_arguments()
+            values = [f"{{.{field} = {arg}}}" for field, arg in zip(argument_fields(kinds), args)]
+            packed = "(jbc_argument[]){" + ", ".join(values) + "}" if values else "NULL"
+            self.has_indirect_call = True
+            self.emit(f"jbc_call_indirect({name}, {kind_string(kinds)}, {packed}, {self.location(opening)});")
+            return
         target = self.subroutine_name()
         args, kinds = self.call_arguments()
         self.calls.append((target, kinds, False))
@@ -1813,6 +1830,49 @@ def routine_signature(name, kinds, is_function):
     return f"void {routine_symbol(name)}({', '.join(params) or 'void'})"
 
 
+def argument_fields(kinds):
+    return ["matrix" if matrix else "scalar" for matrix in kinds]
+
+
+def kind_string(kinds):
+    return c_string("".join("M" if matrix else "S" for matrix in kinds))
+
+
+def render_indirect_calls(units):
+    if not any(unit.has_indirect_call for unit in units):
+        return ""
+    lines = [
+        "typedef union { jbc_variable *scalar; jbc_matrix matrix; } jbc_argument;",
+        "static void jbc_call_indirect(const char *name, const char *kinds, const jbc_argument *args,",
+        "                              const char *file, int line, int column)",
+        "{",
+        "    (void)kinds;",
+        "    (void)args;",
+        '    const char *message = "unknown subroutine";',
+    ]
+    for unit in units:
+        if not unit.routine or unit.is_function:
+            continue
+        name = unit.routine.word
+        kinds = tuple(unit.formals.values())
+        args = ", ".join(f"args[{i}].{field}" for i, field in enumerate(argument_fields(kinds)))
+        lines.extend([
+            f"    if (strcmp(name, {c_string(name)}) == 0) {{",
+            f"        if (strcmp(kinds, {kind_string(kinds)}) == 0) {{",
+            f"            {routine_symbol(name)}({args});",
+            "            return;",
+            "        }",
+            '        message = "incompatible arguments for subroutine";',
+            "    }",
+        ])
+    lines.extend([
+        """    fprintf(stderr, "%s:%d:%d: %s '%s'\\n", file, line, column, message, name);""",
+        "    exit(EXIT_FAILURE);",
+        "}",
+    ])
+    return "\n".join(lines)
+
+
 def compile_unit(path, directories, index=0):
     unit = Compiler(path, index)
     unit.parse(list(Preprocessor(directories).read(path)))
@@ -1854,6 +1914,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=()):
                 unit.error(f"scalar/MAT argument mismatch for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
+    prototypes.append(render_indirect_calls(units))
     features = runtime_features(units)
     return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts) for u in units])
 
