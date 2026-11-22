@@ -325,5 +325,13 @@ C99 checking, including all 9,804 previous passes. Of the 277 units
 previously stopped at FMT, 105 now pass and 172 reach another diagnostic.
 Other mask forms still need runtime support.
 
-- [ ] Implement ABS, the first blocker in 172 units. Cover negative decimal
+- [x] Implement ABS, the first blocker in 172 units. Cover negative decimal
   values, zero, and numeric strings in native execution tests.
+
+After ABS, 10,062 of 17,336 candidates pass strict C99 checking, including
+all 9,926 previous passes. Of the 172 units previously stopped at the
+opening parenthesis of ABS, 104 now pass and 68 reach another diagnostic.
+
+- [ ] Implement SUM, the first blocker in 168 units. Test the guide’s
+  dynamic-array examples for fields, values and subvalues, including
+  how SUM preserves higher-level marks and ignores nonnumeric elements.

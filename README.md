@@ -59,6 +59,11 @@ boundaries reclaim temporary values that are no longer in use. Integer addition,
 overflow. Division and fractional arithmetic use native long double,
 rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
 
+ABS returns the magnitude of a numeric expression. For example,
+`ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
+preserving their significant digits, and truncates the result when an
+explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
+
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END and start its alternative with END ELSE.
 The system constants `@TRUE` and `@FALSE` evaluate to 1 and 0.

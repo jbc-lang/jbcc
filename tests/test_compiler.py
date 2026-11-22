@@ -41,7 +41,7 @@ class CompilerTest(unittest.TestCase):
         source = self.work / 'invalid.b'
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
                                   ('CRT 1 +\n', ':1:8:'),
-                                  ('CRT ABS(3)\n', ':1:5:'),
+                                  ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('FOR I = 1 TO 2\nNEXT J\n', ':2:6:'),
                                   ('LOOP WHILE 0\n', ':1:1:'),
                                   ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
@@ -218,6 +218,17 @@ class CompilerTest(unittest.TestCase):
         result = subprocess.run([CLI, main, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
+
+    def test_abs_diagnostics(self):
+        source = self.work / 'abs.b'
+        source.write_text("PRINT ABS('text')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:7: ABS requires a numeric value".encode(), run.stderr)
+        source.write_text("PRINT ABS(1,2)\n")
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:7: wrong argument count for 'ABS'", run.stderr)
 
     def test_fmt_diagnostics(self):
         source = self.work / 'fmt.b'

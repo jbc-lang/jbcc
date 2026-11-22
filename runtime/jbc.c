@@ -749,6 +749,16 @@ static const char *fmt_decimal(struct decimal n, size_t places)
     return out;
 }
 
+const char *jbc_abs(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n))
+        numeric_error(file, line, column, "ABS requires a numeric value");
+    limit_places(&n, jbc_precision);
+    n.sign = 1;
+    return fmt_decimal(n, n.places);
+}
+
 const char *jbc_negate(const char *value, const char *file, int line, int column)
 {
     struct decimal n;
