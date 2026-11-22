@@ -834,6 +834,22 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
 
+    def test_readu(self):
+        run = self.run_native(ROOT / 'tests/io/readu.b', ROOT / 'tests/io/reopen.b',
+                              options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'128\t2\n0\nfirst\t2\nown lock\n0\n0\t2\n0\n0\n0\n'
+                                     b'0\t-2\nbusy\t-2\tkept\nerror\t32768\n'
+                                     b'write conflict\t32768\ndelete conflict\t32768\n-2\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_readu_unhandled_fixture_conflict(self):
+        source = self.work / 'locked.b'
+        source.write_text("OPEN 'F' ELSE STOP\nREADU R FROM 'busy' ELSE STOP\n")
+        run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:2:1: READU cannot wait for a simulated foreign lock'.encode(), run.stderr)
+
     def test_readv(self):
         run = self.run_native(ROOT / 'tests/io/readv.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)

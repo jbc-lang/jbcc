@@ -539,6 +539,28 @@ temporary cleanup.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
 [WRITE](https://jbc-lang.org/pages/write.html).
 
+READU acquires an update lock on a key in an explicit or default file.
+An existing record takes THEN. A missing record takes ELSE and keeps the
+lock so the caller can create it. Re-reading an owned key succeeds if the
+record exists. In the test backend, SETTING receives the empty string on
+success, 128 for a missing key, and 32768 for an invalid descriptor.
+ON ERROR handles the invalid descriptor.
+
+Use `--memory-file F --memory-lock F busy` to simulate another process
+holding an update lock on the key `busy`. READU takes LOCKED, preserves
+the destination and sets SETTING to -2 in this backend. A fixture lock is
+permanent for the run. A conflicting READU without LOCKED reports its
+source location. Timed WAIT and cross-process synchronization are outside
+the in-memory backend.
+
+RECORDLOCKED returns 2 for an owned update lock, -2 for a simulated
+foreign lock, and 0 for an unlocked key. WRITE, MATWRITE and DELETE
+release an owned lock on the affected key. Use `RELEASE F, Key` or
+`RELEASE Key` for a single key, or bare `RELEASE` for all owned locks.
+Returning from a routine that opened a file into a local variable
+releases that process’s locks on the file. [READU](https://jbc-lang.org/pages/readu.html),
+[RELEASE](https://jbc-lang.org/pages/release.html), [RECORDLOCKED](https://jbc-lang.org/pages/recordlocked.html).
+
 DELETE removes a record by key. `DELETE F, Key` uses the descriptor F.
 `OPEN Name ELSE ...` sets the default descriptor for `DELETE Key`. A
 missing record counts as success. In this backend, `SETTING Code` receives

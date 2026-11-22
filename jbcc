@@ -27,7 +27,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7})
 
 
-BUILTINS = {"ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ICONV": (2,), "OCONV": (2,), "TRIM": (1, 2, 3), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "NEG": (1,), "MOD": (2,), "SUM": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "LEFT": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"RECORDLOCKED": (2,), "ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ICONV": (2,), "OCONV": (2,), "TRIM": (1, 2, 3), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "NEG": (1,), "MOD": (2,), "SUM": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "LEFT": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 SYSTEM_CONSTANTS = {
@@ -298,6 +298,7 @@ class Compiler:
         self.targets = {}
         self.calls = []
         self.has_indirect_call = False
+        self.opens_local_files = False
         self.references = []
         self.return_targets = {}
         self.gosub_sites = {}
@@ -808,10 +809,7 @@ class Compiler:
         self.advance()
         handle = "jbc_default_file.value"
         if opening.word == 'DELETE':
-            key = self.expression()
-            if self.word == ',':
-                self.advance()
-                handle, key = key, self.expression()
+            handle, key = self.file_key()
             operation = f"jbc_delete_record({handle}, {key}, "
         else:
             if self.word not in OUTPUT_END and self.word not in ('', 'SETTING', 'ON'):
@@ -878,11 +876,7 @@ class Compiler:
             self.advance()
         else:
             self.expect('FROM')
-        key = self.expression()
-        handle = "jbc_default_file.value"
-        if self.word == ',':
-            self.advance()
-            handle, key = key, self.expression()
+        handle, key = self.file_key()
         setting = self.file_setting()
         args = f"{handle}, {key}, {matrix.base}, {matrix.rank}, {matrix.limits}"
         if not writing:
@@ -908,23 +902,58 @@ class Compiler:
         else:
             self.emit(f"{call};")
 
+    def file_key(self):
+        key = self.expression()
+        if self.word == ',':
+            self.advance()
+            return key, self.expression()
+        return "jbc_default_file.value", key
+
+    def readu_statement(self):
+        opening = self.current
+        self.advance()
+        target = self.identifier()
+        out = self.variable_slot(target)
+        self.expect('FROM')
+        handle, key = self.file_key()
+        setting = self.file_setting()
+        if self.word == 'WAIT':
+            self.error("READU WAIT requires a backend with timed locks")
+        status = f"readu_status_{self.temporaries}"
+        self.temporaries += 1
+        self.emit(f"int {status} = jbc_readu({handle}, {key}, &{out}, {setting});")
+        self.assigned.add(target.word)
+        self.record_read_arms(opening, status)
+
     def record_read_arms(self, opening, status):
+        before = self.assigned.copy()
+        branches = []
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
-            self.emit(f"if ({status} != 0 && {status} != 128) {{")
-            before = self.assigned.copy()
+            self.emit(f"if ({status} > 128) {{")
             self.clause(opening, {'LOCKED', 'THEN', 'ELSE', '\n'})
-            error_arm = self.assigned
-            self.assigned = before
+            branches.append(self.assigned)
+            self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
-            self.conditional_arms(opening, f"!{status}")
+        if opening.word == 'READU':
+            if self.word == 'LOCKED':
+                self.advance()
+                self.emit(f"if ({status} == JBC_LOCKED) {{")
+                self.clause(opening, {'THEN', 'ELSE', '\n'})
+                branches.append(self.assigned)
+                self.assigned = before.copy()
+                self.emit("} else {")
+                self.depth += 1
+            else:
+                self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
+                          '"READU cannot wait for a simulated foreign lock");')
+        self.conditional_arms(opening, f"!{status}")
+        for branch in reversed(branches):
             self.depth -= 1
             self.emit("}")
-            self.assigned &= error_arm
-        else:
-            self.conditional_arms(opening, f"!{status}")
+            self.assigned &= branch
 
     def select_list(self, keyword):
         if self.word != keyword:
@@ -995,13 +1024,17 @@ class Compiler:
                 section = self.temporary(name)
                 name = self.expression()
             slot = 'jbc_default_file'
+            scope = 'NULL'
             if self.word == 'TO':
                 self.advance()
                 if self.word not in ('THEN', 'ELSE'):
                     target = self.identifier().word
                     slot = self.variable(target)
                     self.assigned.add(target)
-            call = f"jbc_open_file({section}, {name}, &{slot})"
+                    if self.routine and target not in self.formals and target not in self.common_scalars:
+                        self.opens_local_files = True
+                        scope = '&frame->opened_files'
+            call = f"jbc_open_file({section}, {name}, &{slot}, {scope})"
         else:
             if op == 'READ':
                 target = self.identifier().word
@@ -1587,6 +1620,14 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.delete_or_clearfile_statement()
+        elif (self.word == 'RELEASE' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+            self.advance()
+            handle, key = ("NULL", "NULL") if self.word in OUTPUT_END or not self.word else self.file_key()
+            self.emit(f"jbc_release_lock({handle}, {key});")
+        elif (self.word == 'READU' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+            self.readu_statement()
         elif (self.word == 'READV' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
@@ -1741,9 +1782,11 @@ class Compiler:
             return "int main(void)"
         return routine_signature(self.routine.word, self.formals.values(), self.is_function)
 
-    def render(self, memory_files=(), memory_dicts=()):
+    def render(self, memory_files=(), memory_dicts=(), memory_locks=()):
         u = self.unit
         fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
+        if self.opens_local_files:
+            fields.append("struct opened_file *opened_files;")
         if self.is_function:
             fields.append("const char *result;")
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
@@ -1802,9 +1845,13 @@ class Compiler:
             for section, names in (('', memory_files), ('DICT', memory_dicts)):
                 for name in names:
                     lines.append(f"    jbc_create_memory_file({c_string(section)}, {c_string(name)});")
+            for name, key in memory_locks:
+                lines.append(f"    jbc_seed_memory_lock({c_string(name)}, {c_string(key)});")
         if self.routine and self.sets_precision:
             lines.append("    int saved_precision = jbc_precision;")
         lines.append(f"    body_{u}(&frame, 0);")
+        if self.opens_local_files:
+            lines.append("    jbc_close_local_files(frame.opened_files);")
         if self.routine and self.sets_precision:
             lines.append("    jbc_precision = saved_precision;")
         if self.is_function:
@@ -1879,7 +1926,10 @@ def compile_unit(path, directories, index=0):
     return unit
 
 
-def compile_program(paths, directories, memory_files=(), memory_dicts=()):
+def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=()):
+    for name, _ in memory_locks:
+        if name not in memory_files:
+            raise Diagnostic(f"--memory-lock requires --memory-file {name}")
     units = []
     routines = {}
     programs = 0
@@ -1916,7 +1966,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=()):
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
     features = runtime_features(units)
-    return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts) for u in units])
+    return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
 
 
 def runtime_features(units):
@@ -1956,6 +2006,8 @@ def main():
                      help='provide an empty named file in the in-memory test backend (repeatable)')
     cli.add_argument('--memory-dict', dest='memory_dicts', action='append', default=[], metavar='NAME',
                      help='provide an empty dictionary section in the in-memory test backend (repeatable)')
+    cli.add_argument('--memory-lock', dest='memory_locks', action='append', nargs=2, default=[],
+                     metavar=('FILE', 'KEY'), help='simulate a foreign update lock on a registered memory file')
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
     cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
@@ -1963,7 +2015,7 @@ def main():
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts)
+        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts, args.memory_locks)
         if args.exe:
             build_executable(result, args.o)
             return 0

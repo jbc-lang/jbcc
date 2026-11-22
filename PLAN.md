@@ -771,7 +771,17 @@ After indirect CALL, 14,324 of 17,336 candidates pass strict C99
 checking, including all 14,026 previous passes. Of the 376 units blocked
 at the target variable, 298 now pass and 78 reach another diagnostic.
 
-- [ ] Implement READU for the in-memory file backend. It is the first
+- [x] Implement READU for the in-memory file backend. It is the first
   blocker in 187 units. Check the guide’s lock lifetime for existing and
   missing keys, and exercise the success, missing-record and lock-conflict
   branches with explicit and default file descriptors.
+
+After READU, RELEASE and RECORDLOCKED, 14,527 of 17,336 candidates
+pass strict C99 checking, including all 14,324 previous passes.
+Of the 187 files blocked at READU, 146 now pass and 41 reach another
+diagnostic. The in-memory backend uses a permanent foreign-lock fixture
+to test contention. Timed WAIT remains unsupported.
+
+- [ ] Implement MATREADU using the same update locks as READU. It is
+  the first blocker in 35 units. Check matrix contents and SETTING on
+  success, missing keys and lock conflicts, and test release by MATWRITE.

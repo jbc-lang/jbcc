@@ -1633,9 +1633,16 @@ struct memory_record {
     char *key, *value;
 };
 
+struct record_lock {
+    struct record_lock *next;
+    int foreign;
+    char key[];
+};
+
 struct memory_file {
     struct memory_file *next;
     struct memory_record *records, *last_read;
+    struct record_lock *locks;
     size_t serial;
     char list_token;
     const char *section;
@@ -1662,12 +1669,45 @@ static void clear_records(struct memory_file *file)
     }
 }
 
+/* A lock is keyed independently of record existence. NULL selects every key. */
+static void release_locks(struct memory_file *f, const char *key, int include_foreign)
+{
+    struct record_lock **link = &f->locks;
+    while (*link) {
+        struct record_lock *lock = *link;
+        if ((include_foreign || !lock->foreign) && (!key || strcmp(lock->key, key) == 0)) {
+            *link = lock->next;
+            free(lock);
+        } else {
+            link = &lock->next;
+        }
+    }
+}
+
+static struct record_lock *find_lock(struct memory_file *f, const char *key)
+{
+    for (struct record_lock *lock = f->locks; lock; lock = lock->next)
+        if (!strcmp(lock->key, key)) return lock;
+    return NULL;
+}
+
+static void add_lock(struct memory_file *f, const char *key, int foreign)
+{
+    struct record_lock *lock = malloc(sizeof *lock + strlen(key) + 1);
+    if (!lock) fail("out of memory");
+    lock->foreign = foreign;
+    strcpy(lock->key, key);
+    lock->next = f->locks;
+    f->locks = lock;
+}
+
 static void free_files(void)
 {
     while (files) {
         struct memory_file *file = files;
         files = file->next;
         clear_records(file);
+        release_locks(file, NULL, 1);
         free(file);
     }
 }
@@ -1698,9 +1738,43 @@ void jbc_create_memory_file(const char *section, const char *name)
     files = f;
 }
 
-int jbc_open_file(const char *section, const char *name, jbc_variable *out)
+void jbc_seed_memory_lock(const char *name, const char *key)
+{
+    struct memory_file *f = find_memory_file("", name);
+    if (!f) fail("memory lock requires a registered data file");
+    if (!find_lock(f, key)) add_lock(f, key, 1);
+}
+
+struct opened_file {
+    struct opened_file *next;
+    struct memory_file *file;
+};
+
+static void remember_open(struct opened_file **scope, struct memory_file *f)
+{
+    for (struct opened_file *p = *scope; p; p = p->next)
+        if (p->file == f) return;
+    struct opened_file *p = malloc(sizeof *p);
+    if (!p) fail("out of memory");
+    p->file = f;
+    p->next = *scope;
+    *scope = p;
+}
+
+void jbc_close_local_files(struct opened_file *scope)
+{
+    while (scope) {
+        struct opened_file *next = scope->next;
+        release_locks(scope->file, NULL, 0);
+        free(scope);
+        scope = next;
+    }
+}
+
+int jbc_open_file(const char *section, const char *name, jbc_variable *out, struct opened_file **scope)
 {
     struct memory_file *f = find_memory_file(section, name);
+    if (f && scope) remember_open(scope, f);
     assign_value(out, f ? f->name : "");
     return f != NULL;
 }
@@ -1796,7 +1870,14 @@ int jbc_clear_file(const char *handle, jbc_variable *setting)
     struct memory_file *file = file_for(handle);
     if (setting) assign_value(setting, file ? "" : "128");
     if (!file) return 0;
+    for (struct record_lock *lock = file->locks; lock; lock = lock->next) {
+        if (lock->foreign) {
+            if (setting) assign_value(setting, "32768");
+            return 0;
+        }
+    }
     clear_records(file);
+    release_locks(file, NULL, 0);
     return 1;
 }
 
@@ -1805,6 +1886,12 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
     struct memory_file *f = file_for(handle);
     if (setting) assign_value(setting, f ? "0" : "128");
     if (!f) return 0;
+    struct record_lock *lock = find_lock(f, key);
+    if (lock && lock->foreign) {
+        if (setting) assign_value(setting, "32768");
+        return 0;
+    }
+    release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
     if (*link) {
         struct memory_record *record = *link;
@@ -1825,6 +1912,46 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
     }
     assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
     return 1;
+}
+
+const char *jbc_recordlocked(const char *handle, const char *key)
+{
+    struct memory_file *f = file_for(handle);
+    struct record_lock *lock = f ? find_lock(f, key) : NULL;
+    return !lock ? "0" : lock->foreign ? "-2" : "2";
+}
+
+void jbc_release_lock(const char *handle, const char *key)
+{
+    if (key) {
+        struct memory_file *f = file_for(handle);
+        if (f) release_locks(f, key, 0);
+    } else {
+        for (struct memory_file *f = files; f; f = f->next)
+            release_locks(f, NULL, 0);
+    }
+}
+
+enum { JBC_LOCKED = -2 };
+
+int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
+{
+    struct memory_file *f = file_for(handle);
+    int status = 32768;
+    if (f) {
+        struct record_lock *lock = find_lock(f, key);
+        if (lock && lock->foreign) {
+            status = JBC_LOCKED;
+        } else {
+            if (!lock) add_lock(f, key, 0);
+            status = jbc_read_record(handle, key, out) ? 0 : 128;
+        }
+    } else {
+        assign_value(out, "");
+    }
+    if (setting) assign_value(setting, status == JBC_LOCKED ? "-2" :
+                              status == 128 ? "128" : status ? "32768" : "");
+    return status;
 }
 
 int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
@@ -1871,10 +1998,13 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     return record ? 0 : 128;
 }
 
-int jbc_write_record(const char *handle, const char *key, const char *value)
+static int write_record_status(const char *handle, const char *key, const char *value)
 {
     struct memory_file *f = file_for(handle);
-    if (!f) return 0;
+    if (!f) return 128;
+    struct record_lock *lock = find_lock(f, key);
+    if (lock && lock->foreign) return 32768;
+    if (lock) release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
     struct memory_record *r = *link;
     if (!r) {
@@ -1887,7 +2017,12 @@ int jbc_write_record(const char *handle, const char *key, const char *value)
     }
     free(r->value);
     r->value = record_copy(value);
-    return 1;
+    return 0;
+}
+
+int jbc_write_record(const char *handle, const char *key, const char *value)
+{
+    return write_record_status(handle, key, value) == 0;
 }
 
 int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, int rank,
@@ -1895,9 +2030,12 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
                  const char *file, int line, int column)
 {
     const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
-    int written = jbc_write_record(handle, key, record);
-    if (setting) assign_value(setting, written ? jbc_dcount(record, "\376") : "128");
-    return written ? 0 : 128;
+    int status = write_record_status(handle, key, record);
+    if (setting) {
+        const char *result = status == 128 ? "128" : "32768";
+        assign_value(setting, status ? result : jbc_dcount(record, "\376"));
+    }
+    return status;
 }
 
 const char *jbc_char(const char *value, const char *file, int line, int column)
