@@ -51,6 +51,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
+                                  ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),

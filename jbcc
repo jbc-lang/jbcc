@@ -386,8 +386,8 @@ class Compiler:
             if target.word not in self.matrices:
                 self.assignment_facts[value, assigned] = {target.word}
             return self.postfix(value, locate_source)
-        elif word == 'INSERT' and self.following.word == '(':
-            value = self.insert_function()
+        elif word in ('INSERT', 'REPLACE') and self.following.word == '(':
+            value = self.array_update_function()
             return self.postfix(value, locate_source)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
@@ -607,7 +607,7 @@ class Compiler:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
 
-    def insert_function(self):
+    def array_update_function(self):
         target = self.current
         self.advance()
         self.expect('(')
@@ -624,8 +624,9 @@ class Compiler:
         value = self.expression()
         self.expect(')')
         positions = ", ".join(indices)
-        return self.temporary(f"jbc_insert({source}, {value}, (const char *[]){{{positions}}}, "
-                              f"{len(indices)}, {self.location(target)})")
+        inserting = int(target.word == 'INSERT')
+        return self.temporary(f"jbc_update_array({source}, {value}, (const char *[]){{{positions}}}, "
+                              f"{len(indices)}, {inserting}, {self.location(target)})")
 
     def ins_statement(self):
         self.advance()

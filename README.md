@@ -312,6 +312,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   can also be a comma, as in `INSERT(R, field, value, 0, X)` in T24.
   Both forms follow the reference parser’s `insert_delims` rule and use
   the same index handling as INS. [INSERT](https://jbc-lang.org/pages/insert.html)
+- `REPLACE(R, field, value; X)` returns a copy with X in the selected
+  position. The source and neighboring elements keep their values. An empty
+  replacement clears the selected component and preserves its position.
+  REPLACE shares INSERT’s argument forms and index handling, including the
+  five-argument comma form used by T24. [REPLACE](https://jbc-lang.org/pages/replace.html)
 - `DEL R<field[,value[,subvalue]]>` removes the selected component and
   closes the gap between its siblings. The target can be an assigned scalar
   or a matrix element. Fractional positions truncate toward zero. A missing

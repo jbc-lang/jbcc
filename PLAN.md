@@ -542,7 +542,16 @@ including all 11,497 previous passes. Of the 94 units whose first
 diagnostic pointed at an INSERT call’s opening parenthesis, 54 now
 pass and 40 reach another diagnostic.
 
-- [ ] Implement REPLACE, the first diagnostic at a function call’s opening
+- [x] Implement REPLACE, the first diagnostic at a function call’s opening
   parenthesis in 20 units. Use the guide’s value replacement example to
   verify the returned array, preservation of the source, and preservation
   of neighboring elements. Check argument forms against the reference parser.
+
+After REPLACE, 11,572 of 17,336 candidates pass strict C99 checking,
+including all 11,556 previous passes. Of the 20 units previously blocked
+at a REPLACE call, 16 now pass and four reach another diagnostic.
+
+- [ ] Implement UPCASE, DOWNCASE and the LOWCASE alias in the current
+  byte-oriented runtime. Test ASCII letters, punctuation and array marks.
+  Calls to these functions are the first diagnostic in 60, seven and two
+  units respectively.
