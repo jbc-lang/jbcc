@@ -400,6 +400,15 @@ takes ELSE. Omitting `F,` uses the default descriptor. The in-memory backend
 supports ON ERROR with the same status handling as READV. Record locking
 remains outside this backend. [MATREAD](https://jbc-lang.org/pages/matread.html).
 
+MATWRITE joins the initialized, one-based elements of a matrix with field
+marks and writes the resulting record. `MATWRITE A TO F, Key` writes to
+an explicit descriptor. `MATWRITE A ON Key` uses the default descriptor.
+The last subscript varies fastest. jbcc interprets a successful `SETTING`
+as the field count of the serialized record, including embedded and trailing
+field marks. An empty record counts as zero. An invalid descriptor yields
+128 and skips the optional `ON ERROR` arm, as specified by the guide.
+[MATWRITE](https://jbc-lang.org/pages/matwrite.html).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

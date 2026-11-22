@@ -574,6 +574,19 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:22: MATREAD LOCKED requires a locking file backend", run.stderr)
 
+    def test_matwrite(self):
+        run = self.run_native(ROOT / 'tests/io/matwrite.b',
+                              options=['--memory-file', 'EXPLICIT', '--memory-file', 'DEFAULT'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'6\tfirst||left/right|four|five|\n4\n6\tfirst\t0\tright\tfour|five|\n'
+                                     b'new\tnew\n128\nnew|new|new|new\n0\n')
+        self.assertEqual(run.stderr, b'')
+        source = self.work / 'matwrite.b'
+        source.write_text("DIM A(2)\nOPEN 'F' TO F ELSE STOP\nA(1) = 42\nMATWRITE A ON F,'id'\n")
+        run = self.run_native(source, options=['--memory-file', 'F'])
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:4:1: unassigned element 2 in matrix 'A'".encode(), run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

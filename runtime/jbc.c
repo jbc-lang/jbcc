@@ -1498,6 +1498,16 @@ int jbc_write_record(const char *handle, const char *key, const char *value)
     return 1;
 }
 
+int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, int rank,
+                 const int *bounds, jbc_variable *setting, const char *name,
+                 const char *file, int line, int column)
+{
+    const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
+    int written = jbc_write_record(handle, key, record);
+    if (setting) assign_value(setting, written ? jbc_dcount(record, "\376") : "128");
+    return written ? 0 : 128;
+}
+
 const char *jbc_char(const char *value, const char *file, int line, int column)
 {
     struct decimal n;

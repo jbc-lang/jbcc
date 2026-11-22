@@ -441,6 +441,14 @@ After MATREAD, 11,002 of 17,336 candidates pass strict C99 checking,
 including all 10,980 previous passes. Of the 71 units previously stopped
 at MATREAD, 22 now pass and 49 reach another diagnostic.
 
-- [ ] Implement MATWRITE for the in-memory backend, the first blocker
+- [x] Implement MATWRITE for the in-memory backend, the first blocker
   in 46 units. Verify matrix element order, SETTING, and a round trip
   through MATWRITE and MATREAD using explicit and default descriptors.
+
+After MATWRITE, 11,015 of 17,336 candidates pass strict C99 checking,
+including all 11,002 previous passes. Of the 46 units previously stopped
+at MATWRITE, 13 now pass and 33 reach another diagnostic.
+
+- [ ] Implement file SELECT and READNEXT for the in-memory backend,
+  currently the first blockers in 124 and 10 units respectively.
+  Verify iteration over record keys, empty files and list exhaustion.

@@ -749,22 +749,47 @@ class Compiler:
         self.assigned.add(target.word)
         self.record_read_arms(opening, status)
 
-    def matread_statement(self):
+    def matrix_file_statement(self):
         opening = self.current
         self.advance()
-        matrix = self.checked_matrix(self.matrix_name())
-        self.expect('FROM')
+        target = self.matrix_name()
+        matrix = self.checked_matrix(target)
+        writing = opening.word == 'MATWRITE'
+        if writing:
+            if self.word not in ('TO', 'ON'):
+                self.error("expected TO or ON after MATWRITE matrix")
+            self.advance()
+        else:
+            self.expect('FROM')
         key = self.expression()
         handle = "jbc_default_file.value"
         if self.word == ',':
             self.advance()
             handle, key = key, self.expression()
         setting = self.file_setting()
-        status = f"matread_status_{self.temporaries}"
-        self.temporaries += 1
-        self.emit(f"int {status} = jbc_matread({handle}, {key}, {matrix.base}, "
-                  f"{matrix.rank}, {matrix.limits}, {matrix.count}, {setting});")
-        self.record_read_arms(opening, status)
+        args = f"{handle}, {key}, {matrix.base}, {matrix.rank}, {matrix.limits}"
+        if not writing:
+            status = f"matread_status_{self.temporaries}"
+            self.temporaries += 1
+            self.emit(f"int {status} = jbc_matread({args}, {matrix.count}, {setting});")
+            self.record_read_arms(opening, status)
+            return
+        call = f"jbc_matwrite({args}, {setting}, {c_string(target.word)}, {self.location(opening)})"
+        if self.word == 'ON':
+            self.advance()
+            self.expect('ERROR')
+            status = f"matwrite_status_{self.temporaries}"
+            self.temporaries += 1
+            self.emit(f"int {status} = {call};")
+            self.emit(f"if ({status} != 0 && {status} != 128) {{")
+            before = self.assigned.copy()
+            self.clause(opening)
+            self.assigned &= before
+            self.emit("}")
+        elif setting == "NULL":
+            self.emit(f'if ({call}) numeric_error({self.location(opening)}, "MATWRITE failed");')
+        else:
+            self.emit(f"{call};")
 
     def record_read_arms(self, opening, status):
         if self.word == 'ON':
@@ -1257,10 +1282,10 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'MATPARSE':
             self.matparse_statement()
-        elif (self.word == 'MATREAD' and self.word not in self.matrices
+        elif (self.word in ('MATREAD', 'MATWRITE') and self.word not in self.matrices
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
-            self.matread_statement()
+            self.matrix_file_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
         elif self.word == 'CONVERT' or (self.word == 'CHANGE' and self.word not in self.matrices
