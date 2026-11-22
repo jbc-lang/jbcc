@@ -250,6 +250,8 @@ RETURN
                                   ("CRT NEG(1, 2)\n", ":1:5: wrong argument count for 'NEG'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
+                                  ('CLOSE\n', ':1:6: expected a name'),
+                                  ('CLOSE F,G ON ERROR NULL\n', ":1:11: unexpected 'ON'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
@@ -1138,6 +1140,24 @@ CLOSESEQ F
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'0\nAda\nupdated\nGrace\n128\ndefault cleared\n'
                          b'128\ndescriptor cleared\nno dictionary\n')
+
+    def test_record_file_close(self):
+        result = self.run_native(ROOT / 'tests/io/close.b', options=[
+            '--memory-file', 'F', '--memory-file', 'G', '--memory-lock', 'F', 'foreign'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'0\t0\t2\t-2\nsaved\n0\t0\t0\nalready closed\nordinary\nsaved\n1\n')
+
+    def test_close_by_reference_retires_local_cleanup(self):
+        main = self.work / 'main.b'
+        opener = self.work / 'opener.b'
+        closer = self.work / 'closer.b'
+        main.write_text("OPEN 'F' TO F ELSE STOP\nCALL OPENER(F)\nCRT RECORDLOCKED(F,'id')\n")
+        opener.write_text("SUBROUTINE OPENER(F)\nOPEN 'F' TO LOCAL ELSE STOP\n"
+                          "CALL CLOSER(LOCAL)\nREADU R FROM F,'id' ELSE NULL\nRETURN\n")
+        closer.write_text("SUBROUTINE CLOSER(F)\nCLOSE F\nRETURN\n")
+        result = self.run_native(main, opener, closer, options=['--memory-file', 'F'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'2\n')
 
     def test_open_sections(self):
         run = self.run_native(ROOT / 'tests/io/open-sections.b',

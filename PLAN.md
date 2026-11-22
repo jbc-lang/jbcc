@@ -1115,6 +1115,17 @@ pass still passes. Two of those units now reach CLOSE. Native fixtures
 check the record backend’s size, name and type, and compare sequential
 metadata with the host file before and after reading to EOF.
 
-- [ ] Implement CLOSE for record files, the first diagnostic in 12
+- [x] Implement CLOSE for record files, the first diagnostic in 12
   candidates. Verify default and explicit descriptors, lock release,
   and reopening a file with its records intact.
+
+After CLOSE, 15,474 of 17,336 candidates pass strict C99 checking.
+Nine of the 12 formerly blocked units now pass, including SYSTEM.RESTORE
+and both AM.REP routines. All 15,465 previous passes still pass. The
+reference grammar requires a named descriptor. Native tests verify
+that closing it leaves the default descriptor usable and that later
+routine cleanup preserves locks acquired after an explicit close.
+
+- [ ] Implement GETENV(name, variable). EBS.CREATE.FILE now reaches it
+  after CLOSE. Verify the Boolean result and the output variable for
+  present, empty and missing environment variables in a native subprocess.

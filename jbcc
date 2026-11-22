@@ -1160,6 +1160,29 @@ class Compiler:
         self.assigned.add(key.word)
         return f"jbc_readnext({source}, &{out}, {mv}, {setting}, {self.location(opening)})"
 
+    def close_statement(self):
+        opening = self.current
+        self.advance()
+        multiple = False
+        while True:
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            call = f'jbc_close_file(&{slot})'
+            if not multiple and self.word == 'ON':
+                self.advance()
+                self.expect('ERROR')
+                self.emit(f'if (!{call}) {{')
+                before = self.assigned.copy()
+                self.clause(opening)
+                self.assigned &= before
+                self.emit("}")
+                return
+            self.emit(f'if (!{call}) numeric_error({self.location(target)}, "CLOSE requires an open record file");')
+            if self.word != ',':
+                return
+            self.advance()
+            multiple = True
+
     def status_statement(self):
         opening = self.current
         self.advance()
@@ -1196,7 +1219,7 @@ class Compiler:
                 if (self.routine and target.word not in self.formals and target.word not in self.common_scalars
                         and not (matrix and matrix.common)):
                     self.opens_local_files = True
-                    scope = '&frame->opened_files'
+                    scope = 'frame'
         setting = self.file_setting()
         status = f'open_status_{self.temporaries}'
         self.temporaries += 1
@@ -1901,6 +1924,9 @@ class Compiler:
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open')):
             self.open_statement()
+        elif (self.word == 'CLOSE' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+            self.close_statement()
         elif (self.word == 'STATUS' and self.following.kind == 'name'
               and self.word not in self.matrices):
             self.status_statement()
@@ -2121,8 +2147,6 @@ class Compiler:
     def render(self, memory_files=(), memory_dicts=(), memory_locks=()):
         u = self.unit
         fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
-        if self.opens_local_files:
-            fields.append("struct opened_file *opened_files;")
         if self.is_function:
             fields.append("const char *result;")
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
@@ -2192,7 +2216,7 @@ class Compiler:
             lines.extend(["#ifdef JBC_SEQUENTIAL", "    ++seq_depth;", "#endif"])
         lines.append(f"    body_{u}(&frame, 0);")
         if self.opens_local_files:
-            lines.append("    jbc_close_local_files(frame.opened_files);")
+            lines.append("    jbc_close_local_files(&frame);")
         if self.routine and self.sets_precision:
             lines.append("    jbc_precision = saved_precision;")
         if self.is_function:

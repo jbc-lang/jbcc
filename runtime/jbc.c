@@ -2130,37 +2130,45 @@ void jbc_seed_memory_lock(const char *name, const char *key)
     if (!find_lock(f, key)) add_lock(f, key, 1);
 }
 
+/* A descriptor can be closed through a reference argument in a nested call.
+   Track its slot as well as its opening frame to retire that cleanup entry. */
 struct opened_file {
     struct opened_file *next;
     struct memory_file *file;
+    const void *scope;
+    jbc_variable *slot;
 };
 
-static void remember_open(struct opened_file **scope, struct memory_file *f)
+static struct opened_file *local_opens;
+
+static void remember_open(const void *scope, jbc_variable *slot, struct memory_file *f)
 {
-    for (struct opened_file *p = *scope; p; p = p->next)
-        if (p->file == f) return;
+    for (struct opened_file *p = local_opens; p; p = p->next)
+        if (p->scope == scope && p->slot == slot && p->file == f) return;
     struct opened_file *p = malloc(sizeof *p);
     if (!p) fail("out of memory");
-    p->file = f;
-    p->next = *scope;
-    *scope = p;
+    *p = (struct opened_file){local_opens, f, scope, slot};
+    local_opens = p;
 }
 
-void jbc_close_local_files(struct opened_file *scope)
+void jbc_close_local_files(const void *scope)
 {
-    while (scope) {
-        struct opened_file *next = scope->next;
-        release_locks(scope->file, NULL, 0);
-        free(scope);
-        scope = next;
+    struct opened_file **link = &local_opens;
+    while (*link) {
+        struct opened_file *p = *link;
+        if (p->scope == scope) {
+            release_locks(p->file, NULL, 0);
+            *link = p->next;
+            free(p);
+        } else link = &p->next;
     }
 }
 
-int jbc_open_file(const char *section, const char *name, jbc_variable *out, struct opened_file **scope,
+int jbc_open_file(const char *section, const char *name, jbc_variable *out, const void *scope,
                   jbc_variable *setting)
 {
     struct memory_file *f = find_memory_file(section, name);
-    if (f && scope) remember_open(scope, f);
+    if (f && scope) remember_open(scope, out, f);
     assign_value(out, f ? f->name : "");
     if (setting) assign_value(setting, f ? "0" : "128");
     return f ? 0 : 128;
@@ -2171,6 +2179,25 @@ static struct memory_file *file_for(const char *handle)
     for (struct memory_file *f = files; f; f = f->next)
         if (f->name == handle) return f;
     return NULL;
+}
+
+int jbc_close_file(jbc_variable *slot)
+{
+    struct memory_file *f = file_for(slot->value);
+    if (!f) return 0;
+    struct opened_file **link = &local_opens;
+    while (*link) {
+        struct opened_file *p = *link;
+        if (p->slot == slot && p->file == f) {
+            *link = p->next;
+            free(p);
+            break;
+        }
+        link = &p->next;
+    }
+    release_locks(f, NULL, 0);
+    assign_value(slot, NULL);
+    return 1;
 }
 
 /* Each cursor stores its last record serial, so deletion cannot leave it

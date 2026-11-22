@@ -848,6 +848,21 @@ temporary cleanup.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
 [WRITE](https://jbc-lang.org/pages/write.html).
 
+`CLOSE F` unassigns the named record descriptor, so `ASSIGNED(F)`
+returns 0. `CLOSE F,G` processes the variables from left to right. A
+single descriptor accepts `ON ERROR`; an unhandled invalid descriptor
+produces a source-located runtime error. The reference grammar requires
+a variable. Other variables and the default descriptor can still access
+the same records, and reopening the file preserves its contents.
+[CLOSE](https://jbc-lang.org/pages/close.html).
+
+The memory backend releases the program’s locks on that file at each
+explicit close, even if it has another descriptor for the file. Simulated
+foreign locks survive. Closing a local descriptor through a reference
+argument also cancels its pending cleanup when the opening routine returns.
+Lock lifetime varies by jBASE version and configuration.
+[jBASE record locking](https://static.zumasys.com/jbase/r99/knowledgebase/howto/general/common/RecordLocking.htm).
+
 READU acquires an update lock on a key in an explicit or default file.
 An existing record takes THEN. A missing record takes ELSE and keeps the
 lock so the caller can create it. Re-reading an owned key succeeds if the
