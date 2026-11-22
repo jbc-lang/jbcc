@@ -393,6 +393,14 @@ After CHANGE, 10,553 of 17,336 candidates pass strict C99 checking,
 including all 10,451 previous passes. Of the 161 units previously stopped
 at CHANGE, 101 now pass and 60 reach another diagnostic.
 
-- [ ] Implement FIND, the first blocker in 128 units. Test exact matches,
+- [x] Implement FIND, the first blocker in 128 units. Test exact matches,
   occurrence selection, field/value/subvalue positions, and THEN/ELSE
   behavior against the guide’s dynamic-array examples.
+
+After FIND, 10,639 of 17,336 candidates pass strict C99 checking,
+including all 10,553 previous passes. Of the 128 units previously stopped
+at FIND, 86 now pass and 42 reach another diagnostic.
+
+- [ ] Implement FINDSTR, the first blocker in 133 units. Verify substring
+  matches within an element, occurrence selection and SETTING positions
+  against the guide.

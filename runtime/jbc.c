@@ -706,6 +706,34 @@ static int compare_right(const char *a, const char *b)
     return strcmp(a, b);
 }
 
+int jbc_find(const char *needle, const char *source, const char *occurrence,
+             jbc_variable *field, jbc_variable *value, jbc_variable *subvalue,
+             const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(occurrence, &n) || n.places || n.sign <= 0)
+        numeric_error(file, line, column, "FIND occurrence must be a positive integer");
+    int64_t remaining = integer(occurrence, file, line, column);
+    size_t f = 1, v = 1, s = 1;
+    size_t length = strlen(needle);
+    for (;;) {
+        size_t bytes = strcspn(source, "\376\375\374");
+        if (bytes == length && memcmp(source, needle, bytes) == 0 && --remaining == 0) {
+            assign_value(field, size_value(f));
+            if (value) assign_value(value, size_value(v));
+            if (subvalue) assign_value(subvalue, size_value(s));
+            return 1;
+        }
+        switch ((unsigned char)source[bytes]) {
+            case 254: ++f; v = 1; s = 1; break;
+            case 253: ++v; s = 1; break;
+            case 252: ++s; break;
+            default: return 0;
+        }
+        source += bytes + 1;
+    }
+}
+
 int jbc_locate(const char *needle, const char *source, int mark, const char *start,
                const char *order, jbc_variable *position, const char *file, int line, int column)
 {

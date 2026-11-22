@@ -301,6 +301,20 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
+    def test_find_diagnostics(self):
+        source = self.work / 'find.b'
+        for line, error in [("FIND 'a' IN 'a' SETTING F,V,S,X THEN NULL",
+                             "1:30: FIND accepts at most three SETTING variables"),
+                            ("FIND 'a' IN 'a' SETTING F", "1:26: expected THEN or ELSE")]:
+            source.write_text(line + '\n')
+            run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(f"{source}:{error}", run.stderr)
+        source.write_text("FIND 'a' IN 'a',0 SETTING F THEN PRINT F\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:1: FIND occurrence must be a positive integer".encode(), run.stderr)
+
     def test_change_diagnostics(self):
         source = self.work / 'change.b'
         for program, error in [("CHANGE 'x' TO 'y' IN Missing", "1:22: unassigned variable 'Missing'"),

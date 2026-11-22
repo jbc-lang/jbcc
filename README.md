@@ -367,6 +367,14 @@ ON ERROR remain outside this test backend.
 
 ## Search a dynamic array
 
+`FIND key IN record, occurrence SETTING field,value,subvalue` searches
+for a byte-for-byte match in a dynamic array. Positions start at one.
+The occurrence defaults to one, and the value and subvalue outputs are
+optional. A match writes the positions and takes the THEN branch. On a
+miss, jbcc takes the ELSE branch and leaves the outputs as they were,
+following the guide’s examples with preassigned positions. Empty elements
+can match an empty key. [FIND](https://jbc-lang.org/pages/find.html).
+
 `LOCATE key IN record SETTING pos THEN ... ELSE ...` searches fields.
 Use `record<field>` to search values in a field and `record<field,value>`
 to search subvalues. An optional comma and starting position restrict the
