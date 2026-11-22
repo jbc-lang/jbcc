@@ -1518,10 +1518,17 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     return field;
 }
 
+const char *jbc_reuse_scalar(const char *value, const char *file, int line, int column)
+{
+    if (strpbrk(value, "\376\375\374"))
+        numeric_error(file, line, column, "REUSE in SPLICE requires a scalar");
+    return value;
+}
+
 /* Run once to size the result, then again to fill it. A side that reaches
    a higher-level mark waits while the other emits its remaining siblings. */
 static size_t splice_elements(const char *left, const char *separator, const char *right,
-                              char *out)
+                              int reuse_left, int reuse_right, char *out)
 {
     size_t used = 0, width = strlen(separator);
     int has_left = *left != '\0', has_right = *right != '\0';
@@ -1538,28 +1545,33 @@ static size_t splice_elements(const char *left, const char *separator, const cha
             }
             used += a + width + b;
         }
-        left += a;
-        right += b;
-        unsigned lm = *left ? (unsigned char)*left : 256;
-        unsigned rm = *right ? (unsigned char)*right : 256;
+        if (!reuse_left) left += a;
+        if (!reuse_right) right += b;
+        unsigned lm = !reuse_left && *left ? (unsigned char)*left : 256;
+        unsigned rm = !reuse_right && *right ? (unsigned char)*right : 256;
         unsigned mark = lm < rm ? lm : rm;
         if (mark == 256) return used;
         if (used == SIZE_MAX) fail("SPLICE result too large");
         if (out) out[used] = (char)mark;
         ++used;
-        has_left = lm == mark;
-        has_right = rm == mark;
-        if (has_left) ++left;
-        if (has_right) ++right;
+        if (!reuse_left) {
+            has_left = lm == mark;
+            if (has_left) ++left;
+        }
+        if (!reuse_right) {
+            has_right = rm == mark;
+            if (has_right) ++right;
+        }
     }
 }
 
-const char *jbc_splice(const char *left, const char *separator, const char *right)
+const char *jbc_splice(const char *left, const char *separator, const char *right,
+                       int reuse_left, int reuse_right)
 {
     if (!*separator || (!*left && !*right)) return "";
-    size_t length = splice_elements(left, separator, right, NULL);
+    size_t length = splice_elements(left, separator, right, reuse_left, reuse_right, NULL);
     char *out = allocate(length);
-    splice_elements(left, separator, right, out);
+    splice_elements(left, separator, right, reuse_left, reuse_right, out);
     out[length] = '\0';
     return out;
 }

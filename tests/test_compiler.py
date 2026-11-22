@@ -387,6 +387,21 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
 
+    def test_splice_reuse_scalar(self):
+        source = self.work / 'main.b'
+        bump = self.work / 'bump.b'
+        source.write_text("DEFFUN BUMP(N)\nN = 0\n"
+                          "CRT SPLICE(REUSE(BUMP(N)), ':', 'a':@FM:'b')\nCRT N\n")
+        bump.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        run = self.run_native(source, bump)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'1:a\xfe1:b\n1\n')
+
+        source.write_text("CRT SPLICE('x', ':', REUSE('a':@VM:'b'))\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:22: REUSE in SPLICE requires a scalar'.encode(), run.stderr)
+
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'
         for args in ("'x', 0", "1, 'x'"):

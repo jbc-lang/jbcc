@@ -437,6 +437,12 @@ result, following the guide’s null-separator rule. For T24 calls such as
 absent, giving each ID the suffix `*HIS`. This empty-array convention
 is provisional pending a reference run. [SPLICE](https://jbc-lang.org/pages/splice.html).
 
+T24 uses `SPLICE(REUSE(prefix), "/", ids)` and `SPLICE(ids, "/", REUSE(suffix))`
+to repeat a scalar at each position in an array. jbcc evaluates the
+wrapped expression once. This form accepts a direct REUSE call in either
+outer operand. A reused value containing a field, value or subvalue mark
+produces a diagnostic at the REUSE call.
+
 SUBSTRINGS extracts a byte range from each field, value and subvalue,
 preserving every mark, including those around empty elements. A start of
 zero selects the first byte, as in the guide’s example and T24.

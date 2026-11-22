@@ -618,6 +618,14 @@ After SPLICE, 11,916 of 17,336 candidates pass strict C99 checking,
 including all 11,903 previous passes. Of the 31 units previously blocked
 at SPLICE, 11 now pass and 20 reach another diagnostic.
 
-- [ ] Support scalar REUSE operands in SPLICE. The first diagnostic points
+- [x] Support scalar REUSE operands in SPLICE. The first diagnostic points
   at a REUSE call in 17 units. T24 uses this form to repeat a prefix or
   suffix. Test both operand positions across differently shaped arrays.
+
+After scalar REUSE in SPLICE, 11,932 of 17,336 candidates pass strict C99
+checking, including all 11,916 previous passes. Of the 17 units previously
+blocked at REUSE calls, 15 now pass and two reach another diagnostic.
+
+- [ ] Implement TRIMF and TRIMB, the first blockers in 20 and seven units
+  respectively. Verify the guide’s equivalences to TRIM with a space
+  and mode L or T, including tabs and interior spaces.

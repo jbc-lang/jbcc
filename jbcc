@@ -394,15 +394,31 @@ class Compiler:
             self.advance()
             self.advance()
             args = []
+            reuse = [0, 0, 0]
             if self.word != ')':
-                args.append(self.expression())
-                while self.word == ',':
+                while True:
+                    index = len(args)
+                    if (word == 'SPLICE' and index in (0, 2) and self.word == 'REUSE'
+                            and self.following.word == '(' and 'REUSE' not in self.functions
+                            and 'REUSE' not in self.matrices):
+                        wrapper = self.current
+                        self.advance()
+                        self.expect('(')
+                        scalar = self.expression()
+                        self.expect(')')
+                        args.append(self.temporary(f"jbc_reuse_scalar({scalar}, {self.location(wrapper)})"))
+                        reuse[index] = 1
+                    else:
+                        args.append(self.expression())
+                    if self.word != ',':
+                        break
                     self.advance()
-                    args.append(self.expression())
             if self.word != ')':
                 self.error("expected ')' after function arguments")
             if len(args) not in BUILTINS[word]:
                 self.error(f"wrong argument count for '{word}'", target)
+            if word == 'SPLICE':
+                args.extend([str(reuse[0]), str(reuse[2])])
             if word == 'DELETE':
                 indices = args[1:]
                 args = [args[0], f"(const char *[]){{{', '.join(indices)}}}", str(len(indices))]
