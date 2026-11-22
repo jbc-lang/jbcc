@@ -15,8 +15,8 @@ class CompilerTest(unittest.TestCase):
         self.work = Path(tmp.name)
         self.c = self.work / 'generated.c'
 
-    def run_native(self, *sources):
-        subprocess.run([CLI, *sources, '-o', self.c], check=True)
+    def run_native(self, *sources, options=()):
+        subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
                         '-pedantic', self.c, '-o', binary], check=True)
@@ -106,3 +106,9 @@ class CompilerTest(unittest.TestCase):
                 run = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message, run.stderr)
+
+    def test_memory_files(self):
+        run = self.run_native(ROOT / 'tests/io/records.b', options=['--memory-file', 'CUSTOMERS'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
+                                     b'record2\nempty=0\nrecord2\n')

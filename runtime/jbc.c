@@ -346,3 +346,108 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     field[bytes] = '\0';
     return field;
 }
+
+/* Test files own their record bytes independently of expression temporaries.
+   Each opened descriptor is the unique address of its file's name. */
+struct memory_record {
+    struct memory_record *next;
+    char *key, *value;
+};
+
+struct memory_file {
+    struct memory_file *next;
+    struct memory_record *records;
+    char name[];
+};
+
+static struct memory_file *files;
+
+static void free_files(void)
+{
+    while (files) {
+        struct memory_file *file = files;
+        files = file->next;
+        while (file->records) {
+            struct memory_record *record = file->records;
+            file->records = record->next;
+            free(record->key);
+            free(record->value);
+            free(record);
+        }
+        free(file);
+    }
+}
+
+static char *record_copy(const char *s)
+{
+    char *copy = malloc(strlen(s) + 1);
+    if (!copy) fail("out of memory");
+    return strcpy(copy, s);
+}
+
+void jbc_create_memory_file(const char *name)
+{
+    for (struct memory_file *f = files; f; f = f->next)
+        if (strcmp(f->name, name) == 0) return;
+    if (!files && atexit(free_files) != 0) fail("cannot register file cleanup");
+    struct memory_file *f = calloc(1, sizeof *f + strlen(name) + 1);
+    if (!f) fail("out of memory");
+    strcpy(f->name, name);
+    f->next = files;
+    files = f;
+}
+
+int jbc_open_file(const char *name, const char **out)
+{
+    for (struct memory_file *f = files; f; f = f->next) {
+        if (strcmp(f->name, name) == 0) {
+            *out = f->name;
+            return 1;
+        }
+    }
+    *out = "";
+    return 0;
+}
+
+static struct memory_file *file_for(const char *handle)
+{
+    for (struct memory_file *f = files; f; f = f->next)
+        if (f->name == handle) return f;
+    return NULL;
+}
+
+static struct memory_record *find_record(struct memory_file *f, const char *key)
+{
+    for (struct memory_record *r = f->records; r; r = r->next)
+        if (strcmp(r->key, key) == 0) return r;
+    return NULL;
+}
+
+int jbc_read_record(const char *handle, const char *key, const char **out)
+{
+    struct memory_file *f = file_for(handle);
+    struct memory_record *r = f ? find_record(f, key) : NULL;
+    if (!r) {
+        *out = "";
+        return 0;
+    }
+    *out = strcpy(allocate(strlen(r->value)), r->value);
+    return 1;
+}
+
+int jbc_write_record(const char *handle, const char *key, const char *value)
+{
+    struct memory_file *f = file_for(handle);
+    if (!f) return 0;
+    struct memory_record *r = find_record(f, key);
+    if (!r) {
+        r = calloc(1, sizeof *r);
+        if (!r) fail("out of memory");
+        r->key = record_copy(key);
+        r->next = f->records;
+        f->records = r;
+    }
+    free(r->value);
+    r->value = record_copy(value);
+    return 1;
+}

@@ -323,11 +323,14 @@ class Compiler:
         opening = self.current
         self.advance()
         condition = self.expression()
+        self.conditional_arms(opening, f"jbc_truth({condition})")
+
+    def conditional_arms(self, opening, condition):
         if self.word not in ('THEN', 'ELSE'):
             self.error("expected THEN or ELSE")
         inverted = self.word == 'ELSE'
         self.advance()
-        self.emit(f"if ({'!' if inverted else ''}jbc_truth({condition})) {{")
+        self.emit(f"if ({'!' if inverted else ''}{condition}) {{")
         before = self.assigned.copy()
         self.clause(opening)
         taken = self.assigned
@@ -338,6 +341,38 @@ class Compiler:
             self.clause(opening)
         self.assigned = taken & self.assigned
         self.emit("}")
+
+    def file_statement(self):
+        opening = self.current
+        self.advance()
+        op = opening.word
+        if op == 'OPEN':
+            name = self.expression()
+            self.expect('TO')
+            target = self.identifier().word
+            call = f"jbc_open_file({name}, &{self.variable(target)})"
+            self.assigned.add(target)
+        else:
+            if op == 'READ':
+                target = self.identifier().word
+                self.expect('FROM')
+            else:
+                value = self.expression()
+                if self.word not in ('ON', 'TO'):
+                    self.error("expected ON or TO after WRITE value")
+                self.advance()
+            handle = self.expression()
+            self.expect(',')
+            key = self.expression()
+            if op == 'READ':
+                call = f"jbc_read_record({handle}, {key}, &{self.variable(target)})"
+                self.assigned.add(target)
+            else:
+                call = f"jbc_write_record({handle}, {key}, {value})"
+        if op == 'WRITE' and self.word not in ('THEN', 'ELSE'):
+            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "WRITE failed");')
+        else:
+            self.conditional_arms(opening, call)
 
     def case_statement(self):
         opening = self.current
@@ -529,6 +564,8 @@ class Compiler:
         elif self.word == 'STOP':
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
+        elif self.word in ('OPEN', 'READ', 'WRITE'):
+            self.file_statement()
         elif self.word == 'BEGIN':
             self.case_statement()
         elif self.word == 'CALL':
@@ -621,7 +658,7 @@ class Compiler:
         params = ", ".join(f"const char **arg{i}" for i in range(len(self.formals)))
         return f"void {routine_symbol(self.routine.word)}({params or 'void'})"
 
-    def render(self):
+    def render(self, memory_files=()):
         u = self.unit
         fields = [f"const char **arg{i};" for i in range(len(self.formals))]
         fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
@@ -642,6 +679,9 @@ class Compiler:
         lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
+        if not self.routine:
+            for name in memory_files:
+                lines.append(f"    jbc_create_memory_file({c_string(name)});")
         lines.append(f"    body_{u}(&frame, 0);")
         if not self.routine:
             lines.extend(["    jbc_finish();", "    return 0;"])
@@ -652,7 +692,7 @@ def routine_symbol(name):
     return "routine_" + name.encode("utf8").hex()
 
 
-def compile_program(paths, directories):
+def compile_program(paths, directories, memory_files=()):
     units = []
     routines = {}
     programs = 0
@@ -677,19 +717,21 @@ def compile_program(paths, directories):
                 unit.error(f"wrong argument count for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
-    return "\n".join([runtime] + prototypes + [u.render() for u in units])
+    return "\n".join([runtime] + prototypes + [u.render(memory_files) for u in units])
 
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument('source', nargs='+', type=Path)
+    cli.add_argument('--memory-file', dest='memory_files', action='append', default=[], metavar='NAME',
+                     help='provide an empty named file in the in-memory test backend (repeatable)')
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT.c')
     args = cli.parse_args()
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source, args.directories)
+        result = compile_program(args.source, args.directories, args.memory_files)
         with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
                                          encoding='utf-8') as output:
             try:

@@ -42,7 +42,7 @@ an argument.
 
 - [x] **String and multivalue functions.** Start with `LEN`, `FIELD`, `COUNT`,
   and `DCOUNT`. Choose subsequent functions by frequency in the corpus.
-- [ ] **File I/O.** Use an in-memory test backend for `OPEN`, `READ`, and
+- [x] **File I/O.** Use an in-memory test backend for `OPEN`, `READ`, and
   `WRITE`. Exercise `THEN` and `ELSE` paths with reproducible missing records
   and failed opens.
 - [ ] **Whole-routine corpus checks.** Track which routines translate and
