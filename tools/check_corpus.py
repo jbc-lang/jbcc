@@ -37,7 +37,6 @@ def check(relative, root, directories):
             if unit.routine and unit.routine.word == target.word:
                 if (argc, is_function) != (len(unit.formals), unit.is_function):
                     unit.error("recursive call has incompatible signature", target)
-                continue
             signature = (argc, is_function)
             if externals.setdefault(target.word, signature) != signature:
                 unit.error("external calls disagree on signature", target)

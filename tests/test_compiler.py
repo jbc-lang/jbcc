@@ -161,7 +161,8 @@ PRINT '[' : EMPTY() : ']'
                                      b'record2\nempty=0\nrecord2\n')
 
     def test_corpus_report(self):
-        (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\nX = F(X)\n')
+        (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
+                                      'X = F(X)\nIF X THEN CALL S(X)\n')
         (self.work / 'bad').write_text('MAT A = 2\n')
         (self.work / 'I_SHARED').write_text('EQU X TO 1\n')
         report = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', self.work],
