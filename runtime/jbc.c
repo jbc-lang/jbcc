@@ -333,7 +333,7 @@ size_t jbc_index(int rank, const int *bounds, const char **indices,
     return offset;
 }
 
-/* Keep variable values and protect temporaries belonging to enclosing loops. */
+/* Keep live values and leave allocations made by calling bodies alone. */
 void jbc_collect(struct jbc_buffer *mark, const char ***live)
 {
     struct jbc_buffer **link = &buffers;

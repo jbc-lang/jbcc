@@ -151,7 +151,15 @@ After concatenating assignment, 5,946 of 17,336 candidate units passed C99
 checking, including all 4,894 previous passes. The scan reported 11,162
 compiler diagnostics and 228 encoding errors.
 
-- [ ] Support labels inside structured statements. The routine-scope label
+- [x] Support labels inside structured statements. The routine-scope label
   restriction is the first blocker in 1,532 units. Test the observed label
   immediately before REPEAT and labels inside IF arms. Check jump targets
   and loop temporary lifetimes before enabling jumps across block boundaries.
+
+After nested label support, 6,146 of 17,336 candidate units passed C99
+checking, including all 5,946 previous passes. The scan reported 10,962
+compiler diagnostics and 228 encoding errors.
+
+- [ ] Implement INDEX. In 1,281 units the first diagnostic points to its
+  opening parenthesis. Verify occurrence counting, returned byte positions
+  and the missing-substring result in executable tests.

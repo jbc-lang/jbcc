@@ -190,7 +190,9 @@ class Compiler:
         self.targets = {}
         self.calls = []
         self.references = []
-        self.has_gosub = False
+        self.has_unstructured_jumps = False
+        self.for_stack = []
+        self.saved_steps = []
         self.names = {}
         self.matrices = {}
         self.local_arrays = {}
@@ -236,7 +238,7 @@ class Compiler:
         return self.names[name]
 
     def read_variable(self, token):
-        if token.word not in self.assigned and not self.has_gosub:
+        if token.word not in self.assigned and not self.has_unstructured_jumps:
             self.error(f"unknown variable or unsupported function '{token.word}'", token)
         var = self.variable(token.word)
         return self.checked_read(var, token)
@@ -477,7 +479,7 @@ class Compiler:
         out = self.variable_slot(target)
         self.expect('FROM')
         source = self.identifier()
-        if source.word not in self.matrices and source.word not in self.assigned and not self.has_gosub:
+        if source.word not in self.matrices and source.word not in self.assigned and not self.has_unstructured_jumps:
             self.error(f"unassigned variable '{source.word}'", source)
         array = self.variable_slot(source)
         self.expect('SETTING')
@@ -603,18 +605,15 @@ class Compiler:
         self.emit("putchar('\\n');")
 
     def begin_loop(self):
-        mark = f"loop_mark_{self.loops}"
         self.loops += 1
-        self.emit(f"struct jbc_buffer *{mark} = buffers;")
         self.emit("for (;;) {")
         self.depth += 1
-        return mark
 
-    def end_loop(self, mark):
-        self.emit(f"jbc_collect({mark}, live);")
+    def end_loop(self):
+        self.emit("jbc_collect(entry_mark, live);")
         self.depth -= 1
         self.emit("}")
-        self.emit(f"jbc_collect({mark}, live);")
+        self.emit("jbc_collect(entry_mark, live);")
 
     def guard(self):
         until = self.word == 'UNTIL'
@@ -638,13 +637,16 @@ class Compiler:
         self.emit(f"assign_value(&{symbol}, {initial});")
         self.assigned.add(counter.word)
         self.expect('TO')
-        mark = self.begin_loop()
+        self.begin_loop()
         limit = self.expression()
+        self.for_stack.append(self.loops)
         step = '"1"'
         if self.word == 'STEP':
             self.advance()
             # Capture even a plain variable before the loop body can change it.
-            step = self.temporary(self.expression())
+            step = f"step_{self.loops}"
+            self.saved_steps.append(step)
+            self.emit(f"{step} = {self.expression()};")
         location = self.location(opening)
         self.emit(f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;")
         before = self.assigned.copy()  # The bounds check can exit before the guard.
@@ -660,13 +662,14 @@ class Compiler:
             self.advance()
         increment = self.arithmetic(opening, symbol + ".value", step, '+')
         self.emit(f"assign_value(&{symbol}, {increment});")
-        self.end_loop(mark)
+        self.for_stack.pop()
+        self.end_loop()
         self.assigned = before
 
     def loop_statement(self):
         opening = self.current
         self.advance()
-        mark = self.begin_loop()
+        self.begin_loop()
         exits = None
         while True:
             self.sequence({'WHILE', 'UNTIL', 'REPEAT'}, opening)
@@ -677,7 +680,7 @@ class Compiler:
             exits = exit_assigned if exits is None else exits & exit_assigned
             if self.word == 'DO':
                 self.advance()
-        self.end_loop(mark)
+        self.end_loop()
         if exits is not None:
             self.assigned = exits
 
@@ -838,20 +841,7 @@ class Compiler:
         return f"({base})[{index}]"
 
     def statement(self):
-        if (self.current.kind in ('name', 'number') and self.following.word == ':'
-                and self.word not in ('CRT', 'PRINT')
-                and self.following.column == self.current.column + len(self.word)):
-            token = self.local_label()
-            if self.depth:
-                self.error("labels must be at routine scope", token)
-            if token.word in self.labels:
-                self.error("duplicate label", token)
-            self.labels[token.word] = token
-            self.expect(':')
-            self.emit(f"label_{self.label_number(token.word)}: ;")
-            if self.word not in (';', '\n'):
-                self.statement()
-        elif self.word == 'MAT':
+        if self.word == 'MAT':
             self.matrix_assignment()
         elif self.word == 'REMOVE':
             self.remove_statement()
@@ -881,7 +871,8 @@ class Compiler:
             self.advance()
             target = self.local_label()
             number = self.label_number(target.word)
-            self.references.append(target)
+            # GOSUB starts a new body invocation with no active FOR headers.
+            self.references.append((target, tuple(self.for_stack) if jump else ()))
             if jump:
                 self.has_goto = True
                 self.emit("jbc_collect(entry_mark, live);")
@@ -938,7 +929,7 @@ class Compiler:
             if indices and (substring or operator.word != '='):
                 text = self.temporary(f"jbc_array({base}, {indices}, NULL)")
             if operator.word != '=':
-                if not matrix and start.word not in self.assigned and not self.has_gosub:
+                if not matrix and start.word not in self.assigned and not self.has_unstructured_jumps:
                     self.error(f"unassigned variable '{start.word}'", start)
                 old = text if indices else self.checked_read(var, start)
                 if substring:
@@ -964,6 +955,16 @@ class Compiler:
             if self.word in (';', '\n'):
                 self.advance()
                 continue
+            if (self.current.kind in ('name', 'number') and self.following.word == ':'
+                    and self.word not in ('CRT', 'PRINT')
+                    and self.following.column == self.current.column + len(self.word)):
+                token = self.local_label()
+                if token.word in self.labels:
+                    self.error("duplicate label", token)
+                self.labels[token.word] = tuple(self.for_stack)
+                self.expect(':')
+                self.emit(f"label_{self.label_number(token.word)}: ;")
+                continue
             self.statement()
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
@@ -974,7 +975,7 @@ class Compiler:
         return self.identifier()
 
     def parse(self, tokens):
-        self.has_gosub = any(t.word == 'GOSUB' for t in tokens)
+        self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') for t in tokens)
         self.tokens = iter(tokens)
         self.following = next(self.tokens)
         self.advance()
@@ -1010,9 +1011,12 @@ class Compiler:
                 self.advance()
             if self.word:
                 self.error("unexpected text after final END")
-        for target in self.references:
+        for target, active_fors in self.references:
             if target.word not in self.labels:
                 self.error(f"unknown label '{target.word}'", target)
+            required = self.labels[target.word]
+            if active_fors[:len(required)] != required:
+                self.error(f"jump to '{target.word}' would bypass a FOR header", target)
 
     def signature(self):
         if not self.routine:
@@ -1031,10 +1035,13 @@ class Compiler:
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
-        if self.has_goto:
-            lines.append("    struct jbc_buffer *entry_mark = buffers;")
         if self.loops or self.has_goto:
-            roots = ["&" + var + ".value" for var in self.names.values()] + ["NULL"]
+            lines.append("    struct jbc_buffer *entry_mark = buffers;")
+            for step in self.saved_steps:
+                lines.append(f"    const char *{step} = NULL;")
+            roots = ["&" + var + ".value" for var in self.names.values()]
+            roots.extend("&" + step for step in self.saved_steps)
+            roots.append("NULL")
             lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
         if self.labels:
             lines.append("    switch (entry) {")

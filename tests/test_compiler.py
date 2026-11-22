@@ -188,6 +188,16 @@ PRINT '[' : EMPTY() : ']'
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(main) + message, run.stderr)
 
+    def test_jump_cannot_bypass_for_header(self):
+        source = self.work / 'jump.b'
+        for jump in ('GOTO', 'GOSUB'):
+            with self.subTest(jump=jump):
+                source.write_text(f'{jump} middle\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:{len(jump) + 2}: jump to 'middle' would bypass a FOR header",
+                              result.stderr)
+
     def test_bad_routine_references(self):
         main = self.work / 'main.b'
         sub = self.work / 'sub.b'

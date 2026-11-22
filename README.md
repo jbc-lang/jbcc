@@ -44,7 +44,7 @@ just corpus ~/Downloads/t24 > /tmp/jbcc-corpus.json
 Use scalar assignment, PRINT and CRT, decimal numeric
 literals, quoted strings (single, double or backslash delimiters),
 parentheses, arithmetic, concatenation, and compound assignments (`+=`, `-=`, and `:=`). Addition binds more tightly than
-concatenation. Names are case-sensitive. Variables must be assigned on every path reaching a use. Separate statements with a newline or semicolon. A statement beginning
+concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO or GOSUB check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line.
 
 Concatenating assignment appends the right-hand value as a string.
@@ -145,7 +145,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
   operators. Missing components read as empty strings. Sparse assignments
   fill intervening positions with marks. The runtime uses single-byte
   `@FM` (also `@AM`), `@VM` and `@SM`. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
-- Define a local label at routine scope with a trailing colon. GOSUB shares
+- Define a local label with a trailing colon, including inside IF, CASE,
+  LOOP and FOR bodies. GOTO can jump within or leave a FOR. A jump that
+  would enter a FOR without executing its header gets a source diagnostic.
+  GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through
   labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
 - SUBROUTINE parameters and plain variable arguments to CALL share storage,
