@@ -104,6 +104,12 @@ and continues. The guide also shows `0.0nan` as output, so the exact
 diagnostic and rendering remain provisional. Zero raised to a negative
 power and overflow produce runtime errors. [PWR](https://jbc-lang.org/pages/pwr.html).
 
+`SQRT(value)` returns the square root of a nonnegative number. jbcc uses
+the host's `sqrtl` and rounds to the requested PRECISION, following the
+guide's TAFC output. With `PRECISION 6`, `SQRT(2)` prints `1.414214`.
+The guide's prose describes truncation. Negative and nonnumeric operands
+raise a runtime error at the call site. [SQRT](https://jbc-lang.org/pages/sqrt.html).
+
 On Unix, `RND(bound)` returns a random integer from zero through
 `ABS(bound) - 1`. The bound must be an integer with magnitude at most
 2,147,483,647. The native runtime samples from `/dev/urandom` and uses
@@ -951,7 +957,7 @@ the end of the screen, and `@(-4)` to clear to the end of the current line.
 Each returns an ANSI sequence that takes effect when printed.
 `SYSTEM(14)` checks pending
 input using the POSIX input device's line discipline. Native mode links the math library for programs
-that use trigonometry or exponentiation. When compiling their generated C manually, use
+that use trigonometry, exponentiation or square roots. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 

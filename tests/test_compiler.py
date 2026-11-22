@@ -78,6 +78,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT SQRT(1, 2)\n", ":1:5: wrong argument count for 'SQRT'"),
                                   ("CRT PWR(2)\n", ":1:5: wrong argument count for 'PWR'"),
                                   ("CRT SUMMATION(1, 2)\n", ":1:5: wrong argument count for 'SUMMATION'"),
                                   ("CRT TRIMS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMS'"),
@@ -464,6 +465,18 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_sqrt_diagnostics(self):
+        source = self.work / 'sqrt.b'
+        for value, message in [('-1', 'requires a nonnegative operand'),
+                               ("'text'", 'requires a numeric operand'),
+                               ("STR('9', 5000)", 'operand out of range'),
+                               ("'0.' : STR('0', 5000) : '1'", 'operand out of range')]:
+            with self.subTest(message=message):
+                source.write_text(f"CRT SQRT({value})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: SQRT {message}'.encode(), run.stderr)
 
     def test_power_domain_and_diagnostics(self):
         source = self.work / 'power.b'

@@ -1007,6 +1007,13 @@ strict C99 checking. All 15,117 previous passes still pass. Of the 73 new
 passes, 44 previously stopped at a star and 11 at a plus. Seven more
 units reach a different diagnostic.
 
-- [ ] Implement SQRT(expression) using the guide's PRECISION examples.
+- [x] Implement SQRT(expression) using the guide's PRECISION examples.
   Exercise positive, zero, negative and nonnumeric inputs through the
   native compiler.
+
+After SQRT, 15,190 of 17,336 candidates still pass strict C99 checking.
+DX.PR.BLACK76 and DX.PR.NORMSDIST.DASH both advance to EXP.
+
+- [ ] Implement EXP(expression), the natural exponential. Check EXP(0),
+  positive and negative arguments, PRECISION, invalid input and overflow.
+  Recheck the two pricing routines that reached EXP after SQRT.

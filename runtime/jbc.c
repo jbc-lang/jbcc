@@ -212,7 +212,9 @@ static int multiply_overflows(int64_t a, int64_t b)
     return 0;
 }
 
-static const char *format_decimal(long double result)
+enum precision_mode { TRUNCATE_RESULT, ROUND_RESULT };
+
+static const char *format_decimal(long double result, enum precision_mode mode)
 {
     int places = 15;
     if (jbc_precision >= 0) {
@@ -225,6 +227,7 @@ static const char *format_decimal(long double result)
                 int exponent = atoi(strchr(scientific, 'e') + 1);
                 places = digits - 1 - exponent;
                 if (places < 0) places = 0;
+                if (mode == ROUND_RESULT && places > jbc_precision) places = jbc_precision;
                 break;
             }
         }
@@ -284,7 +287,7 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     }
     if (!isfinite(a) || !isfinite(b) || !isfinite(result))
         numeric_error(file, line, column, "decimal arithmetic out of range");
-    return format_decimal(result);
+    return format_decimal(result, TRUNCATE_RESULT);
 }
 
 static const char *add_sum_item(const char *total, const char *item, struct decimal b,
@@ -2579,6 +2582,20 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
 }
 
 #ifdef JBC_MATH
+const char *jbc_sqrt(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n))
+        numeric_error(file, line, column, "SQRT requires a numeric operand");
+    if (n.sign < 0)
+        numeric_error(file, line, column, "SQRT requires a nonnegative operand");
+    if (!n.sign) return "0";
+    long double value = strtold(text, NULL);
+    if (!isfinite(value) || value == 0)
+        numeric_error(file, line, column, "SQRT operand out of range");
+    return format_decimal(sqrtl(value), ROUND_RESULT);
+}
+
 const char *jbc_pwr(const char *left, const char *right, const char *file, int line, int column)
 {
     struct decimal base, exponent;
@@ -2600,7 +2617,7 @@ const char *jbc_pwr(const char *left, const char *right, const char *file, int l
        to be represented exactly by the host floating-point type. */
     if (base.sign < 0 && exponent.digits && (exponent.whole[exponent.digits - 1] - '0') % 2)
         result = -result;
-    return format_decimal(result);
+    return format_decimal(result, TRUNCATE_RESULT);
 }
 
 static long double radians(const char *s, const char *file, int line, int column)
@@ -2614,12 +2631,12 @@ static long double radians(const char *s, const char *file, int line, int column
 
 const char *jbc_sin(const char *s, const char *file, int line, int column)
 {
-    return format_decimal(sinl(radians(s, file, line, column)));
+    return format_decimal(sinl(radians(s, file, line, column)), TRUNCATE_RESULT);
 }
 
 const char *jbc_cos(const char *s, const char *file, int line, int column)
 {
-    return format_decimal(cosl(radians(s, file, line, column)));
+    return format_decimal(cosl(radians(s, file, line, column)), TRUNCATE_RESULT);
 }
 #endif
 
