@@ -594,6 +594,14 @@ After the DELETE function, 11,846 of 17,336 candidates pass strict C99
 checking, including all 11,802 previous passes. Of the 65 units previously
 blocked at these calls, 38 now pass and 27 reach another diagnostic.
 
-- [ ] Implement MAXIMUM and MINIMUM, the first blockers in 35 and 13 units
+- [x] Implement MAXIMUM and MINIMUM, the first blockers in 35 and 13 units
   respectively. Check the guide’s PRECISION examples, empty components
   treated as zero, and nonnumeric components ignored across array levels.
+
+After MAXIMUM and MINIMUM, 11,884 of 17,336 candidates pass strict C99
+checking, including all 11,846 previous passes. Of the 48 units previously
+blocked at these functions, 34 now pass and 14 reach another diagnostic.
+
+- [ ] Implement SUBSTRINGS, the first blocker in 32 units. Verify byte
+  extraction within each element, oversized lengths, and preservation of
+  field, value and subvalue marks around empty elements.

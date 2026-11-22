@@ -137,6 +137,16 @@ first byte of a mixed internal run. Both choices are provisional pending
 a reference run. [TRIM](https://jbc-lang.org/pages/trim.html),
 [jBASE TRIM manual](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_TRIM.htm).
 
+MAXIMUM and MINIMUM compare numeric elements across field, value, and
+subvalue marks. An empty element counts as zero. Nonnumeric elements are
+skipped, and jbcc provisionally returns zero when all elements are
+nonnumeric. Comparisons honor PRECISION and keep the first element on a
+tie. The guide shows different output formatting for the two functions.
+MAXIMUM returns the selected text, while MINIMUM rounds excess decimal
+places to the explicit precision. jbcc follows those examples pending a
+reference run. [MAXIMUM](https://jbc-lang.org/pages/maximum.html),
+[MINIMUM](https://jbc-lang.org/pages/minimum.html).
+
 SUM adds numeric elements at the deepest mark present in the array
 (field, value, or subvalue) and preserves each higher-level mark.
 For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.

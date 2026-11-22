@@ -111,11 +111,8 @@ int jbc_truth(const char *value)
     return n.sign != 0;
 }
 
-int jbc_compare(const char *left, const char *right, int precision)
+static int compare_decimals(struct decimal a, struct decimal b, int precision)
 {
-    struct decimal a, b;
-    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
-        return strcmp(left, right);
     limit_places(&a, precision);
     limit_places(&b, precision);
     if (a.sign != b.sign) return a.sign - b.sign;
@@ -127,6 +124,14 @@ int jbc_compare(const char *left, const char *right, int precision)
         if (!cmp) cmp = (a.places > b.places) - (a.places < b.places);
     }
     return ((cmp > 0) - (cmp < 0)) * a.sign;
+}
+
+int jbc_compare(const char *left, const char *right, int precision)
+{
+    struct decimal a, b;
+    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
+        return strcmp(left, right);
+    return compare_decimals(a, b, precision);
 }
 
 static void numeric_error(const char *file, int line, int column, const char *message)
@@ -913,6 +918,45 @@ const char *jbc_mod(const char *left, const char *right, const char *file, int l
     while (a.places && a.fraction[a.places - 1] == '0') --a.places;
     limit_places(&a, jbc_precision);
     return fmt_decimal(a, a.places);
+}
+
+static const char *array_extreme(const char *source, int maximum)
+{
+    char *item = strcpy(allocate(strlen(source)), source);
+    const char *selected = NULL;
+    struct decimal best = {0};
+    for (;;) {
+        char *end = item + strcspn(item, "\376\375\374");
+        char mark = *end;
+        *end = '\0';
+        const char *value = *item ? item : "0";
+        struct decimal n;
+        if (parse_decimal(value, &n)) {
+            int cmp = selected ? compare_decimals(n, best, jbc_precision) : 0;
+            if (!selected || (maximum ? cmp > 0 : cmp < 0)) {
+                best = n;
+                selected = value;
+            }
+        }
+        if (!mark) break;
+        item = end + 1;
+    }
+    if (!selected) return "0";
+    /* The guide prints the original MAXIMUM on a precision tie, but a
+       rounded MINIMUM when the selected element has excess places. */
+    if (!maximum && jbc_precision >= 0 && best.places > (size_t)jbc_precision)
+        return fmt_decimal(best, (size_t)jbc_precision);
+    return strcpy(allocate(strlen(selected)), selected);
+}
+
+const char *jbc_maximum(const char *source)
+{
+    return array_extreme(source, 1);
+}
+
+const char *jbc_minimum(const char *source)
+{
+    return array_extreme(source, 0);
 }
 
 const char *jbc_abs(const char *value, const char *file, int line, int column)

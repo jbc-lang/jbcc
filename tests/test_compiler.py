@@ -59,6 +59,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT RIGHT('x',1,2)\n", ":1:5: wrong argument count for 'RIGHT'"),
                                   ("CRT DELETE('a')\n", ":1:5: wrong argument count for 'DELETE'"),
                                   ("CRT DELETE('a',1,2,3,4)\n", ":1:5: wrong argument count for 'DELETE'"),
+                                  ("CRT MINIMUM()\n", ":1:5: wrong argument count for 'MINIMUM'"),
+                                  ("CRT MAXIMUM(1, 2)\n", ":1:5: wrong argument count for 'MAXIMUM'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
