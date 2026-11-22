@@ -483,7 +483,16 @@ After PROGRAM, 11,087 of 17,336 candidates pass strict C99 checking,
 including all 11,084 previous passes. Three of the 64 PROGRAM units now
 pass and the other 61 reach another diagnostic.
 
-- [ ] Support runtime bounds in local DIM declarations. Positive constant
-  bounds are currently required, the first diagnostic for 135 units. Cover
-  one- and two-dimensional arrays, expression evaluation at the declaration,
-  and element access using the resulting bounds.
+- [x] Support runtime bounds in local DIM declarations. Cover one- and
+  two-dimensional arrays, evaluate expressions when the declaration runs,
+  and use the saved bounds for element access and MAT arguments.
+
+After local DIM, 11,111 of 17,336 candidates pass strict C99 checking,
+including all 11,087 previous passes. Of the 135 units previously blocked
+by the constant-bound requirement, 24 now pass and 111 reach another
+diagnostic.
+
+- [ ] Implement NUM(expression). In 368 units the first diagnostic points
+  at the opening parenthesis of a NUM call. Test the guide’s prime-emulation
+  examples, including empty strings, lone signs, a lone decimal point,
+  and rejected exponent notation.

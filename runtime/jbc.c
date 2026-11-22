@@ -348,8 +348,9 @@ int jbc_dimension(const char *text, const char *file, int line, int column)
     return (int)bound;
 }
 
-struct jbc_slots *jbc_common_matrix(const char *key, int rank, const int *bounds,
-                                    const char *file, int line, int column)
+struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key,
+                                     int rank, const int *bounds,
+                                     const char *file, int line, int column)
 {
     size_t count = 1;
     for (int i = 0; i < rank; ++i) {
@@ -358,7 +359,7 @@ struct jbc_slots *jbc_common_matrix(const char *key, int rank, const int *bounds
             numeric_error(file, line, column, "dimensioned array is too large");
         count *= extent;
     }
-    struct jbc_slots *s = storage(count, key);
+    struct jbc_slots *s = previous ? previous : storage(count, key);
     size_t bytes = (size_t)rank * sizeof *bounds;
     if (!s->bounds) {
         s->bounds = malloc(bytes);
@@ -366,7 +367,8 @@ struct jbc_slots *jbc_common_matrix(const char *key, int rank, const int *bounds
         memcpy(s->bounds, bounds, bytes);
         s->rank = rank;
     } else if (s->rank != rank || memcmp(s->bounds, bounds, bytes)) {
-        numeric_error(file, line, column, "incompatible COMMON matrix dimensions");
+        numeric_error(file, line, column, key ? "incompatible COMMON matrix dimensions"
+                                              : "incompatible local matrix dimensions");
     }
     return s;
 }

@@ -200,7 +200,14 @@ DIM and DIMENSION accept comma-separated declarations with positive integer
 bounds, including expanded EQUATE constants. Indices run from zero through
 the declared bound, inclusive, in this subset. Supply one index per dimension.
 Local matrices belong to one invocation. Passing an element to CALL passes
-that slot by reference. Unassigned reads and out-of-range subscripts produce
+that slot by reference. For T24 sources, jbcc also accepts bounds such as
+`DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s
+`dimvar` rule in dynamic-array mode. The guide describes the constant-bound
+form. Each time execution reaches a runtime-sized declaration, jbcc
+evaluates its bounds. Within one invocation, re-entering it with the
+same shape preserves the elements. A changed shape or use after skipping
+the declaration raises a diagnostic. This re-entry policy is provisional
+pending a reference run. Unassigned reads and out-of-range subscripts produce
 runtime diagnostics.
 
 `MAT A = expression` evaluates the expression once and fills every slot,
@@ -246,7 +253,7 @@ MAT operations use the saved bounds, even if Config changes later.
 Re-entering the declaration or binding the same member in another routine
 checks its dimensions and preserves its values. A different shape produces
 a source-located diagnostic. This timing and mismatch policy is provisional
-pending a reference run. Runtime bounds are supported for COMMON matrices. The current initialization policy leaves slots unassigned until
+pending a reference run. The current initialization policy leaves slots unassigned until
 written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 

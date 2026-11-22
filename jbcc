@@ -214,7 +214,7 @@ class Matrix(NamedTuple):
     def base(self):
         if self.shape is None:
             return f"frame->{self.field}.values"
-        return f"frame->{self.field}" + ("->values" if self.common else "")
+        return f"frame->{self.field}->values"
 
     @property
     def limits(self):
@@ -1157,7 +1157,7 @@ class Compiler:
         self.advance()
         return token
 
-    def dimension_bounds(self, allow_expressions):
+    def dimension_bounds(self):
         self.expect('(')
         bounds = []
         while True:
@@ -1167,14 +1167,12 @@ class Compiler:
                     self.error("expected a positive constant dimension")
                 bounds.append(int(token.word))
                 self.advance()
-            elif allow_expressions:
+            else:
                 value = self.expression()
                 bound = f"bound_{self.temporaries}"
                 self.temporaries += 1
                 self.emit(f"int {bound} = jbc_dimension({value}, {self.location(token)});")
                 bounds.append(bound)
-            else:
-                self.error("expected a positive constant dimension")
             if self.word != ',':
                 break
             self.advance()
@@ -1215,7 +1213,7 @@ class Compiler:
         if common and self.common_scalars.get(name) == block_name and self.word != '(':
             return
         if not common and self.formals.get(name):
-            bounds = self.dimension_bounds(allow_expressions=True)
+            bounds = self.dimension_bounds()
             matrix = self.matrices[name]
             self.emit(f"if ({matrix.rank} != {len(bounds)} || "
                       f"memcmp({matrix.limits}, (const int[]){{{', '.join(map(str, bounds))}}}, "
@@ -1224,29 +1222,31 @@ class Compiler:
             return
         if name in self.names or name in self.matrices:
             self.error(f"duplicate declaration of '{name}'", token)
-        bounds = self.dimension_bounds(common) if self.word == '(' or not common else ()
+        bounds = self.dimension_bounds() if self.word == '(' or not common else ()
         shape = tuple(n if isinstance(n, int) else None for n in bounds)
         if common:
             member = len(block.shapes)
             block.shapes.append(shape)
-            if bounds:
-                field = f"{block.field}_m{member}"
-                key = c_string(f"{block_name}:{member}")
-                call = (f"jbc_common_matrix({key}, {len(bounds)}, "
-                        f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
-                if None in shape:
-                    self.emit(f"frame->{field} = {call};")
-                else:
-                    block.initializers.append(f"frame.{field} = {call};")
-            else:
+            if not bounds:
                 self.common_scalars[name] = block_name
                 self.names[name] = f"frame->{block.field}[{member}]"
                 self.assigned.add(name)
+                return
+            field = f"{block.field}_m{member}"
         else:
             field = f"matrix{len(self.local_arrays)}"
-            self.local_arrays[field] = math.prod(n + 1 for n in bounds)
-        if bounds:
-            self.matrices[name] = Matrix(field, shape, common)
+            self.local_arrays[field] = None if None in shape else math.prod(n + 1 for n in bounds)
+
+        if common or None in shape:
+            key = c_string(f"{block_name}:{member}") if common else "NULL"
+            previous = "NULL" if common else f"frame->{field}"
+            call = (f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
+                    f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
+            if None in shape:
+                self.emit(f"frame->{field} = {call};")
+            else:
+                block.initializers.append(f"frame.{field} = {call};")
+        self.matrices[name] = Matrix(field, shape, common)
 
     def matrix_name(self):
         token = self.identifier()
@@ -1257,8 +1257,9 @@ class Compiler:
     def checked_matrix(self, token):
         matrix = self.matrices[token.word]
         if matrix.shape is not None and None in matrix.shape:
+            kind = "COMMON" if matrix.common else "local"
             self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
-                      '"COMMON matrix declaration has not executed");')
+                      f'"{kind} matrix declaration has not executed");')
         return matrix
 
     def matrix_range(self):
@@ -1596,8 +1597,7 @@ class Compiler:
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
                    if name not in self.formals and name not in self.common_scalars]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
-        fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.common]
-        fields += [f"jbc_variable *{field};" for field in self.local_arrays]
+        fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.shape is not None]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
@@ -1623,7 +1623,8 @@ class Compiler:
             lines.append(f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});")
             lines.extend("    " + init for init in block.initializers)
         for field, size in self.local_arrays.items():
-            lines.append(f"    frame.{field} = jbc_storage({size}, NULL);")
+            if size is not None:
+                lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
             for name in memory_files:
                 lines.append(f"    jbc_create_memory_file({c_string(name)});")
@@ -1635,7 +1636,7 @@ class Compiler:
         if self.is_function:
             lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:
-            lines.append(f"    jbc_release(frame.{field});")
+            lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
         if not self.routine:
             lines.extend(["    jbc_finish();", "    return 0;"])
         return "\n".join(lines + ["}", ""])

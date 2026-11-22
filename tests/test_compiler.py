@@ -435,7 +435,7 @@ PRINT '[' : EMPTY() : ']'
         func = self.work / 'edit.b'
         main.write_text("""N = 2
 COMMON /DATA/ Grid(N,3)
-DIM Copy(2,3)
+DIM Copy(N,3)
 MAT Grid = 'seed'
 CALL RELAY(MAT Grid, MAT Copy, N, Result)
 PRINT Grid(0,0), Grid(2,3), Copy(2,3), Result
@@ -730,6 +730,40 @@ X(3) := '!'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'head\tedge!\tedge!\ttail!\textra!\n')
+
+    def test_local_dimensions_per_invocation(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'nested.b'
+        bump = self.work / 'bump.b'
+        main.write_text('CALL NESTED(2)\n')
+        routine.write_text("""SUBROUTINE NESTED(N)
+DEFFUN BUMP(X)
+X = 0
+DIM Grid(BUMP(X), BUMP(X) + N)
+Grid(1,2+N) = N
+IF N > 0 THEN CALL NESTED(N-1)
+PRINT X, Grid(1,2+N)
+""")
+        bump.write_text('FUNCTION BUMP(X)\nX += 1\nRETURN X\n')
+        run = self.run_native(main, routine, bump)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'2\t0\n2\t1\n2\t2\n')
+
+    def test_local_dimension_errors(self):
+        source = self.work / 'bad.b'
+        cases = [
+            ("N = 1.5\nDIM A(N)", ':2:7: expected a positive integer dimension'),
+            ("N = 50000\nDIM A(N,N)", ':2:5: dimensioned array is too large'),
+            ("N = 2\nIF 0 THEN DIM A(N)\nMAT A = 0", ':3:5: local matrix declaration has not executed'),
+            ("FOR N = 1 TO 2\nDIM A(N)\nNEXT", ':2:5: incompatible local matrix dimensions'),
+            ("N = 2\nDIM A(N)\nN = 3\nA(N) = 1", ':4:1: matrix subscript out of bounds'),
+        ]
+        for program, location in cases:
+            with self.subTest(program=program):
+                source.write_text(program)
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + location).encode(), run.stderr)
 
     def test_runtime_common_dimension_errors(self):
         source = self.work / 'bad.b'
