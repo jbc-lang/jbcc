@@ -878,7 +878,16 @@ After accepting mismatched NEXT counters with a warning, 14,762 of
 still pass. Of the 69 units previously blocked here, 55 now pass and
 14 reach a later diagnostic.
 
-- [ ] Implement plain EXECUTE and its PERFORM synonym for native programs.
+- [x] Implement plain EXECUTE and its PERFORM synonym for native programs.
   EXECUTE is the first blocker in 346 units. Test a local command's
   output and that the caller resumes after the child exits. Follow with
   CAPTURING and its newline-to-field-mark conversion.
+
+After plain EXECUTE and PERFORM, 14,918 of 17,336 candidates pass
+strict C99 checking. All 14,762 previous passes still pass. Of the 346
+units first blocked at EXECUTE, 156 now pass and 190 reach another
+diagnostic.
+
+- [ ] Implement CAPTURING for EXECUTE and PERFORM. It is the first
+  diagnostic in 32 units. Test empty output, multiple lines, a final
+  line without a newline, and stderr remaining visible to the caller.

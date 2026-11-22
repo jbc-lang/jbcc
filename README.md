@@ -106,6 +106,16 @@ DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
 
+`EXECUTE expression` and `PERFORM expression` run the resulting command
+in the native host's default Bourne shell on POSIX. The child inherits
+standard input, output and error. The caller waits for it and continues
+even if the command exits with a nonzero status. For example,
+`PERFORM './report today'` can invoke another jbcc-built executable.
+The native runtime also accepts the explicit `CHAR(255) : 's'` shell
+prefix. Alternate shells, field-mark-separated commands and result
+clauses such as CAPTURING are currently unsupported.
+[EXECUTE](https://jbc-lang.org/pages/execute.html).
+
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
 duration in seconds, including fractions such as `SLEEP .25`. Zero
 continues immediately. The native runtime truncates durations to whole

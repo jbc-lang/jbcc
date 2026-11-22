@@ -347,6 +347,7 @@ class Compiler:
         self.trig = False
         self.terminal = False
         self.uses_sleep = False
+        self.uses_execute = False
         self.has_goto = False
         self.sets_precision = False
 
@@ -1723,6 +1724,13 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
+        elif (self.word in ('EXECUTE', 'PERFORM') and self.following.word not in ASSIGNMENT_OR_SUBSTRING
+              and self.following.kind != 'array_open'
+              and not (self.word in self.matrices and self.following.word == '(')):
+            opening = self.current
+            self.advance()
+            self.uses_execute = True
+            self.emit(f"jbc_execute({self.expression()}, {self.location(opening)});")
         elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'
               and not (self.word in self.matrices and self.following.word == '(')):
@@ -2085,6 +2093,8 @@ def runtime_features(units):
     flags = []
     if any(unit.trig for unit in units):
         flags.append("#define JBC_TRIG 1")
+    if any(unit.uses_execute for unit in units):
+        flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_sleep for unit in units):
         flags.append("#define JBC_SLEEP 1")
     if any(unit.terminal for unit in units):

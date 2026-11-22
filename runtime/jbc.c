@@ -2291,6 +2291,23 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 }
 #endif
 
+#ifdef JBC_EXECUTE
+void jbc_execute(const char *command, const char *file, int line, int column)
+{
+    if ((unsigned char)command[0] == 255) {
+        if (command[1] != 's')
+            numeric_error(file, line, column, "unsupported EXECUTE shell selector");
+        command += 2;
+    }
+    if (strchr(command, 254))
+        numeric_error(file, line, column, "field-mark-separated EXECUTE commands are unsupported");
+    if (fflush(stdout) == EOF || fflush(stderr) == EOF)
+        numeric_error(file, line, column, "cannot flush output before EXECUTE");
+    if (system(command) == -1)
+        numeric_error(file, line, column, "cannot execute command");
+}
+#endif
+
 #ifdef JBC_SLEEP
 void jbc_sleep(const char *duration, const char *file, int line, int column)
 {

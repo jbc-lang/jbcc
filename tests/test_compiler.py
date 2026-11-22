@@ -1299,6 +1299,37 @@ END
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
 
+    def test_plain_execute_and_perform(self):
+        run = self.run_native(ROOT / 'tests/programs/execute.b')
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'before\nchild\nsecond\nafter\n')
+        self.assertEqual(run.stderr, b'stderr\n')
+
+    def test_execute_child_program(self):
+        child = self.work / 'child.b'
+        child.write_text("PROMPT ''\nINPUT value\nCRT 'child read ' : value\nEXIT(4)\n")
+        subprocess.run([CLI, '--exe', child, '-o', self.work / 'child'], check=True)
+        main = self.work / 'main.b'
+        main.write_text("CALL RUN.CHILD()\nCRT 'returned'\n")
+        sub = self.work / 'sub.b'
+        sub.write_text("SUBROUTINE RUN.CHILD()\nPERFORM './child'\n")
+        binary = self.work / 'main'
+        subprocess.run([CLI, '--exe', main, sub, '-o', binary], check=True)
+        run = subprocess.run([binary], cwd=self.work, input=b'hello\n', capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'child read hello\nreturned\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_execute_command_diagnostics(self):
+        source = self.work / 'command.b'
+        for command, message in [("CHAR(255) : 'ktrue'", 'unsupported EXECUTE shell selector'),
+                                 ("'true' : @FM : 'true'", 'field-mark-separated EXECUTE commands are unsupported')]:
+            with self.subTest(command=command):
+                source.write_text(f'EXECUTE {command}\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
+
     def test_sleep_duration_and_default(self):
         source = ROOT / 'tests/programs/sleep.b'
         binary = self.work / 'pause'
