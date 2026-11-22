@@ -86,6 +86,18 @@ callee reads the status field, selects a CASE arm, and updates the output.
 - BEGIN CASE evaluates conditions in order, executes the first true arm,
   and resumes after END CASE. Use CASE 1 for a default. [CASE](https://jbc-lang.org/pages/case.html)
 
+## Built-in functions
+
+LEN counts bytes in the current byte-oriented runtime. FIELD accepts a
+one-based occurrence and optional field count. FIELD, COUNT and DCOUNT
+support multi-byte delimiters. COUNT counts nonoverlapping occurrences as
+documented for TAFC R19. DCOUNT returns zero for an empty record. For an
+empty delimiter, this implementation returns byte length for COUNT and
+DCOUNT, and treats the input as one field for FIELD. These empty-delimiter
+choices are provisional. NOT uses the same truth conversion as IF.
+[FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
+[DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
+
 ## Test corpus
 
 ```sh

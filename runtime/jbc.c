@@ -271,3 +271,78 @@ const char *jbc_read(const char *value, const char *name, const char *file, int 
     }
     return value;
 }
+
+static const char *size_value(size_t n)
+{
+    char *out = allocate(3 * sizeof(n));
+    snprintf(out, 3 * sizeof(n) + 1, "%zu", n);
+    return out;
+}
+
+const char *jbc_len(const char *s)
+{
+    return size_value(strlen(s));
+}
+
+const char *jbc_not(const char *s)
+{
+    return jbc_truth(s) ? "0" : "1";
+}
+
+static size_t occurrences(const char *s, const char *separator)
+{
+    size_t width = strlen(separator);
+    if (!width) return strlen(s);
+    size_t count = 0;
+    while ((s = strstr(s, separator)) != NULL) {
+        ++count;
+        s += width;
+    }
+    return count;
+}
+
+const char *jbc_count(const char *s, const char *separator)
+{
+    return size_value(occurrences(s, separator));
+}
+
+const char *jbc_dcount(const char *s, const char *separator)
+{
+    if (!*s) return "0";
+    if (!*separator) return jbc_len(s);
+    return size_value(1 + occurrences(s, separator));
+}
+
+static int64_t field_index(const char *s, const char *file, int line, int column)
+{
+    if (!*s || strspn(s, "0123456789") != strlen(s))
+        numeric_error(file, line, column, "FIELD requires positive integer positions and counts");
+    int64_t n = integer(s, file, line, column);
+    if (!n) numeric_error(file, line, column, "FIELD positions and counts start at one");
+    return n;
+}
+
+const char *jbc_field(const char *s, const char *separator, const char *start,
+                      const char *count, const char *file, int line, int column)
+{
+    int64_t first = field_index(start, file, line, column);
+    int64_t length = field_index(count, file, line, column);
+    size_t width = strlen(separator);
+    if (!width) return first == 1 ? s : "";
+    while (--first) {
+        const char *next = strstr(s, separator);
+        if (!next) return "";
+        s = next + width;
+    }
+    const char *end = s;
+    while (length--) {
+        end = strstr(end, separator);
+        if (!end) return s;
+        if (length) end += width;
+    }
+    size_t bytes = (size_t)(end - s);
+    char *field = allocate(bytes);
+    memcpy(field, s, bytes);
+    field[bytes] = '\0';
+    return field;
+}

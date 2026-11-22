@@ -40,7 +40,7 @@ an argument.
 
 ## Libraries and external services
 
-- [ ] **String and multivalue functions.** Start with `LEN`, `FIELD`, `COUNT`,
+- [x] **String and multivalue functions.** Start with `LEN`, `FIELD`, `COUNT`,
   and `DCOUNT`. Choose subsequent functions by frequency in the corpus.
 - [ ] **File I/O.** Use an in-memory test backend for `OPEN`, `READ`, and
   `WRITE`. Exercise `THEN` and `ELSE` paths with reproducible missing records

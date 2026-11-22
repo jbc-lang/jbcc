@@ -17,6 +17,9 @@ PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.ite
 PRECEDENCE.update({":": 3, "+": 4, "-": 4, "*": 5, "/": 5})
 
 
+BUILTINS = {"LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+
+
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 
 
@@ -229,6 +232,25 @@ class Compiler:
             if self.word not in marks:
                 self.error("expected a dynamic-array mark")
             value = '"\\%03o"' % marks[self.word]
+        elif word in BUILTINS and self.following.word == '(':
+            target = self.current
+            self.advance()
+            self.advance()
+            args = []
+            if self.word != ')':
+                args.append(self.expression())
+                while self.word == ',':
+                    self.advance()
+                    args.append(self.expression())
+            if self.word != ')':
+                self.error("expected ')' after function arguments")
+            if len(args) not in BUILTINS[word]:
+                self.error(f"wrong argument count for '{word}'", target)
+            if word == 'FIELD':
+                if len(args) == 3:
+                    args.append('"1"')
+                args.append(self.location(target))
+            value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
         elif self.current.kind == 'name':
             value = self.read_variable(self.current)
         elif self.current.kind == 'number':
