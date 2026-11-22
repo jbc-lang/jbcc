@@ -98,6 +98,46 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+## In-memory file tests
+
+The test backend starts with empty files explicitly named at translation
+time. Each execution starts fresh. To run the example:
+
+```sh
+./jbcc --memory-file CUSTOMERS tests/io/records.b -o /tmp/records.c
+cc -std=c99 /tmp/records.c -o /tmp/records
+/tmp/records
+```
+
+OPEN a name TO a descriptor, READ a variable FROM a descriptor and key,
+and WRITE a value ON or TO a descriptor and key. The supported forms use
+explicit descriptors. OPEN and READ require THEN or ELSE. WRITE can be
+unconditional or use a success or failure branch. In this backend a failed
+open or read clears its destination. An unhandled failed WRITE terminates
+with a source location. Stored records survive reassignment and loop
+temporary cleanup. Default descriptors, disk storage, locking, SETTING and
+ON ERROR remain outside this test backend.
+[OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
+[WRITE](https://jbc-lang.org/pages/write.html).
+
+## Check a local source corpus
+
+```sh
+python3 tools/check_corpus.py ~/Downloads/t24 -j 8 > /tmp/jbcc-corpus.json
+```
+
+The checker visits regular files recursively. It counts `I_` files as include
+fragments and expands them when referenced by a compilation unit. It runs
+the compiler's preprocessor, parser and C generator on each remaining file.
+For external calls it declares the observed signature so that the system C
+compiler can check the complete generated unit with C99 warnings as errors.
+Additional include directories can be supplied with `-I`.
+
+The JSON report records a status per relative path, diagnostic locations,
+and counts by first blocker. A translated unit passed C syntax checking.
+Linking its external dependencies and verifying its behavior require separate
+tests. UTF-8 decoding failures are counted separately.
+
 ## Test corpus
 
 ```sh
@@ -145,5 +185,5 @@ output are the evidence for runtime behavior.
 
 ## After the first milestone
 
-The next section of [PLAN.md](PLAN.md) covers library functions, file I/O,
-and whole-routine corpus checks. WebAssembly remains a possible playground target.
+Use the first-blocker counts to prioritize further compiler work. WebAssembly
+remains a possible playground target.

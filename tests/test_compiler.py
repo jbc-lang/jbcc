@@ -1,4 +1,6 @@
+import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -112,3 +114,15 @@ class CompilerTest(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
+
+    def test_corpus_report(self):
+        (self.work / 'ok').write_text('SUBROUTINE S(X)\nCALL OTHER(X)\n')
+        (self.work / 'bad').write_text('DIM A(2)\n')
+        (self.work / 'I_SHARED').write_text('EQU X TO 1\n')
+        report = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', self.work],
+                                capture_output=True, text=True, check=True)
+        data = json.loads(report.stdout)
+        self.assertEqual(data['counts'], {'translated': 1, 'rejected': 1, 'include fragment': 1})
+        self.assertEqual(data['files']['ok']['status'], 'translated')
+        self.assertEqual(data['first_blockers'], {"unsupported statement 'DIM'": 1})
+        self.assertIn('bad:1:1:', data['files']['bad']['diagnostic'])

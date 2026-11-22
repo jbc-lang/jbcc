@@ -67,7 +67,10 @@ def lex_line(line, n, path):
             continue
         if at_start and word in ('*', '!', 'REM'):
             break
-        words.append(Token(word, match.lastgroup, n, match.start() + 1, path))
+        kind = match.lastgroup
+        if kind == 'name' and words and words[-1].word == '@':
+            kind = 'system_name'
+        words.append(Token(word, kind, n, match.start() + 1, path))
         at_start = word == ';'
     while words and words[-1].word == ';':
         words.pop()
@@ -692,13 +695,18 @@ def routine_symbol(name):
     return "routine_" + name.encode("utf8").hex()
 
 
+def compile_unit(path, directories, index=0):
+    unit = Compiler(path, index)
+    unit.parse(list(Preprocessor(directories).read(path)))
+    return unit
+
+
 def compile_program(paths, directories, memory_files=()):
     units = []
     routines = {}
     programs = 0
     for i, path in enumerate(paths):
-        unit = Compiler(path, i)
-        unit.parse(list(Preprocessor(directories).read(path)))
+        unit = compile_unit(path, directories, i)
         units.append(unit)
         if unit.routine:
             name = unit.routine.word

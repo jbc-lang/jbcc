@@ -45,6 +45,17 @@ an argument.
 - [x] **File I/O.** Use an in-memory test backend for `OPEN`, `READ`, and
   `WRITE`. Exercise `THEN` and `ELSE` paths with reproducible missing records
   and failed opens.
-- [ ] **Whole-routine corpus checks.** Track which routines translate and
+- [x] **Whole-routine corpus checks.** Track which routines translate and
   group failures by unsupported construct. Check runtime behavior separately
   with executable snippets whose expected results have a recorded source.
+
+## Corpus baseline
+
+The 2026-11-22 scan covered 22,474 local T24 files. Of 17,336 candidate
+units, 53 translated and passed C99 syntax checking, 17,055 produced
+compiler diagnostics, and 228 encountered UTF-8 decoding errors. The other
+5,138 files were classified as include fragments by name.
+
+The first unsupported statement was COM in 16,482 units and COMMON in 18.
+Implementing shared COMMON storage and its declarations is the next
+coverage milestone. Rerun the scan afterward to identify the next blocker.

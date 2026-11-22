@@ -1,0 +1,92 @@
+"""Translate individual corpus units and ask cc to validate their generated C."""
+import argparse
+from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import json
+import os
+from pathlib import Path
+import re
+import runpy
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[1]
+COMPILER = runpy.run_path(str(ROOT / "jbcc"))
+RUNTIME = (ROOT / "runtime/jbc.c").read_text()
+
+
+def group(message):
+    # Preserve keyword spellings for unsupported statements. Group arbitrary
+    # user identifiers together and retain full diagnostics in the file report.
+    for prefix in ("unknown variable or unsupported function", "unknown label",
+                   "include file", "expected NEXT", "unassigned variable"):
+        if message.startswith(prefix):
+            return prefix
+    return message
+
+
+def check(relative, root, directories):
+    path = root / relative
+    if path.name.startswith("I_"):
+        return relative, "include fragment", ""
+    try:
+        unit = COMPILER["compile_unit"](path, directories)
+        externals = {}
+        for target, argc in unit.calls:
+            if unit.routine and unit.routine.word == target.word:
+                if argc != len(unit.formals):
+                    unit.error("recursive call has incompatible arity", target)
+                continue
+            if externals.setdefault(target.word, argc) != argc:
+                unit.error("external calls disagree on arity", target)
+        prototypes = []
+        for name, argc in externals.items():
+            params = ", ".join(["const char **"] * argc) or "void"
+            prototypes.append(f"void {COMPILER['routine_symbol'](name)}({params});")
+        generated = "\n".join([RUNTIME] + prototypes + [unit.render()])
+        result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
+                                 "-pedantic", "-fsyntax-only", "-x", "c", "-"],
+                                input=generated, text=True, capture_output=True)
+        if result.returncode:
+            return relative, "C diagnostic", result.stderr.splitlines()[0]
+        return relative, "translated", ""
+    except COMPILER["Diagnostic"] as error:
+        detail = str(error).replace(str(root) + os.sep, "")
+        return relative, "rejected", detail
+    except UnicodeDecodeError as error:
+        return relative, "encoding", str(error)
+    except OSError as error:
+        return relative, "I/O error", str(error)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("-I", dest="includes", action="append", type=Path, default=[])
+    parser.add_argument("-j", type=int, default=1, metavar="JOBS")
+    options = parser.parse_args()
+    root = options.directory.resolve()
+    if not root.is_dir() or options.j < 1:
+        parser.error("expected a corpus directory and a positive job count")
+    if not shutil.which("cc"):
+        parser.error("cc is required to check generated C")
+    paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
+    scan = partial(check, root=root, directories=[root, *options.includes])
+    counts = Counter()
+    blockers = Counter()
+    files = {}
+    with ProcessPoolExecutor(max_workers=options.j) as pool:
+        for name, status, diagnostic in pool.map(scan, paths, chunksize=16):
+            counts[status] += 1
+            files[name] = {"status": status}
+            if diagnostic:
+                files[name]["diagnostic"] = diagnostic
+                reason = re.sub(r"^.*?:\d+:\d+: ", "", diagnostic)
+                blockers[group(reason) if status == "rejected" else status] += 1
+    print(json.dumps(dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files),
+                     indent=2))
+
+
+if __name__ == "__main__":
+    main()
