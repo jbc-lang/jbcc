@@ -742,7 +742,18 @@ checking, including all 13,359 previous passes. Of the 532 units with a
 closing-bracket diagnostic, 387 now pass, 142 reach a new diagnostic and
 three still require single-argument substring assignment.
 
-- [ ] Implement two-coordinate terminal positioning, `@(col,row)`. In at
+- [x] Implement two-coordinate terminal positioning, `@(col,row)`. In at
   least 544 units the first diagnostic points at the coordinate comma.
   Check the guide’s zero-based origin, verify the emitted terminal bytes
   for constant and computed coordinates, and retain the existing @(-2) test.
+
+After two-coordinate cursor positioning, 14,026 of 17,336 candidates pass
+strict C99 checking, including all 13,746 previous passes. Of the 544
+units identified at the coordinate comma, 275 pass and 269 reach another
+diagnostic.
+
+- [ ] Implement the common terminal clearing codes `@(-1)`, `@(-3)` and
+  `@(-4)` using the guide’s SCREENCODE table. Among the 280 new strict C99
+  passes, 166 source files contain at least one of these literal forms.
+  Verify clear-and-home, erase to end of screen, and erase to end of line
+  by comparing the native output bytes.

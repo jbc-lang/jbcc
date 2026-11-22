@@ -743,9 +743,12 @@ These snippets have yet to be run on a reference jBC implementation.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative
-positions count from the end). Terminal support covers ANSI cursor-home
-`@(-2)` and POSIX pending input `SYSTEM(14)`; the latter follows the input
-device's line discipline. Native mode links the math library for programs
+positions count from the end). The guide defines `@(column,row)` with a
+zero-based origin. jbcc returns an ANSI cursor-position string, so
+`@(5,2)` emits `ESC[3;6H` when printed. The runtime truncates fractional
+coordinates toward zero and reports a negative result at the call site.
+`@(-2)` returns the ANSI cursor-home string. `SYSTEM(14)` checks pending
+input using the POSIX input device's line discipline. Native mode links the math library for programs
 that use trigonometry. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).

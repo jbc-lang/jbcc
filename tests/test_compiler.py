@@ -1141,6 +1141,17 @@ END
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)
 
+    def test_cursor_coordinate_diagnostics(self):
+        source = self.work / 'cursor.b'
+        for args, message in [("0, 'x'", 'expected a numeric value'),
+                              ('-1, 0', 'negative cursor coordinate'),
+                              ('0, -1', 'negative cursor coordinate')]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT @({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+
     def test_banner(self):
         source = ROOT / 'tests/programs/banner.b'
         binary = self.work / 'banner'

@@ -2120,9 +2120,20 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     return bytes > 0 ? size_value((size_t)bytes) : "0";
 }
 
-const char *jbc_cursor(const char *code, const char *file, int line, int column)
+const char *jbc_cursor(const char *col, const char *row, const char *file, int line, int column)
 {
-    if (jbc_compare(code, "-2", -1)) numeric_error(file, line, column, "only @(-2) is supported");
-    return "\033[H";
+    if (!row) {
+        if (jbc_compare(col, "-2", -1))
+            numeric_error(file, line, column, "only @(-2) is supported with one argument");
+        return "\033[H";
+    }
+    int64_t x = truncated(col, file, line, column);
+    int64_t y = truncated(row, file, line, column);
+    if (x < 0 || y < 0) numeric_error(file, line, column, "negative cursor coordinate");
+    /* Two uint64_t values need at most 20 decimal digits each. */
+    size_t capacity = sizeof("\033[;H") + 2 * 20;
+    char *out = allocate(capacity - 1);
+    snprintf(out, capacity, "\033[%" PRIu64 ";%" PRIu64 "H", (uint64_t)y + 1, (uint64_t)x + 1);
+    return out;
 }
 #endif
