@@ -128,7 +128,13 @@ class CompilerTest(unittest.TestCase):
         self.assertIn('bad:1:1:', data['files']['bad']['diagnostic'])
 
     def test_quine(self):
-        run = self.run_native(ROOT / 'tests/programs/quine.b')
+        source = ROOT / 'tests/programs/quine.b'
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, source.read_bytes())
+
+    def test_original_quine_output(self):
+        run = self.run_native(ROOT / 'tests/programs/quine-original.b')
         body = b'CRT CHAR(81):CHAR(61):CHAR(34):Q:CHAR(34):CHAR(58):Q'
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'Q="' + body + b'":' + body + b'\n')

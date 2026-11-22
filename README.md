@@ -158,14 +158,11 @@ These snippets have yet to be run on a reference jBC implementation.
 
 ### Whole-program fixtures
 
-`tests/programs/` contains two user-supplied programs for whole-program
-checks. The native test suite runs the quine and verifies its emitted bytes. Try either with `./jbcc tests/programs/quine.b -o /tmp/quine.c`,
-substituting `demo.b` for the animation.
-
-- `quine.b` exercises same-line statements, `CHAR`, and concatenation.
-  Its source separates the assignment and CRT with a semicolon, while
-  `CHAR(58)` prints a colon at that position. A byte-for-byte comparison
-  with its source would therefore be an incorrect output test.
+- `quine.b` reproduces its source byte for byte, including the semicolon
+  between statements and the final newline. The native test compares stdout
+  directly with the source file.
+- `quine-original.b` preserves the supplied program. Its regression test
+  checks the colon emitted by `CHAR(58)` and the single output newline.
 - `demo.b` animates a 24-by-79 character display until a key is available.
   It exercises dimensioned arrays, substring assignment, fractional
   arithmetic, trigonometry, and terminal I/O. A future automated run

@@ -63,7 +63,8 @@ coverage milestone. Rerun the scan afterward to identify the next blocker.
 ## Whole-program fixture milestones
 
 - [x] Compile and run the supplied quine with byte-oriented CHAR. Check its
-  emitted bytes, including the colon produced by CHAR(58).
+  emitted bytes, including the colon produced by CHAR(58). Verify that the
+  corrected quine reproduces its complete source byte for byte.
 - [ ] Implement DIM storage and indexed reads/writes alongside COMMON.
   Start with local arrays, including the demo's zero index, then reuse
   the same representation for dimensioned members of shared COMMON blocks.
