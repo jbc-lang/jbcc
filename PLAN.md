@@ -307,6 +307,15 @@ After three-position LOCATE, 9,693 of 17,336 candidates pass strict C99
 checking, including all 9,571 previous passes. Of the 227 units previously
 stopped at the selector, 122 pass and 105 reach another diagnostic.
 
-- [ ] Implement EXIT, the first blocker in 189 units. Distinguish a bare
+- [x] Implement EXIT, the first blocker in 189 units. Distinguish a bare
   EXIT inside a loop from EXIT(expression), which returns a process status.
   Test nested loops, CASE inside a loop, and the native executable's status.
+
+After EXIT, 9,804 of 17,336 candidates pass strict C99 checking, including
+all 9,693 previous passes. Of the 189 units stopped at a bare EXIT, 111
+pass and 78 reach another diagnostic.
+
+- [ ] Start FMT with the mask forms observed in T24. In 277 units the
+  first diagnostic points to the opening parenthesis of FMT. Cross-check
+  width, justification, padding and decimal precision against the guide,
+  and report unsupported masks at the call site.

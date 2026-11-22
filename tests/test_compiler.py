@@ -114,6 +114,32 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:5: DEL requires numeric indices'.encode(), run.stderr)
 
+    def test_exit_status_from_subroutine(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'finish.b'
+        main.write_text("CALL FINISH(20)\nPRINT 'unreachable'\n")
+        sub.write_text("SUBROUTINE FINISH(N)\nLOOP\nPRINT 'done'\nEXIT(N + 3.75)\nREPEAT\n")
+        run = self.run_native(main, sub)
+        self.assertEqual(run.returncode, 23, run.stderr)
+        self.assertEqual(run.stdout, b'done\n')
+        sub.write_text("SUBROUTINE FINISH(N)\nEXIT('bad')\n")
+        run = self.run_native(main, sub)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{sub}:2:1: expected a numeric value'.encode(), run.stderr)
+
+    def test_exit_control_flow_diagnostics(self):
+        source = self.work / 'exit.b'
+        source.write_text("LOOP\nIF 1 THEN EXIT\nX = 2\nUNTIL 1 REPEAT\nPRINT X\n")
+        build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(build.returncode, 0)
+        self.assertIn(f"{source}:5:7: unknown variable", build.stderr)
+        source.write_text("EXIT\nPRINT 'after'\n")
+        binary = self.work / 'program'
+        build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
+        self.assertEqual(build.returncode, 0, build.stderr)
+        self.assertIn(f'{source}:1:1: warning: EXIT outside a loop ignored', build.stderr)
+        self.assertEqual(subprocess.check_output([binary]), b'after\n')
+
     def test_continue_outside_loop(self):
         source = self.work / 'continue.b'
         source.write_text('FOR I = 1 TO 1\nNEXT I\n  CONTINUE\nPRINT I\n')

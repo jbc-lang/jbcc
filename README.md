@@ -117,6 +117,14 @@ it issues a compile-time warning and execution proceeds normally.
 [CONTINUE](https://jbc-lang.org/pages/continue.html). See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
+A bare `EXIT` leaves the innermost FOR or LOOP, including from inside a
+CASE arm. A FOR counter keeps its current value. Outside a loop the
+compiler warns and ignores bare EXIT, following the reference parser.
+`EXIT(expression)` ends the process, including when executed in a
+subroutine. jbcc truncates a fractional status toward zero and requires
+the result to fit a C int. This conversion policy is provisional pending
+a reference run. [EXIT](https://jbc-lang.org/pages/exit.html).
+
 ## Dimensioned arrays and shared storage
 
 DIM and DIMENSION accept comma-separated declarations with positive integer

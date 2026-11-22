@@ -1047,6 +1047,14 @@ static int64_t truncated(const char *value, const char *file, int line, int colu
     return integer(value, file, line, column);
 }
 
+void jbc_exit(const char *value, const char *file, int line, int column)
+{
+    int64_t status = truncated(value, file, line, column);
+    if (status < INT_MIN || status > INT_MAX)
+        numeric_error(file, line, column, "EXIT status out of range");
+    exit((int)status);
+}
+
 void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int count,
              const char *file, int line, int column)
 {

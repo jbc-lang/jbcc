@@ -256,6 +256,7 @@ class Compiler:
         self.temporaries = 0
         self.loop_stack = []
         self.continued_loops = set()
+        self.loop_exit_assignments = {}
         self.loops = 0
         self.trig = False
         self.terminal = False
@@ -724,7 +725,7 @@ class Compiler:
         self.depth += 1
 
     def end_loop_body(self):
-        loop = self.loop_stack.pop()
+        loop = self.loop_stack[-1]
         if loop in self.continued_loops:
             self.emit(f"continue_{loop}: ;")
 
@@ -739,11 +740,35 @@ class Compiler:
             print(f"{token.path}:{token.line}:{token.column}: warning: CONTINUE outside a loop ignored",
                   file=sys.stderr)
 
+    def exit_statement(self):
+        token = self.current
+        self.advance()
+        if self.word == '(':
+            self.advance()
+            status = self.expression()
+            self.expect(')')
+            self.emit(f"jbc_exit({status}, {self.location(token)});")
+        elif self.loop_stack:
+            loop = self.loop_stack[-1]
+            if loop in self.loop_exit_assignments:
+                self.loop_exit_assignments[loop].intersection_update(self.assigned)
+            else:
+                self.loop_exit_assignments[loop] = self.assigned.copy()
+            self.emit(f"goto exit_loop_{loop};")
+        else:
+            print(f"{token.path}:{token.line}:{token.column}: warning: EXIT outside a loop ignored",
+                  file=sys.stderr)
+
     def end_loop(self):
         self.emit("jbc_collect(entry_mark, live);")
         self.depth -= 1
         self.emit("}")
+        loop = self.loop_stack.pop()
+        exit_assigned = self.loop_exit_assignments.pop(loop, None)
+        if exit_assigned is not None:
+            self.emit(f"exit_loop_{loop}: ;")
         self.emit("jbc_collect(entry_mark, live);")
+        return exit_assigned
 
     def guard(self):
         until = self.word == 'UNTIL'
@@ -812,7 +837,9 @@ class Compiler:
             if self.word == 'DO':
                 self.advance()
         self.end_loop_body()
-        self.end_loop()
+        bare_exits = self.end_loop()
+        if bare_exits is not None:
+            exits = bare_exits if exits is None else exits & bare_exits
         if exits is not None:
             self.assigned = exits
 
@@ -1137,6 +1164,8 @@ class Compiler:
                     value = self.expression()
                 self.emit(f"frame->result = {value};")
             self.emit("return;")
+        elif self.word == 'EXIT':
+            self.exit_statement()
         elif self.word == 'STOP':
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
