@@ -722,7 +722,17 @@ C99 checking, including all 13,057 previous passes. Of the 251 units
 previously blocked at a standalone ELSE, 199 now pass and 52 reach
 another diagnostic.
 
-- [ ] Support static routine names beginning with `!`, such as
+- [x] Support static routine names beginning with `!`, such as
   `CALL !HUSHIT(1)`. The first diagnostic points at this prefix in 104
   CALL statements and three SUBROUTINE headers. Check a caller and
   definition together and preserve `!` in comments and expressions.
+
+After bang-prefixed subroutine names, 13,359 of 17,336 candidates pass
+strict C99 checking, including all 13,340 previous passes. Of the 107
+units previously blocked at the prefix, 19 now pass and 88 reach another
+diagnostic.
+
+- [ ] Support single-argument substring extraction, `expression[n]`.
+  The RIGHT chapter defines it as the last n characters. Check the
+  reference grammar, dynamic-array values, and zero and oversized lengths.
+  In 532 units the first diagnostic expects a comma at a closing bracket.

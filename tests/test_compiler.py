@@ -564,6 +564,19 @@ CRT UPCASE(''):LOWCASE('')
         run = self.run_native(source)
         self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
 
+    def test_bang_subroutine_names(self):
+        main = self.work / 'main.b'
+        plain = self.work / 'plain.b'
+        bang = self.work / 'bang.b'
+        main.write_text('X = 0\nCALL ADD.IT$(X)\nCALL !ADD.IT$(X); ! trailing comment\n'
+                        'IF 0!X THEN CALL !ADD.IT$(X)\n!ADD.IT$(X) is a comment here\nCRT X\n')
+        plain.write_text('SUB ADD.IT$(N)\nN += 1\nRETURN\n')
+        bang.write_text('SUBROUTINE !ADD.IT$(N)\nN += 10\nRETURN\n')
+        run = self.run_native(main, plain, bang)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'21\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_call_aliases_and_expression_arguments(self):
         caller = self.work / 'caller.b'
         callee = self.work / 'callee.b'
@@ -725,6 +738,8 @@ RETURN M(2,3)
         sub.write_text('SUBROUTINE CHECK(X)\nRETURN\n')
         for program, message in [('CALL CHECK()', 'wrong argument count'),
                                  ('CALL MISSING()', 'unknown subroutine'),
+                                 ('CALL !CHECK(X)', ":1:6: unknown subroutine '!CHECK'"),
+                                 ('CALL ! CHECK(X)', ":1:6: expected a routine name immediately after '!'"),
                                  ('GOSUB missing', 'unknown label'),
                                  ('GOSUB missing:', ":1:7: unknown label 'missing'"),
                                  ('GOTO 90:', ":1:6: unknown label '90'"),

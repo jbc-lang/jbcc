@@ -99,6 +99,8 @@ def lex_line(line, n, path, words, parentheses):
         if word == ';' and words and words[-1].word == ',' and words[-1].line == n:
             break
         kind = match.lastgroup
+        if word == '!' and offset < len(line) and TOKEN.match(line, offset).lastgroup == 'name':
+            kind = 'bang_prefix'
         if kind == 'arithmetic_assign':
             word = word[0] + '='
             kind = 'symbol'
@@ -1238,9 +1240,18 @@ class Compiler:
             self.expect(')')
         return args, tuple(kinds)
 
+    def subroutine_name(self):
+        if self.word != '!':
+            return self.identifier()
+        prefix = self.current
+        self.advance()
+        if prefix.kind != 'bang_prefix' or self.current.kind != 'name':
+            self.error("expected a routine name immediately after '!'", prefix)
+        return prefix._replace(word='!' + self.identifier().word, kind='name')
+
     def call_statement(self):
         self.advance()
-        target = self.identifier()
+        target = self.subroutine_name()
         args, kinds = self.call_arguments()
         self.calls.append((target, kinds, False))
         self.emit(f"{routine_symbol(target.word)}({', '.join(args)});")
@@ -1662,7 +1673,7 @@ class Compiler:
             header = self.word
             self.is_function = header == 'FUNCTION'
             self.advance()
-            self.routine = self.identifier()
+            self.routine = self.identifier() if self.is_function else self.subroutine_name()
             if self.word == '(':
                 self.advance()
                 while self.word != ')':

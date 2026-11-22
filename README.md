@@ -393,6 +393,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
   and a quoted name containing a semicolon. [PROGRAM](https://jbc-lang.org/pages/program.html)
 - SUBROUTINE parameters and plain variable arguments to CALL share storage,
   including output arguments. Expressions are passed in temporary slots.
+  A static subroutine name can start with `!`, as in the T24 call
+  `CALL !HUSHIT(1)`. The prefix is part of the name when matching a CALL
+  to a SUB or SUBROUTINE definition, following the reference compiler’s
+  direct call-name reader.
   A comma at the end of a line continues the argument list on the next
   line. The reference preprocessor applies this rule before parsing, so
   it also works in routine headers and expressions. A trailing semicolon
