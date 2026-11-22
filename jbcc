@@ -1174,20 +1174,52 @@ class Compiler:
             heading = self.expression()
             self.emit(f"jbc_heading({unit}, {heading}, {int(opening.word == 'HEADINGN')}, {location});")
 
-    def print_statement(self):
+    def printer_statement(self):
+        opening = self.current
         self.advance()
+        mode = self.word
+        self.advance()
+        unit = 'NULL'
+        if self.word == 'ON':
+            self.advance()
+            unit = self.primary()
+        self.uses_report = True
+        self.emit(f'jbc_printer(JBC_PRINTER_{mode}, {unit}, {self.location(opening)});')
+
+    def print_statement(self):
+        opening = self.current
+        location = self.location(opening)
+        self.advance()
+        destination = 'JBC_SCREEN' if opening.word == 'CRT' else 'jbc_print_channel'
+        if opening.word == 'PRINT' and self.word == 'ON':
+            self.uses_report = True
+            self.advance()
+            unit = self.primary()
+            while self.word in ('+', '-'):
+                op = self.current
+                self.advance()
+                unit = self.arithmetic(op, unit, self.primary(), op.word)
+            destination = f'jbc_report_channel({unit}, {location})'
+        if opening.word == 'PRINT':
+            channel = f'channel_{self.temporaries}'
+            self.temporaries += 1
+            self.emit(f'int {channel} = {destination};')
+            if self.word == ':':
+                self.emit(f'(void){channel};')
+            destination = channel
         if self.word not in OUTPUT_END:
             while True:
                 if self.word != ':':
-                    self.emit(f"jbc_output({self.expression(colon_stops=OUTPUT_END)});")
+                    value = self.expression(colon_stops=OUTPUT_END)
+                    self.emit(f"jbc_output({destination}, {value}, {location});")
                 if self.word == ':':
                     self.advance()
                     return
                 if self.word != ',':
                     break
-                self.emit('jbc_output("\\t");')
+                self.emit(f'jbc_output({destination}, "\\t", {location});')
                 self.advance()
-        self.emit('jbc_output("\\n");')
+        self.emit(f'jbc_output({destination}, "\\n", {location});')
 
     def begin_loop(self):
         self.loops += 1
@@ -1826,6 +1858,8 @@ class Compiler:
         elif (self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'PAGE') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
             self.report_statement()
+        elif self.word == 'PRINTER' and self.following.word in ('ON', 'OFF', 'CLOSE', 'RESET'):
+            self.printer_statement()
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()
         elif self.current.kind == 'name':

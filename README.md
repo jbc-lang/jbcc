@@ -377,7 +377,8 @@ aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 
-PRINT and CRT write to standard output. Commas separate items with tabs.
+CRT writes to standard output. PRINT uses the current output device, initially
+standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
 `HEADING expression` puts a title on the first page and repeats it on
@@ -394,9 +395,33 @@ and `]` also work. Centering and backslash options produce diagnostics.
 The native runtime counts output lines against the terminal height and
 waits for Enter at page breaks when both input and output are terminals,
 unless the heading specifies `N`. For redirected output the provisional
-layout is 24 lines per page, with a form feed between pages. Explicit
-`HEADING ON unit` and `PAGE ON unit` compile and report the missing
-print-unit backend when executed.
+layout is 24 lines per page, with a form feed between pages.
+
+`PRINTER ON` switches PRINT to the printer. `PRINTER OFF` switches back
+to the terminal and leaves the job open. `PRINTER CLOSE` closes the job.
+`PRINT ON n`, `HEADING ON n` and `PAGE ON n` share the selected unit’s
+output and page state. Units 1 through 127 are independent. jbcc routes
+unit 0 to the current default destination. The reference grammar accepts a
+parenthesized expression or a sum or difference for the PRINT unit.
+[PRINT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_PRINT.htm)
+and [PRINTER](https://jbc-lang.org/pages/printer.html).
+
+To capture printer output locally, set `JBCC_PRINT_DIR` to an existing
+directory when running the executable. Each new job creates a unique
+`unit-<number>-*` file. This file backend uses a provisional 24-line
+page size. `PRINTER RESET` resets the selected unit’s heading and page
+counter while preserving the open job, following the usage in T24’s
+PRINTER.ON routine. A qualified `PRINTER CLOSE ON n` closes only that
+unit. For the grammar’s qualified ON and OFF forms, jbcc treats
+`PRINTER ON ON n` as selecting the default destination and
+`PRINTER OFF ON n` as releasing it if selected. This behavior is
+provisional pending a reference run. Printer operations requiring a new job report a runtime diagnostic
+if the directory is unset or unavailable.
+
+```sh
+mkdir -p /tmp/jbcc-reports
+JBCC_PRINT_DIR=/tmp/jbcc-reports just run tests/io/print-units.b
+```
 
 FOR supports inclusive bounds, a default step of one, optional STEP,
 and an optional variable name after NEXT. Following the reference parser,

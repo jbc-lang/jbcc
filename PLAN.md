@@ -1051,7 +1051,18 @@ previously blocked first by HEADING, HEADINGN or PAGE, 104 pass and
 page numbering, automatic breaks, and terminal pause and resume.
 Explicit print units currently produce a source-located runtime error.
 
-- [ ] Investigate PRINT ON and PRINTER against the reference grammar.
+- [x] Investigate PRINT ON and PRINTER against the reference grammar.
   BUILD.DICTS.INDICES now reaches PRINT ON 1. Establish how unit
   selection interacts with CRT, headings and page state, and exercise
   separate units with a native test backend.
+
+With PRINT ON and PRINTER, 15,416 of 17,336 candidates pass strict C99
+checking, including all 15,388 previous passes. PRINTER.ON, PRINTER.OFF,
+PRINTER.CLOSE and ENQUIRY.REPORT.RUN now pass. BUILD.DICTS.INDICES
+advances to INDICES(file). Native tests compare terminal output and each
+job’s bytes across routing changes, page breaks, resets and closes.
+
+- [ ] Implement sequential file I/O, starting with OPENSEQ, the first
+  diagnostic in 44 units. Check its path and file/record forms against
+  the grammar. Exercise success and failure arms, READSEQ end of file,
+  WRITESEQ and CLOSESEQ with temporary files.

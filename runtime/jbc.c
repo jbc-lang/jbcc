@@ -21,7 +21,6 @@ struct jbc_buffer {
 
 static struct jbc_buffer *buffers;
 static const char *jbc_command_line = "";
-static const char *report_heading;
 static const char *jbc_input_prompt = "?";
 
 static void fail(const char *message)
@@ -602,7 +601,7 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
         struct jbc_buffer *buffer = *link;
         const char ***slot = live;
         while (*slot && **slot != buffer->text) ++slot;
-        if (*slot || buffer->text == jbc_input_prompt || buffer->text == report_heading ||
+        if (*slot || buffer->text == jbc_input_prompt ||
             held_in_storage(buffer->text)) {
             link = &buffer->next;
         } else {
@@ -2987,81 +2986,161 @@ const char *jbc_cursor(const char *col, const char *row, const char *file, int l
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-static int64_t report_page = 1;
-static unsigned report_rows, report_lines;
-static int report_no_pause;
-static const char *heading_file;
-static int heading_line, heading_column;
 
-static void report_char(int ch)
+#define JBC_SCREEN (-1)
+struct report {
+    FILE *out;
+    char *heading;
+    int64_t page;
+    unsigned rows, lines;
+    int no_pause;
+    const char *file;
+    int line, column;
+};
+
+static struct report screen, printers[128];
+static int jbc_print_channel = JBC_SCREEN;
+
+static int printer_number(const char *unit, const char *file, int line, int column)
 {
-    putchar(ch);
-    if (ch == '\n' && report_lines < UINT_MAX) ++report_lines;
+    struct decimal n;
+    if (!parse_decimal(unit, &n) || n.places || n.sign < 0 || n.digits > 3)
+        numeric_error(file, line, column, "print unit must be an integer from 0 to 127");
+    int number = (int)integer(unit, file, line, column);
+    if (number > 127) numeric_error(file, line, column, "print unit must be an integer from 0 to 127");
+    return number;
 }
 
-static void report_title(void)
+int jbc_report_channel(const char *unit, const char *file, int line, int column)
 {
-    const char *p = report_heading;
+    if (!unit) return jbc_print_channel;
+    int n = printer_number(unit, file, line, column);
+    return n == 0 ? jbc_print_channel : n;
+}
+
+static struct report *open_report(int channel, const char *file, int line, int column)
+{
+    struct report *r = channel == JBC_SCREEN ? &screen : &printers[channel];
+    if (r->out) return r;
+    r->page = 1;
+    if (channel == JBC_SCREEN) {
+        r->out = stdout;
+        return r;
+    }
+    const char *dir = getenv("JBCC_PRINT_DIR");
+    if (!dir || !*dir) numeric_error(file, line, column, "printer output requires JBCC_PRINT_DIR");
+    char suffix[32];
+    snprintf(suffix, sizeof suffix, "/unit-%d-XXXXXX", channel);
+    size_t length = strlen(dir);
+    if (length > SIZE_MAX - sizeof suffix) fail("print directory path is too long");
+    char *path = allocate(length + strlen(suffix));
+    strcpy(path, dir);
+    strcpy(path + length, suffix);
+    int fd = mkstemp(path);
+    if (fd < 0) numeric_error(file, line, column, "cannot create print job in JBCC_PRINT_DIR");
+    r->out = fdopen(fd, "w");
+    if (!r->out) {
+        close(fd);
+        unlink(path);
+        numeric_error(file, line, column, "cannot open print job");
+    }
+    setbuf(r->out, NULL);
+    return r;
+}
+
+enum printer_mode { JBC_PRINTER_ON, JBC_PRINTER_OFF, JBC_PRINTER_CLOSE, JBC_PRINTER_RESET };
+
+void jbc_printer(enum printer_mode mode, const char *unit, const char *file, int line, int column)
+{
+    int n = unit ? printer_number(unit, file, line, column) :
+        (jbc_print_channel == JBC_SCREEN ? 0 : jbc_print_channel);
+    struct report *r = &printers[n];
+    if (mode == JBC_PRINTER_ON) {
+        open_report(n, file, line, column);
+        jbc_print_channel = n;
+    } else if (mode == JBC_PRINTER_OFF) {
+        if (!unit || n == jbc_print_channel) jbc_print_channel = JBC_SCREEN;
+    } else {
+        if (mode == JBC_PRINTER_CLOSE) {
+            if (n == jbc_print_channel) jbc_print_channel = JBC_SCREEN;
+            if (r->out && fclose(r->out)) numeric_error(file, line, column, "cannot close print job");
+            r->out = NULL;
+        }
+        free(r->heading);
+        FILE *out = r->out;
+        *r = (struct report){.out = out, .page = 1};
+    }
+}
+
+static void report_char(struct report *r, int ch)
+{
+    fputc(ch, r->out);
+    if (ch == '\n' && r->lines < UINT_MAX) ++r->lines;
+}
+
+static void report_title(struct report *r)
+{
+    const char *p = r->heading;
     if (!p) return;
     if ((unsigned char)*p == 254) ++p;
     int pending_line = 0;
-    report_no_pause = 0;
+    r->no_pause = 0;
     while (*p) {
         if (*p == '\'' || *p == '"') {
             char quote = *p++;
             if (*p == quote) {
-                report_char(*p++);
+                report_char(r, *p++);
                 pending_line = 1;
                 continue;
             }
             while (*p && *p != quote) {
                 switch (*p++) {
-                case 'N': report_no_pause = 1; break;
-                case 'L': report_char('\n'); pending_line = 0; break;
+                case 'N': r->no_pause = 1; break;
+                case 'L': report_char(r, '\n'); pending_line = 0; break;
                 case 'P': {
                     int padded = *p == 'P';
                     if (padded) ++p;
-                    printf("%*" PRId64, padded ? 4 : 1, report_page);
+                    fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
                     pending_line = 1;
                     break;
                 }
                 case 'D': {
-                    const char *date = jbc_date(heading_file, heading_line, heading_column);
-                    fputs(jbc_oconv(date, "D", heading_file, heading_line, heading_column), stdout);
+                    const char *date = jbc_date(r->file, r->line, r->column);
+                    fputs(jbc_oconv(date, "D", r->file, r->line, r->column), r->out);
                     pending_line = 1;
                     break;
                 }
                 case 'T':
-                    fputs(jbc_timedate(heading_file, heading_line, heading_column), stdout);
+                    fputs(jbc_timedate(r->file, r->line, r->column), r->out);
                     pending_line = 1;
                     break;
                 default:
-                    numeric_error(heading_file, heading_line, heading_column, "unsupported HEADING option");
+                    numeric_error(r->file, r->line, r->column, "unsupported HEADING option");
                 }
             }
-            if (!*p) numeric_error(heading_file, heading_line, heading_column, "unterminated HEADING option");
+            if (!*p) numeric_error(r->file, r->line, r->column, "unterminated HEADING option");
             ++p;
         } else if (*p == '^') {
             int padded = *++p == '^';
             if (padded) ++p;
-            printf("%*" PRId64, padded ? 4 : 1, report_page);
+            fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
             pending_line = 1;
         } else {
             int ch = (unsigned char)*p++;
             if (ch == ']') ch = '\n';
-            if (ch == '\\') numeric_error(heading_file, heading_line, heading_column, "unsupported HEADING option");
-            report_char(ch);
+            if (ch == '\\') numeric_error(r->file, r->line, r->column, "unsupported HEADING option");
+            report_char(r, ch);
             pending_line = ch != '\n';
         }
     }
-    if (pending_line) report_char('\n');
+    if (pending_line) report_char(r, '\n');
     /* Leave room for one body line even if the title fills the screen. */
-    if (report_lines >= report_rows) report_lines = report_rows - 1;
+    if (r->lines >= r->rows) r->lines = r->rows - 1;
 }
 
-static void report_break(void)
+static void report_break(struct report *r)
 {
-    if (report_heading && !report_no_pause && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
+    if (r->out == stdout && r->heading && !r->no_pause && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
         fflush(stdout);
         char ch;
         for (;;) {
@@ -3070,61 +3149,69 @@ static void report_break(void)
             if (count <= 0 || ch == '\n') break;
         }
     }
-    putchar('\f');
-    report_lines = 0;
-    report_title();
+    fputc('\f', r->out);
+    r->lines = 0;
+    report_title(r);
 }
 
-static void next_report_page(void)
+static void next_report_page(struct report *r)
 {
-    if (report_page == INT64_MAX) fail("page number overflow");
-    ++report_page;
+    if (r->page == INT64_MAX) fail("page number overflow");
+    ++r->page;
 }
 
 void jbc_page(const char *unit, const char *number, const char *file, int line, int column)
 {
-    if (unit) numeric_error(file, line, column, "PAGE ON requires a print-unit backend");
+    struct report *r = open_report(jbc_report_channel(unit, file, line, column), file, line, column);
     if (number) {
         struct decimal value;
         if (!parse_decimal(number, &value) || value.places)
             numeric_error(file, line, column, "PAGE requires an integer page number");
-        report_page = integer(number, file, line, column);
-    } else next_report_page();
-    report_break();
+        r->page = integer(number, file, line, column);
+    } else next_report_page(r);
+    report_break(r);
+    if (ferror(r->out)) numeric_error(file, line, column, "report write failed");
 }
 
 void jbc_heading(const char *unit, const char *heading, int no_eject, const char *file, int line, int column)
 {
-    if (unit) numeric_error(file, line, column, "HEADING ON requires a print-unit backend");
-    int first = !report_heading;
-    report_heading = heading;
-    heading_file = file;
-    heading_line = line;
-    heading_column = column;
+    struct report *r = open_report(jbc_report_channel(unit, file, line, column), file, line, column);
+    int first = !r->heading;
+    char *copy = record_copy(heading);
+    free(r->heading);
+    r->heading = copy;
+    r->file = file;
+    r->line = line;
+    r->column = column;
     struct winsize size;
-    report_rows = ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_row ? size.ws_row : 24;
+    r->rows = r->out == stdout && ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_row ? size.ws_row : 24;
     if ((unsigned char)*heading == 254) return;
-    if (first) report_title();
+    if (first) report_title(r);
     else if (!no_eject) {
-        next_report_page();
-        report_break();
+        next_report_page(r);
+        report_break(r);
     }
+    if (ferror(r->out)) numeric_error(file, line, column, "report write failed");
 }
 
-void jbc_output(const char *text)
+void jbc_output(int channel, const char *text, const char *file, int line, int column)
 {
-    if (!report_heading) {
-        fputs(text, stdout);
-        return;
-    }
-    while (*text) {
-        if (report_lines >= report_rows) {
-            next_report_page();
-            report_break();
+    struct report *r = open_report(channel, file, line, column);
+    if (!r->heading) {
+        fputs(text, r->out);
+    } else {
+        while (*text) {
+            if (r->lines >= r->rows) {
+                next_report_page(r);
+                report_break(r);
+            }
+            report_char(r, (unsigned char)*text++);
         }
-        report_char((unsigned char)*text++);
     }
+    if (ferror(r->out)) numeric_error(file, line, column, "report write failed");
 }
 #else
-#define jbc_output(text) fputs((text), stdout)
+#define JBC_SCREEN (-1)
+#define jbc_print_channel JBC_SCREEN
+#define jbc_output(channel, text, file, line, column) ((void)(channel), fputs((text), stdout))
 #endif

@@ -25,12 +25,12 @@ class CompilerTest(unittest.TestCase):
         self.work = Path(tmp.name)
         self.c = self.work / 'generated.c'
 
-    def run_native(self, *sources, options=()):
+    def run_native(self, *sources, options=(), env=None):
         subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
                         '-pedantic', self.c, '-lm', '-o', binary], check=True)
-        return subprocess.run([binary], capture_output=True, timeout=5)
+        return subprocess.run([binary], capture_output=True, timeout=5, env=env)
 
     def test_snippets(self):
         for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
@@ -80,16 +80,31 @@ CRT 'done'
             finally:
                 proc.kill()
 
+    def test_print_units(self):
+        env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
+        result = self.run_native(ROOT / 'tests/io/print-units.b', env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'Screen 1\nscreen\nprogress\nback\nterminal\n\fScreen 2\nend\n')
+        jobs = sorted((p.name.split('-')[1], p.read_bytes()) for p in self.work.glob('unit-*-*'))
+        self.assertEqual(jobs, [
+            ('0', b'Default 1\nfirst job\n\fDefault 2\n'),
+            ('127', b'high\n'),
+            ('2', b'Other 1\nA\tB\fOther 9\nseparate\nReset 1\n'),
+            ('2', b'new job\n'),
+        ])
+
     def test_report_diagnostics(self):
         source = self.work / 'report.b'
         for statement, message in [
-                ('HEADING ON 0 "title"', 'HEADING ON requires a print-unit backend'),
-                ('PAGE ON 3', 'PAGE ON requires a print-unit backend'),
+                ('HEADING ON 1 "title"', 'printer output requires JBCC_PRINT_DIR'),
+                ('PAGE ON 3', 'printer output requires JBCC_PRINT_DIR'),
+                ('PRINT ON 128 "bad"', 'print unit must be an integer from 0 to 127'),
+                ('PRINTER ON', 'printer output requires JBCC_PRINT_DIR'),
                 ('PAGE 2.5', 'PAGE requires an integer page number'),
                 ("HEADING \"'C'\"", 'unsupported HEADING option')]:
             with self.subTest(statement=statement):
                 source.write_text(statement + '\n')
-                result = self.run_native(source)
+                result = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=''))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:1: {message}".encode(), result.stderr)
 
