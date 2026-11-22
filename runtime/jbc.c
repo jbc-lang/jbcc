@@ -636,6 +636,19 @@ static const char *size_value(size_t n)
     return out;
 }
 
+static const char *take_matrix_field(const char **field, unsigned char delimiter)
+{
+    if (!*field) return "";
+    const char *start = *field;
+    const char *next = delimiter ? strchr(start, delimiter) : NULL;
+    size_t bytes = next ? (size_t)(next - start) : strlen(start);
+    char *copy = allocate(bytes);
+    memcpy(copy, start, bytes);
+    copy[bytes] = '\0';
+    *field = next ? next + 1 : NULL;
+    return copy;
+}
+
 void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
                   const char *start, const char *end, const char *source,
                   const char *delimiter, jbc_variable *setting,
@@ -647,17 +660,8 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
     size_t assigned = 0;
     const char *field = *source ? source : NULL;
     for (size_t i = first; i <= last; ++i) {
-        const char *value = "";
-        if (field) {
-            const char *next = *delimiter ? strchr(field, (unsigned char)*delimiter) : NULL;
-            size_t bytes = next ? (size_t)(next - field) : strlen(field);
-            char *copy = allocate(bytes);
-            memcpy(copy, field, bytes);
-            copy[bytes] = '\0';
-            value = copy;
-            field = next ? next + 1 : NULL;
-            ++assigned;
-        }
+        if (field) ++assigned;
+        const char *value = take_matrix_field(&field, (unsigned char)*delimiter);
         assign_value(&dest[matrix_element_offset(i - 1, rank, bounds)], value);
     }
     if (first <= last) {
@@ -1431,6 +1435,27 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
     }
     assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
     return 1;
+}
+
+int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
+                const int *bounds, size_t storage_count, jbc_variable *setting)
+{
+    struct memory_file *f = file_for(handle);
+    struct memory_record *record = f ? *record_link(f, key) : NULL;
+    if (!record) {
+        if (setting) assign_value(setting, "128");
+        return 128;
+    }
+
+    size_t total = matrix_elements(rank, bounds);
+    const char *field = *record->value ? record->value : NULL;
+    jbc_matrix_fill(dest, storage_count, "");
+    for (size_t i = 0; i < total && field; ++i) {
+        const char *value = take_matrix_field(&field, i + 1 == total ? 0 : 254);
+        assign_value(&dest[matrix_element_offset(i, rank, bounds)], value);
+    }
+    if (setting) assign_value(setting, jbc_dcount(record->value, "\376"));
+    return 0;
 }
 
 int jbc_read_field(const char *handle, const char *key, const char *field, jbc_variable *out,

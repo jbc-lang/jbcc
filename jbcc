@@ -529,6 +529,8 @@ class Compiler:
         self.conditional_arms(opening, f"jbc_truth({condition})", condition)
 
     def conditional_arms(self, opening, condition, expression=None):
+        if opening.word == 'MATREAD' and self.word == 'LOCKED':
+            self.error("MATREAD LOCKED requires a locking file backend")
         if self.word not in ('THEN', 'ELSE'):
             self.error("expected THEN or ELSE")
         inverted = self.word == 'ELSE'
@@ -745,12 +747,32 @@ class Compiler:
         self.emit(f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
                   f"{setting}, {self.location(opening)});")
         self.assigned.add(target.word)
+        self.record_read_arms(opening, status)
+
+    def matread_statement(self):
+        opening = self.current
+        self.advance()
+        matrix = self.checked_matrix(self.matrix_name())
+        self.expect('FROM')
+        key = self.expression()
+        handle = "jbc_default_file.value"
+        if self.word == ',':
+            self.advance()
+            handle, key = key, self.expression()
+        setting = self.file_setting()
+        status = f"matread_status_{self.temporaries}"
+        self.temporaries += 1
+        self.emit(f"int {status} = jbc_matread({handle}, {key}, {matrix.base}, "
+                  f"{matrix.rank}, {matrix.limits}, {matrix.count}, {setting});")
+        self.record_read_arms(opening, status)
+
+    def record_read_arms(self, opening, status):
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
             self.emit(f"if ({status} != 0 && {status} != 128) {{")
             before = self.assigned.copy()
-            self.clause(opening, {'THEN', 'ELSE', '\n'})
+            self.clause(opening, {'LOCKED', 'THEN', 'ELSE', '\n'})
             error_arm = self.assigned
             self.assigned = before
             self.emit("} else {")
@@ -1235,6 +1257,10 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'MATPARSE':
             self.matparse_statement()
+        elif (self.word == 'MATREAD' and self.word not in self.matrices
+              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.kind != 'array_open'):
+            self.matread_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
         elif self.word == 'CONVERT' or (self.word == 'CHANGE' and self.word not in self.matrices

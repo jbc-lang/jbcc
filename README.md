@@ -389,6 +389,17 @@ Status is empty on success. READV reserves ON ERROR for incremental file
 errors other than 128. [READV](https://jbc-lang.org/pages/readv.html),
 [jBASE emulation settings](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup12_EMULATION.htm).
 
+MATREAD fills a dimensioned array from a record in the selected in-memory
+file. For example, `MATREAD A FROM F, Key SETTING N ELSE STOP` splits the
+record on field marks, varying the last matrix subscript fastest. The final
+element receives any excess fields with their separators intact. A short
+record clears the unused elements. On success N counts all record fields,
+including those packed into the final element. jbcc counts an empty record
+as zero fields. A missing record preserves the matrix, sets N to 128, and
+takes ELSE. Omitting `F,` uses the default descriptor. The in-memory backend
+supports ON ERROR with the same status handling as READV. Record locking
+remains outside this backend. [MATREAD](https://jbc-lang.org/pages/matread.html).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

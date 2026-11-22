@@ -558,6 +558,22 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: READV requires a numeric field number'.encode(), run.stderr)
 
+    def test_matread(self):
+        run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'6\na\t0\tc\td|e|\n128\ta\te\n1\tshort\t0\n0\t0\n128\tkept\n')
+        self.assertEqual(run.stderr, b'')
+
+        source = self.work / 'matread.b'
+        source.write_text("MATREAD A FROM 'key' ELSE STOP\n")
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:9: expected a dimensioned array 'A'", run.stderr)
+        source.write_text("DIM A(2)\nMATREAD A FROM 'key' LOCKED STOP ELSE STOP\n")
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:2:22: MATREAD LOCKED requires a locking file backend", run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

@@ -433,6 +433,14 @@ After READV, 10,980 of 17,336 candidates pass strict C99 checking,
 including all 10,901 previous passes. Of the 108 units previously stopped
 at READV, 79 now pass and 29 reach another diagnostic.
 
-- [ ] Implement MATREAD in the in-memory backend, the first blocker in
+- [x] Implement MATREAD in the in-memory backend, the first blocker in
   71 units. Verify field mapping into a dimensioned array and preservation
   of the destination on a missing record.
+
+After MATREAD, 11,002 of 17,336 candidates pass strict C99 checking,
+including all 10,980 previous passes. Of the 71 units previously stopped
+at MATREAD, 22 now pass and 49 reach another diagnostic.
+
+- [ ] Implement MATWRITE for the in-memory backend, the first blocker
+  in 46 units. Verify matrix element order, SETTING, and a round trip
+  through MATWRITE and MATREAD using explicit and default descriptors.
