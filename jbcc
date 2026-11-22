@@ -2,6 +2,7 @@
 """Translate a subset of jBC to standalone C99."""
 from typing import NamedTuple
 import argparse
+import math
 import os
 from pathlib import Path
 import re
@@ -177,6 +178,8 @@ class Compiler:
         self.references = []
         self.has_gosub = False
         self.names = {}
+        self.matrices = {}
+        self.local_arrays = {}
         self.body = []
         self.temporaries = 0
         self.loops = 0
@@ -205,6 +208,8 @@ class Compiler:
         self.body.append("    " * self.depth + line)
 
     def variable(self, name):
+        if name in self.matrices:
+            self.error(f"array '{name}' requires subscripts")
         if name not in self.names:
             self.names[name] = f"frame->v{len(self.names)}"
         return self.names[name]
@@ -213,6 +218,9 @@ class Compiler:
         if token.word not in self.assigned and not self.has_gosub:
             self.error(f"unknown variable or unsupported function '{token.word}'", token)
         var = self.variable(token.word)
+        return self.checked_read(var, token)
+
+    def checked_read(self, var, token):
         return f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
 
     def location(self, token):
@@ -235,6 +243,12 @@ class Compiler:
             if self.word not in marks:
                 self.error("expected a dynamic-array mark")
             value = '"\\%03o"' % marks[self.word]
+        elif word in self.matrices:
+            target = self.current
+            self.advance()
+            slot = self.matrix_slot(target)
+            value = self.checked_read(slot, target)
+            return self.postfix(value)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
             self.advance()
@@ -266,6 +280,9 @@ class Compiler:
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
         self.advance()
+        return self.postfix(value)
+
+    def postfix(self, value):
         while self.current.kind == 'array_open':
             indices = self.array_indices()
             value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
@@ -284,7 +301,9 @@ class Compiler:
         return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
     def expression(self, minimum=1, output=False):
-        left = self.primary()
+        return self.expression_tail(self.primary(), minimum, output)
+
+    def expression_tail(self, left, minimum=1, output=False):
         while self.current.kind != 'array_close' and PRECEDENCE.get(self.word, 0) >= minimum:
             if output and self.word == ':' and self.following.word in OUTPUT_END:
                 break
@@ -517,7 +536,15 @@ class Compiler:
         if self.word == '(':
             self.advance()
             while self.word != ')':
-                if self.current.kind == 'name' and self.following.word in (',', ')'):
+                if self.word in self.matrices:
+                    target_element = self.identifier()
+                    slot = self.matrix_slot(target_element)
+                    if self.word in (',', ')'):
+                        args.append('&' + slot)
+                    else:
+                        value = self.postfix(self.checked_read(slot, target_element))
+                        args.append('&' + self.temporary(self.expression_tail(value)))
+                elif self.current.kind == 'name' and self.following.word in (',', ')'):
                     name = self.identifier().word
                     args.append('&' + self.variable(name))
                     self.assigned.add(name)
@@ -542,6 +569,60 @@ class Compiler:
         self.advance()
         return token
 
+    def dimension_bounds(self):
+        self.expect('(')
+        bounds = []
+        while True:
+            if self.current.kind != 'number' or not self.word.isdigit() or len(self.word) > 9:
+                self.error("expected a positive constant dimension")
+            size = int(self.word)
+            if not size:
+                self.error("expected a positive constant dimension")
+            bounds.append(size)
+            if math.prod(n + 1 for n in bounds) > 2147483647:
+                self.error("dimensioned array is too large")
+            self.advance()
+            if self.word != ',':
+                break
+            self.advance()
+        self.expect(')')
+        return tuple(bounds)
+
+    def declaration(self):
+        self.advance()
+        while True:
+            token = self.identifier()
+            name = token.word
+            if name in self.names or name in self.matrices:
+                self.error(f"duplicate declaration of '{name}'", token)
+            bounds = self.dimension_bounds()
+            count = math.prod(n + 1 for n in bounds)
+            field = f"matrix{len(self.local_arrays)}"
+            self.local_arrays[field] = count
+            self.matrices[name] = (f"frame->{field}", bounds)
+            if self.word != ',':
+                break
+            self.advance()
+            while self.word == '\n':
+                self.advance()
+
+    def matrix_slot(self, token):
+        base, bounds = self.matrices[token.word]
+        self.expect('(')
+        subscripts = [self.expression()]
+        while self.word == ',':
+            self.advance()
+            subscripts.append(self.expression())
+        self.expect(')')
+        if len(subscripts) != len(bounds):
+            self.error(f"expected {len(bounds)} subscripts for '{token.word}'", token)
+        limits = ", ".join(map(str, bounds))
+        index = f"index_{self.temporaries}"
+        self.temporaries += 1
+        self.emit(f"size_t {index} = jbc_index({len(bounds)}, (const int[]){{{limits}}}, "
+                  f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
+        return f"({base})[{index}]"
+
     def statement(self):
         if (self.current.kind in ('name', 'number') and self.following.word == ':'
                 and self.word not in ('CRT', 'PRINT')
@@ -556,6 +637,8 @@ class Compiler:
             self.emit(f"label_{self.label_number(token.word)}: ;")
             if self.word not in (';', '\n'):
                 self.statement()
+        elif self.word in ('DIM', 'DIMENSION'):
+            self.declaration()
         elif self.word == 'GOSUB':
             self.advance()
             target = self.local_label()
@@ -585,24 +668,26 @@ class Compiler:
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
+            matrix = start.word in self.matrices
+            var = self.matrix_slot(start) if matrix else None
             indices = self.array_indices() if self.current.kind == 'array_open' else None
             operator = self.current
             if self.word not in ('=', '+=', '-='):
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
-            var = self.variable(start.word)
+            var = var or self.variable(start.word)
             base = f'({var} ? {var} : "")'
             if operator.word != '=':
-                if start.word not in self.assigned and not self.has_gosub:
+                if not matrix and start.word not in self.assigned and not self.has_gosub:
                     self.error(f"unassigned variable '{start.word}'", start)
-                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else self.read_variable(start)
+                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else self.checked_read(var, start)
                 value = self.arithmetic(operator, old, value, operator.word[0])
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")
-            symbol = self.variable(start.word)
-            self.emit(f"{symbol} = {value};")
-            self.assigned.add(start.word)
+            self.emit(f"{var} = {value};")
+            if not matrix:
+                self.assigned.add(start.word)
         else:
             self.error("expected an assignment, CRT or IF")
 
@@ -667,6 +752,7 @@ class Compiler:
         fields = [f"const char **arg{i};" for i in range(len(self.formals))]
         fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
                    if name not in self.formals]
+        fields += [f"const char **{field};" for field in self.local_arrays]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
@@ -683,10 +769,14 @@ class Compiler:
         lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
+        for field, size in self.local_arrays.items():
+            lines.append(f"    frame.{field} = jbc_storage({size}, NULL);")
         if not self.routine:
             for name in memory_files:
                 lines.append(f"    jbc_create_memory_file({c_string(name)});")
         lines.append(f"    body_{u}(&frame, 0);")
+        for field in self.local_arrays:
+            lines.append(f"    jbc_release(frame.{field});")
         if not self.routine:
             lines.extend(["    jbc_finish();", "    return 0;"])
         return "\n".join(lines + ["}", ""])

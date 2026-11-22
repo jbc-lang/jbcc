@@ -184,6 +184,65 @@ int jbc_for_test(const char *value, const char *limit, const char *step,
     return n.sign < 0 ? cmp >= 0 : cmp <= 0;
 }
 
+/* Live matrix and COMMON slots can hold values allocated inside a loop. */
+struct jbc_slots {
+    struct jbc_slots *next;
+    const char *name;
+    size_t count;
+    const char *values[];
+};
+
+static struct jbc_slots *storages;
+
+const char **jbc_storage(size_t count, const char *name)
+{
+    if (name) {
+        for (struct jbc_slots *s = storages; s; s = s->next)
+            if (s->name && strcmp(name, s->name) == 0) return s->values;
+    }
+    if (count > (SIZE_MAX - sizeof(struct jbc_slots)) / sizeof(char *))
+        fail("storage too large");
+    struct jbc_slots *s = calloc(1, sizeof *s + count * sizeof(char *));
+    if (!s) fail("out of memory");
+    s->count = count;
+    s->name = name;
+    s->next = storages;
+    storages = s;
+    return s->values;
+}
+
+void jbc_release(const char **slots)
+{
+    struct jbc_slots **link = &storages;
+    while ((*link)->values != slots) link = &(*link)->next;
+    struct jbc_slots *s = *link;
+    *link = s->next;
+    free(s);
+}
+
+static int held_in_storage(const char *value)
+{
+    for (struct jbc_slots *s = storages; s; s = s->next)
+        for (size_t i = 0; i < s->count; ++i)
+            if (s->values[i] == value) return 1;
+    return 0;
+}
+
+size_t jbc_index(int rank, const int *bounds, const char **indices,
+                 const char *file, int line, int column)
+{
+    size_t offset = 0;
+    for (int i = 0; i < rank; ++i) {
+        struct decimal n;
+        if (!parse_decimal(indices[i], &n) || n.places || n.sign < 0 || n.digits > 10)
+            numeric_error(file, line, column, "invalid matrix subscript");
+        int64_t v = strtoll(indices[i], NULL, 10);
+        if (v > bounds[i]) numeric_error(file, line, column, "matrix subscript out of bounds");
+        offset = offset * ((size_t)bounds[i] + 1) + (size_t)v;
+    }
+    return offset;
+}
+
 /* Keep variable values and protect temporaries belonging to enclosing loops. */
 void jbc_collect(struct jbc_buffer *mark, const char ***live)
 {
@@ -192,7 +251,7 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
         struct jbc_buffer *buffer = *link;
         const char ***slot = live;
         while (*slot && **slot != buffer->text) ++slot;
-        if (*slot) {
+        if (*slot || held_in_storage(buffer->text)) {
             link = &buffer->next;
         } else {
             *link = buffer->next;
