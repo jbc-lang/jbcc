@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Translate the first, straight-line jBC subset to standalone C99."""
+import argparse
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+
+
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>.)""")
+PRECEDENCE = {":": 1, "+": 2}
+
+
+class Diagnostic(Exception):
+    pass
+
+
+def c_string(value):
+    # Octal escapes have a fixed upper bound of three digits in C. Escaping
+    # question marks also prevents trigraph substitution on C99 compilers.
+    return '"' + ''.join(chr(b) if 32 <= b < 127 and b not in b'"\\?'
+                         else '\\%03o' % b for b in value.encode('utf-8')) + '"'
+
+
+class Compiler:
+    def __init__(self, path):
+        self.path = path
+        self.names = {}
+        self.body = []
+        self.temporaries = 0
+
+    def advance(self):
+        self.current = next(self.tokens, None)
+        self.word = self.current[0] if self.current else None
+
+    def error(self, message):
+        column = self.current.start() + 1 if self.current else self.end
+        raise Diagnostic(f"{self.path}:{self.line}:{column}: {message}")
+
+    def primary(self):
+        word = self.word
+        if word == '(':
+            self.advance()
+            value = self.expression()
+            if self.word != ')':
+                self.error("expected ')'")
+        elif self.current and self.current.lastgroup == 'name':
+            if word not in self.names:
+                self.error(f"unknown variable or unsupported function '{word}'")
+            value = self.names[word]
+        elif self.current and self.current.lastgroup == 'number':
+            value = c_string(word.lstrip('0') or '0')
+        elif self.current and self.current.lastgroup == 'string':
+            value = c_string(word[1:-1])
+        else:
+            self.error("expected a variable, integer, string or parenthesized expression")
+        self.advance()
+        return value
+
+    def expression(self, minimum=1):
+        left = self.primary()
+        while PRECEDENCE.get(self.word, 0) >= minimum:
+            operator = self.word
+            column = self.current.start() + 1
+            self.advance()
+            right = self.expression(PRECEDENCE[operator] + 1)
+            name = f"expr_{self.temporaries}"
+            self.temporaries += 1
+            if operator == '+':
+                call = f"jbc_add({left}, {right}, {c_string(str(self.path))}, {self.line}, {column})"
+            else:
+                call = f"jbc_concat({left}, {right})"
+            self.body.append(f"const char *{name} = {call};")
+            left = name
+        return left
+
+    def statement(self):
+        if self.word == 'CRT':
+            self.advance()
+            self.body.append(f"jbc_print({self.expression()});")
+        elif self.current.lastgroup == 'name':
+            name = self.word
+            start = self.current
+            self.advance()
+            if self.word != '=':
+                self.current = start
+                self.error(f"unsupported statement '{name}' (expected assignment or CRT)")
+            self.advance()
+            value = self.expression()
+            if name in self.names:
+                self.body.append(f"{self.names[name]} = {value};")
+            else:
+                symbol = f"var_{len(self.names)}"
+                self.names[name] = symbol
+                self.body.append(f"const char *{symbol} = {value};")
+        else:
+            self.error("expected an assignment or CRT")
+        if self.current and self.word != ';':
+            self.error(f"unexpected '{self.word}'")
+
+    def translate(self, source):
+        for self.line, line in enumerate(source.split('\n'), 1):
+            self.end = len(line) + 1
+            self.tokens = (m for m in TOKEN.finditer(line) if m.lastgroup != 'space')
+            self.advance()
+            while self.current:
+                if self.word in ('*', '!', 'REM'):
+                    break
+                if self.word != ';':
+                    self.statement()
+                if self.current:
+                    self.advance()
+        runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
+        lines = self.body + [f"(void){var};" for var in self.names.values()]
+        lines += ["jbc_finish();", "return 0;"]
+        return runtime + "\nint main(void)\n{\n" + ''.join("    " + line + "\n" for line in lines) + "}\n"
+
+
+def main():
+    cli = argparse.ArgumentParser(description=__doc__)
+    cli.add_argument('source', type=Path)
+    cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT.c')
+    args = cli.parse_args()
+    try:
+        if args.o.resolve() == args.source.resolve():
+            raise Diagnostic("source and output paths must differ")
+        source = args.source.read_text(encoding='utf-8')
+        if '\0' in source:
+            raise Diagnostic(f"{args.source}: NUL bytes in source are unsupported")
+        result = Compiler(args.source).translate(source)
+        with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
+                                         encoding='utf-8') as output:
+            try:
+                output.write(result)
+                output.close()
+                os.replace(output.name, args.o)
+            finally:
+                if os.path.exists(output.name):
+                    os.unlink(output.name)
+    except (Diagnostic, OSError, UnicodeError) as error:
+        print(error, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

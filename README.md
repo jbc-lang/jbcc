@@ -1,28 +1,51 @@
 # jbcc
 
 jbcc is a jBC-to-C compiler project. Its first target is a native executable
-built with the system C compiler. The project is at the design stage.
+built with the system C compiler. The first translator is written in Python 3 and emits standalone C99.
 
-## First executable milestone
+## Try the compiler
 
-Translate this complete jBC program to readable C, compile the C, and run it:
+From the checkout, with Python 3.8+ and a C99 compiler on PATH:
 
-```basic
-N = "2"
-CRT N + 3
-CRT N : 3
+```sh
+./jbcc tests/snippets/coercion.b -o /tmp/coercion.c
+cc -std=c99 /tmp/coercion.c -o /tmp/coercion
+/tmp/coercion
 ```
 
-The proposed stdout is `5\n23\n`. This is a provisional test expectation.
-It exercises the distinction between numeric addition and string
-concatenation on the same variable. The initial subset needs literals,
-scalar assignment, these two binary operators and line-oriented CRT output.
+The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
+The second concatenates 3 and prints `23`. Each output ends in a newline.
 
-The planned command is `jbcc sample.b -o sample.c`. A small C runtime will
-own jBC value conversion and printing. The translator will report unsupported
-syntax with a source location. Calls to unimplemented services should identify
-the service and call site. Later snippets can supply explicit test
-implementations for services such as record I/O.
+## Implemented subset
+
+Use scalar assignment, CRT with one expression, unsigned decimal integer
+literals, quoted strings (single, double or backslash delimiters),
+parentheses, addition and concatenation. Addition binds more tightly than
+concatenation. Names are case-sensitive. Variables must be assigned before
+use. Separate statements with a newline or semicolon. A statement beginning
+with `*`, `!` or `REM` comments out the rest of its line.
+
+The generated file includes the C runtime. It keeps immutable string values
+alive until program exit, so assignment preserves a copied value. Addition
+converts its operands to signed 64-bit decimal integers and reports invalid
+input or overflow at the operator. These limits are provisional. Decimal
+fractions, control flow and API calls are outside the current subset.
+
+## Test corpus
+
+```sh
+python3 -B -m unittest discover -s tests -v
+```
+
+Each `tests/snippets/*.b` has a sibling `.stdout` file. The tests invoke
+the CLI, compile with strict C99 warnings, run the binary and compare output
+byte for byte. They also exercise translation errors and runtime errors.
+The expected outputs are project expectations. The conversion and printing
+rules draw on the guide's [string variables](https://jbc-lang.org/pages/string_variables.html),
+[numeric variables](https://jbc-lang.org/pages/numeric_variables.html) and
+[CRT](https://jbc-lang.org/pages/crt.html) chapters. Operator ordering follows
+the [jBC grammar](https://github.com/jbc-lang/jbc-language/blob/master/spec/jbc.y).
+These snippets have yet to be run on a reference jBC implementation.
 
 ## Evidence for the implementation
 
