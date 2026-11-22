@@ -9,12 +9,12 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol><=|>=|<>|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol><=|>=|<>|\+=|-=|.)""")
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
 PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.items()}
-PRECEDENCE.update({":": 3, "+": 4})
+PRECEDENCE.update({":": 3, "+": 4, "-": 4, "*": 5, "/": 5})
 
 
 OUTPUT_END = {";", "\n", "ELSE"}
@@ -89,6 +89,10 @@ class Compiler:
 
     def primary(self):
         word = self.word
+        if word == '-':
+            operator = self.current
+            self.advance()
+            return self.arithmetic(operator, '"0"', self.primary(), '-')
         if word == '(':
             self.advance()
             value = self.expression()
@@ -99,7 +103,9 @@ class Compiler:
                 self.error(f"unknown variable or unsupported function '{word}'")
             value = self.names[word]
         elif self.current.kind == 'number':
-            value = c_string(word.lstrip('0') or '0')
+            whole, dot, fraction = word.partition('.')
+            fraction = fraction.rstrip('0')
+            value = c_string((whole.lstrip('0') or '0') + (dot + fraction if fraction else ''))
         elif self.current.kind == 'string':
             value = c_string(word[1:-1])
         else:
@@ -116,17 +122,25 @@ class Compiler:
             token = self.current
             self.advance()
             right = self.expression(PRECEDENCE[operator] + 1, output)
-            name = f"expr_{self.temporaries}"
-            self.temporaries += 1
-            if operator == '+':
-                call = f"jbc_add({left}, {right}, {c_string(str(self.path))}, {token.line}, {token.column})"
-            elif operator in COMPARISONS:
+            if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}) {COMPARISONS[operator]} 0 ? "1" : "0")'
-            else:
+            elif operator == ':':
                 call = f"jbc_concat({left}, {right})"
-            self.emit(f"const char *{name} = {call};")
-            left = name
+            else:
+                left = self.arithmetic(token, left, right, operator)
+                continue
+            left = self.temporary(call)
         return left
+
+    def temporary(self, call):
+        name = f"expr_{self.temporaries}"
+        self.temporaries += 1
+        self.emit(f"const char *{name} = {call};")
+        return name
+
+    def arithmetic(self, token, left, right, op):
+        location = f"{c_string(str(self.path))}, {token.line}, {token.column}"
+        return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
 
     def clause(self, opening):
         # A multiline arm ends at END. An inline arm ends at EOL or ELSE.
@@ -182,10 +196,15 @@ class Compiler:
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
-            if self.word != '=':
+            operator = self.current
+            if self.word not in ('=', '+=', '-='):
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
+            if operator.word != '=':
+                if start.word not in self.assigned:
+                    self.error(f"unassigned variable '{start.word}'", start)
+                value = self.arithmetic(operator, self.names[start.word], value, operator.word[0])
             symbol = self.names.setdefault(start.word, f"var_{len(self.names)}")
             self.emit(f"{symbol} = {value};")
             self.assigned.add(start.word)

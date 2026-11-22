@@ -1,5 +1,6 @@
 /* jbcc runtime for straight-line programs. Values are immutable strings. */
 #include <errno.h>
+#include <math.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -51,31 +52,6 @@ const char *jbc_concat(const char *left, const char *right)
     return out;
 }
 
-static int64_t integer(const char *text, const char *file, int line, int column)
-{
-    char *end;
-    errno = 0;
-    intmax_t n = strtoimax(text, &end, 10);
-    if (errno == ERANGE || n < INT64_MIN || n > INT64_MAX || end == text || *end) {
-        fprintf(stderr, "%s:%d:%d: '+' requires signed 64-bit integers\n", file, line, column);
-        exit(EXIT_FAILURE);
-    }
-    return (int64_t)n;
-}
-
-const char *jbc_add(const char *left, const char *right, const char *file, int line, int column)
-{
-    int64_t a = integer(left, file, line, column);
-    int64_t b = integer(right, file, line, column);
-    if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b)) {
-        fprintf(stderr, "%s:%d:%d: integer addition overflow\n", file, line, column);
-        exit(EXIT_FAILURE);
-    }
-    char *out = allocate(20);
-    snprintf(out, 21, "%" PRId64, a + b);
-    return out;
-}
-
 /* Compare decimal text directly so significant digits survive on every target. */
 struct decimal {
     const char *whole, *fraction;
@@ -123,4 +99,77 @@ int jbc_compare(const char *left, const char *right)
         if (!cmp) cmp = (a.places > b.places) - (a.places < b.places);
     }
     return ((cmp > 0) - (cmp < 0)) * a.sign;
+}
+
+static void numeric_error(const char *file, int line, int column, const char *message)
+{
+    fprintf(stderr, "%s:%d:%d: %s\n", file, line, column, message);
+    exit(EXIT_FAILURE);
+}
+
+static int64_t integer(const char *s, const char *file, int line, int column)
+{
+    errno = 0;
+    intmax_t n = strtoimax(s, NULL, 10);
+    if (errno || n > INT64_MAX || n < INT64_MIN)
+        numeric_error(file, line, column, "integer operand out of range");
+    return (int64_t)n;
+}
+
+static int multiply_overflows(int64_t a, int64_t b)
+{
+    if (a > 0) return b > INT64_MAX / a || b < INT64_MIN / a;
+    if (a < 0 && b < 0) return a < INT64_MAX / b;
+    if (a < 0 && b > 0) return a < INT64_MIN / b;
+    return 0;
+}
+
+const char *jbc_arithmetic(char op, const char *left, const char *right,
+                           const char *file, int line, int column)
+{
+    struct decimal lhs, rhs;
+    if (!parse_decimal(left, &lhs) || !parse_decimal(right, &rhs))
+        numeric_error(file, line, column, "arithmetic requires numeric operands");
+    if (op == '/' && rhs.sign == 0)
+        numeric_error(file, line, column, "division by zero");
+
+    if (op != '/' && !strchr(left, '.') && !strchr(right, '.')) {
+        int64_t a = integer(left, file, line, column);
+        int64_t b = integer(right, file, line, column);
+        int64_t result;
+        if (op == '+') {
+            if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+                numeric_error(file, line, column, "integer addition overflow");
+            result = a + b;
+        } else if (op == '-') {
+            if ((b > 0 && a < INT64_MIN + b) || (b < 0 && a > INT64_MAX + b))
+                numeric_error(file, line, column, "integer subtraction overflow");
+            result = a - b;
+        } else {
+            if (multiply_overflows(a, b))
+                numeric_error(file, line, column, "integer multiplication overflow");
+            result = a * b;
+        }
+        char *out = allocate(20);
+        snprintf(out, 21, "%" PRId64, result);
+        return out;
+    }
+
+    long double a = strtold(left, NULL), b = strtold(right, NULL);
+    long double result;
+    switch (op) {
+        case '+': result = a + b; break;
+        case '-': result = a - b; break;
+        case '*': result = a * b; break;
+        default: result = a / b; break;
+    }
+    if (!isfinite(a) || !isfinite(b) || !isfinite(result))
+        numeric_error(file, line, column, "decimal arithmetic out of range");
+    int length = snprintf(NULL, 0, "%.15Lf", result);
+    if (length < 0) fail("decimal formatting failed");
+    char *out = allocate((size_t)length);
+    snprintf(out, (size_t)length + 1, "%.15Lf", result);
+    while (out[length - 1] == '0') out[--length] = '\0';
+    if (out[length - 1] == '.') out[--length] = '\0';
+    return strcmp(out, "-0") == 0 ? "0" : out;
 }

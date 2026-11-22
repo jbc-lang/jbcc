@@ -46,7 +46,7 @@ class CompilerTest(unittest.TestCase):
     def test_integer_limits(self):
         source = self.work / 'numbers.b'
         for text, diagnostic in [('9223372036854775807', 'overflow'),
-                                 ('"nan"', 'requires signed 64-bit integers')]:
+                                 ('"nan"', 'requires numeric operands')]:
             with self.subTest(text=text):
                 source.write_text(f'CRT {text} + 1\n')
                 run = self.run_native(source)

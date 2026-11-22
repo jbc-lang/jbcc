@@ -13,9 +13,9 @@ an argument.
 - [x] **PRINT and fuller CRT.** Support comma-separated expressions, blank
   lines, and a trailing colon to suppress the newline. Compare stdout byte
   for byte.
-- [ ] **Arithmetic and assignment.** Implement subtraction, unary minus,
+- [x] **Arithmetic and assignment.** Implement subtraction, unary minus,
   multiplication, `+=`, and `-=`.
-- [ ] **Division.** Extend the integer runtime to represent fractional results.
+- [x] **Division.** Extend the integer runtime to represent fractional results.
   Use `CRT 7 / 2` with expected output `3.5` as the first snippet.
 - [ ] **FOR / TO / STEP / NEXT.** Cover ascending, descending, zero-iteration,
   and nested loops. Verify when the limit and step expressions are evaluated.
