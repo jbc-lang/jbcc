@@ -1037,17 +1037,45 @@ const char *jbc_time(const char *file, int line, int column)
     return size_value(now->tm_hour * 3600 + now->tm_min * 60 + now->tm_sec);
 }
 
+static int month_length(int year, int month)
+{
+    static const int lengths[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    return lengths[month - 1] + (month == 2 && leap_year(year));
+}
+
+static const char *internal_date(int year, int day_of_year)
+{
+    int years = year - 1;
+    int days = years * 365 + years / 4 - years / 100 + years / 400
+             + day_of_year - 1 - JBC_DATE_EPOCH;
+    char *out = allocate(11);
+    snprintf(out, 12, "%d", days);
+    return out;
+}
+
 const char *jbc_date(const char *file, int line, int column)
 {
     const struct tm *today = local_clock(file, line, column, "DATE cannot read local date");
     if (today->tm_year < 1 - 1900 || today->tm_year > 9999 - 1900)
         numeric_error(file, line, column, "DATE outside years 1 through 9999");
-    int years = today->tm_year + 1899; /* Complete years before the current year. */
-    int days = years * 365 + years / 4 - years / 100 + years / 400
-             + today->tm_yday - JBC_DATE_EPOCH;
-    char *out = allocate(11);
-    snprintf(out, 12, "%d", days);
-    return out;
+    return internal_date(today->tm_year + 1900, today->tm_yday + 1);
+}
+
+const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    if (strcmp(mask, "D") && strcmp(mask, "D4")) {
+        fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
+        exit(EXIT_FAILURE);
+    }
+    if (strspn(value, "0123456789") != 8 || value[8])
+        numeric_error(file, line, column, "ICONV date requires YYYYMMDD");
+    int date = atoi(value);
+    int year = date / 10000, month = date / 100 % 100, day = date % 100;
+    if (year == 0 || month < 1 || month > 12 || day < 1 || day > month_length(year, month))
+        numeric_error(file, line, column, "invalid ICONV calendar date");
+    int day_of_year = day;
+    for (int m = 1; m < month; ++m) day_of_year += month_length(year, m);
+    return internal_date(year, day_of_year);
 }
 
 static const char *const month_names[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
@@ -1068,7 +1096,6 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
 {
     static const char *const weekdays[] = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
         "FRIDAY", "SATURDAY", "SUNDAY"};
-    static const int lengths[] = {31,28,31,30,31,30,31,31,30,31,30,31};
 
     if (strncmp(mask, "MT", 2) == 0) {
         const char *suffix = mask + 2;
@@ -1117,7 +1144,7 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     int day_of_year = remaining + 1;
     int month = 0;
     for (; month < 11; ++month) {
-        int length = lengths[month] + (month == 1 && leap_year(year));
+        int length = month_length(year, month + 1);
         if (remaining < length) break;
         remaining -= length;
     }

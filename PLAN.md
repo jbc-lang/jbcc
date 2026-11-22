@@ -503,7 +503,17 @@ diagnostic pointed to a NUM call’s opening parenthesis, 176 now pass
 and 192 reach another diagnostic. Another 38 units with different first
 diagnostics also pass.
 
-- [ ] Start ICONV with the guide’s compact calendar dates and the D and D4
+- [x] Start ICONV with the guide’s compact calendar dates and the D and D4
   masks. Check the internal day count and leap-year example with native
   tests. In 191 units the first diagnostic points at an ICONV call’s opening
   parenthesis. These calls use several conversion masks.
+
+After ICONV date support, 11,425 of 17,336 candidates pass strict C99
+checking, including all 11,325 previous passes. Of the 191 units whose
+first diagnostic pointed at an ICONV call’s opening parenthesis, 85 now
+pass and 106 reach another diagnostic. Mask selection happens at runtime,
+so the corpus count includes calls using masks beyond D and D4.
+
+- [ ] Implement FIELDS, whose opening parenthesis is the first diagnostic
+  in 68 units. Use the guide’s example to check extraction across field,
+  value and subvalue marks, with and without an explicit extraction count.

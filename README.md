@@ -94,6 +94,13 @@ TIMEDATE() formats one reading of the local clock as a printable string,
 for example `23:59:59 31 DEC 2023`. jbcc uses the guide’s default layout
 with English month abbreviations. [TIMEDATE](https://jbc-lang.org/pages/timedate.html).
 
+ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`
+and `D4`. For example, `ICONV('20121231', 'D')` returns `16437`, the
+number of days since 31 December 1967. Other masks and input formats
+produce a diagnostic at the call site. An impossible date also produces
+a diagnostic, a provisional choice pending a reference run.
+[ICONV](https://jbc-lang.org/pages/iconv.html).
+
 For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
 worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns

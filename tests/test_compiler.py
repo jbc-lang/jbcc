@@ -48,6 +48,7 @@ class CompilerTest(unittest.TestCase):
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),
                                   ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
+                                  ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
@@ -280,6 +281,24 @@ time_t test_clock(time_t *out)
                              text=True, check=True)
         self.assertEqual(run.stdout, "23:59:59 31 DEC 2023\n00:00:00 01 JAN 2024\n")
         self.assertEqual(run.stderr, '')
+
+    def test_iconv_diagnostics(self):
+        source = self.work / 'date.b'
+        cases = [
+            ("'20121231', 'MD2'", "unsupported ICONV mask 'MD2'"),
+            ("'2012123', 'D'", "ICONV date requires YYYYMMDD"),
+            ("'20121231x', 'D'", "ICONV date requires YYYYMMDD"),
+            ("'19000229', 'D4'", "invalid ICONV calendar date"),
+            ("'20120431', 'D'", "invalid ICONV calendar date"),
+            ("'20121301', 'D'", "invalid ICONV calendar date"),
+            ("'00000101', 'D'", "invalid ICONV calendar date"),
+        ]
+        for args, message in cases:
+            with self.subTest(args=args):
+                source.write_text(f"PRINT ICONV({args})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
     def test_oconv_diagnostics(self):
         source = self.work / 'date.b'
