@@ -135,7 +135,14 @@ After REMOVE, 4,876 of 17,336 candidate units passed C99 checking,
 including all 4,639 previous passes. The scan reported 12,232 compiler
 diagnostics and 228 encoding errors.
 
-- [ ] Implement UNASSIGNED and ASSIGNED. In 892 units the first parser
+- [x] Implement UNASSIGNED and ASSIGNED. In 892 units the first parser
   diagnostic points to the opening parenthesis of UNASSIGNED. Test an
   untouched variable, an assigned empty string and a matrix element through
   the native compiler.
+
+After ASSIGNED and UNASSIGNED, 4,894 candidate units passed strict C99
+checking. All 4,876 previous passes remained. In 854 units the first
+diagnostic now points to the same concatenating assignment in I_DAS.
+
+- [ ] Implement concatenating assignment (`:=`) for scalars and indexed
+  targets and verify against the string examples in the guide.

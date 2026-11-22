@@ -290,6 +290,26 @@ RETURN
         self.assertIn('status 42', run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
 
+    def test_assignment_predicates_on_arguments(self):
+        caller = self.work / 'caller.b'
+        sub = self.work / 'init.b'
+        caller.write_text('CALL INIT(X)\nCALL INIT(X)\nPRINT LEN(X)\n')
+        sub.write_text("SUBROUTINE INIT(P)\nPRINT ASSIGNED(P)\nIF UNASSIGNED(P) THEN P = ''\n")
+        run = self.run_native(caller, sub)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\n1\n0\n')
+
+    def test_assignment_probe_does_not_initialize(self):
+        source = self.work / 'probe.b'
+        for program, location in [('PRINT ASSIGNED(X)\nPRINT X', ':2:7:'),
+                                  ('PRINT ASSIGNED(2)', ':1:16:'),
+                                  ('PRINT UNASSIGNED(X + 1)', ':1:20:')]:
+            with self.subTest(program=program):
+                source.write_text(program)
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(str(source) + location, result.stderr)
+
     def test_remove_shared_cursor(self):
         caller = self.work / 'caller.b'
         sub = self.work / 'take.b'

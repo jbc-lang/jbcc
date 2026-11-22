@@ -206,6 +206,7 @@ class Compiler:
 
         self.depth = 0
         self.assigned = set()
+        self.assignment_facts = {}
 
     @property
     def word(self):
@@ -285,6 +286,18 @@ class Compiler:
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
+        elif word in ('ASSIGNED', 'UNASSIGNED') and self.following.word == '(':
+            self.advance()
+            self.expect('(')
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            self.expect(')')
+            assigned = word == 'ASSIGNED'
+            comparison = '!=' if assigned else '=='
+            value = self.temporary(f'{slot}.value {comparison} NULL ? "1" : "0"')
+            if target.word not in self.matrices:
+                self.assignment_facts[value, assigned] = {target.word}
+            return self.postfix(value, locate_source)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
             self.advance()
@@ -309,6 +322,10 @@ class Compiler:
             if word in ("CHAR", "FIELD", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
+            if word == 'NOT':
+                for truth in (True, False):
+                    if (args[0], truth) in self.assignment_facts:
+                        self.assignment_facts[value, not truth] = self.assignment_facts[args[0], truth]
         elif self.current.kind == 'name':
             value = self.read_variable(self.current)
         elif self.current.kind == 'number':
@@ -390,7 +407,13 @@ class Compiler:
         self.depth += 1
         # A call on the skipped path cannot definitely initialize an argument.
         before = self.assigned.copy()
+        both = evaluate_at == '1'  # AND needs both true, OR needs both false.
+        left_facts = self.assignment_facts.get((left, both), set())
+        self.assigned.update(left_facts)
         right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
+        facts = left_facts | self.assignment_facts.get((right, both), set())
+        if facts:
+            self.assignment_facts[result, both] = facts
         self.assigned = before
         self.emit(f'{result} = jbc_truth({right}) ? "1" : "0";')
         self.depth -= 1
@@ -422,18 +445,20 @@ class Compiler:
         opening = self.current
         self.advance()
         condition = self.expression()
-        self.conditional_arms(opening, f"jbc_truth({condition})")
+        self.conditional_arms(opening, f"jbc_truth({condition})", condition)
 
-    def conditional_arms(self, opening, condition):
+    def conditional_arms(self, opening, condition, expression=None):
         if self.word not in ('THEN', 'ELSE'):
             self.error("expected THEN or ELSE")
         inverted = self.word == 'ELSE'
         self.advance()
         self.emit(f"if ({'!' if inverted else ''}{condition}) {{")
         before = self.assigned.copy()
+        self.assigned.update(self.assignment_facts.get((expression, not inverted), ()))
         self.clause(opening)
         taken = self.assigned
         self.assigned = before
+        self.assigned.update(self.assignment_facts.get((expression, inverted), ()))
         if not inverted and self.word == 'ELSE':
             self.advance()
             self.emit("} else {")
@@ -544,6 +569,7 @@ class Compiler:
             condition = self.expression()
             self.emit(f"if (jbc_truth({condition})) {{")
             self.depth += 1
+            self.assigned.update(self.assignment_facts.get((condition, True), ()))
             self.sequence({'CASE', 'END'}, opening)
             if not exhaustive:
                 outcomes.append(self.assigned)
@@ -595,6 +621,9 @@ class Compiler:
         self.advance()
         condition = self.expression()
         self.emit(f"if ({'' if until else '!'}jbc_truth({condition})) break;")
+        exit_assigned = self.assigned.union(self.assignment_facts.get((condition, until), ()))
+        self.assigned.update(self.assignment_facts.get((condition, not until), ()))
+        return exit_assigned
 
     def for_statement(self):
         opening = self.current
@@ -618,11 +647,11 @@ class Compiler:
             step = self.temporary(self.expression())
         location = self.location(opening)
         self.emit(f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;")
+        before = self.assigned.copy()  # The bounds check can exit before the guard.
         if self.word in ('WHILE', 'UNTIL'):
             self.guard()
         if self.word not in (';', '\n'):
             self.error("expected statement separator after FOR")
-        before = self.assigned.copy()
         self.sequence({'NEXT'}, opening)
         self.advance()
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
@@ -644,8 +673,8 @@ class Compiler:
             if self.word == 'REPEAT':
                 self.advance()
                 break
-            exits = self.assigned.copy() if exits is None else exits & self.assigned
-            self.guard()
+            exit_assigned = self.guard()
+            exits = exit_assigned if exits is None else exits & exit_assigned
             if self.word == 'DO':
                 self.advance()
         self.end_loop(mark)
