@@ -200,6 +200,7 @@ class Compiler:
         self.trig = False
         self.terminal = False
         self.has_goto = False
+        self.sets_precision = False
 
         self.depth = 0
         self.assigned = set()
@@ -362,7 +363,7 @@ class Compiler:
             self.advance()
             right = self.expression(PRECEDENCE[operator] + 1, output)
             if operator in COMPARISONS:
-                call = f'(jbc_compare({left}, {right}) {COMPARISONS[operator]} 0 ? "1" : "0")'
+                call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator == 'AND':
                 call = f'(jbc_truth({left}) && jbc_truth({right}) ? "1" : "0")'
             elif operator == ':':
@@ -716,6 +717,11 @@ class Compiler:
             self.emit(f"label_{self.label_number(token.word)}: ;")
             if self.word not in (';', '\n'):
                 self.statement()
+        elif self.word == 'PRECISION':
+            token = self.current
+            self.advance()
+            self.sets_precision = True
+            self.emit(f"jbc_set_precision({self.expression()}, {self.location(token)});")
         elif self.word == 'DEFFUN':
             self.advance()
             self.functions.add(self.identifier().word)
@@ -898,7 +904,11 @@ class Compiler:
         if not self.routine:
             for name in memory_files:
                 lines.append(f"    jbc_create_memory_file({c_string(name)});")
+        if self.routine and self.sets_precision:
+            lines.append("    int saved_precision = jbc_precision;")
         lines.append(f"    body_{u}(&frame, 0);")
+        if self.routine and self.sets_precision:
+            lines.append("    jbc_precision = saved_precision;")
         if self.is_function:
             lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:

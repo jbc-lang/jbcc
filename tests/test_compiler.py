@@ -64,6 +64,27 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(diagnostic.encode(), run.stderr)
                 self.assertIn(f'{source}:1:{len(text) + 6}:'.encode(), run.stderr)
 
+    def test_precision_call_scope(self):
+        main = self.work / 'main.b'
+        function = self.work / 'LOCAL'
+        sub = self.work / 'CHANGE'
+        main.write_text('DEFFUN LOCAL()\nPRECISION 2\nCALL CHANGE()\n'
+                        'PRINT LOCAL()\nPRINT 2 / 3\n')
+        sub.write_text('SUBROUTINE CHANGE()\nPRINT 2 / 3\nPRECISION 4\nPRINT 2 / 3\n')
+        function.write_text('FUNCTION LOCAL()\nPRECISION 3\nRETURN(2 / 3)\n')
+        run = self.run_native(main, sub, function)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0.66\n0.6666\n0.666\n0.66\n')
+
+    def test_invalid_precision(self):
+        source = self.work / 'bad.b'
+        for value in ('-1', '2.5', '"text"', '2147483648'):
+            with self.subTest(value=value):
+                source.write_text(f'P = {value}\nPRECISION P\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:2:1: PRECISION'.encode(), run.stderr)
+
     def test_division_by_zero(self):
         source = self.work / 'division.b'
         source.write_text('PRINT 7 / 0\n')

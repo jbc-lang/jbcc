@@ -1,5 +1,7 @@
 /* jbcc runtime for straight-line programs. Values are immutable strings. */
 #include <errno.h>
+#include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -82,17 +84,32 @@ static int parse_decimal(const char *text, struct decimal *n)
     return 1;
 }
 
+/* -1 preserves jbcc's default formatting until a PRECISION statement runs. */
+static int jbc_precision = -1;
+
+static void limit_places(struct decimal *n, int precision)
+{
+    if (precision < 0 || n->places <= (size_t)precision) return;
+    n->places = (size_t)precision;
+    while (n->places && n->fraction[n->places - 1] == '0') --n->places;
+    if (!n->places && !n->digits) n->sign = 0;
+}
+
 int jbc_truth(const char *value)
 {
     struct decimal n;
-    return parse_decimal(value, &n) ? n.sign != 0 : *value != '\0';
+    if (!parse_decimal(value, &n)) return *value != '\0';
+    limit_places(&n, jbc_precision);
+    return n.sign != 0;
 }
 
-int jbc_compare(const char *left, const char *right)
+int jbc_compare(const char *left, const char *right, int precision)
 {
     struct decimal a, b;
     if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
         return strcmp(left, right);
+    limit_places(&a, precision);
+    limit_places(&b, precision);
     if (a.sign != b.sign) return a.sign - b.sign;
     if (a.digits != b.digits) return (a.digits > b.digits ? 1 : -1) * a.sign;
     int cmp = memcmp(a.whole, b.whole, a.digits);
@@ -119,6 +136,16 @@ static int64_t integer(const char *s, const char *file, int line, int column)
     return (int64_t)n;
 }
 
+void jbc_set_precision(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.sign < 0 || n.places)
+        numeric_error(file, line, column, "PRECISION requires a nonnegative integer");
+    int64_t places = integer(value, file, line, column);
+    if (places > INT_MAX) numeric_error(file, line, column, "PRECISION out of range");
+    jbc_precision = (int)places;
+}
+
 static int multiply_overflows(int64_t a, int64_t b)
 {
     if (a > 0) return b > INT64_MAX / a || b < INT64_MIN / a;
@@ -129,10 +156,30 @@ static int multiply_overflows(int64_t a, int64_t b)
 
 static const char *format_decimal(long double result)
 {
-    int length = snprintf(NULL, 0, "%.15Lf", result);
+    int places = 15;
+    if (jbc_precision >= 0) {
+        /* Find a round-trippable decimal before dropping fractional digits.
+           Formatting directly at the requested width would round 2/3 up. */
+        char scientific[DECIMAL_DIG + 32];
+        for (int digits = LDBL_DIG; digits <= DECIMAL_DIG; ++digits) {
+            snprintf(scientific, sizeof scientific, "%.*Le", digits - 1, result);
+            if (strtold(scientific, NULL) == result || digits == DECIMAL_DIG) {
+                int exponent = atoi(strchr(scientific, 'e') + 1);
+                places = digits - 1 - exponent;
+                if (places < 0) places = 0;
+                break;
+            }
+        }
+    }
+    int length = snprintf(NULL, 0, "%.*Lf", places, result);
     if (length < 0) fail("decimal formatting failed");
     char *out = allocate((size_t)length);
-    snprintf(out, (size_t)length + 1, "%.15Lf", result);
+    snprintf(out, (size_t)length + 1, "%.*Lf", places, result);
+    if (places == 0) return strcmp(out, "-0") == 0 ? "0" : out;
+    if (jbc_precision >= 0 && places > jbc_precision) {
+        length -= places - jbc_precision;
+        out[length] = '\0';
+    }
     while (out[length - 1] == '0') out[--length] = '\0';
     if (out[length - 1] == '.') out[--length] = '\0';
     return strcmp(out, "-0") == 0 ? "0" : out;
@@ -188,7 +235,7 @@ int jbc_for_test(const char *value, const char *limit, const char *step,
     struct decimal n;
     if (!parse_decimal(value, &n) || !parse_decimal(limit, &n) || !parse_decimal(step, &n))
         numeric_error(file, line, column, "FOR requires numeric bounds and step");
-    int cmp = jbc_compare(value, limit);
+    int cmp = jbc_compare(value, limit, jbc_precision);
     return n.sign < 0 ? cmp >= 0 : cmp <= 0;
 }
 
@@ -621,7 +668,7 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
-    if (jbc_compare(code, "14")) numeric_error(file, line, column, "only SYSTEM(14) is supported");
+    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14) is supported");
     int bytes = 0;
     fflush(stdout);
     int result;
@@ -639,7 +686,7 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
 
 const char *jbc_cursor(const char *code, const char *file, int line, int column)
 {
-    if (jbc_compare(code, "-2")) numeric_error(file, line, column, "only @(-2) is supported");
+    if (jbc_compare(code, "-2", -1)) numeric_error(file, line, column, "only @(-2) is supported");
     return "\033[H";
 }
 #endif

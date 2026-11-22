@@ -50,16 +50,31 @@ with `*`, `!` or `REM` comments out the rest of its line.
 The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop
 boundaries reclaim temporary values that are no longer in use. Integer addition, subtraction and multiplication check signed 64-bit
 overflow. Division and fractional arithmetic use native long double,
-rounding results to at most 15 fractional places. This precision is a
-provisional project choice. Division by zero reports the operator location.
+rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
 
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END and start its alternative with END ELSE.
 Comparisons return 1 or 0. Two decimal strings compare numerically;
 other pairs compare in byte order. Numeric zero and the empty string are
-false. This subset uses exact decimal comparison without PRECISION rounding.
+false. Decimal comparisons are exact until an explicit PRECISION executes.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
 and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
+
+PRECISION accepts an expression whose value is a nonnegative integer. For
+example, `PRECISION 6` followed by `CRT 2 / 3` prints `0.666666`. The
+runtime truncates fractional results toward zero at the selected number of
+decimal places. Numeric comparisons and truth tests use that many places
+while stored strings keep their original bytes. Arithmetic accuracy depends
+on the host's `long double`. A local GOSUB shares the current setting.
+In jbcc, an external subroutine or function inherits the setting on entry
+and restores the caller's setting on return.
+
+The arithmetic and truth tests follow the guide's examples. The guide's
+second PRECISION example predicts unequal values at 17 places although its
+two printed operands agree through those places. Until a reference runtime
+is available, jbcc compares the displayed decimal digits through the selected
+place. [PRECISION](https://jbc-lang.org/pages/precision.html),
+[Boolean variables](https://jbc-lang.org/pages/boolean_variables.html).
 
 PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.

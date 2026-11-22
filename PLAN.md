@@ -93,6 +93,15 @@ After DEFFUN support, 68 of 17,336 candidate units passed C99 checking,
 17,040 produced compiler diagnostics, and 228 had encoding errors.
 PRECISION is the first blocker in 16,500 units, including uses in I_COMMON.
 
-- [ ] Implement PRECISION. Check how it affects numeric operations and
-  comparisons against the guide, test those effects in a running program,
-  then repeat the corpus scan.
+- [x] Implement PRECISION for arithmetic, comparisons and truth tests.
+  Native tests cover conditional and repeated settings, GOSUB, and restoring
+  the caller's setting after a subroutine or function returns.
+
+After PRECISION and the recursive-call corpus checker fix, 3,427 of 17,336
+candidate units passed strict C99 syntax checking, 13,681 produced compiler
+diagnostics, and 228 had encoding errors. The checker classified 5,138 files
+as include fragments.
+
+- [ ] Implement the logical OR operator. Of 3,335 first diagnostics reporting
+  an expected THEN or ELSE, 1,911 point at OR. Verify precedence, truth
+  conversion and operand evaluation with executable snippets, then rescan.
