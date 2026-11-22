@@ -675,7 +675,16 @@ With `@TM`, `@SVM`, `@IM` and `@RM`, 12,255 of 17,336 candidates pass
 strict C99 checking, including all 12,235 previous passes. Ten of the 13
 units blocked at `@TM` now pass, along with five each for `@SVM` and `@IM`.
 
-- [ ] Accept empty `BEGIN CASE` / `END CASE` blocks. All 284 units whose
+- [x] Accept empty `BEGIN CASE` / `END CASE` blocks. All 284 units whose
   first diagnostic is `expected CASE clause` have only comments or blank
   lines before `END CASE`. Test that execution continues after the block
   and that malformed nonempty blocks still get a diagnostic.
+
+After empty CASE blocks, 12,493 of 17,336 candidates pass strict C99
+checking, including all 12,255 previous passes. Of the 284 units blocked
+at an empty block, 238 now pass and 46 reach another diagnostic.
+
+- [ ] Support CALL argument lists that continue on the next line after a
+  comma. In 498 units the first diagnostic expects an expression at the end
+  of such a CALL line. Check the reference continuation rules and verify
+  argument order and by-reference updates across a line break.

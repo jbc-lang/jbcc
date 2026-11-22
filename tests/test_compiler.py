@@ -41,6 +41,9 @@ class CompilerTest(unittest.TestCase):
     def test_diagnostics_preserve_existing_output(self):
         source = self.work / 'invalid.b'
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
+                                  ('BEGIN CASE\nCRT 1\nEND CASE\n', ':1:1: expected CASE clause'),
+                                  ('BEGIN CASE\nEND IF\n', ":2:5: expected 'CASE'"),
+                                  ('BEGIN CASE END CASE\n', ':1:1: expected CASE clause'),
                                   ('PROGRAM\n', ':1:8:'),
                                   ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),

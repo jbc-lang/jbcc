@@ -396,7 +396,9 @@ callee reads the status field, selects a CASE arm, and updates the output.
   followed by each `-I DIR` in order. Included tokens retain their source
   locations. [EQUATE](https://jbc-lang.org/pages/equate.html)
 - BEGIN CASE evaluates conditions in order, executes the first true arm,
-  and resumes after END CASE. Use CASE 1 for a default. [CASE](https://jbc-lang.org/pages/case.html)
+  and resumes after END CASE. Use CASE 1 for a default. The reference
+  grammar allows zero arms. When the block is empty or contains only
+  comments, execution continues with the statement after END CASE. [CASE](https://jbc-lang.org/pages/case.html)
 
 ## Built-in functions
 

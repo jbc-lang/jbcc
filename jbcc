@@ -989,8 +989,13 @@ class Compiler:
         opening = self.current
         self.advance()
         self.expect('CASE')
-        while self.word in (';', '\n'):
-            self.advance()
+        if self.word in (';', '\n'):
+            while self.word in (';', '\n'):
+                self.advance()
+            if self.word == 'END':
+                self.advance()
+                self.expect('CASE')
+                return
         before = self.assigned.copy()
         outcomes = []
         exhaustive = False
