@@ -782,6 +782,15 @@ Of the 187 files blocked at READU, 146 now pass and 41 reach another
 diagnostic. The in-memory backend uses a permanent foreign-lock fixture
 to test contention. Timed WAIT remains unsupported.
 
-- [ ] Implement MATREADU using the same update locks as READU. It is
+- [x] Implement MATREADU using the same update locks as READU. It is
   the first blocker in 35 units. Check matrix contents and SETTING on
   success, missing keys and lock conflicts, and test release by MATWRITE.
+
+After MATREADU, 14,546 of 17,336 candidates pass strict C99 checking,
+including all 14,527 previous passes. Of the 35 files blocked at MATREADU,
+19 now pass and 16 reach another diagnostic.
+
+- [ ] Implement line-oriented `INPUT Var`, including the trailing colon
+  seen in T24. Check prompt and newline handling against the INPUT chapter
+  and exercise consecutive reads, an empty line and end-of-file through
+  the native executable. INPUT is the first blocker in 84 files.

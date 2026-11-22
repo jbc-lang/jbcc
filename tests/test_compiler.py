@@ -879,6 +879,14 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:22: MATREAD LOCKED requires a locking file backend", run.stderr)
 
+    def test_matreadu(self):
+        run = self.run_native(ROOT / 'tests/io/matreadu.b',
+                              options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'3\tone\ttwo|three\t2\nupdated\t0\nmissing\t128\tupdated\t2\n'
+                                     b'0\nlocked\t-2\tupdated\ttwo|three\nerror\t32768\tupdated\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_matwrite(self):
         run = self.run_native(ROOT / 'tests/io/matwrite.b',
                               options=['--memory-file', 'EXPLICIT', '--memory-file', 'DEFAULT'])

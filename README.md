@@ -594,8 +594,13 @@ record clears the unused elements. On success N counts all record fields,
 including those packed into the final element. jbcc counts an empty record
 as zero fields. A missing record preserves the matrix, sets N to 128, and
 takes ELSE. Omitting `F,` uses the default descriptor. The in-memory backend
-supports ON ERROR with the same status handling as READV. Record locking
-remains outside this backend. [MATREAD](https://jbc-lang.org/pages/matread.html).
+supports ON ERROR with the same status handling as READV. [MATREAD](https://jbc-lang.org/pages/matread.html).
+
+MATREADU uses the same field mapping and acquires the same update lock as
+READU. A missing key remains locked for creation. The matrix retains its
+previous contents on a miss (SETTING 128), a simulated foreign lock
+(SETTING -2, LOCKED), or an invalid descriptor (SETTING 32768, ON ERROR).
+MATWRITE to the same key releases the lock. [MATREADU](https://jbc-lang.org/pages/matreadu.html).
 
 MATWRITE joins the initialized, one-based elements of a matrix with field
 marks and writes the resulting record. `MATWRITE A TO F, Key` writes to

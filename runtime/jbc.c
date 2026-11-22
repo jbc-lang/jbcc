@@ -1934,30 +1934,40 @@ void jbc_release_lock(const char *handle, const char *key)
 
 enum { JBC_LOCKED = -2 };
 
+static int lock_for_update(struct memory_file *f, const char *key, jbc_variable *setting)
+{
+    if (!f) {
+        if (setting) assign_value(setting, "32768");
+        return 32768;
+    }
+    struct record_lock *lock = find_lock(f, key);
+    if (lock && lock->foreign) {
+        if (setting) assign_value(setting, "-2");
+        return JBC_LOCKED;
+    }
+    if (!lock) add_lock(f, key, 0);
+    return 0;
+}
+
 int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
 {
     struct memory_file *f = file_for(handle);
-    int status = 32768;
-    if (f) {
-        struct record_lock *lock = find_lock(f, key);
-        if (lock && lock->foreign) {
-            status = JBC_LOCKED;
-        } else {
-            if (!lock) add_lock(f, key, 0);
-            status = jbc_read_record(handle, key, out) ? 0 : 128;
-        }
-    } else {
-        assign_value(out, "");
-    }
-    if (setting) assign_value(setting, status == JBC_LOCKED ? "-2" :
-                              status == 128 ? "128" : status ? "32768" : "");
-    return status;
+    if (!f) assign_value(out, "");
+    int status = lock_for_update(f, key, setting);
+    if (status) return status;
+    int found = jbc_read_record(handle, key, out);
+    if (setting) assign_value(setting, found ? "" : "128");
+    return found ? 0 : 128;
 }
 
 int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
-                const int *bounds, size_t storage_count, jbc_variable *setting)
+                const int *bounds, size_t storage_count, jbc_variable *setting, int update)
 {
     struct memory_file *f = file_for(handle);
+    if (update) {
+        int status = lock_for_update(f, key, setting);
+        if (status) return status;
+    }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
     if (!record) {
         if (setting) assign_value(setting, "128");

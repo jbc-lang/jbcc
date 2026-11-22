@@ -882,7 +882,8 @@ class Compiler:
         if not writing:
             status = f"matread_status_{self.temporaries}"
             self.temporaries += 1
-            self.emit(f"int {status} = jbc_matread({args}, {matrix.count}, {setting});")
+            update = int(opening.word == 'MATREADU')
+            self.emit(f"int {status} = jbc_matread({args}, {matrix.count}, {setting}, {update});")
             self.record_read_arms(opening, status)
             return
         call = f"jbc_matwrite({args}, {setting}, {c_string(target.word)}, {self.location(opening)})"
@@ -937,7 +938,7 @@ class Compiler:
             self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
-        if opening.word == 'READU':
+        if opening.word in ('READU', 'MATREADU'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -948,7 +949,7 @@ class Compiler:
                 self.depth += 1
             else:
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
-                          '"READU cannot wait for a simulated foreign lock");')
+                          f'"{opening.word} cannot wait for a simulated foreign lock");')
         self.conditional_arms(opening, f"!{status}")
         for branch in reversed(branches):
             self.depth -= 1
@@ -1529,7 +1530,7 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'MATPARSE':
             self.matparse_statement()
-        elif (self.word in ('MATREAD', 'MATWRITE') and self.word not in self.matrices
+        elif (self.word in ('MATREAD', 'MATREADU', 'MATWRITE') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.matrix_file_statement()
