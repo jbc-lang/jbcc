@@ -6,9 +6,9 @@ an argument.
 
 ## Standalone programs
 
-- [ ] **Comparisons and truth values.** Implement `EQ`, `NE`, `LT`, `LE`,
+- [x] **Comparisons and truth values.** Implement `EQ`, `NE`, `LT`, `LE`,
   `GT`, and `GE`. Add snippets for zero, empty strings, and numeric strings.
-- [ ] **IF / THEN / ELSE / END.** Support single-line, multiline, and nested
+- [x] **IF / THEN / ELSE / END.** Support single-line, multiline, and nested
   forms. Test that only the selected branch executes.
 - [ ] **PRINT and fuller CRT.** Support comma-separated expressions, blank
   lines, and a trailing colon to suppress the newline. Compare stdout byte
@@ -48,11 +48,3 @@ an argument.
 - [ ] **Whole-routine corpus checks.** Track which routines translate and
   group failures by unsupported construct. Check runtime behavior separately
   with executable snippets whose expected results have a recorded source.
-
-## Next commit
-
-Implement comparisons and IF / THEN / ELSE / END. The compiler currently
-declares a C variable at its first assignment. Give jBC variables assigned
-inside branches routine scope in the generated C. Test this by assigning
-`RESULT` in each branch, printing it after `END`, and running the snippet
-with both a true and a false condition.

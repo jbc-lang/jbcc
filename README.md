@@ -21,15 +21,22 @@ The second concatenates 3 and prints `23`. Each output ends in a newline.
 Use scalar assignment, CRT with one expression, unsigned decimal integer
 literals, quoted strings (single, double or backslash delimiters),
 parentheses, addition and concatenation. Addition binds more tightly than
-concatenation. Names are case-sensitive. Variables must be assigned before
-use. Separate statements with a newline or semicolon. A statement beginning
+concatenation. Names are case-sensitive. Variables must be assigned on every path reaching a use. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line.
 
 The generated file includes the C runtime. It keeps immutable string values
 alive until program exit, so assignment preserves a copied value. Addition
 converts its operands to signed 64-bit decimal integers and reports invalid
 input or overflow at the operator. These limits are provisional. Decimal
-fractions, control flow and API calls are outside the current subset.
+fractions in arithmetic and API calls are outside the current subset.
+
+Single-line and multiline IF support THEN, ELSE, and nested branches.
+Close a multiline arm with END and start its alternative with END ELSE.
+Comparisons return 1 or 0. Two decimal strings compare numerically;
+other pairs compare in byte order. Numeric zero and the empty string are
+false. This subset uses exact decimal comparison without PRECISION rounding.
+See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
+and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
 
 ## Test corpus
 
@@ -78,6 +85,6 @@ output are the evidence for runtime behavior.
 
 ## After the first milestone
 
-Add conditionals and dynamic-array extraction and replacement. Once native
+Continue the standalone-program milestones in [PLAN.md](PLAN.md). Once native
 execution is repeatable, evaluate compiling the same generated C and runtime
 to WebAssembly for a browser playground.

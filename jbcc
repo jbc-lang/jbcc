@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Translate the first, straight-line jBC subset to standalone C99."""
+"""Translate a subset of jBC to standalone C99."""
+from typing import NamedTuple
 import argparse
 import os
 from pathlib import Path
@@ -8,8 +9,38 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>.)""")
-PRECEDENCE = {":": 1, "+": 2}
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol><=|>=|<>|.)""")
+COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
+               "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
+               ">": ">", ">=": ">=", "GE": ">="}
+PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.items()}
+PRECEDENCE.update({":": 3, "+": 4})
+
+
+class Token(NamedTuple):
+    word: str
+    kind: str
+    line: int
+    column: int
+
+
+def tokenize(source):
+    for n, line in enumerate(source.split('\n'), 1):
+        words = []
+        at_start = True
+        for match in TOKEN.finditer(line):
+            word = match[0]
+            if match.lastgroup == 'space':
+                continue
+            if at_start and word in ('*', '!', 'REM'):
+                break
+            words.append(Token(word, match.lastgroup, n, match.start() + 1))
+            at_start = word == ';'
+        while words and words[-1].word == ';':
+            words.pop()
+        yield from words
+        yield Token('\n', 'newline', n, len(line) + 1)
+    yield Token('', 'eof', n, len(line) + 1)
 
 
 class Diagnostic(Exception):
@@ -30,13 +61,27 @@ class Compiler:
         self.body = []
         self.temporaries = 0
 
-    def advance(self):
-        self.current = next(self.tokens, None)
-        self.word = self.current[0] if self.current else None
+        self.depth = 0
+        self.assigned = set()
 
-    def error(self, message):
-        column = self.current.start() + 1 if self.current else self.end
-        raise Diagnostic(f"{self.path}:{self.line}:{column}: {message}")
+    @property
+    def word(self):
+        return self.current.word
+
+    def advance(self):
+        self.current = next(self.tokens)
+
+    def expect(self, word):
+        if self.word != word:
+            self.error(f"expected '{word}'")
+        self.advance()
+
+    def error(self, message, token=None):
+        token = token or self.current
+        raise Diagnostic(f"{self.path}:{token.line}:{token.column}: {message}")
+
+    def emit(self, line):
+        self.body.append("    " * self.depth + line)
 
     def primary(self):
         word = self.word
@@ -45,13 +90,13 @@ class Compiler:
             value = self.expression()
             if self.word != ')':
                 self.error("expected ')'")
-        elif self.current and self.current.lastgroup == 'name':
-            if word not in self.names:
+        elif self.current.kind == 'name':
+            if word not in self.assigned:
                 self.error(f"unknown variable or unsupported function '{word}'")
             value = self.names[word]
-        elif self.current and self.current.lastgroup == 'number':
+        elif self.current.kind == 'number':
             value = c_string(word.lstrip('0') or '0')
-        elif self.current and self.current.lastgroup == 'string':
+        elif self.current.kind == 'string':
             value = c_string(word[1:-1])
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
@@ -62,57 +107,89 @@ class Compiler:
         left = self.primary()
         while PRECEDENCE.get(self.word, 0) >= minimum:
             operator = self.word
-            column = self.current.start() + 1
+            token = self.current
             self.advance()
             right = self.expression(PRECEDENCE[operator] + 1)
             name = f"expr_{self.temporaries}"
             self.temporaries += 1
             if operator == '+':
-                call = f"jbc_add({left}, {right}, {c_string(str(self.path))}, {self.line}, {column})"
+                call = f"jbc_add({left}, {right}, {c_string(str(self.path))}, {token.line}, {token.column})"
+            elif operator in COMPARISONS:
+                call = f'(jbc_compare({left}, {right}) {COMPARISONS[operator]} 0 ? "1" : "0")'
             else:
                 call = f"jbc_concat({left}, {right})"
-            self.body.append(f"const char *{name} = {call};")
+            self.emit(f"const char *{name} = {call};")
             left = name
         return left
 
-    def statement(self):
-        if self.word == 'CRT':
+    def clause(self, opening):
+        # A multiline arm ends at END. An inline arm ends at EOL or ELSE.
+        self.depth += 1
+        if self.word == '\n':
             self.advance()
-            self.body.append(f"jbc_print({self.expression()});")
-        elif self.current.lastgroup == 'name':
-            name = self.word
+            self.sequence({'END'}, opening)
+            self.expect('END')
+        else:
+            self.sequence({'ELSE', '\n'}, opening)
+        self.depth -= 1
+
+    def conditional(self):
+        opening = self.current
+        self.advance()
+        condition = self.expression()
+        if self.word not in ('THEN', 'ELSE'):
+            self.error("expected THEN or ELSE")
+        inverted = self.word == 'ELSE'
+        self.advance()
+        self.emit(f"if ({'!' if inverted else ''}jbc_truth({condition})) {{")
+        before = self.assigned.copy()
+        self.clause(opening)
+        taken = self.assigned
+        self.assigned = before
+        if not inverted and self.word == 'ELSE':
+            self.advance()
+            self.emit("} else {")
+            self.clause(opening)
+        self.assigned = taken & self.assigned
+        self.emit("}")
+
+    def statement(self):
+        if self.word == 'IF':
+            self.conditional()
+        elif self.word == 'CRT':
+            self.advance()
+            self.emit(f"jbc_print({self.expression()});")
+        elif self.current.kind == 'name':
             start = self.current
             self.advance()
             if self.word != '=':
-                self.current = start
-                self.error(f"unsupported statement '{name}' (expected assignment or CRT)")
+                self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
-            if name in self.names:
-                self.body.append(f"{self.names[name]} = {value};")
-            else:
-                symbol = f"var_{len(self.names)}"
-                self.names[name] = symbol
-                self.body.append(f"const char *{symbol} = {value};")
+            symbol = self.names.setdefault(start.word, f"var_{len(self.names)}")
+            self.emit(f"{symbol} = {value};")
+            self.assigned.add(start.word)
         else:
-            self.error("expected an assignment or CRT")
-        if self.current and self.word != ';':
-            self.error(f"unexpected '{self.word}'")
+            self.error("expected an assignment, CRT or IF")
+
+    def sequence(self, stops, opening=None):
+        while self.word not in stops:
+            if self.word == '':
+                self.error("unterminated conditional", opening)
+            if self.word in (';', '\n'):
+                self.advance()
+                continue
+            self.statement()
+            if self.word not in stops and self.word not in (';', '\n'):
+                self.error(f"unexpected '{self.word}'")
 
     def translate(self, source):
-        for self.line, line in enumerate(source.split('\n'), 1):
-            self.end = len(line) + 1
-            self.tokens = (m for m in TOKEN.finditer(line) if m.lastgroup != 'space')
-            self.advance()
-            while self.current:
-                if self.word in ('*', '!', 'REM'):
-                    break
-                if self.word != ';':
-                    self.statement()
-                if self.current:
-                    self.advance()
+        self.tokens = tokenize(source)
+        self.advance()
+        self.sequence({''})
         runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
-        lines = self.body + [f"(void){var};" for var in self.names.values()]
+        lines = [f"const char *{var} = NULL;" for var in self.names.values()]
+        lines += self.body + [f"(void){var};" for var in self.names.values()]
         lines += ["jbc_finish();", "return 0;"]
         return runtime + "\nint main(void)\n{\n" + ''.join("    " + line + "\n" for line in lines) + "}\n"
 
