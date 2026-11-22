@@ -451,3 +451,21 @@ int jbc_write_record(const char *handle, const char *key, const char *value)
     r->value = record_copy(value);
     return 1;
 }
+
+const char *jbc_char(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.sign < 0 || n.places || n.digits > 3)
+        numeric_error(file, line, column, "CHAR requires an integer from 0 to 255");
+    unsigned int code = 0;
+    for (size_t i = 0; i < n.digits; ++i)
+        code = code * 10 + (unsigned int)(n.whole[i] - '0');
+    if (code > 255)
+        numeric_error(file, line, column, "CHAR requires an integer from 0 to 255");
+    if (code == 0)
+        numeric_error(file, line, column, "CHAR(0) requires strings with embedded NUL support");
+    char *out = allocate(1);
+    ((unsigned char *)out)[0] = (unsigned char)code;
+    out[1] = '\0';
+    return out;
+}

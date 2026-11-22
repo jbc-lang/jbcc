@@ -17,7 +17,7 @@ PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.ite
 PRECEDENCE.update({":": 3, "+": 4, "-": 4, "*": 5, "/": 5})
 
 
-BUILTINS = {"LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"CHAR": (1,), "LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
@@ -252,6 +252,7 @@ class Compiler:
             if word == 'FIELD':
                 if len(args) == 3:
                     args.append('"1"')
+            if word in ("CHAR", "FIELD"):
                 args.append(self.location(target))
             value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
         elif self.current.kind == 'name':

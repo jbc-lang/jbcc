@@ -88,6 +88,8 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 ## Built-in functions
 
+CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
+reports a runtime diagnostic while strings use NUL termination.
 LEN counts bytes in the current byte-oriented runtime. FIELD accepts a
 one-based occurrence and optional field count. FIELD, COUNT and DCOUNT
 support multi-byte delimiters. COUNT counts nonoverlapping occurrences as
@@ -156,8 +158,8 @@ These snippets have yet to be run on a reference jBC implementation.
 
 ### Whole-program fixtures
 
-`tests/programs/` contains two user-supplied programs for manual compiler
-checks. Try either with `./jbcc tests/programs/quine.b -o /tmp/quine.c`,
+`tests/programs/` contains two user-supplied programs for whole-program
+checks. The native test suite runs the quine and verifies its emitted bytes. Try either with `./jbcc tests/programs/quine.b -o /tmp/quine.c`,
 substituting `demo.b` for the animation.
 
 - `quine.b` exercises same-line statements, `CHAR`, and concatenation.

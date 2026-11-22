@@ -126,3 +126,23 @@ class CompilerTest(unittest.TestCase):
         self.assertEqual(data['files']['ok']['status'], 'translated')
         self.assertEqual(data['first_blockers'], {"unsupported statement 'DIM'": 1})
         self.assertIn('bad:1:1:', data['files']['bad']['diagnostic'])
+
+    def test_quine(self):
+        run = self.run_native(ROOT / 'tests/programs/quine.b')
+        body = b'CRT CHAR(81):CHAR(61):CHAR(34):Q:CHAR(34):CHAR(58):Q'
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'Q="' + body + b'":' + body + b'\n')
+
+    def test_char_byte_range(self):
+        source = self.work / 'char.b'
+        source.write_text('CRT CHAR(1) : CHAR(254) : CHAR("255.0"):\n')
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, bytes([1, 254, 255]))
+        for value, message in [('0', 'embedded NUL'), ('256', '0 to 255'), ('1.5', '0 to 255')]:
+            with self.subTest(value=value):
+                source.write_text(f'CRT CHAR({value})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(message.encode(), run.stderr)
+                self.assertIn(f'{source}:1:5:'.encode(), run.stderr)

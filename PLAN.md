@@ -59,3 +59,17 @@ compiler diagnostics, and 228 encountered UTF-8 decoding errors. The other
 The first unsupported statement was COM in 16,482 units and COMMON in 18.
 Implementing shared COMMON storage and its declarations is the next
 coverage milestone. Rerun the scan afterward to identify the next blocker.
+
+## Whole-program fixture milestones
+
+- [x] Compile and run the supplied quine with byte-oriented CHAR. Check its
+  emitted bytes, including the colon produced by CHAR(58).
+- [ ] Implement DIM storage and indexed reads/writes alongside COMMON.
+  Start with local arrays, including the demo's zero index, then reuse
+  the same representation for dimensioned members of shared COMMON blocks.
+- [ ] Bring up the demo's frame calculation with SPACE, INT, SIN, COS, AND,
+  and substring reads and writes on indexed strings. Verify trigonometric
+  conventions against the guide.
+- [ ] Run the unchanged demo with GOTO, cursor control and SYSTEM(14).
+  Use deterministic terminal input so the native test can check frame output
+  and exit.
