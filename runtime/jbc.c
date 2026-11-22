@@ -1334,16 +1334,21 @@ static void free_record(struct memory_record *record)
     free(record);
 }
 
+static void clear_records(struct memory_file *file)
+{
+    while (file->records) {
+        struct memory_record *record = file->records;
+        file->records = record->next;
+        free_record(record);
+    }
+}
+
 static void free_files(void)
 {
     while (files) {
         struct memory_file *file = files;
         files = file->next;
-        while (file->records) {
-            struct memory_record *record = file->records;
-            file->records = record->next;
-            free_record(record);
-        }
+        clear_records(file);
         free(file);
     }
 }
@@ -1391,6 +1396,15 @@ static struct memory_record **record_link(struct memory_file *f, const char *key
     struct memory_record **link = &f->records;
     while (*link && strcmp((*link)->key, key) != 0) link = &(*link)->next;
     return link;
+}
+
+int jbc_clear_file(const char *handle, jbc_variable *setting)
+{
+    struct memory_file *file = file_for(handle);
+    if (setting) assign_value(setting, file ? "" : "128");
+    if (!file) return 0;
+    clear_records(file);
+    return 1;
 }
 
 int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting)

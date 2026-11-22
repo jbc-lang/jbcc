@@ -417,6 +417,14 @@ After DELETE, 10,844 of 17,336 candidates pass strict C99 checking,
 including all 10,745 previous passes. Of the 137 units previously stopped
 at DELETE, 99 now pass and 38 reach another diagnostic.
 
-- [ ] Implement CLEARFILE in the in-memory backend, the first blocker in
+- [x] Implement CLEARFILE in the in-memory backend, the first blocker in
   116 units. Test explicit and default descriptors, SETTING and ON ERROR,
   and verify that clearing one file preserves records in a second file.
+
+After CLEARFILE, 10,901 of 17,336 candidates pass strict C99 checking,
+including all 10,844 previous passes. Of the 116 units previously stopped
+at CLEARFILE, 57 now pass and 59 reach another diagnostic.
+
+- [ ] Implement READV for the in-memory backend, the first blocker in
+  108 units. Check field extraction, default and explicit descriptors,
+  and the behavior of missing records and out-of-range fields.

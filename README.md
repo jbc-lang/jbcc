@@ -371,6 +371,14 @@ missing record counts as success. In this backend, `SETTING Code` receives
 A failed DELETE with neither clause terminates with the source location.
 [DELETE](https://jbc-lang.org/pages/delete.html).
 
+CLEARFILE removes every record from the selected in-memory file. Its
+descriptors stay open for subsequent reads and writes. Use `CLEARFILE F`
+for an explicit descriptor or bare `CLEARFILE` for the default file.
+jbcc sets the optional `SETTING` variable to the empty string on success,
+consistent with the guide’s example, or to 128 for an invalid descriptor.
+`ON ERROR` handles failure in the same way as for DELETE.
+[CLEARFILE](https://jbc-lang.org/pages/clearfile.html).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

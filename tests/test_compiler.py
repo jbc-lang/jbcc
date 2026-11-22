@@ -531,6 +531,20 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: DELETE failed'.encode(), run.stderr)
 
+    def test_clearfile(self):
+        run = self.run_native(ROOT / 'tests/io/clearfile.b',
+                              options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'gone 1\ngone 2\ngone 3\nretained\ndefault cleared\n'
+                                     b'reused\nerror 128\n128\nreused\n')
+        self.assertEqual(run.stderr, b'')
+
+        source = self.work / 'clearfile.b'
+        source.write_text("CLEARFILE\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

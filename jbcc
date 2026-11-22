@@ -684,21 +684,31 @@ class Compiler:
                 f"{order}, &{slot}, {self.location(opening)})")
         self.conditional_arms(opening, call)
 
-    def delete_statement(self):
+    def delete_or_clearfile_statement(self):
         opening = self.current
         self.advance()
-        first = self.expression()
-        handle, key = "jbc_default_file.value", first
-        if self.word == ',':
-            self.advance()
-            handle, key = first, self.expression()
+        handle = "jbc_default_file.value"
+        if opening.word == 'DELETE':
+            key = self.expression()
+            if self.word == ',':
+                self.advance()
+                handle, key = key, self.expression()
+            operation = f"jbc_delete_record({handle}, {key}, "
+        else:
+            if self.word not in OUTPUT_END and self.word not in ('', 'SETTING', 'ON'):
+                target = self.identifier()
+                if target.word in self.matrices:
+                    handle = self.checked_read(self.matrix_slot(target), target)
+                else:
+                    handle = self.read_variable(target)
+            operation = f"jbc_clear_file({handle}, "
         setting = "NULL"
         if self.word == 'SETTING':
             self.advance()
             target = self.identifier()
             setting = '&' + self.variable_slot(target)
             self.assigned.add(target.word)
-        call = f"jbc_delete_record({handle}, {key}, {setting})"
+        call = f"{operation}{setting})"
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
@@ -708,7 +718,7 @@ class Compiler:
             self.assigned &= before
             self.emit("}")
         elif setting == "NULL":
-            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "DELETE failed");')
+            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "{opening.word} failed");')
         else:
             self.emit(f"{call};")
 
@@ -1255,10 +1265,10 @@ class Compiler:
         elif self.word == 'STOP':
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
-        elif (self.word == 'DELETE' and self.word not in self.matrices
+        elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
-            self.delete_statement()
+            self.delete_or_clearfile_statement()
         elif self.word in ('OPEN', 'READ', 'WRITE'):
             self.file_statement()
         elif self.word == 'BEGIN':
