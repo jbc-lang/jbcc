@@ -44,7 +44,7 @@ def check(relative, root, directories):
         for name, argc in externals.items():
             params = ", ".join(["const char **"] * argc) or "void"
             prototypes.append(f"void {COMPILER['routine_symbol'](name)}({params});")
-        generated = "\n".join([RUNTIME] + prototypes + [unit.render()])
+        generated = "\n".join([COMPILER["runtime_features"]([unit]), RUNTIME] + prototypes + [unit.render()])
         result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)

@@ -16,11 +16,11 @@ TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<n
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
-PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.items()}
-PRECEDENCE.update({":": 3, "+": 4, "-": 4, "*": 5, "/": 5})
+PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
+PRECEDENCE.update({"AND": 1, ":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
 
 
-BUILTINS = {"CHAR": (1,), "LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
@@ -195,6 +195,9 @@ class Compiler:
         self.body = []
         self.temporaries = 0
         self.loops = 0
+        self.trig = False
+        self.terminal = False
+        self.has_goto = False
 
         self.depth = 0
         self.assigned = set()
@@ -250,7 +253,14 @@ class Compiler:
             if self.word != ')':
                 self.error("expected ')'")
         elif word == '@':
+            target = self.current
             self.advance()
+            if self.word == '(':
+                self.terminal = True
+                self.advance()
+                code = self.expression()
+                self.expect(')')
+                return self.postfix(self.temporary(f"jbc_cursor({code}, {self.location(target)})"))
             marks = {'AM': 254, 'FM': 254, 'VM': 253, 'SM': 252}
             if self.word not in marks:
                 self.error("expected a dynamic-array mark")
@@ -278,7 +288,11 @@ class Compiler:
             if word == 'FIELD':
                 if len(args) == 3:
                     args.append('"1"')
-            if word in ("CHAR", "FIELD"):
+            if word in ("SIN", "COS"):
+                self.trig = True
+            if word == "SYSTEM":
+                self.terminal = True
+            if word in ("CHAR", "FIELD", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
         elif self.current.kind == 'name':
@@ -295,10 +309,23 @@ class Compiler:
         return self.postfix(value)
 
     def postfix(self, value):
-        while self.current.kind == 'array_open':
-            indices = self.array_indices()
-            value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
+        while self.current.kind == 'array_open' or self.word == '[':
+            if self.word == '[':
+                args = self.substring_indices()
+                value = self.temporary(f"jbc_substring({value}, {args}, NULL)")
+            else:
+                indices = self.array_indices()
+                value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         return value
+
+    def substring_indices(self):
+        token = self.current
+        self.expect('[')
+        start = self.expression()
+        self.expect(',')
+        length = self.expression()
+        self.expect(']')
+        return f"{start}, {length}, {self.location(token)}"
 
     def array_indices(self):
         token = self.current
@@ -325,6 +352,8 @@ class Compiler:
             right = self.expression(PRECEDENCE[operator] + 1, output)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}) {COMPARISONS[operator]} 0 ? "1" : "0")'
+            elif operator == 'AND':
+                call = f'(jbc_truth({left}) && jbc_truth({right}) ? "1" : "0")'
             elif operator == ':':
                 call = f"jbc_concat({left}, {right})"
             else:
@@ -674,12 +703,18 @@ class Compiler:
                 self.statement()
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
-        elif self.word == 'GOSUB':
+        elif self.word in ('GOSUB', 'GOTO'):
+            jump = self.word == 'GOTO'
             self.advance()
             target = self.local_label()
             number = self.label_number(target.word)
             self.references.append(target)
-            self.emit(f"body_{self.unit}(frame, {number});")
+            if jump:
+                self.has_goto = True
+                self.emit("jbc_collect(entry_mark, live);")
+                self.emit(f"goto label_{number};")
+            else:
+                self.emit(f"body_{self.unit}(frame, {number});")
         elif self.word == 'RETURN':
             self.advance()
             self.emit("return;")
@@ -706,6 +741,7 @@ class Compiler:
             matrix = start.word in self.matrices
             var = self.matrix_slot(start) if matrix else None
             indices = self.array_indices() if self.current.kind == 'array_open' else None
+            substring = self.substring_indices() if self.word == '[' else None
             operator = self.current
             if self.word not in ('=', '+=', '-='):
                 self.error(f"unsupported statement '{start.word}'", start)
@@ -713,6 +749,11 @@ class Compiler:
             value = self.expression()
             var = var or self.variable(start.word)
             base = f'({var} ? {var} : "")'
+            if substring:
+                if operator.word != '=':
+                    self.error("expected '=' for substring replacement", operator)
+                text = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else base
+                value = self.temporary(f"jbc_substring({text}, {substring}, {value})")
             if operator.word != '=':
                 if not matrix and start.word not in self.assigned and not self.has_gosub:
                     self.error(f"unassigned variable '{start.word}'", start)
@@ -792,7 +833,9 @@ class Compiler:
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
-        if self.loops:
+        if self.has_goto:
+            lines.append("    struct jbc_buffer *entry_mark = buffers;")
+        if self.loops or self.has_goto:
             roots = ["&" + var for var in self.names.values()] + ["NULL"]
             lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
         if self.labels:
@@ -858,7 +901,17 @@ def compile_program(paths, directories, memory_files=()):
                 unit.error(f"wrong argument count for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
-    return "\n".join([runtime] + prototypes + [u.render(memory_files) for u in units])
+    features = runtime_features(units)
+    return "\n".join([features, runtime] + prototypes + [u.render(memory_files) for u in units])
+
+
+def runtime_features(units):
+    flags = []
+    if any(unit.trig for unit in units):
+        flags.append("#define JBC_TRIG 1")
+    if any(unit.terminal for unit in units):
+        flags.append("#define JBC_TERMINAL 1")
+    return "\n".join(flags)
 
 
 def build_executable(source, output):
@@ -874,7 +927,8 @@ def build_executable(source, output):
         c_file = Path(directory) / 'program.c'
         binary = Path(directory) / 'program'
         c_file.write_text(source, encoding='utf-8')
-        command = compiler + ['-std=c99', str(c_file)] + flags + ['-o', str(binary)]
+        libraries = ['-lm'] if source.startswith('#define JBC_TRIG 1\n') else []
+        command = compiler + ['-std=c99', str(c_file)] + libraries + flags + ['-o', str(binary)]
         completed = subprocess.run(command)
         if completed.returncode:
             raise Diagnostic(f"C compiler exited with status {completed.returncode}")

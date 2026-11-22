@@ -32,8 +32,11 @@ static char *allocate(size_t length)
     return buffer->text;
 }
 
+static void free_storages(void);
+
 void jbc_finish(void)
 {
+    free_storages();
     while (buffers) {
         struct jbc_buffer *next = buffers->next;
         free(buffers);
@@ -124,6 +127,17 @@ static int multiply_overflows(int64_t a, int64_t b)
     return 0;
 }
 
+static const char *format_decimal(long double result)
+{
+    int length = snprintf(NULL, 0, "%.15Lf", result);
+    if (length < 0) fail("decimal formatting failed");
+    char *out = allocate((size_t)length);
+    snprintf(out, (size_t)length + 1, "%.15Lf", result);
+    while (out[length - 1] == '0') out[--length] = '\0';
+    if (out[length - 1] == '.') out[--length] = '\0';
+    return strcmp(out, "-0") == 0 ? "0" : out;
+}
+
 const char *jbc_arithmetic(char op, const char *left, const char *right,
                            const char *file, int line, int column)
 {
@@ -165,13 +179,7 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     }
     if (!isfinite(a) || !isfinite(b) || !isfinite(result))
         numeric_error(file, line, column, "decimal arithmetic out of range");
-    int length = snprintf(NULL, 0, "%.15Lf", result);
-    if (length < 0) fail("decimal formatting failed");
-    char *out = allocate((size_t)length);
-    snprintf(out, (size_t)length + 1, "%.15Lf", result);
-    while (out[length - 1] == '0') out[--length] = '\0';
-    if (out[length - 1] == '.') out[--length] = '\0';
-    return strcmp(out, "-0") == 0 ? "0" : out;
+    return format_decimal(result);
 }
 
 int jbc_for_test(const char *value, const char *limit, const char *step,
@@ -218,6 +226,11 @@ void jbc_release(const char **slots)
     struct jbc_slots *s = *link;
     *link = s->next;
     free(s);
+}
+
+static void free_storages(void)
+{
+    while (storages) jbc_release(storages->values);
 }
 
 static int held_in_storage(const char *value)
@@ -528,3 +541,97 @@ const char *jbc_char(const char *value, const char *file, int line, int column)
     out[1] = '\0';
     return out;
 }
+
+static int64_t truncated(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n)) numeric_error(file, line, column, "expected a numeric value");
+    if (!n.digits) return 0;
+    return integer(value, file, line, column);
+}
+
+const char *jbc_int(const char *value, const char *file, int line, int column)
+{
+    int64_t n = truncated(value, file, line, column);
+    char *out = allocate(20);
+    snprintf(out, 21, "%" PRId64, n);
+    return out;
+}
+
+const char *jbc_space(const char *value, const char *file, int line, int column)
+{
+    int64_t n = truncated(value, file, line, column);
+    if (n <= 0) return "";
+    if ((uint64_t)n >= SIZE_MAX) fail("SPACE result too large");
+    char *out = allocate((size_t)n);
+    memset(out, ' ', (size_t)n);
+    out[n] = '\0';
+    return out;
+}
+
+const char *jbc_substring(const char *text, const char *start, const char *length,
+                          const char *file, int line, int column, const char *replacement)
+{
+    size_t n = strlen(text);
+    int64_t i = truncated(start, file, line, column);
+    int64_t count = truncated(length, file, line, column);
+    size_t offset = 0;
+    if (i > 0) offset = (uint64_t)(i - 1) > n ? n : (size_t)(i - 1);
+    if (i < 0 && i >= -(int64_t)n) offset = n - (size_t)(-i);
+    size_t take = count <= 0 ? 0 : (uint64_t)count > n - offset ? n - offset : (size_t)count;
+    if (!replacement) {
+        char *out = allocate(take);
+        memcpy(out, text + offset, take);
+        out[take] = '\0';
+        return out;
+    }
+    size_t added = strlen(replacement);
+    if (added > SIZE_MAX - (n - take)) fail("substring result too large");
+    char *out = allocate(n - take + added);
+    memcpy(out, text, offset);
+    memcpy(out + offset, replacement, added);
+    memcpy(out + offset + added, text + offset + take, n - offset - take + 1);
+    return out;
+}
+
+#ifdef JBC_TRIG
+static long double radians(const char *s, const char *file, int line, int column)
+{
+    struct decimal n;
+    long double degrees = strtold(s, NULL);
+    if (!parse_decimal(s, &n) || !isfinite(degrees))
+        numeric_error(file, line, column, "expected an angle in degrees");
+    return fmodl(degrees, 360.0L) * (3.14159265358979323846L / 180.0L);
+}
+
+const char *jbc_sin(const char *s, const char *file, int line, int column)
+{
+    return format_decimal(sinl(radians(s, file, line, column)));
+}
+
+const char *jbc_cos(const char *s, const char *file, int line, int column)
+{
+    return format_decimal(cosl(radians(s, file, line, column)));
+}
+#endif
+
+#ifdef JBC_TERMINAL
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+const char *jbc_system(const char *code, const char *file, int line, int column)
+{
+    if (jbc_compare(code, "14")) numeric_error(file, line, column, "only SYSTEM(14) is supported");
+    int bytes = 0;
+    fflush(stdout);
+    if (ioctl(STDIN_FILENO, FIONREAD, &bytes) < 0)
+        numeric_error(file, line, column, "cannot query pending input bytes");
+    return size_value((size_t)bytes);
+}
+
+const char *jbc_cursor(const char *code, const char *file, int line, int column)
+{
+    if (jbc_compare(code, "-2")) numeric_error(file, line, column, "only @(-2) is supported");
+    return "\033[H";
+}
+#endif

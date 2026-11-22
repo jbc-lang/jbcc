@@ -1,4 +1,7 @@
 import json
+import math
+import re
+import select
 import os
 import shlex
 import subprocess
@@ -197,3 +200,50 @@ RETURN
         self.assertNotEqual(run.returncode, 0)
         self.assertIn('status 42', run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
+
+    def test_matrix_element_argument_and_bounds(self):
+        main = self.work / 'main.b'
+        callee = self.work / 'put.b'
+        main.write_text('DIM A(2)\nCALL PUT(A(0))\nPRINT A(0)\n')
+        callee.write_text('SUBROUTINE PUT(X)\nX = 7\n')
+        run = self.run_native(main, callee)
+        self.assertEqual(run.stdout, b'7\n')
+        main.write_text('DIM A(2)\nA(3) = 7\n')
+        run = self.run_native(main)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)
+
+    def test_demo(self):
+        source = ROOT / 'tests/programs/demo.b'
+        binary = self.work / 'demo'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        home = b'\x1b[H\n'
+        blank = home + (b' ' * 79 + b'\n') * 24
+        with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as process:
+            try:
+                frames = bytearray()
+                while len(frames) < 2 * len(blank):
+                    self.assertTrue(select.select([process.stdout], [], [], 5)[0], 'frame timeout')
+                    chunk = os.read(process.stdout.fileno(), 4096)
+                    self.assertTrue(chunk, 'demo exited before second frame')
+                    frames.extend(chunk)
+                _, err = process.communicate(input=b'q', timeout=5)
+                self.assertEqual(process.returncode, 0, err)
+            finally:
+                process.kill()
+        self.assertEqual(frames[:len(blank)], blank)
+        # Project the fixture's artwork independently at time zero.
+        art = re.findall(r'^M\( *\d+\) = "([ X]+)"', source.read_text(), re.M)
+        expected = bytearray(home)
+        for row in range(24):
+            y = 2 * row / 24 - 1
+            for col in range(79):
+                x = 2 * (col - 39.5) / 79
+                scale = 2 / (1 + .08 * (math.sin(math.tau * (1 + x)) + math.cos(math.tau * y)))
+                u = 39.5 + int(.6 * x * scale * 39.5)
+                v = 12 + int(.6 * y * scale * 12)
+                pixel = art[v][int(u)] if 0 <= u < 79 and 0 <= v < 24 else ' '
+                expected.append(ord(pixel))
+            expected.append(10)
+        self.assertEqual(frames[len(blank):2 * len(blank)], expected)

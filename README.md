@@ -56,6 +56,22 @@ statements, including on the same line. FOR also accepts a WHILE or UNTIL
 guard in its header. See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
+## Dimensioned arrays and shared storage
+
+DIM and DIMENSION accept comma-separated declarations with positive integer
+bounds, including expanded EQUATE constants. Indices run from zero through
+the declared bound, inclusive, in this subset. Supply one index per dimension.
+Local matrices belong to one invocation. Passing an element to CALL passes
+that slot by reference. Unassigned reads and out-of-range subscripts produce
+runtime diagnostics.
+
+COM and COMMON accept scalars and dimensioned arrays. Declarations of the
+same named or unnamed block share slots by position across routines in one
+program. The compiler checks the number and dimensions of slots across
+input files. The current initialization policy leaves slots unassigned until
+written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
+[COMMON](https://jbc-lang.org/pages/common.html).
+
 ## Compile a T24-style routine
 
 Pass one main program and its subroutine source files to the same command.
@@ -170,8 +186,19 @@ These snippets have yet to be run on a reference jBC implementation.
   directly with the source file.
 - `demo.b` animates a 24-by-79 character display until a key is available.
   It exercises dimensioned arrays, substring assignment, fractional
-  arithmetic, trigonometry, and terminal I/O. A future automated run
-  needs bounded input or a frame limit.
+  arithmetic, trigonometry, and terminal I/O. Build it with
+  `./jbcc --exe tests/programs/demo.b -o /tmp/demo`. Run `/tmp/demo` in an
+  ANSI terminal and enter a line to stop. The native test captures the blank
+  opening frame and checks every pixel of the next frame before sending input.
+
+SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
+substring selection and replacement use one-based byte positions (negative
+positions count from the end). Terminal support covers ANSI cursor-home
+`@(-2)` and POSIX pending input `SYSTEM(14)`; the latter follows the input
+device's line discipline. Native mode links the math library for programs
+that use trigonometry. When compiling their generated C manually, use
+`cc -std=c99 demo.c -lm -o demo`. [SIN](https://jbc-lang.org/pages/sin.html),
+[COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 
 ## Evidence for the implementation
 
