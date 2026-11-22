@@ -800,7 +800,15 @@ strict C99 checking, including all 14,546 previous passes. Of the 84
 files blocked at INPUT, 25 now pass and 59 reach another diagnostic.
 Three more pass after PROMPT support.
 
-- [ ] Implement length-limited `INPUT Var, n` and its trailing-colon
+- [x] Implement length-limited `INPUT Var, n` and its trailing-colon
   form. In 32 units the first diagnostic points at the comma after
   the input variable. Exercise early Enter, automatic completion at the
   limit and the bytes available to a subsequent INPUT.
+
+After length-limited INPUT, 14,592 of 17,336 candidates pass strict
+C99 checking. All 14,574 previous passes still pass. Of the 32 units
+blocked at the comma, 18 now pass and 14 reach another diagnostic.
+
+- [ ] Implement timed `INPUT Var FOR n` with THEN and ELSE. The INPUT
+  chapter specifies a timeout in tenths of a second between keystrokes.
+  Test successful completion and timeout with a partially filled variable.

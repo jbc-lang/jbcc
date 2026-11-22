@@ -1221,9 +1221,26 @@ END
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(b'input.b:2:1: INPUT cannot store a NUL byte', run.stderr)
 
+    def test_length_limited_input_from_pipe(self):
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-limit.b', '-o', binary], check=True)
+        run = subprocess.run([binary], input=b'abcde\nx\nend', capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'abc|de||x||end\n')
+
+    def test_input_length_diagnostics(self):
+        source = self.work / 'input.b'
+        for limit, message in [('-1', 'negative INPUT length'), ("'x'", 'expected a numeric value')]:
+            with self.subTest(limit=limit):
+                source.write_text(f'INPUT X, {limit}\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
+
     def test_input_terminal_echo(self):
         source = self.work / 'input.b'
-        source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n")
+        source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n"
+                          "INPUT X, 2\nCRT X\nINPUT X, 1:\nCRT X\n")
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -1252,8 +1269,12 @@ END
                 os.write(master, original[6][termios.VERASE] + b'b\n')
                 self.assertEqual(read_until(b'?'), b'\b \bb[ab]\r\n?')
                 os.write(master, b'c\n')
+                self.assertEqual(read_until(b'?'), b'c\r\nc\r\n?')
+                os.write(master, b'xy')
+                self.assertEqual(read_until(b'?'), b'xy\r\nxy\r\n?')
+                os.write(master, b'z')
                 self.assertEqual(proc.wait(timeout=5), 0)
-                self.assertEqual(read_until(b'c\r\nc\r\n'), b'c\r\nc\r\n')
+                self.assertEqual(read_until(b'zz\r\n'), b'zz\r\n')
                 check_mode_restored()
             finally:
                 proc.kill()

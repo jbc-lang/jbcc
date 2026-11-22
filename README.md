@@ -179,6 +179,13 @@ uses the runtime's arithmetic and PRECISION rules. [SUM](https://jbc-lang.org/pa
 `?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps
 typed characters visible and suppresses the echoed newline. With piped
 input, the program writes the prompt and reads through the next LF.
+`INPUT Var, n` reads up to `n` bytes. Enter ends the read early. At
+the limit, INPUT returns immediately and leaves subsequent bytes,
+including any following LF, for the next read. With terminal echo enabled,
+reaching the limit echoes a newline unless the statement ends in a colon.
+Provisionally, jbcc truncates fractional lengths toward zero. A zero
+length consumes no input, and a negative integer length raises an error.
+
 In jbcc an empty line assigns an empty string. At EOF, INPUT assigns any
 remaining bytes, or an empty string if none remain. These EOF rules are
 provisional pending a reference run. [INPUT](https://jbc-lang.org/pages/input.html),

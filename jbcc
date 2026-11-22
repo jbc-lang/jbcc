@@ -1667,10 +1667,14 @@ class Compiler:
             else:
                 target = self.identifier()
                 slot = self.variable_slot(target)
+                limit = 'NULL'
+                if self.word == ',':
+                    self.advance()
+                    limit = self.expression(output=True)
                 suppress = self.word == ':'
                 if suppress:
                     self.advance()
-                self.emit(f"jbc_input(&{slot}, {int(suppress)}, {self.location(opening)});")
+                self.emit(f"jbc_input(&{slot}, {limit}, {int(suppress)}, {self.location(opening)});")
                 self.assigned.add(target.word)
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()

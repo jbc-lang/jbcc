@@ -2258,7 +2258,7 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-/* Only INPUT with a trailing colon needs to take over terminal echo. */
+/* Length-limited INPUT reads keystrokes without waiting for the line discipline. */
 static struct termios input_saved;
 static volatile sig_atomic_t input_modified;
 
@@ -2269,7 +2269,8 @@ static void input_signal(int sig)
     raise(sig);
 }
 
-void jbc_input(jbc_variable *out, int suppress_newline, const char *file, int line, int column)
+void jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
+               const char *file, int line, int column)
 {
     const int signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
     struct sigaction saved[sizeof signals / sizeof *signals];
@@ -2279,11 +2280,15 @@ void jbc_input(jbc_variable *out, int suppress_newline, const char *file, int li
     char *text = NULL;
     size_t length = 0, capacity = 0;
 
-    if (suppress_newline && isatty(STDIN_FILENO)) {
+    int64_t limit = limit_text ? truncated(limit_text, file, line, column) : 0;
+    if (limit < 0) numeric_error(file, line, column, "negative INPUT length");
+    int echo_chars = 0, ended_line = 0;
+    if ((suppress_newline || limit_text) && isatty(STDIN_FILENO)) {
         if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
             numeric_error(file, line, column, "cannot read input terminal settings");
-        if (input_saved.c_lflag & (ECHO | ECHONL)) {
-            if (input_saved.c_lflag & ECHO) {
+        if (limit_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
+            echo_chars = (input_saved.c_lflag & ECHO) != 0;
+            if (echo_chars || (!suppress_newline && (input_saved.c_lflag & ECHONL))) {
                 const char *tty = ttyname(STDIN_FILENO);
                 if (!tty || (echo_fd = open(tty, O_WRONLY | O_NOCTTY)) < 0)
                     numeric_error(file, line, column, "cannot echo terminal input");
@@ -2311,17 +2316,21 @@ void jbc_input(jbc_variable *out, int suppress_newline, const char *file, int li
     }
     if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
         error = "cannot write input prompt";
-    while (!error) {
+    while (!error && (!limit_text || length < (uint64_t)limit)) {
         unsigned char c;
         ssize_t count = read(STDIN_FILENO, &c, 1);
         if (count < 0 && errno == EINTR) continue;
         if (count < 0) { error = "cannot read input"; break; }
-        if (!count || c == '\n' || (edit && c == input_saved.c_cc[VEOF])) break;
-        if (edit && (c == input_saved.c_cc[VERASE] || c == input_saved.c_cc[VKILL])) {
+        if (!count || (edit && c != _POSIX_VDISABLE && c == input_saved.c_cc[VEOF])) break;
+        if (c == '\n') {
+            ended_line = 1;
+            break;
+        }
+        if (edit && c != _POSIX_VDISABLE && (c == input_saved.c_cc[VERASE] || c == input_saved.c_cc[VKILL])) {
             size_t keep = c == input_saved.c_cc[VKILL] || !length ? 0 : length - 1;
             while (length > keep) {
                 --length;
-                if (echo_fd >= 0 && write(echo_fd, "\b \b", 3) != 3) error = "cannot echo terminal input";
+                if (echo_chars && write(echo_fd, "\b \b", 3) != 3) error = "cannot echo terminal input";
             }
             continue;
         }
@@ -2334,7 +2343,11 @@ void jbc_input(jbc_variable *out, int suppress_newline, const char *file, int li
             text = grown;
         }
         text[length++] = (char)c;
-        if (echo_fd >= 0 && write(echo_fd, &c, 1) != 1) error = "cannot echo terminal input";
+        if (echo_chars && write(echo_fd, &c, 1) != 1) error = "cannot echo terminal input";
+    }
+    if (!error && echo_fd >= 0 && !suppress_newline &&
+        (ended_line || (limit_text && length == (uint64_t)limit))) {
+        if (write(echo_fd, "\n", 1) != 1) error = "cannot echo terminal newline";
     }
     if (input_modified && tcsetattr(STDIN_FILENO, TCSANOW, &input_saved))
         error = "cannot restore input terminal mode";
