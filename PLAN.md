@@ -401,6 +401,14 @@ After FIND, 10,639 of 17,336 candidates pass strict C99 checking,
 including all 10,553 previous passes. Of the 128 units previously stopped
 at FIND, 86 now pass and 42 reach another diagnostic.
 
-- [ ] Implement FINDSTR, the first blocker in 133 units. Verify substring
+- [x] Implement FINDSTR, the first blocker in 133 units. Verify substring
   matches within an element, occurrence selection and SETTING positions
   against the guide.
+
+After FINDSTR, 10,745 of 17,336 candidates pass strict C99 checking,
+including all 10,639 previous passes. Of the 133 units previously stopped
+at FINDSTR, 106 now pass and 27 reach another diagnostic.
+
+- [ ] Implement record DELETE for the in-memory file runtime, the first
+  blocker in 137 units. Verify deletion through READ, repeated deletion
+  of a missing key, and the SETTING and ON ERROR clauses.

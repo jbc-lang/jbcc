@@ -706,19 +706,30 @@ static int compare_right(const char *a, const char *b)
     return strcmp(a, b);
 }
 
-int jbc_find(const char *needle, const char *source, const char *occurrence,
+static int contains_bytes(const char *element, size_t bytes, const char *needle, size_t length)
+{
+    if (length > bytes) return 0;
+    for (size_t i = 0; i <= bytes - length; ++i)
+        if (memcmp(element + i, needle, length) == 0) return 1;
+    return 0;
+}
+
+int jbc_find(int substring, const char *needle, const char *source, const char *occurrence,
              jbc_variable *field, jbc_variable *value, jbc_variable *subvalue,
              const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(occurrence, &n) || n.places || n.sign <= 0)
-        numeric_error(file, line, column, "FIND occurrence must be a positive integer");
+        numeric_error(file, line, column, substring ? "FINDSTR occurrence must be a positive integer"
+                                                    : "FIND occurrence must be a positive integer");
     int64_t remaining = integer(occurrence, file, line, column);
     size_t f = 1, v = 1, s = 1;
     size_t length = strlen(needle);
     for (;;) {
         size_t bytes = strcspn(source, "\376\375\374");
-        if (bytes == length && memcmp(source, needle, bytes) == 0 && --remaining == 0) {
+        int matched = substring ? contains_bytes(source, bytes, needle, length)
+                                : bytes == length && memcmp(source, needle, bytes) == 0;
+        if (matched && --remaining == 0) {
             assign_value(field, size_value(f));
             if (value) assign_value(value, size_value(v));
             if (subvalue) assign_value(subvalue, size_value(s));

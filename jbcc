@@ -638,12 +638,13 @@ class Compiler:
             if self.word != ',':
                 break
             if len(slots) == 3:
-                self.error("FIND accepts at most three SETTING variables")
+                self.error(f"{opening.word} accepts at most three SETTING variables")
             self.advance()
         slots.extend(['NULL'] * (3 - len(slots)))
         # A miss leaves the slots untouched. Reads still check them at runtime.
         self.assigned.update(targets)
-        call = (f"jbc_find({needle}, {source}, {occurrence}, {', '.join(slots)}, "
+        substring = int(opening.word == 'FINDSTR')
+        call = (f"jbc_find({substring}, {needle}, {source}, {occurrence}, {', '.join(slots)}, "
                 f"{self.location(opening)})")
         self.conditional_arms(opening, call)
 
@@ -1164,7 +1165,7 @@ class Compiler:
             self.del_statement()
         elif self.word == 'REMOVE':
             self.remove_statement()
-        elif (self.word == 'FIND' and self.word not in self.matrices
+        elif (self.word in ('FIND', 'FINDSTR') and self.word not in self.matrices
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
             self.find_statement()

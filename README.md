@@ -375,6 +375,13 @@ miss, jbcc takes the ELSE branch and leaves the outputs as they were,
 following the guide’s examples with preassigned positions. Empty elements
 can match an empty key. [FIND](https://jbc-lang.org/pages/find.html).
 
+`FINDSTR` uses the same syntax and returns the same coordinates for a
+case-sensitive substring within an element. For example, searching for
+`XY` in `'ABC' : @VM : 'XYZ'` returns field 1, value 2, subvalue 1.
+In jbcc, each matching element counts once, and an empty key matches
+every element. These two edge cases are provisional pending a reference
+run. [FINDSTR](https://jbc-lang.org/pages/findstr.html).
+
 `LOCATE key IN record SETTING pos THEN ... ELSE ...` searches fields.
 Use `record<field>` to search values in a field and `record<field,value>`
 to search subvalues. An optional comma and starting position restrict the
