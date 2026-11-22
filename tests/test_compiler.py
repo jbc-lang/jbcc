@@ -1211,6 +1211,22 @@ END
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
 
+    def test_invocation_sentence(self):
+        source = self.work / 'caller.b'
+        routine = ROOT / 'tests/routines/get.sentence.b'
+        binary = self.work / 'invocation'
+        for direct_read in (False, True):
+            source.write_text(('CRT @SENTENCE<1>\n' if direct_read else '') +
+                              'CALL GET.SENTENCE(S, A)\nCRT S\nCRT A\n')
+            subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
+            for args, sentence, first in [
+                    ([], b'./invocation', b''),
+                    (['42', 'two words', '', 'last'], b'./invocation 42 two words  last', b'42')]:
+                with self.subTest(direct_read=direct_read, args=args):
+                    run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True)
+                    self.assertEqual(run.returncode, 0, run.stderr)
+                    self.assertEqual(run.stdout, (sentence + b'\n') * (1 + direct_read) + first + b'\n')
+
     def test_input_from_pipe(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input.b', '-o', binary], check=True)

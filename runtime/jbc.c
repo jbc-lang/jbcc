@@ -20,6 +20,7 @@ struct jbc_buffer {
 };
 
 static struct jbc_buffer *buffers;
+static const char *jbc_command_line = "";
 static const char *jbc_input_prompt = "?";
 
 static void fail(const char *message)
@@ -50,6 +51,25 @@ void jbc_finish(void)
         free(buffers);
         buffers = next;
     }
+}
+
+void jbc_init_sentence(int argc, char **argv)
+{
+    size_t length = argc ? (size_t)argc - 1 : 0;
+    for (int i = 0; i < argc; ++i) {
+        size_t bytes = strlen(argv[i]);
+        if (bytes > SIZE_MAX - length) fail("command line is too large");
+        length += bytes;
+    }
+    char *out = allocate(length), *write = out;
+    for (int i = 0; i < argc; ++i) {
+        if (i) *write++ = ' ';
+        size_t bytes = strlen(argv[i]);
+        memcpy(write, argv[i], bytes);
+        write += bytes;
+    }
+    *write = '\0';
+    jbc_command_line = out;
 }
 
 const char *jbc_concat(const char *left, const char *right)

@@ -817,6 +817,14 @@ After timed INPUT, 14,592 of 17,336 candidates still pass strict C99
 checking. The only changed diagnostic is in WHERE.MONITOR, which now
 reaches a read of `@SENTENCE` after its timed INPUT.
 
-- [ ] Support reading `@SENTENCE`, the next blocker in 23 units.
+- [x] Support reading `@SENTENCE`, the next blocker in 23 units.
   Check how the invocation is represented, then exercise a native program
   with and without command-line arguments and read the value in a subroutine.
+
+After adding `@SENTENCE`, 14,593 of 17,336 candidates pass strict C99
+checking. All previous passes still pass. Of the 23 units previously
+blocked there, CREATE.SC.VAL.COST passes and 22 reach later diagnostics.
+
+- [ ] Recognize EQU and EQUATE after a statement separator. All 37 units
+  currently blocked at EQU use it after a semicolon. Test multiple
+  definitions on a line and expansion in subsequent statements.

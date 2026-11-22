@@ -200,6 +200,15 @@ the success branch at EOF. These EOF rules are
 provisional pending a reference run. [INPUT](https://jbc-lang.org/pages/input.html),
 [PROMPT](https://jbc-lang.org/pages/prompt.html).
 
+`@SENTENCE` reads the invocation in the main program or any called routine.
+For example, starting `./report today` gives `./report today`, and
+`@SENTENCE[' ',2,1]` gives `today`. The guide documents a space-separated
+invocation for the related `SENTENCE` function. For native executables,
+jbcc provisionally uses the exact program name supplied in `argv[0]` and
+joins all arguments with one space. Embedded spaces and empty arguments
+are preserved, and shell quoting is already removed by the time the
+program starts. [SENTENCE](https://jbc-lang.org/pages/sentence.html).
+
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END. Its ELSE can follow on the same line or
 on the next line. The reference preprocessor joins a line beginning with
