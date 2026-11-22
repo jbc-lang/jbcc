@@ -35,7 +35,7 @@ an argument.
   the changed value.
 - [x] **EQUATE and $INSERT.** Resolve local include files. Preserve original
   filenames and line numbers in diagnostics.
-- [ ] **BEGIN CASE / CASE / END CASE.** Verify that the first matching case
+- [x] **BEGIN CASE / CASE / END CASE.** Verify that the first matching case
   wins.
 
 ## Libraries and external services

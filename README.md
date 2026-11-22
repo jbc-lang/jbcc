@@ -49,6 +49,43 @@ statements, including on the same line. FOR also accepts a WHILE or UNTIL
 guard in its header. See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
+## Compile a T24-style routine
+
+Pass one main program and its subroutine source files to the same command.
+The translator resolves direct calls by the declared routine name and checks
+argument counts before writing a single C translation unit.
+
+```sh
+./jbcc tests/routines/caller.b tests/routines/get.status.b -o /tmp/status.c
+cc -std=c99 /tmp/status.c -o /tmp/status
+/tmp/status
+```
+
+This example prints `open` and then `closed`. Both files insert the same
+field definition. The caller passes a record and an output variable. The
+callee reads the status field, selects a CASE arm, and updates the output.
+
+- Dynamic arrays use one-based field, value and subvalue positions. Use
+  `R<2,3,1>` to read or replace a component and `R<-1> = X` to append a
+  field. Tight postfix brackets distinguish extraction from relational
+  operators. Missing components read as empty strings. Sparse assignments
+  fill intervening positions with marks. The runtime uses single-byte
+  `@FM` (also `@AM`), `@VM` and `@SM`. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
+- Define a local label at routine scope with a trailing colon. GOSUB shares
+  the routine's variables and supports nested returns. Execution falls through
+  labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
+- SUBROUTINE parameters and plain variable arguments to CALL share storage,
+  including output arguments. Expressions are passed in temporary slots.
+  Each invocation has its own locals. A RETURN outside a local GOSUB ends
+  the invocation. Reading an unassigned output reports a runtime diagnostic.
+  [SUBROUTINE](https://jbc-lang.org/pages/subroutine.html)
+- EQU or EQUATE defines token substitutions, including comma-separated
+  definitions. $INSERT and INCLUDE search the including file's directory,
+  followed by each `-I DIR` in order. Included tokens retain their source
+  locations. [EQUATE](https://jbc-lang.org/pages/equate.html)
+- BEGIN CASE evaluates conditions in order, executes the first true arm,
+  and resumes after END CASE. Use CASE 1 for a default. [CASE](https://jbc-lang.org/pages/case.html)
+
 ## Test corpus
 
 ```sh
@@ -96,6 +133,5 @@ output are the evidence for runtime behavior.
 
 ## After the first milestone
 
-Continue with dynamic-array extraction and replacement in [PLAN.md](PLAN.md). Once native
-execution is repeatable, evaluate compiling the same generated C and runtime
-to WebAssembly for a browser playground.
+The next section of [PLAN.md](PLAN.md) covers library functions, file I/O,
+and whole-routine corpus checks. WebAssembly remains a possible playground target.

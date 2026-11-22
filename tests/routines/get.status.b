@@ -1,9 +1,10 @@
 SUBROUTINE GET.STATUS(Rec, Answer)
 $INSERT I_STATUS
-IF Rec<STATUS.FIELD> EQ ACTIVE THEN
-  Answer = 'open'
-END ELSE
-  Answer = 'closed'
-END
+BEGIN CASE
+CASE Rec<STATUS.FIELD> EQ ACTIVE
+    Answer = 'open'
+CASE 1
+    Answer = 'closed'
+END CASE
 RETURN
 END

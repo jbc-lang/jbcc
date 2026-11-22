@@ -1,0 +1,10 @@
+BEGIN CASE
+CASE 1
+    PRINT 'first'
+CASE 1 / 0
+    PRINT 'wrong'
+END CASE
+BEGIN CASE
+CASE 0
+    PRINT 'wrong'
+END CASE

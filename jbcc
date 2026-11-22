@@ -317,6 +317,40 @@ class Compiler:
         self.assigned = taken & self.assigned
         self.emit("}")
 
+    def case_statement(self):
+        opening = self.current
+        self.advance()
+        self.expect('CASE')
+        while self.word in (';', '\n'):
+            self.advance()
+        before = self.assigned.copy()
+        outcomes = []
+        exhaustive = False
+        self.emit("do {")
+        self.depth += 1
+        while self.word == 'CASE':
+            self.advance()
+            self.assigned = before.copy()
+            condition = self.expression()
+            self.emit(f"if (jbc_truth({condition})) {{")
+            self.depth += 1
+            self.sequence({'CASE', 'END'}, opening)
+            if not exhaustive:
+                outcomes.append(self.assigned)
+                exhaustive = condition == '"1"'
+            self.emit("break;")
+            self.depth -= 1
+            self.emit("}")
+        if not outcomes:
+            self.error("expected CASE clause", opening)
+        self.expect('END')
+        self.expect('CASE')
+        self.depth -= 1
+        self.emit("} while (0);")
+        if not exhaustive:
+            outcomes.append(before)
+        self.assigned = set.intersection(*outcomes)
+
     def print_statement(self):
         self.advance()
         if self.word not in OUTPUT_END:
@@ -473,6 +507,8 @@ class Compiler:
         elif self.word == 'STOP':
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
+        elif self.word == 'BEGIN':
+            self.case_statement()
         elif self.word == 'CALL':
             self.call_statement()
         elif self.word == 'IF':
