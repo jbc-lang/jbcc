@@ -992,10 +992,22 @@ const char *jbc_date(const char *file, int line, int column)
     return out;
 }
 
+static const char *const month_names[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
+    "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
+
+const char *jbc_timedate(const char *file, int line, int column)
+{
+    const struct tm *now = local_clock(file, line, column, "TIMEDATE cannot read local time");
+    if (now->tm_year < 1 - 1900 || now->tm_year > 9999 - 1900)
+        numeric_error(file, line, column, "TIMEDATE outside years 1 through 9999");
+    char *out = allocate(20);
+    snprintf(out, 21, "%02d:%02d:%02d %02d %.3s %04d", now->tm_hour, now->tm_min,
+             now->tm_sec, now->tm_mday, month_names[now->tm_mon], now->tm_year + 1900);
+    return out;
+}
+
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
-    static const char *const months[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
-        "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
     static const char *const weekdays[] = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
         "FRIDAY", "SATURDAY", "SUNDAY"};
     static const int lengths[] = {31,28,31,30,31,30,31,31,30,31,30,31};
@@ -1054,7 +1066,7 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     int day = remaining + 1;
     switch (part) {
         case 'D': return size_value(day);
-        case 'M': return name ? months[month] : size_value(month + 1);
+        case 'M': return name ? month_names[month] : size_value(month + 1);
         case 'J': return size_value(day_of_year);
         case 'Q': return size_value(month / 3 + 1);
         case 'W': return name ? weekdays[weekday] : size_value(weekday + 1);
@@ -1068,7 +1080,7 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
         snprintf(out, 12, "%02d%c%02d%s%s", european ? day : month + 1, separator,
                  european ? month + 1 : day, width ? (char[]){separator, 0} : "", suffix);
     else
-        snprintf(out, 12, "%02d %.3s%s%s", day, months[month], width ? " " : "", suffix);
+        snprintf(out, 12, "%02d %.3s%s%s", day, month_names[month], width ? " " : "", suffix);
     return out;
 
 unsupported:

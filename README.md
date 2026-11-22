@@ -75,6 +75,10 @@ accept an explicit colon separator. The current runtime accepts whole
 seconds from 0 through 86399. [TIME](https://jbc-lang.org/pages/time.html),
 [OCONV](https://jbc-lang.org/pages/oconv.html).
 
+TIMEDATE() formats one reading of the local clock as a printable string,
+for example `23:59:59 31 DEC 2023`. jbcc uses the guide’s default layout
+with English month abbreviations. [TIMEDATE](https://jbc-lang.org/pages/timedate.html).
+
 For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
 worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns

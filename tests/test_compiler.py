@@ -45,6 +45,7 @@ class CompilerTest(unittest.TestCase):
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
+                                  ('CRT TIMEDATE(1)\n', ':1:5:'),
                                   ('FOR I = 1 TO 2\nNEXT J\n', ':2:6:'),
                                   ('LOOP WHILE 0\n', ':1:1:'),
                                   ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
@@ -250,6 +251,30 @@ class CompilerTest(unittest.TestCase):
                 self.assertTrue(any(before <= datetime.combine(d.date(), local_time, tz) <= after
                                     for d in (before, after)))
                 self.assertEqual(run.stderr, '')
+
+    def test_timedate_at_local_midnight(self):
+        source = self.work / 'timedate.b'
+        source.write_text("PRINT TIMEDATE()\nPRINT TIMEDATE()\n")
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+
+        # Advance one second per read, starting at 2024-01-01 00:59:59 UTC.
+        clock = self.work / 'clock.c'
+        clock.write_text("""#include <time.h>
+time_t test_clock(time_t *out)
+{
+    static time_t next = 1704070799;
+    time_t now = next++;
+    if (out) *out = now;
+    return now;
+}
+""")
+        binary = self.work / 'timedate'
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)
+        run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+1'), capture_output=True,
+                             text=True, check=True)
+        self.assertEqual(run.stdout, "23:59:59 31 DEC 2023\n00:00:00 01 JAN 2024\n")
+        self.assertEqual(run.stderr, '')
 
     def test_oconv_diagnostics(self):
         source = self.work / 'date.b'

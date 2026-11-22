@@ -377,6 +377,14 @@ including all 10,325 previous passes. Of the 44 units previously reporting
 an unknown TIME or stopping at its opening parenthesis, 20 now pass and
 24 reach another diagnostic.
 
-- [ ] Implement TIMEDATE(), the first blocker in 120 units. Format a
+- [x] Implement TIMEDATE(), the first blocker in 120 units. Format a
   single local clock reading as `hh:mm:ss dd mmm yyyy` and verify that
   the date and time agree at midnight.
+
+After TIMEDATE(), 10,451 of 17,336 candidates pass strict C99 checking,
+including all 10,384 previous passes. Of the 120 units previously stopped
+at TIMEDATE, 66 now pass and 54 reach another diagnostic.
+
+- [ ] Implement CHANGE as a statement and a function. Together the two
+  forms are the first blocker in 161 units. Check replacement order,
+  unequal string lengths and empty replacements in native tests.
