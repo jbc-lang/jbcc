@@ -811,9 +811,18 @@ For example, `--memory-file CUSTOMERS --memory-dict CUSTOMERS` provides
 both sections, each with its own records. Opening an unregistered section
 takes the failure branch.
 
-OPEN a name TO a descriptor, READ a variable FROM a descriptor and key,
-and WRITE a value ON or TO a descriptor and key. READ and WRITE use
-explicit descriptors. OPEN and READ require THEN or ELSE. WRITE can be
+The reference lexer maps OPENPATH to OPEN. Both use the same record
+store. Register the exact relative or absolute path with `--memory-file`,
+for example `--memory-file data/customers`. The in-memory backend compares
+path strings literally. A host file at that path needs its own backend.
+`OPENPATH path TO F SETTING S` sets S to 0 on success or 128 if the
+registered file is missing. Omit the descriptor to select the default.
+[OPENPATH](https://jbc-lang.org/pages/openpath.html).
+
+READ and WRITE accept an explicit descriptor and key, or just a key for
+the default file. For example, after `OPENPATH path ELSE STOP`,
+`WRITE 'Ada' ON '1'` and `READ name FROM '1' ELSE STOP` use the same file.
+OPEN and READ require THEN or ELSE. WRITE can be
 unconditional or use a success or failure branch. In this backend a failed
 open or read clears its destination. An unhandled failed WRITE terminates
 with a source location. Stored records survive reassignment and loop

@@ -1094,7 +1094,17 @@ ATM.CONTROL variants advance to TIMEOUT on an input pipe. Native fixtures
 verify byte positioning after buffered reads, failed seeks, rewind after
 EOF, and a write beyond EOF that leaves a zero-filled gap.
 
-- [ ] Implement OPENPATH, the first diagnostic in 23 candidates. Check
+- [x] Implement OPENPATH, the first diagnostic in 23 candidates. Check
   named and default descriptors, relative and absolute paths, and missing
   files with SETTING. Verify record reads and writes through the opened
   descriptor using an explicit test backend.
+
+After OPENPATH, 15,451 of 17,336 candidates pass strict C99 checking.
+All 15,441 previous passes still pass. Ten of the 23 OPENPATH cases now
+pass, six reach the STATUS statement, and three reach CLOSE. Native tests
+exercise explicit and default descriptors against path-named memory files.
+
+- [ ] Implement the STATUS statement (`STATUS result FROM descriptor`),
+  the first diagnostic in 23 candidates. Check the fields read by T24
+  against the guide and reference grammar, and exercise valid and missing
+  descriptors through the record backend.

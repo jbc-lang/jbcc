@@ -1087,6 +1087,14 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
 
+    def test_openpath(self):
+        result = self.run_native(ROOT / 'tests/io/openpath.b',
+                                 options=['--memory-file', 'data/customers',
+                                          '--memory-file', '/records/customers'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'0\nAda\nupdated\nGrace\n128\ndefault cleared\n'
+                         b'128\ndescriptor cleared\nno dictionary\n')
+
     def test_open_sections(self):
         run = self.run_native(ROOT / 'tests/io/open-sections.b',
                               options=['--memory-file', 'CUSTOMERS', '--memory-dict', 'CUSTOMERS',

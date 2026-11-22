@@ -2156,12 +2156,14 @@ void jbc_close_local_files(struct opened_file *scope)
     }
 }
 
-int jbc_open_file(const char *section, const char *name, jbc_variable *out, struct opened_file **scope)
+int jbc_open_file(const char *section, const char *name, jbc_variable *out, struct opened_file **scope,
+                  jbc_variable *setting)
 {
     struct memory_file *f = find_memory_file(section, name);
     if (f && scope) remember_open(scope, f);
     assign_value(out, f ? f->name : "");
-    return f != NULL;
+    if (setting) assign_value(setting, f ? "0" : "128");
+    return f ? 0 : 128;
 }
 
 static struct memory_file *file_for(const char *handle)
