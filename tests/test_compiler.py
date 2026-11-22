@@ -226,6 +226,18 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
 
+    def test_oconv_date_diagnostics(self):
+        source = self.work / 'date.b'
+        for args, message in [("0,'MT'", "unsupported OCONV mask 'MT'"),
+                              ("0,'D5/'", "unsupported OCONV mask 'D5/'"),
+                              ("1.5,'D'", "OCONV date requires an integer day count"),
+                              ("2933629,'D'", "OCONV date outside years 1 through 9999")]:
+            with self.subTest(args=args):
+                source.write_text(f"PRINT OCONV({args})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+
     def test_trim_diagnostics(self):
         source = self.work / 'trim.b'
         for args, message in [("' ', 'X'", 'unknown TRIM mode'),

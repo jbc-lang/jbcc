@@ -956,6 +956,79 @@ const char *jbc_matches(const char *text, const char *pattern)
     return matched ? "1" : "0";
 }
 
+static int leap_year(int year)
+{
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    static const char *const months[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
+        "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
+    static const char *const weekdays[] = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
+        "FRIDAY", "SATURDAY", "SUNDAY"};
+    static const int lengths[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+    if (*mask != 'D') goto unsupported;
+    const char *p = mask + 1;
+    char part = 0, separator = 0;
+    int width = 4, european = 0, name = 0;
+    if (*p && strchr("DMJQWY", *p)) part = *p++;
+    if ((!part || part == 'Y') && *p >= '0' && *p <= '4') width = *p++ - '0';
+    if ((part == 'M' || part == 'W') && *p == 'A') { name = 1; ++p; }
+    if (!part && *p && strchr("/-.", *p)) {
+        separator = *p++;
+        if (*p == 'E') { european = 1; ++p; }
+    }
+    if (*p) goto unsupported;
+
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.places)
+        numeric_error(file, line, column, "OCONV date requires an integer day count");
+    int64_t days = integer(value, file, line, column);
+    /* 0001-01-01 is day -718430 relative to 1967-12-31. */
+    if (days < -718430 || days > 2933628)
+        numeric_error(file, line, column, "OCONV date outside years 1 through 9999");
+    int ordinal = (int)days + 718430;
+    int weekday = ordinal % 7;
+    int year = 1 + 400 * (ordinal / 146097);
+    int remaining = ordinal % 146097;
+    while (remaining >= 365 + leap_year(year)) {
+        remaining -= 365 + leap_year(year);
+        ++year;
+    }
+    int day_of_year = remaining + 1;
+    int month = 0;
+    for (; month < 11; ++month) {
+        int length = lengths[month] + (month == 1 && leap_year(year));
+        if (remaining < length) break;
+        remaining -= length;
+    }
+    int day = remaining + 1;
+    switch (part) {
+        case 'D': return size_value(day);
+        case 'M': return name ? months[month] : size_value(month + 1);
+        case 'J': return size_value(day_of_year);
+        case 'Q': return size_value(month / 3 + 1);
+        case 'W': return name ? weekdays[weekday] : size_value(weekday + 1);
+    }
+    char full_year[5];
+    snprintf(full_year, sizeof full_year, "%04d", year);
+    const char *suffix = full_year + 4 - width;
+    char *out = allocate(11);
+    if (part == 'Y') strcpy(out, suffix);
+    else if (separator)
+        snprintf(out, 12, "%02d%c%02d%s%s", european ? day : month + 1, separator,
+                 european ? month + 1 : day, width ? (char[]){separator, 0} : "", suffix);
+    else
+        snprintf(out, 12, "%02d %.3s%s%s", day, months[month], width ? " " : "", suffix);
+    return out;
+
+unsupported:
+    fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
+    exit(EXIT_FAILURE);
+}
+
 const char *jbc_trim(const char *text, const char *character, const char *mode,
                      const char *file, int line, int column)
 {

@@ -348,7 +348,17 @@ After TRIM, 10,256 of 17,336 candidates pass strict C99 checking, including
 all 10,194 previous passes. Of the 114 units previously stopped at the
 opening parenthesis of TRIM, 43 now pass and 71 reach another diagnostic.
 
-- [ ] Start OCONV, the first blocker in 258 units. Begin with date masks
+- [x] Start OCONV, the first blocker in 258 units. Begin with date masks
   observed in T24, including `D-`. Verify the internal date epoch, leap
   years and output layout against the guide, and diagnose unsupported
   conversions at the call site.
+
+After adding OCONV date masks, 10,267 of 17,336 candidates pass strict
+C99 checking, including all 10,256 previous passes. Of the 258 units
+previously stopped at the opening parenthesis of OCONV, 5 now pass and
+253 reach another diagnostic. The scan checks generated C syntax only.
+Mask support is checked separately in native tests.
+
+- [ ] Implement DATE() so T24 expressions such as `OCONV(DATE(),'D-')`
+  can run. Check the local calendar date against the same 1967 epoch,
+  including dates across a timezone boundary.

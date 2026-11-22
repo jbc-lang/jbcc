@@ -64,6 +64,17 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
+OCONV currently formats internal dates, counted in days from 31 December
+1967. `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
+year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
+worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns
+`01/17/2013`. Append `E` for day-first order. The guide’s syntax table
+instead describes day-first order for the plain numeric form. Component
+masks include `DD`, `DM`, `DMA`, `DJ`, `DQ`, `DW`, `DWA`, and `DY` with
+optional year width. The runtime accepts Gregorian years 1 through 9999
+and reports unsupported masks at the call site. [DATE](https://jbc-lang.org/pages/date.html),
+[OCONV](https://jbc-lang.org/pages/oconv.html).
+
 TRIM accepts one to three arguments. In jbcc, `TRIM(text)` removes
 leading and trailing spaces and collapses internal runs to one space.
 A second argument selects the trim byte. An empty second argument selects
