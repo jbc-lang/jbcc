@@ -161,8 +161,6 @@ These snippets have yet to be run on a reference jBC implementation.
 - `quine.b` reproduces its source byte for byte, including the semicolon
   between statements and the final newline. The native test compares stdout
   directly with the source file.
-- `quine-original.b` preserves the supplied program. Its regression test
-  checks the colon emitted by `CHAR(58)` and the single output newline.
 - `demo.b` animates a 24-by-79 character display until a key is available.
   It exercises dimensioned arrays, substring assignment, fractional
   arithmetic, trigonometry, and terminal I/O. A future automated run

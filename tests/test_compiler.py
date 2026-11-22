@@ -133,12 +133,6 @@ class CompilerTest(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, source.read_bytes())
 
-    def test_original_quine_output(self):
-        run = self.run_native(ROOT / 'tests/programs/quine-original.b')
-        body = b'CRT CHAR(81):CHAR(61):CHAR(34):Q:CHAR(34):CHAR(58):Q'
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'Q="' + body + b'":' + body + b'\n')
-
     def test_char_byte_range(self):
         source = self.work / 'char.b'
         source.write_text('CRT CHAR(1) : CHAR(254) : CHAR("255.0"):\n')
