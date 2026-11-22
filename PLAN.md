@@ -385,6 +385,14 @@ After TIMEDATE(), 10,451 of 17,336 candidates pass strict C99 checking,
 including all 10,384 previous passes. Of the 120 units previously stopped
 at TIMEDATE, 66 now pass and 54 reach another diagnostic.
 
-- [ ] Implement CHANGE as a statement and a function. Together the two
+- [x] Implement CHANGE as a statement and a function. Together the two
   forms are the first blocker in 161 units. Check replacement order,
   unequal string lengths and empty replacements in native tests.
+
+After CHANGE, 10,553 of 17,336 candidates pass strict C99 checking,
+including all 10,451 previous passes. Of the 161 units previously stopped
+at CHANGE, 101 now pass and 60 reach another diagnostic.
+
+- [ ] Implement FIND, the first blocker in 128 units. Test exact matches,
+  occurrence selection, field/value/subvalue positions, and THEN/ELSE
+  behavior against the guide’s dynamic-array examples.

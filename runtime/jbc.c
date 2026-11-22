@@ -1185,6 +1185,47 @@ static size_t occurrences(const char *s, const char *separator)
     return count;
 }
 
+static const char *change_substrings(const char *text, const char *search, const char *replacement,
+                                     int64_t limit, int64_t first)
+{
+    if (!*search) return text;
+    size_t width = strlen(search);
+    const char *match = strstr(text, search);
+    for (int64_t i = 1; match && i < first; ++i)
+        match = strstr(match + width, search);
+    if (!match) return text;
+
+    size_t count = 1 + occurrences(match + width, search);
+    if (limit > 0 && (uint64_t)limit < count) count = (size_t)limit;
+    size_t bytes = strlen(replacement);
+    size_t kept = strlen(text) - count * width;
+    if (bytes > (SIZE_MAX - kept) / count) fail("CHANGE result is too large");
+    char *out = allocate(kept + count * bytes);
+    char *write = out;
+    for (;;) {
+        size_t prefix = (size_t)(match - text);
+        memcpy(write, text, prefix);
+        write += prefix;
+        memcpy(write, replacement, bytes);
+        write += bytes;
+        text = match + width;
+        if (!--count) break;
+        match = strstr(text, search);
+    }
+    strcpy(write, text);
+    return out;
+}
+
+const char *jbc_change(const char *text, const char *search, const char *replacement,
+                       const char *limit, const char *first, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(limit, &n) || n.places || !parse_decimal(first, &n) || n.places)
+        numeric_error(file, line, column, "CHANGE requires integer occurrence arguments");
+    return change_substrings(text, search, replacement, integer(limit, file, line, column),
+                             integer(first, file, line, column));
+}
+
 const char *jbc_count(const char *s, const char *separator)
 {
     return size_value(occurrences(s, separator));

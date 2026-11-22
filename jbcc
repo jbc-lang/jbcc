@@ -22,7 +22,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7})
 
 
-BUILTINS = {"TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "OCONV": (2,), "TRIM": (1, 2, 3), "ABS": (1,), "SUM": (1,), "SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"CHANGE": (3, 4, 5), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "OCONV": (2,), "TRIM": (1, 2, 3), "ABS": (1,), "SUM": (1,), "SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 SYSTEM_CONSTANTS = {
@@ -376,6 +376,11 @@ class Compiler:
                 self.error("expected ')' after function arguments")
             if len(args) not in BUILTINS[word]:
                 self.error(f"wrong argument count for '{word}'", target)
+            if word == 'CHANGE':
+                if len(args) == 3:
+                    args.append('"-1"')
+                if len(args) == 4:
+                    args.append('"1"')
             if word == 'FIELD':
                 if len(args) == 3:
                     args.append('"1"')
@@ -388,7 +393,7 @@ class Compiler:
                 self.trig = True
             if word == "SYSTEM":
                 self.terminal = True
-            if word in ("TIMEDATE", "TIME", "DATE", "OCONV", "TRIM", "ABS", "SUM", "CHAR", "FIELD", "FMT", "INDEX", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
+            if word in ("CHANGE", "TIMEDATE", "TIME", "DATE", "OCONV", "TRIM", "ABS", "SUM", "CHAR", "FIELD", "FMT", "INDEX", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
             if word == 'NOT':
@@ -547,10 +552,14 @@ class Compiler:
             return self.matrix_slot(token)
         return self.variable(token.word)
 
-    def convert_statement(self):
+    def change_or_convert_statement(self):
+        change = self.word == 'CHANGE'
         self.advance()
-        source_chars = self.expression()
-        self.expect('TO')
+        search = self.expression()
+        if change and self.word == 'WITH':
+            self.advance()
+        else:
+            self.expect('TO')
         replacements = self.expression()
         self.expect('IN')
         target = self.identifier()
@@ -561,7 +570,10 @@ class Compiler:
         value = self.checked_read(slot, target)
         if indices:
             value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
-        value = self.temporary(f"jbc_convert({value}, {source_chars}, {replacements})")
+        if change:
+            value = self.temporary(f"change_substrings({value}, {search}, {replacements}, -1, 1)")
+        else:
+            value = self.temporary(f"jbc_convert({value}, {search}, {replacements})")
         if indices:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
@@ -1113,8 +1125,10 @@ class Compiler:
             self.matparse_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
-        elif self.word == 'CONVERT':
-            self.convert_statement()
+        elif self.word == 'CONVERT' or (self.word == 'CHANGE' and self.word not in self.matrices
+                                       and self.following.word not in ('=', '+=', '-=', ':=', '[')
+                                       and self.following.kind != 'array_open'):
+            self.change_or_convert_statement()
         elif self.word == 'INS':
             self.ins_statement()
         elif self.word == 'DEL':

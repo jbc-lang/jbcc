@@ -49,6 +49,15 @@ with `*`, `!` or `REM` comments out the rest of its line. These markers
 can follow a named or numeric label directly, as in `setup:* read inputs`
 or `100: REM retry`.
 
+`CHANGE old TO new IN target` replaces nonoverlapping substrings from left
+to right in an assigned scalar, matrix element or dynamic-array field.
+The original grammar also accepts `WITH` in place of `TO`. The function
+`CHANGE(text, old, new [, count [, first]])` returns a new value. Counting
+starts at one. A count below one replaces all remaining matches, and a
+starting occurrence below one starts at the first match. An empty replacement
+deletes matches. jbcc leaves the input intact for an empty search string.
+[CHANGE](https://jbc-lang.org/pages/change.html), [EREPLACE](https://jbc-lang.org/pages/ereplace.html).
+
 Concatenating assignment appends the right-hand value as a string.
 For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
 It also works on matrix elements, dynamic-array fields and substrings.
