@@ -226,6 +226,8 @@ class Compiler:
         self.common_scalars = {}
         self.body = []
         self.temporaries = 0
+        self.loop_stack = []
+        self.continued_loops = set()
         self.loops = 0
         self.trig = False
         self.terminal = False
@@ -651,8 +653,25 @@ class Compiler:
 
     def begin_loop(self):
         self.loops += 1
+        self.loop_stack.append(self.loops)
         self.emit("for (;;) {")
         self.depth += 1
+
+    def end_loop_body(self):
+        loop = self.loop_stack.pop()
+        if loop in self.continued_loops:
+            self.emit(f"continue_{loop}: ;")
+
+    def continue_statement(self):
+        token = self.current
+        self.advance()
+        if self.loop_stack:
+            loop = self.loop_stack[-1]
+            self.continued_loops.add(loop)
+            self.emit(f"goto continue_{loop};")
+        else:
+            print(f"{token.path}:{token.line}:{token.column}: warning: CONTINUE outside a loop ignored",
+                  file=sys.stderr)
 
     def end_loop(self):
         self.emit("jbc_collect(entry_mark, live);")
@@ -705,6 +724,7 @@ class Compiler:
             if self.word != counter.word:
                 self.error(f"expected NEXT {counter.word}")
             self.advance()
+        self.end_loop_body()
         increment = self.arithmetic(opening, symbol + ".value", step, '+')
         self.emit(f"assign_value(&{symbol}, {increment});")
         self.for_stack.pop()
@@ -725,6 +745,7 @@ class Compiler:
             exits = exit_assigned if exits is None else exits & exit_assigned
             if self.word == 'DO':
                 self.advance()
+        self.end_loop_body()
         self.end_loop()
         if exits is not None:
             self.assigned = exits
@@ -984,6 +1005,8 @@ class Compiler:
             self.conditional()
         elif self.word == 'FOR':
             self.for_statement()
+        elif self.word == 'CONTINUE':
+            self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
         elif self.word in ('CRT', 'PRINT'):

@@ -199,6 +199,15 @@ With that rule, 7,406 of 17,336 candidates pass strict C99 checking,
 including all 7,214 previous passes. Of the 488 units stopped at this
 declaration, 125 now pass and 363 reach another diagnostic.
 
-- [ ] Implement CONTINUE, the first blocker in 384 units. Verify its
+- [x] Implement CONTINUE, the first blocker in 384 units. Verify its
   destination inside nested LOOP and FOR statements, including the FOR
   counter increment and cleanup of iteration temporaries.
+
+After CONTINUE, 7,475 of 17,336 candidates pass strict C99 checking,
+including all 7,406 previous passes. Of the 384 units previously stopped
+at CONTINUE, 69 pass and 315 reach another diagnostic.
+
+- [ ] Implement RAISE and LOWER for dynamic-array delimiters. The first
+  diagnostic points to the opening parenthesis of RAISE in 273 units and
+  LOWER in 137. Verify each delimiter level and the boundary cases against
+  the guide with native output tests.

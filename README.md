@@ -97,7 +97,11 @@ and an optional variable name after NEXT. The limit and step are evaluated
 at the start of each iteration. The captured step increments the counter
 after the body. LOOP allows WHILE and UNTIL guards before or after other
 statements, including on the same line. FOR also accepts a WHILE or UNTIL
-guard in its header. See the [FOR](https://jbc-lang.org/pages/for.html) and
+guard in its header. CONTINUE skips the rest of the innermost iteration.
+In FOR it advances the counter by the captured step. In LOOP it resumes
+at the top, even when a guard appears later in the body. Outside a loop
+it issues a compile-time warning and execution proceeds normally.
+[CONTINUE](https://jbc-lang.org/pages/continue.html). See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
 ## Dimensioned arrays and shared storage

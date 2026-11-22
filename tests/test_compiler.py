@@ -53,6 +53,15 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(str(source) + location, run.stderr)
                 self.assertEqual(self.c.read_text(), 'previous output')
 
+    def test_continue_outside_loop(self):
+        source = self.work / 'continue.b'
+        source.write_text('FOR I = 1 TO 1\nNEXT I\n  CONTINUE\nPRINT I\n')
+        binary = self.work / 'program'
+        build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
+        self.assertEqual(build.returncode, 0, build.stderr)
+        self.assertIn(f'{source}:3:3: warning: CONTINUE outside a loop ignored', build.stderr)
+        self.assertEqual(subprocess.check_output([binary]), b'2\n')
+
     def test_integer_limits(self):
         source = self.work / 'numbers.b'
         for text, diagnostic in [('9223372036854775807', 'overflow'),
