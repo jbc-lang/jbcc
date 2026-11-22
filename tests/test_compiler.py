@@ -53,6 +53,22 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(str(source) + location, run.stderr)
                 self.assertEqual(self.c.read_text(), 'previous output')
 
+    def test_del_diagnostics(self):
+        source = self.work / 'del.b'
+        for program, diagnostic in [
+                ('DEL R<1>', ":1:5: unassigned variable 'R'"),
+                ('R = 1\nDEL R', ':2:6: expected dynamic-array indices'),
+                ('R = 1\nDEL R<1,1,1,1>', ':2:6: expected one to three dynamic-array indices')]:
+            with self.subTest(program=program):
+                source.write_text(program + '\n')
+                run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(str(source) + diagnostic, run.stderr)
+        source.write_text("R = 1\nDEL R<2,'bad'>\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:2:5: DEL requires numeric indices'.encode(), run.stderr)
+
     def test_continue_outside_loop(self):
         source = self.work / 'continue.b'
         source.write_text('FOR I = 1 TO 1\nNEXT I\n  CONTINUE\nPRINT I\n')

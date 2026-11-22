@@ -255,7 +255,15 @@ After the Boolean constants, 9,020 of 17,336 candidates pass strict C99
 checking, including all 8,873 previous passes. Of the 372 units stopped
 at either constant, 147 now pass and 225 reach another diagnostic.
 
-- [ ] Implement DEL for dynamic-array fields, values and subvalues. It is
+- [x] Implement DEL for dynamic-array fields, values and subvalues. It is
   the first blocker in 269 units. Check deletion at the start, middle and
   end of a component list, missing positions and matrix-element targets
   against the DEL chapter.
+
+After DEL, 9,151 of 17,336 candidates pass strict C99 checking, including
+all 9,020 previous passes. Of the 269 units stopped at DEL, 131 now pass
+and 138 reach another diagnostic.
+
+- [ ] Implement `INS expression BEFORE target<...>`, the first blocker
+  in 230 units. Test insertion before existing fields, values and subvalues,
+  padding beyond the last element and the guide's negative-index append rule.

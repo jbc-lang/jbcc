@@ -541,6 +541,17 @@ class Compiler:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
 
+    def del_statement(self):
+        self.advance()
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
+            self.error(f"unassigned variable '{target.word}'", target)
+        if self.current.kind != 'array_open':
+            self.error("expected dynamic-array indices after DEL target")
+        indices = self.array_indices()
+        self.emit(f"jbc_del(&{slot}, {indices}, {c_string(target.word)}, {self.location(target)});")
+
     def remove_statement(self):
         self.advance()
         target = self.identifier()
@@ -964,6 +975,8 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'CONVERT':
             self.convert_statement()
+        elif self.word == 'DEL':
+            self.del_statement()
         elif self.word == 'REMOVE':
             self.remove_statement()
         elif self.word == 'LOCATE':

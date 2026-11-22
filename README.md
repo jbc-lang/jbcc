@@ -173,6 +173,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   operators. Missing components read as empty strings. Sparse assignments
   fill intervening positions with marks. The runtime uses single-byte
   `@FM` (also `@AM`), `@VM` and `@SM`. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
+- `DEL R<field[,value[,subvalue]]>` removes the selected component and
+  closes the gap between its siblings. The target can be an assigned scalar
+  or a matrix element. Fractional positions truncate toward zero. A missing
+  or nonpositive position leaves the array intact, and a nonnumeric index
+  raises a runtime diagnostic. [DEL](https://jbc-lang.org/pages/del.html)
 - Define a local label with a trailing colon, including inside IF, CASE,
   LOOP and FOR bodies. GOTO can jump within or leave a FOR. A jump that
   would enter a FOR without executing its header gets a source diagnostic.
