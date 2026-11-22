@@ -203,6 +203,14 @@ places to the explicit precision. jbcc follows those examples pending a
 reference run. [MAXIMUM](https://jbc-lang.org/pages/maximum.html),
 [MINIMUM](https://jbc-lang.org/pages/minimum.html).
 
+`SORT(array)` splits the input at system delimiters (bytes 249–255),
+sorts the elements in ascending byte order and joins them with attribute
+marks. For example, `SORT('2' : @VM : '10')` returns `'10' : @AM : '2'`.
+It preserves duplicate elements and leaves the source array intact. jbcc
+also preserves empty elements, pending a reference run. International Mode
+locale collation is outside the current runtime.
+[SORT](https://jbc-lang.org/pages/sort.html).
+
 SUM adds numeric elements at the deepest mark present in the array
 (field, value, or subvalue) and preserves each higher-level mark.
 For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.

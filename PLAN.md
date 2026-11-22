@@ -932,7 +932,15 @@ After MATCHFIELD, 15,021 of 17,336 candidates pass strict C99 checking.
 All 14,985 previous passes still pass. Another 36 units now pass and
 nine reach a different diagnostic.
 
-- [ ] Implement SORT(expression). The guide specifies ascending
+- [x] Implement SORT(expression). The guide specifies ascending
   left-justified order across mixed dynamic-array delimiters and
   attribute marks between sorted elements. Test mixed delimiters,
   duplicates, empty elements and preservation of the input.
+
+After SORT, 15,038 of 17,336 candidates pass strict C99 checking.
+All 15,021 previous passes still pass. Another 17 units now pass and
+five reach a different diagnostic.
+
+- [ ] Implement EQS(array1, array2). Use the guide's mixed value and
+  subvalue example to test how corresponding elements align. Cover
+  unequal lengths and distinguish a missing element from an empty one.

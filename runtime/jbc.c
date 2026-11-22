@@ -972,6 +972,47 @@ const char *jbc_mod(const char *left, const char *right, const char *file, int l
     return fmt_decimal(a, a.places);
 }
 
+struct sort_element {
+    const char *text;
+    size_t length;
+};
+
+static int compare_sort_elements(const void *left, const void *right)
+{
+    const struct sort_element *a = left, *b = right;
+    size_t common = a->length < b->length ? a->length : b->length;
+    int order = memcmp(a->text, b->text, common);
+    if (order) return order;
+    return (a->length > b->length) - (a->length < b->length);
+}
+
+const char *jbc_sort(const char *source)
+{
+    size_t count = 1;
+    for (const char *p = source; *p; ++p)
+        if ((unsigned char)*p >= 249) ++count;
+    if (count == 1) return source;
+
+    struct sort_element *elements = calloc(count, sizeof *elements);
+    if (!elements) fail("out of memory");
+    const char *start = source, *end = source;
+    for (size_t i = 0; i < count; ++i) {
+        while (*end && (unsigned char)*end < 249) ++end;
+        elements[i] = (struct sort_element){start, (size_t)(end - start)};
+        if (*end) start = ++end;
+    }
+    qsort(elements, count, sizeof *elements, compare_sort_elements);
+    char *out = allocate((size_t)(end - source)), *write = out;
+    for (size_t i = 0; i < count; ++i) {
+        if (i) *write++ = (char)254;
+        memcpy(write, elements[i].text, elements[i].length);
+        write += elements[i].length;
+    }
+    *write = '\0';
+    free(elements);
+    return out;
+}
+
 static const char *array_extreme(const char *source, int maximum)
 {
     char *item = strcpy(allocate(strlen(source)), source);
