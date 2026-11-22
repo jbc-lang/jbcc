@@ -33,7 +33,7 @@ an argument.
 - [x] **SUBROUTINE and CALL.** Compile a caller and a separately declared
   callee together. Have the callee update an argument and the caller print
   the changed value.
-- [ ] **EQUATE and $INSERT.** Resolve local include files. Preserve original
+- [x] **EQUATE and $INSERT.** Resolve local include files. Preserve original
   filenames and line numbers in diagnostics.
 - [ ] **BEGIN CASE / CASE / END CASE.** Verify that the first matching case
   wins.

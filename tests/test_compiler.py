@@ -69,3 +69,17 @@ class CompilerTest(unittest.TestCase):
         run = self.run_native(directory / 'caller.b', directory / 'get.status.b')
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'open\nclosed\n')
+
+    def test_insert_locations(self):
+        source = self.work / 'main.b'
+        header = self.work / 'I_BROKEN'
+        source.write_text('$INSERT I_BROKEN\n')
+        for content, location in [('CRT 1 +\n', ':1:8:'), ('$INSERT I_BROKEN\n', ':1:1:')]:
+            header.write_text(content)
+            run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(str(header) + location, run.stderr)
+        header.write_text('EQU BAD TO 1 / 0\n')
+        source.write_text('$INSERT I_BROKEN\nPRINT BAD\n')
+        run = self.run_native(source)
+        self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)

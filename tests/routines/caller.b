@@ -1,6 +1,7 @@
-Rec<2> = 'ACTIVE'
+$INSERT I_STATUS
+Rec<STATUS.FIELD> = 'ACTIVE'
 CALL GET.STATUS(Rec, Answer)
 PRINT Answer
-Rec<2> = 'OTHER'
+Rec<STATUS.FIELD> = 'OTHER'
 CALL GET.STATUS(Rec, Answer)
 PRINT Answer

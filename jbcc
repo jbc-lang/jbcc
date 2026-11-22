@@ -25,6 +25,7 @@ class Token(NamedTuple):
     kind: str
     line: int
     column: int
+    path: Path
 
 
 def angle_tokens(words):
@@ -54,23 +55,97 @@ def angle_tokens(words):
         yield token
 
 
-def tokenize(source):
-    for n, line in enumerate(source.split('\n'), 1):
-        words = []
-        at_start = True
-        for match in TOKEN.finditer(line):
-            word = match[0]
-            if match.lastgroup == 'space':
+def lex_line(line, n, path):
+    words = []
+    at_start = True
+    for match in TOKEN.finditer(line):
+        word = match[0]
+        if match.lastgroup == 'space':
+            continue
+        if at_start and word in ('*', '!', 'REM'):
+            break
+        words.append(Token(word, match.lastgroup, n, match.start() + 1, path))
+        at_start = word == ';'
+    while words and words[-1].word == ';':
+        words.pop()
+    return list(angle_tokens(words))
+
+
+INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
+
+
+def directive_error(token, message):
+    raise Diagnostic(f"{token.path}:{token.line}:{token.column}: {message}")
+
+
+class Preprocessor:
+    def __init__(self, directories):
+        self.directories = directories
+        self.equates = {}
+
+    def define(self, words):
+        i = 1
+        while i < len(words):
+            name = words[i]
+            if name.kind != 'name' or i + 2 >= len(words) or words[i + 1].word not in ('TO', 'LIT'):
+                directive_error(name, "expected EQUATE name TO expression")
+            end = i + 2
+            while end < len(words):
+                if (words[end].word == ',' and end + 2 < len(words)
+                        and words[end + 1].kind == 'name' and words[end + 2].word in ('TO', 'LIT')):
+                    break
+                end += 1
+            if end == i + 2:
+                directive_error(name, "empty EQUATE expression")
+            self.equates[name.word] = words[i + 2:end]
+            i = end + 1
+        if len(words) == 1:
+            directive_error(words[0], "missing EQUATE definition")
+
+    def expand(self, words, stack=()):
+        for token in words:
+            if token.kind == 'name' and token.word in self.equates:
+                if token.word in stack:
+                    directive_error(token, f"recursive EQUATE '{token.word}'")
+                yield from self.expand(self.equates[token.word], stack + (token.word,))
+            else:
+                yield token
+
+    def read(self, path, parents=()):
+        source = path.read_text(encoding='utf-8')
+        if '\0' in source:
+            raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
+        pending = []
+        for n, line in enumerate(source.split('\n'), 1):
+            newline = Token('\n', 'newline', n, len(line) + 1, path)
+            include = INCLUDE.fullmatch(line)
+            if include and not pending:
+                name = next(group for group in include.groups() if group is not None)
+                for directory in (path.parent, *self.directories):
+                    child = directory / name
+                    if child.is_file():
+                        break
+                else:
+                    directive_error(newline._replace(column=1), f"include file '{name}' not found")
+                ancestors = parents + (path.resolve(),)
+                if child.resolve() in ancestors:
+                    directive_error(newline._replace(column=1), f"recursive include '{name}'")
+                yield from self.read(child, ancestors)
                 continue
-            if at_start and word in ('*', '!', 'REM'):
-                break
-            words.append(Token(word, match.lastgroup, n, match.start() + 1))
-            at_start = word == ';'
-        while words and words[-1].word == ';':
-            words.pop()
-        yield from angle_tokens(words)
-        yield Token('\n', 'newline', n, len(line) + 1)
-    yield Token('', 'eof', n, len(line) + 1)
+            words = lex_line(line, n, path)
+            if pending or (words and words[0].word in ('EQU', 'EQUATE')):
+                pending.extend(words)
+                if pending[-1].word == ',':
+                    continue
+                self.define(pending)
+                pending = []
+            else:
+                yield from self.expand(words)
+            yield newline
+        if pending:
+            directive_error(pending[-1], "unfinished EQUATE list")
+        if not parents:
+            yield newline._replace(word='', kind='eof')
 
 
 class Diagnostic(Exception):
@@ -118,7 +193,7 @@ class Compiler:
 
     def error(self, message, token=None):
         token = token or self.current
-        raise Diagnostic(f"{self.path}:{token.line}:{token.column}: {message}")
+        directive_error(token, message)
 
     def emit(self, line):
         self.body.append("    " * self.depth + line)
@@ -135,7 +210,7 @@ class Compiler:
         return f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
 
     def location(self, token):
-        return f"{c_string(str(self.path))}, {token.line}, {token.column}"
+        return f"{c_string(str(token.path))}, {token.line}, {token.column}"
 
     def primary(self):
         word = self.word
@@ -208,7 +283,7 @@ class Compiler:
         return name
 
     def arithmetic(self, token, left, right, op):
-        location = f"{c_string(str(self.path))}, {token.line}, {token.column}"
+        location = self.location(token)
         return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
 
     def clause(self, opening):
@@ -297,7 +372,7 @@ class Compiler:
             self.advance()
             # Capture even a plain variable before the loop body can change it.
             step = self.temporary(self.expression())
-        location = f"{c_string(str(self.path))}, {opening.line}, {opening.column}"
+        location = self.location(opening)
         self.emit(f"if (!jbc_for_test({symbol}, {limit}, {step}, {location})) break;")
         if self.word in ('WHILE', 'UNTIL'):
             self.guard()
@@ -519,16 +594,13 @@ def routine_symbol(name):
     return "routine_" + name.encode("utf8").hex()
 
 
-def compile_program(paths):
+def compile_program(paths, directories):
     units = []
     routines = {}
     programs = 0
     for i, path in enumerate(paths):
-        source = path.read_text(encoding='utf-8')
-        if '\0' in source:
-            raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
         unit = Compiler(path, i)
-        unit.parse(list(tokenize(source)))
+        unit.parse(list(Preprocessor(directories).read(path)))
         units.append(unit)
         if unit.routine:
             name = unit.routine.word
@@ -553,12 +625,13 @@ def compile_program(paths):
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument('source', nargs='+', type=Path)
+    cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT.c')
     args = cli.parse_args()
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source)
+        result = compile_program(args.source, args.directories)
         with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
                                          encoding='utf-8') as output:
             try:
