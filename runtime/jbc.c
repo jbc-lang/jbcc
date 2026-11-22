@@ -2582,6 +2582,19 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
 }
 
 #ifdef JBC_MATH
+const char *jbc_ln(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n))
+        numeric_error(file, line, column, "LN requires a numeric operand");
+    if (n.sign <= 0)
+        numeric_error(file, line, column, "LN requires a positive operand");
+    long double value = strtold(text, NULL);
+    if (!isfinite(value) || value == 0)
+        numeric_error(file, line, column, "LN operand out of range");
+    return format_decimal(logl(value), ROUND_RESULT);
+}
+
 const char *jbc_exp(const char *text, const char *file, int line, int column)
 {
     struct decimal n;

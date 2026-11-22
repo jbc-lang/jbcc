@@ -78,6 +78,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT LN()\n", ":1:5: wrong argument count for 'LN'"),
                                   ("CRT EXP()\n", ":1:5: wrong argument count for 'EXP'"),
                                   ("CRT SQRT(1, 2)\n", ":1:5: wrong argument count for 'SQRT'"),
                                   ("CRT PWR(2)\n", ":1:5: wrong argument count for 'PWR'"),
@@ -466,6 +467,19 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_ln_diagnostics(self):
+        source = self.work / 'ln.b'
+        for value, message in [("'abc'", 'requires a numeric operand'),
+                               ('0', 'requires a positive operand'),
+                               ('-1', 'requires a positive operand'),
+                               ("STR('9', 5000)", 'operand out of range'),
+                               ("'0.' : STR('0', 5000) : '1'", 'operand out of range')]:
+            with self.subTest(value=value):
+                source.write_text(f"CRT LN({value})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: LN {message}'.encode(), run.stderr)
 
     def test_exp_diagnostics(self):
         source = self.work / 'exp.b'

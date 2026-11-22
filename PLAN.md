@@ -1022,6 +1022,14 @@ After EXP, 15,191 of 17,336 candidates pass strict C99 checking.
 DX.PR.NORMSDIST.DASH now passes and all 15,190 prior passes still pass.
 DX.PR.BLACK76 reaches a call to LN.
 
-- [ ] Implement LN(expression), the natural logarithm. Test LN(1),
+- [x] Implement LN(expression), the natural logarithm. Test LN(1),
   fractions, PRECISION and diagnostics for inputs outside the positive
   real domain. Recheck DX.PR.BLACK76.
+
+After LN, 15,193 of 17,336 candidates pass strict C99 checking.
+DX.PR.BLACK76 and EB.CALC.TERM now pass,
+and all 15,191 previous passes still pass.
+
+- [ ] Investigate MAT copies between differently dimensioned arrays, the
+  first diagnostic in 110 units. Check unequal extents and rank changes
+  against the reference before changing copy lengths or runtime checks.

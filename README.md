@@ -104,6 +104,13 @@ and continues. The guide also shows `0.0nan` as output, so the exact
 diagnostic and rendering remain provisional. Zero raised to a negative
 power and overflow produce runtime errors. [PWR](https://jbc-lang.org/pages/pwr.html).
 
+`LN(value)` computes the natural logarithm of a positive number. At
+`PRECISION 2`, `LN(3)` prints `1.1`. jbcc rounds to the requested
+precision, as it does for EXP. The guide leaves rounding unspecified.
+Zero, negative values, nonnumeric text and positive values outside the
+host's floating-point range raise a runtime error at the call site.
+[LN](https://jbc-lang.org/pages/ln.html).
+
 `EXP(value)` computes the natural exponential with the host's `expl`.
 jbcc rounds the result to the requested PRECISION. For example,
 `EXP(1)` prints `2.72` at `PRECISION 2`. The guide specifies the number
@@ -964,7 +971,7 @@ the end of the screen, and `@(-4)` to clear to the end of the current line.
 Each returns an ANSI sequence that takes effect when printed.
 `SYSTEM(14)` checks pending
 input using the POSIX input device's line discipline. Native mode links the math library for programs
-that use SIN, COS, PWR, SQRT or EXP, including infix powers. When compiling their generated C manually, use
+that use SIN, COS, PWR, SQRT, EXP or LN, including infix powers. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 
