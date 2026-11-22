@@ -576,6 +576,16 @@ After MOD, 11,740 of 17,336 candidates pass strict C99 checking,
 including all 11,682 previous passes. Of the 84 units previously blocked
 at MOD, 47 now pass and 37 reach another diagnostic.
 
-- [ ] Implement LEFT and RIGHT. Their calls are the first diagnostic in
+- [x] Implement LEFT and RIGHT. Their calls are the first diagnostic in
   51 and 35 units respectively. Verify the guide’s leading and trailing
   substring examples, oversized lengths, and lengths below one.
+
+After LEFT and RIGHT, 11,802 of 17,336 candidates pass strict C99
+checking, including all 11,740 previous passes. Of the 86 units
+previously blocked at these calls, 57 now pass and 29 reach another
+diagnostic.
+
+- [ ] Implement the dynamic-array DELETE function, the first diagnostic
+  at a call in 65 units. Check supported argument counts in the reference
+  parser and verify field, value and subvalue removal on a copy of the
+  source array.

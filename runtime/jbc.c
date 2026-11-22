@@ -1861,12 +1861,9 @@ const char *jbc_space(const char *value, const char *file, int line, int column)
     return out;
 }
 
-const char *jbc_substring(const char *text, const char *start, const char *length,
-                          const char *file, int line, int column, const char *replacement)
+static const char *substring(const char *text, int64_t i, int64_t count, const char *replacement)
 {
     size_t n = strlen(text);
-    int64_t i = truncated(start, file, line, column);
-    int64_t count = truncated(length, file, line, column);
     size_t offset = 0;
     if (i > 0) offset = (uint64_t)(i - 1) > n ? n : (size_t)(i - 1);
     if (i < 0 && i >= -(int64_t)n) offset = n - (size_t)(-i);
@@ -1884,6 +1881,25 @@ const char *jbc_substring(const char *text, const char *start, const char *lengt
     memcpy(out + offset, replacement, added);
     memcpy(out + offset + added, text + offset + take, n - offset - take + 1);
     return out;
+}
+
+const char *jbc_substring(const char *text, const char *start, const char *length,
+                          const char *file, int line, int column, const char *replacement)
+{
+    int64_t i = truncated(start, file, line, column);
+    int64_t count = truncated(length, file, line, column);
+    return substring(text, i, count, replacement);
+}
+
+const char *jbc_left(const char *text, const char *length, const char *file, int line, int column)
+{
+    return substring(text, 1, truncated(length, file, line, column), NULL);
+}
+
+const char *jbc_right(const char *text, const char *length, const char *file, int line, int column)
+{
+    int64_t count = truncated(length, file, line, column);
+    return count > 0 ? substring(text, -count, count, NULL) : "";
 }
 
 #ifdef JBC_TRIG
