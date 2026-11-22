@@ -127,6 +127,15 @@ including all 4,309 previous passes. The scan reported 12,469 compiler
 diagnostics and 228 encoding errors. All 1,329 original LOCATE first blockers
 used the IN form.
 
-- [ ] Implement REMOVE, the first unsupported statement in 966 units. Test
+- [x] Implement REMOVE, the first unsupported statement in 966 units. Test
   successive extractions, delimiter codes, end of input and cursor state
   after reassignment against the guide.
+
+After REMOVE, 4,876 of 17,336 candidate units passed C99 checking,
+including all 4,639 previous passes. The scan reported 12,232 compiler
+diagnostics and 228 encoding errors.
+
+- [ ] Implement UNASSIGNED and ASSIGNED. In 892 units the first parser
+  diagnostic points to the opening parenthesis of UNASSIGNED. Test an
+  untouched variable, an assigned empty string and a matrix element through
+  the native compiler.

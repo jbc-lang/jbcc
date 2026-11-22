@@ -205,6 +205,18 @@ an already sorted array. jbcc supports AL/DL (byte order), AR/DR
 as a no-op. This implements the guide's `IN ... SETTING` form with
 byte-oriented strings. [LOCATE](https://jbc-lang.org/pages/locate.html).
 
+## Walk a dynamic array
+
+`REMOVE item FROM record SETTING mark` reads the next delimited string.
+For `record = 'a' : @FM : 'b'`, successive calls return `a` with mark 2,
+then `b` with mark 0. Further calls return mark 0 and leave `item`
+unchanged. Bytes 255 through 249 give delimiter codes 1 through 7.
+
+The cursor belongs to the variable. Assigning `record = record` rewinds it,
+and copying the value to another variable starts an independent traversal.
+COMMON variables, matrix elements and by-reference arguments preserve their
+own cursor across calls. [REMOVE in the jBASE manual](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_REMOVE.htm).
+
 ## User-defined functions
 
 Declare a function before its first use with `DEFFUN DOUBLE.IT()`. Parameter

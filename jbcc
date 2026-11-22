@@ -241,7 +241,7 @@ class Compiler:
         return self.checked_read(var, token)
 
     def checked_read(self, var, token):
-        read = f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
+        read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
         # A later function in the expression can change this variable by reference.
         return self.temporary(read) if self.functions else read
 
@@ -441,6 +441,27 @@ class Compiler:
         self.assigned = taken & self.assigned
         self.emit("}")
 
+    def variable_slot(self, token):
+        if token.word in self.matrices:
+            return self.matrix_slot(token)
+        return self.variable(token.word)
+
+    def remove_statement(self):
+        self.advance()
+        target = self.identifier()
+        out = self.variable_slot(target)
+        self.expect('FROM')
+        source = self.identifier()
+        if source.word not in self.matrices and source.word not in self.assigned and not self.has_gosub:
+            self.error(f"unassigned variable '{source.word}'", source)
+        array = self.variable_slot(source)
+        self.expect('SETTING')
+        status = self.identifier()
+        setting = self.variable_slot(status)
+        self.emit(f"jbc_remove(&{out}, &{array}, &{setting}, "
+                  f"{c_string(source.word)}, {self.location(source)});")
+        self.assigned.update((target.word, status.word))
+
     def locate_statement(self):
         opening = self.current
         self.advance()
@@ -585,7 +606,7 @@ class Compiler:
         self.expect('=')
         initial = self.expression()
         symbol = self.variable(counter.word)
-        self.emit(f"{symbol} = {initial};")
+        self.emit(f"assign_value(&{symbol}, {initial});")
         self.assigned.add(counter.word)
         self.expect('TO')
         mark = self.begin_loop()
@@ -596,7 +617,7 @@ class Compiler:
             # Capture even a plain variable before the loop body can change it.
             step = self.temporary(self.expression())
         location = self.location(opening)
-        self.emit(f"if (!jbc_for_test({symbol}, {limit}, {step}, {location})) break;")
+        self.emit(f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;")
         if self.word in ('WHILE', 'UNTIL'):
             self.guard()
         if self.word not in (';', '\n'):
@@ -608,8 +629,8 @@ class Compiler:
             if self.word != counter.word:
                 self.error(f"expected NEXT {counter.word}")
             self.advance()
-        increment = self.arithmetic(opening, symbol, step, '+')
-        self.emit(f"{symbol} = {increment};")
+        increment = self.arithmetic(opening, symbol + ".value", step, '+')
+        self.emit(f"assign_value(&{symbol}, {increment});")
         self.end_loop(mark)
         self.assigned = before
 
@@ -638,6 +659,11 @@ class Compiler:
         self.advance()
         return token
 
+    def value_argument(self, expression):
+        # Capture the expression before a later argument can change its value.
+        value = self.temporary(expression)
+        return f"&(jbc_variable){{{value}, 0}}"
+
     def call_arguments(self):
         args = []
         if self.word == '(':
@@ -650,13 +676,13 @@ class Compiler:
                         args.append('&' + slot)
                     else:
                         value = self.postfix(self.checked_read(slot, target_element))
-                        args.append('&' + self.temporary(self.expression_tail(value)))
+                        args.append(self.value_argument(self.expression_tail(value)))
                 elif self.current.kind == 'name' and self.following.word in (',', ')'):
                     name = self.identifier().word
                     args.append('&' + self.variable(name))
                     self.assigned.add(name)
                 else:
-                    args.append('&' + self.temporary(self.expression()))
+                    args.append(self.value_argument(self.expression()))
                 if self.word != ',':
                     break
                 self.advance()
@@ -798,6 +824,8 @@ class Compiler:
                 self.statement()
         elif self.word == 'MAT':
             self.matrix_assignment()
+        elif self.word == 'REMOVE':
+            self.remove_statement()
         elif self.word == 'LOCATE':
             self.locate_statement()
         elif self.word == 'NULL':
@@ -874,7 +902,7 @@ class Compiler:
             self.advance()
             value = self.expression()
             var = var or self.variable(start.word)
-            base = f'({var} ? {var} : "")'
+            base = f'({var}.value ? {var}.value : "")'
             if substring:
                 if operator.word != '=':
                     self.error("expected '=' for substring replacement", operator)
@@ -887,7 +915,7 @@ class Compiler:
                 value = self.arithmetic(operator, old, value, operator.word[0])
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")
-            self.emit(f"{var} = {value};")
+            self.emit(f"assign_value(&{var}, {value});")
             if not matrix:
                 self.assigned.add(start.word)
         else:
@@ -957,20 +985,20 @@ class Compiler:
 
     def render(self, memory_files=()):
         u = self.unit
-        fields = [f"const char **arg{i};" for i in range(len(self.formals))]
+        fields = [f"jbc_variable *arg{i};" for i in range(len(self.formals))]
         if self.is_function:
             fields.append("const char *result;")
-        fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
+        fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
                    if name not in self.formals and name not in self.common_names]
-        fields += [f"const char **{b.field};" for b in self.commons.values()]
-        fields += [f"const char **{field};" for field in self.local_arrays]
+        fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
+        fields += [f"jbc_variable *{field};" for field in self.local_arrays]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
         if self.has_goto:
             lines.append("    struct jbc_buffer *entry_mark = buffers;")
         if self.loops or self.has_goto:
-            roots = ["&" + var for var in self.names.values()] + ["NULL"]
+            roots = ["&" + var + ".value" for var in self.names.values()] + ["NULL"]
             lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
         if self.labels:
             lines.append("    switch (entry) {")
@@ -1009,7 +1037,7 @@ def routine_symbol(name):
 
 def routine_signature(name, argc, is_function):
     params = ["const char **result"] if is_function else []
-    params.extend(f"const char **arg{i}" for i in range(argc))
+    params.extend(f"jbc_variable *arg{i}" for i in range(argc))
     return f"void {routine_symbol(name)}({', '.join(params) or 'void'})"
 
 

@@ -290,6 +290,30 @@ RETURN
         self.assertIn('status 42', run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
 
+    def test_remove_shared_cursor(self):
+        caller = self.work / 'caller.b'
+        sub = self.work / 'take.b'
+        caller.write_text("""COMMON /R/ List
+List = 'first' : @AM : 'last'
+CALL TAKE(List, Part)
+PRINT Part
+REMOVE Part FROM List SETTING D
+PRINT Part, D
+CALL TAKE(List, Part)
+PRINT Part
+""")
+        sub.write_text("""SUBROUTINE TAKE(Arg, Out)
+COMMON /R/ Shared
+REMOVE Out FROM Arg SETTING D
+IF D EQ 0 THEN
+  Shared = Shared
+  REMOVE Out FROM Arg SETTING D
+END
+""")
+        run = self.run_native(caller, sub)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'first\nlast\t0\nfirst\n')
+
     def test_matrix_assignment_diagnostics(self):
         source = self.work / 'main.b'
         source.write_text('DIM A(2), B(2)\nB(0) = 0\nMAT A = MAT B\n')

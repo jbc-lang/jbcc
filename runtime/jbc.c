@@ -239,25 +239,37 @@ int jbc_for_test(const char *value, const char *limit, const char *step,
     return n.sign < 0 ? cmp >= 0 : cmp <= 0;
 }
 
+/* Cursor state belongs to the variable, including when passed by reference. */
+typedef struct {
+    const char *value;
+    size_t remove_offset;
+} jbc_variable;
+
+static void assign_value(jbc_variable *slot, const char *value)
+{
+    slot->value = value;
+    slot->remove_offset = 0;
+}
+
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
 struct jbc_slots {
     struct jbc_slots *next;
     const char *name;
     size_t count;
-    const char *values[];
+    jbc_variable values[];
 };
 
 static struct jbc_slots *storages;
 
-const char **jbc_storage(size_t count, const char *name)
+jbc_variable *jbc_storage(size_t count, const char *name)
 {
     if (name) {
         for (struct jbc_slots *s = storages; s; s = s->next)
             if (s->name && strcmp(name, s->name) == 0) return s->values;
     }
-    if (count > (SIZE_MAX - sizeof(struct jbc_slots)) / sizeof(char *))
+    if (count > (SIZE_MAX - sizeof(struct jbc_slots)) / sizeof(jbc_variable))
         fail("storage too large");
-    struct jbc_slots *s = calloc(1, sizeof *s + count * sizeof(char *));
+    struct jbc_slots *s = calloc(1, sizeof *s + count * sizeof(jbc_variable));
     if (!s) fail("out of memory");
     s->count = count;
     s->name = name;
@@ -266,7 +278,7 @@ const char **jbc_storage(size_t count, const char *name)
     return s->values;
 }
 
-void jbc_release(const char **slots)
+void jbc_release(jbc_variable *slots)
 {
     struct jbc_slots **link = &storages;
     while ((*link)->values != slots) link = &(*link)->next;
@@ -284,26 +296,26 @@ static int held_in_storage(const char *value)
 {
     for (struct jbc_slots *s = storages; s; s = s->next)
         for (size_t i = 0; i < s->count; ++i)
-            if (s->values[i] == value) return 1;
+            if (s->values[i].value == value) return 1;
     return 0;
 }
 
-void jbc_matrix_fill(const char **dest, size_t count, const char *value)
+void jbc_matrix_fill(jbc_variable *dest, size_t count, const char *value)
 {
-    for (size_t i = 0; i < count; ++i) dest[i] = value;
+    for (size_t i = 0; i < count; ++i) assign_value(&dest[i], value);
 }
 
-void jbc_matrix_copy(const char **dest, const char *const *src, size_t count,
+void jbc_matrix_copy(jbc_variable *dest, const jbc_variable *src, size_t count,
                      const char *name, const char *file, int line, int column)
 {
     for (size_t i = 0; i < count; ++i) {
-        if (!src[i]) {
+        if (!src[i].value) {
             fprintf(stderr, "%s:%d:%d: unassigned element in matrix '%s'\n",
                     file, line, column, name);
             exit(EXIT_FAILURE);
         }
     }
-    memmove(dest, src, count * sizeof *dest);
+    for (size_t i = 0; i < count; ++i) assign_value(&dest[i], src[i].value);
 }
 
 size_t jbc_index(int rank, const int *bounds, const char **indices,
@@ -416,6 +428,27 @@ static const char *size_value(size_t n)
     return out;
 }
 
+void jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
+                const char *name, const char *file, int line, int column)
+{
+    const char *text = jbc_read(source->value, name, file, line, column);
+    const char *code = "0";
+    if (source->remove_offset != SIZE_MAX) {
+        const char *start = text + source->remove_offset;
+        const char *end = start;
+        while (*end && (unsigned char)*end < 249) ++end;
+        size_t length = (size_t)(end - start);
+        char *part = allocate(length);
+        memcpy(part, start, length);
+        part[length] = '\0';
+        unsigned char mark = (unsigned char)*end;
+        source->remove_offset = mark ? (size_t)(end - text) + 1 : SIZE_MAX;
+        if (mark) code = size_value(256u - mark);
+        assign_value(out, part);
+    }
+    assign_value(setting, code);
+}
+
 /* Compare as if the shorter item were padded on the left with spaces. */
 static int compare_right(const char *a, const char *b)
 {
@@ -435,7 +468,7 @@ static int compare_right(const char *a, const char *b)
 }
 
 int jbc_locate(const char *needle, const char *source, int mark, const char *start,
-               const char *order, const char **position, const char *file, int line, int column)
+               const char *order, jbc_variable *position, const char *file, int line, int column)
 {
     if (*order && (strlen(order) != 2 || !strchr("AD", order[0]) || !strchr("LRN", order[1])))
         numeric_error(file, line, column, "unsupported LOCATE order");
@@ -464,7 +497,7 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
             item = next;
         }
     }
-    *position = size_value(index);
+    assign_value(position, size_value(index));
     return found;
 }
 
@@ -586,15 +619,15 @@ void jbc_create_memory_file(const char *name)
     files = f;
 }
 
-int jbc_open_file(const char *name, const char **out)
+int jbc_open_file(const char *name, jbc_variable *out)
 {
     for (struct memory_file *f = files; f; f = f->next) {
         if (strcmp(f->name, name) == 0) {
-            *out = f->name;
+            assign_value(out, f->name);
             return 1;
         }
     }
-    *out = "";
+    assign_value(out, "");
     return 0;
 }
 
@@ -612,15 +645,15 @@ static struct memory_record *find_record(struct memory_file *f, const char *key)
     return NULL;
 }
 
-int jbc_read_record(const char *handle, const char *key, const char **out)
+int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
 {
     struct memory_file *f = file_for(handle);
     struct memory_record *r = f ? find_record(f, key) : NULL;
     if (!r) {
-        *out = "";
+        assign_value(out, "");
         return 0;
     }
-    *out = strcpy(allocate(strlen(r->value)), r->value);
+    assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
     return 1;
 }
 
