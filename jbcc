@@ -350,6 +350,9 @@ class Compiler:
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
+        elif word == 'READNEXT' and self.following.kind == 'name':
+            call = self.readnext_call()
+            return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
         elif word in ('ASSIGNED', 'UNASSIGNED') and self.following.word == '(':
             self.advance()
             self.expect('(')
@@ -808,6 +811,52 @@ class Compiler:
             self.assigned &= error_arm
         else:
             self.conditional_arms(opening, f"!{status}")
+
+    def select_list(self, keyword):
+        if self.word != keyword:
+            return "&select_lists[0]"
+        self.advance()
+        if self.current.kind == 'number':
+            if self.word not in tuple(map(str, range(11))):
+                self.error("select list number must be between 0 and 10")
+            number = self.word
+            self.advance()
+            return f"&select_lists[{number}]"
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        if keyword == 'TO':
+            self.assigned.add(target.word)
+        return '&' + slot
+
+    def select_statement(self):
+        opening = self.current
+        self.advance()
+        source = "jbc_default_file.value"
+        if self.word not in OUTPUT_END and self.word not in ('', 'TO', 'SETTING'):
+            source = self.expression()
+        dest = self.select_list('TO')
+        setting = self.file_setting()
+        call = f"jbc_select({source}, {dest}, {setting})"
+        if setting == 'NULL':
+            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "SELECT requires an open file");')
+        else:
+            self.emit(f"{call};")
+
+    def readnext_call(self):
+        opening = self.current
+        self.advance()
+        key = self.identifier()
+        out = self.variable_slot(key)
+        mv = 'NULL'
+        if self.word == ',':
+            self.advance()
+            target = self.identifier()
+            mv = '&' + self.variable_slot(target)
+            self.assigned.add(target.word)
+        source = self.select_list('FROM')
+        setting = self.file_setting()
+        self.assigned.add(key.word)
+        return f"jbc_readnext({source}, &{out}, {mv}, {setting}, {self.location(opening)})"
 
     def file_statement(self):
         opening = self.current
@@ -1364,6 +1413,14 @@ class Compiler:
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
             self.readv_statement()
+        elif (self.word in ('SELECT', 'READNEXT') and self.word not in self.matrices
+              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.kind != 'array_open'):
+            if self.word == 'SELECT':
+                self.select_statement()
+            else:
+                opening = self.current
+                self.conditional_arms(opening, self.readnext_call())
         elif self.word in ('OPEN', 'READ', 'WRITE'):
             self.file_statement()
         elif self.word == 'BEGIN':

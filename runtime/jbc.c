@@ -1319,12 +1319,15 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
    Each opened descriptor is the unique address of its file's name. */
 struct memory_record {
     struct memory_record *next;
+    size_t serial;
     char *key, *value;
 };
 
 struct memory_file {
     struct memory_file *next;
-    struct memory_record *records;
+    struct memory_record *records, *last_read;
+    size_t serial;
+    char list_token;
     char name[];
 };
 
@@ -1340,6 +1343,7 @@ static void free_record(struct memory_record *record)
 
 static void clear_records(struct memory_file *file)
 {
+    file->last_read = NULL;
     while (file->records) {
         struct memory_record *record = file->records;
         file->records = record->next;
@@ -1395,6 +1399,48 @@ static struct memory_file *file_for(const char *handle)
     return NULL;
 }
 
+/* Each cursor stores its last record serial, so deletion cannot leave it
+   pointing at freed storage. last_read speeds up sequential iteration. */
+static jbc_variable select_lists[11];
+
+static jbc_variable *list_slot(jbc_variable *slot)
+{
+    const char *s = slot->value;
+    if (s && *s >= '0' && *s <= '9' && !s[1]) return &select_lists[*s - '0'];
+    if (s && strcmp(s, "10") == 0) return &select_lists[10];
+    return slot;
+}
+
+int jbc_select(const char *handle, jbc_variable *list, jbc_variable *setting)
+{
+    struct memory_file *f = file_for(handle);
+    assign_value(list_slot(list), f ? &f->list_token : "");
+    if (setting) assign_value(setting, f ? "" : "128");
+    return f != NULL;
+}
+
+int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_variable *setting,
+                 const char *file, int line, int column)
+{
+    list = list_slot(list);
+    struct memory_file *f = files;
+    while (f && &f->list_token != list->value) f = f->next;
+    if (!f && list->value && *list->value)
+        numeric_error(file, line, column, "READNEXT requires a file select list");
+    struct memory_record *r = NULL;
+    if (f && list->remove_offset != SIZE_MAX) {
+        r = f->last_read && f->last_read->serial == list->remove_offset
+            ? f->last_read->next : f->records;
+        while (r && r->serial <= list->remove_offset) r = r->next;
+        list->remove_offset = r ? r->serial : SIZE_MAX;
+        f->last_read = r;
+    }
+    assign_value(key, r ? strcpy(allocate(strlen(r->key)), r->key) : "");
+    if (mv) assign_value(mv, r ? "0" : "");
+    if (setting) assign_value(setting, "");
+    return r != NULL;
+}
+
 static struct memory_record **record_link(struct memory_file *f, const char *key)
 {
     struct memory_record **link = &f->records;
@@ -1420,6 +1466,7 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
     if (*link) {
         struct memory_record *record = *link;
         *link = record->next;
+        if (f->last_read == record) f->last_read = NULL;
         free_record(record);
     }
     return 1;
@@ -1485,13 +1532,15 @@ int jbc_write_record(const char *handle, const char *key, const char *value)
 {
     struct memory_file *f = file_for(handle);
     if (!f) return 0;
-    struct memory_record *r = *record_link(f, key);
+    struct memory_record **link = record_link(f, key);
+    struct memory_record *r = *link;
     if (!r) {
         r = calloc(1, sizeof *r);
         if (!r) fail("out of memory");
         r->key = record_copy(key);
-        r->next = f->records;
-        f->records = r;
+        if (f->serial == SIZE_MAX - 1) fail("file record counter overflow");
+        r->serial = ++f->serial;
+        *link = r;
     }
     free(r->value);
     r->value = record_copy(value);

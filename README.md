@@ -409,6 +409,20 @@ field marks. An empty record counts as zero. An invalid descriptor yields
 128 and skips the optional `ON ERROR` arm, as specified by the guide.
 [MATWRITE](https://jbc-lang.org/pages/matwrite.html).
 
+File SELECT starts an independent cursor over the keys of an open in-memory
+file. `SELECT F TO L` creates a named list, and `SELECT` uses the default file
+and list. Lists numbered 0 through 10 are supported, including a number held
+in a variable. File keys are visited in insertion order. Keys added during
+iteration are eligible until READNEXT first reports exhaustion. Deleting
+an unread key skips it. Reselecting starts a fresh iteration.
+
+`READNEXT Key FROM L THEN ... ELSE ...` returns one key, and
+`LOOP WHILE READNEXT Key FROM L DO` uses the same operation as a Boolean
+expression. On exhaustion jbcc clears the destination and returns false.
+For ordinary file keys the optional multi-value position is zero. This
+milestone covers file-backed lists. [SELECT](https://jbc-lang.org/pages/select.html),
+[READNEXT](https://jbc-lang.org/pages/readnext.html).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

@@ -587,6 +587,17 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:4:1: unassigned element 2 in matrix 'A'".encode(), run.stderr)
 
+    def test_file_select(self):
+        run = self.run_native(ROOT / 'tests/io/select.b', options=['--memory-file', 'F'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'empty\na\t0\t0\na\nc\nd\nc\nd\ndone\nstill done\nc\ncleared\n128\n')
+        self.assertEqual(run.stderr, b'')
+        source = self.work / 'select.b'
+        source.write_text("SELECT TO 11\n")
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:11: select list number must be between 0 and 10", run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

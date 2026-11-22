@@ -449,6 +449,16 @@ After MATWRITE, 11,015 of 17,336 candidates pass strict C99 checking,
 including all 11,002 previous passes. Of the 46 units previously stopped
 at MATWRITE, 13 now pass and 33 reach another diagnostic.
 
-- [ ] Implement file SELECT and READNEXT for the in-memory backend,
+- [x] Implement file SELECT and READNEXT for the in-memory backend,
   currently the first blockers in 124 and 10 units respectively.
   Verify iteration over record keys, empty files and list exhaustion.
+
+After file SELECT and READNEXT, 11,072 of 17,336 candidates pass strict
+C99 checking, including all 11,015 previous passes. Of the 124 units first
+blocked at SELECT, 47 now pass. Of the 10 first blocked at a READNEXT
+statement, two now pass. Supporting READNEXT expressions also helped
+units whose first diagnostic was elsewhere.
+
+- [ ] Implement CLEARSELECT, the first blocker in 28 units. Verify that
+  clearing the default, a named or a numbered list leaves other cursors
+  and the underlying records intact.
