@@ -1477,6 +1477,29 @@ unsupported:
     exit(EXIT_FAILURE);
 }
 
+static char *trim_element(char *out, const char *text, const char *set, char mode)
+{
+    char *write = out;
+    while (*text) {
+        size_t run = strspn(text, set);
+        if (!run) {
+            run = strcspn(text, set);
+            memmove(write, text, run);
+            write += run;
+        } else {
+            int leading = write == out && strchr("LBFRD", mode);
+            int trailing = !text[run] && strchr("TBERD", mode);
+            if (!leading && !trailing && mode != 'A') {
+                size_t keep = (mode == 'R' || mode == 'D') ? 1 : run;
+                memmove(write, text, keep);
+                write += keep;
+            }
+        }
+        text += run;
+    }
+    return write;
+}
+
 const char *jbc_trim(const char *text, const char *character, const char *mode,
                      const char *file, int line, int column)
 {
@@ -1487,26 +1510,23 @@ const char *jbc_trim(const char *text, const char *character, const char *mode,
     else if (set[1]) numeric_error(file, line, column, "TRIM requires a single trim byte");
 
     char *out = allocate(strlen(text));
-    char *write = out;
-    while (*text) {
-        size_t run = strspn(text, set);
-        if (!run) {
-            run = strcspn(text, set);
-            memcpy(write, text, run);
-            write += run;
-        } else {
-            int leading = write == out && strchr("LBFRD", *mode);
-            int trailing = !text[run] && strchr("TBERD", *mode);
-            if (!leading && !trailing && *mode != 'A') {
-                size_t keep = (*mode == 'R' || *mode == 'D') ? 1 : run;
-                memcpy(write, text, keep);
-                write += keep;
-            }
-        }
-        text += run;
-    }
-    *write = '\0';
+    *trim_element(out, text, set, *mode) = '\0';
     return out;
+}
+
+const char *jbc_trims(const char *source)
+{
+    char *out = strcpy(allocate(strlen(source)), source);
+    char *write = out, *item = out;
+    for (;;) {
+        char *end = item + strcspn(item, "\376\375\374");
+        char mark = *end;
+        *end = '\0';
+        write = trim_element(write, item, " ", 'R');
+        *write++ = mark;
+        if (!mark) return out;
+        item = end + 1;
+    }
 }
 
 const char *jbc_convert(const char *text, const char *from, const char *to)

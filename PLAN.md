@@ -982,6 +982,14 @@ After REM, 15,102 of 17,336 candidates pass strict C99 checking.
 All 15,088 previous passes still pass. Fourteen more units now pass
 and two reach a different diagnostic.
 
-- [ ] Implement TRIMS(array). The reference lexer accepts one argument.
+- [x] Implement TRIMS(array). The reference lexer accepts one argument.
   Verify trimming of leading, trailing and repeated interior spaces at
   each dynamic-array position. Cover mixed marks and empty elements.
+
+After TRIMS, 15,109 of 17,336 candidates pass strict C99 checking.
+All 15,102 previous passes still pass. Seven more units now pass and
+four reach a different diagnostic.
+
+- [ ] Implement SUMMATION(array). The reference lexer accepts one argument.
+  Check how it totals mixed field, value and subvalue levels, including
+  empty and nonnumeric elements, before sharing arithmetic with SUM.

@@ -78,6 +78,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT TRIMS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMS'"),
                                   ("CRT REM(1)\n", ":1:5: wrong argument count for 'REM'"),
                                   ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
                                   ("CRT LEFT('x')\n", ":1:5: wrong argument count for 'LEFT'"),

@@ -197,6 +197,14 @@ first byte of a mixed internal run. Both choices are provisional pending
 a reference run. [TRIM](https://jbc-lang.org/pages/trim.html),
 [jBASE TRIM manual](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_TRIM.htm).
 
+TRIMS applies the default space trim independently to each field, value
+and subvalue. It preserves every mark, including those surrounding empty
+elements. The reference lexer accepts one argument and T24 uses
+`FIELDS(TRIMS(items), " ", 1, 1)` to extract names. The jBC guide has no
+TRIMS entry. Interior space collapsing follows the MultiValue description,
+and preserving tab bytes follows jbcc's default TRIM pending a jBC
+reference run. [MultiValue TRIMS](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ftrims).
+
 TRIMF removes leading space bytes and TRIMB removes trailing space bytes.
 Both preserve tabs and interior spaces. They use the same runtime as
 `TRIM(text, " ", "L")` and `TRIM(text, " ", "T")`, respectively.
