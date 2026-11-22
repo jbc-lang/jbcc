@@ -523,6 +523,16 @@ including all 11,425 previous passes. Of the 68 units whose first
 diagnostic pointed at a FIELDS call’s opening parenthesis, 43 now pass
 and 25 reach another diagnostic.
 
-- [ ] Implement STR(text, repetitions), whose opening parenthesis is the
+- [x] Implement STR(text, repetitions), whose opening parenthesis is the
   first diagnostic in 67 units. Verify whole-string repetition with the
   guide’s 999-copy example, empty input, and zero repetitions.
+
+After STR, 11,497 of 17,336 candidates pass strict C99 checking,
+including all 11,472 previous passes. Of the 67 units whose first
+diagnostic pointed at a STR call’s opening parenthesis, 18 now pass
+and 49 reach another diagnostic.
+
+- [ ] Implement the INSERT function, whose opening parenthesis is the
+  first diagnostic in 94 units. Cover the guide’s semicolon before the
+  inserted value and the five-argument comma form used in T24. Check the
+  returned array and verify that evaluating INSERT preserves its input.

@@ -1746,6 +1746,22 @@ const char *jbc_int(const char *value, const char *file, int line, int column)
     return out;
 }
 
+const char *jbc_str(const char *text, const char *count, const char *file, int line, int column)
+{
+    int64_t repetitions = truncated(count, file, line, column);
+    if (repetitions <= 0 || !*text) return "";
+    if (repetitions == 1) return text;
+    size_t width = strlen(text);
+    if ((uint64_t)repetitions > (SIZE_MAX - sizeof(struct jbc_buffer) - 1) / width)
+        numeric_error(file, line, column, "STR result too large");
+    size_t bytes = width * (size_t)repetitions;
+    char *out = allocate(bytes);
+    for (size_t offset = 0; offset < bytes; offset += width)
+        memcpy(out + offset, text, width);
+    out[bytes] = '\0';
+    return out;
+}
+
 const char *jbc_space(const char *value, const char *file, int line, int column)
 {
     int64_t n = truncated(value, file, line, column);

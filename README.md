@@ -111,6 +111,13 @@ optional year width. The runtime accepts Gregorian years 1 through 9999
 and reports unsupported masks at the call site. [DATE](https://jbc-lang.org/pages/date.html),
 [OCONV](https://jbc-lang.org/pages/oconv.html).
 
+STR repeats its entire first argument, including any embedded array marks.
+For example, `STR('ab', 3)` returns `ababab`. Empty input and zero
+repetitions produce an empty string. The guide specifies integer counts.
+For fractional or negative counts, jbcc provisionally follows SPACE. It truncates
+toward zero and returns an empty string for nonpositive counts.
+[STR](https://jbc-lang.org/pages/str.html).
+
 TRIM accepts one to three arguments. In jbcc, `TRIM(text)` removes
 leading and trailing spaces and collapses internal runs to one space.
 A second argument selects the trim byte. An empty second argument selects

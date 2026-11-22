@@ -50,6 +50,7 @@ class CompilerTest(unittest.TestCase):
                                   ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
                                   ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
+                                  ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
@@ -315,6 +316,22 @@ time_t test_clock(time_t *out)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+
+    def test_str_repetition(self):
+        source = self.work / 'repeat.b'
+        source.write_text("LongString = STR('long string ', 999)\nCRT LongString\n")
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'long string ' * 999 + b'\n')
+        self.assertEqual(run.stderr, b'')
+
+        for count, message in [("'two'", 'expected a numeric value'),
+                               ("'9223372036854775807'", 'STR result too large')]:
+            with self.subTest(count=count):
+                source.write_text(f"CRT STR('abc', {count})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
 
     def test_trim_diagnostics(self):
         source = self.work / 'trim.b'
