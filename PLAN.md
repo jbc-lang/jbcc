@@ -236,8 +236,17 @@ After bracket extraction, 8,499 of 17,336 candidates pass strict C99
 checking, including all 8,334 previous passes. Of the 467 units stopped
 at the extra comma, 165 now pass and 302 reach another diagnostic.
 
-- [ ] Implement the MATCH and MATCHES comparison operators. Start with
+- [x] Implement the MATCH and MATCHES comparison operators. Start with
   the pattern forms observed in the corpus and check their meanings against
   the guide. In 550 units the first diagnostic points to one of these
   operators where the parser expects a conditional arm or a closing
   parenthesis, or reports an unexpected token.
+
+After MATCH and MATCHES, 8,873 of 17,336 candidates pass strict C99
+checking, including all 8,499 previous passes. Of the 550 units tracked
+above, 213 now pass and 337 reach another diagnostic.
+
+- [ ] Implement the system constants `@TRUE` and `@FALSE`. The first
+  diagnostic points to `@FALSE` in 250 units and `@TRUE` in 122. Check
+  their values against the reference and test them in assignments,
+  arithmetic and IF conditions.

@@ -542,6 +542,113 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
     return found;
 }
 
+static int pattern_digit(unsigned char c)
+{
+    return c >= '0' && c <= '9';
+}
+
+static size_t pattern_count(const char **cursor, const char *end)
+{
+    size_t count = 0;
+    while (*cursor < end && pattern_digit(**cursor)) {
+        unsigned digit = (unsigned)(**cursor - '0');
+        ++*cursor;
+        count = count > (SIZE_MAX - digit) / 10 ? SIZE_MAX : 10 * count + digit;
+    }
+    return count;
+}
+
+static int pattern_byte(unsigned char c, char kind)
+{
+    int alpha = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+    switch (kind) {
+    case 'A': return alpha;
+    case 'N': return pattern_digit(c);
+    case 'C': return alpha || pattern_digit(c);
+    default:  return 1; /* X */
+    }
+}
+
+/* reachable[i] means the preceding pattern matched exactly the first i bytes.
+   Keep one row per pattern component so adjacent variable counts can share
+   a run of input bytes without recursive backtracking. */
+static int match_alternative(const char *text, size_t n, const char *p, const char *end,
+                             char *reachable, char *next)
+{
+    memset(reachable, 0, n + 1);
+    reachable[0] = 1;
+    while (p < end) {
+        const char *literal = p;
+        size_t literal_length = 0;
+        size_t low = 0, high = 0;
+        char kind = 0;
+        if (*p == '\'' || *p == '"') {
+            char quote = *p++;
+            literal = p;
+            const char *close = memchr(p, quote, (size_t)(end - p));
+            if (!close) return 0;
+            p = close + 1;
+            literal_length = (size_t)(close - literal);
+        } else if (pattern_digit(*p)) {
+            low = pattern_count(&p, end);
+            high = low ? low : SIZE_MAX;
+            if (end - p >= 2 && *p == '-' && pattern_digit(p[1])) {
+                const char *after = p + 1;
+                size_t upper = pattern_count(&after, end);
+                if (after < end && strchr("ANCX", *after)) {
+                    p = after;
+                    high = upper;
+                }
+            }
+            if (p < end && strchr("ANCX", *p)) kind = *p++;
+            else literal_length = (size_t)(p - literal);
+        } else {
+            do { ++p; } while (p < end && !pattern_digit(*p) && *p != '\'' && *p != '"');
+            literal_length = (size_t)(p - literal);
+        }
+
+        if (kind) {
+            size_t run = 0, latest = 0;
+            int have_start = 0;
+            for (size_t i = 0; i <= n; ++i) {
+                if (i && pattern_byte((unsigned char)text[i - 1], kind)) ++run;
+                else { run = 0; have_start = 0; }
+                if (run >= low && reachable[i - low]) {
+                    latest = i - low;
+                    have_start = 1;
+                }
+                next[i] = have_start && i - latest <= high;
+            }
+        } else {
+            if (literal_length > n) return 0;
+            for (size_t i = 0; i <= n; ++i)
+                next[i] = i >= literal_length && reachable[i - literal_length] &&
+                          memcmp(text + (i - literal_length), literal, literal_length) == 0;
+        }
+        char *swap = reachable;
+        reachable = next;
+        next = swap;
+    }
+    return reachable[n];
+}
+
+const char *jbc_matches(const char *text, const char *pattern)
+{
+    size_t n = strlen(text);
+    char *rows = calloc(n + 1, 2);
+    if (!rows) fail("out of memory");
+    int matched;
+    do {
+        const char *mark = strchr(pattern, 253);
+        const char *end = mark ? mark : pattern + strlen(pattern);
+        matched = match_alternative(text, n, pattern, end, rows, rows + n + 1);
+        if (!mark) break;
+        pattern = mark + 1;
+    } while (!matched);
+    free(rows);
+    return matched ? "1" : "0";
+}
+
 const char *jbc_convert(const char *text, const char *from, const char *to)
 {
     if (!*from || !*text) return text;

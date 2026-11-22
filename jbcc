@@ -19,7 +19,7 @@ COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
-PRECEDENCE.update({":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
+PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7})
 
 
 BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
@@ -434,6 +434,8 @@ class Compiler:
             right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
+            elif operator in ('MATCH', 'MATCHES'):
+                call = f"jbc_matches({left}, {right})"
             elif operator == ':':
                 call = f"jbc_concat({left}, {right})"
             else:

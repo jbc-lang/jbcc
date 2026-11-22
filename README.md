@@ -91,6 +91,16 @@ is available, jbcc compares the displayed decimal digits through the selected
 place. [PRECISION](https://jbc-lang.org/pages/precision.html),
 [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html).
 
+MATCH and MATCHES compare the whole input against a pattern. A count followed
+by A, N, C or X selects ASCII letters, digits, alphanumeric bytes or any
+bytes, respectively. A zero count allows any length, including zero.
+For example, `'QA42' MATCHES "2A2N"` is true, as is
+`'QA42' MATCHES "'QA'1-3N"`. Quoted literals match exactly, and a value mark
+(`@VM`) separates alternative patterns. Unquoted text such as the prefix
+in `PL5N` is literal, including periods in the default jBASE mode.
+Concatenation binds more tightly than MATCH, so a program can build a
+pattern expression directly on its right. [MATCHES](https://jbc-lang.org/pages/matches.html).
+
 PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
