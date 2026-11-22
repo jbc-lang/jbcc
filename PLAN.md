@@ -667,6 +667,15 @@ After arithmetic compound assignments, 12,235 of 17,336 candidates pass
 strict C99 checking, including all 12,100 previous passes. All 38 units
 previously rejected with `unsupported statement 'RESULT'` now pass.
 
-- [ ] Implement `@TM`, the text mark (byte 251) documented with `@AM`,
+- [x] Implement `@TM`, the text mark (byte 251) documented with `@AM`,
   `@VM` and `@SM`. Verify its byte value and exercise it in a string.
   It is the first diagnostic in 13 T24 units.
+
+With `@TM`, `@SVM`, `@IM` and `@RM`, 12,255 of 17,336 candidates pass
+strict C99 checking, including all 12,235 previous passes. Ten of the 13
+units blocked at `@TM` now pass, along with five each for `@SVM` and `@IM`.
+
+- [ ] Accept empty `BEGIN CASE` / `END CASE` blocks. All 284 units whose
+  first diagnostic is `expected CASE clause` have only comments or blank
+  lines before `END CASE`. Test that execution continues after the block
+  and that malformed nonempty blocks still get a diagnostic.

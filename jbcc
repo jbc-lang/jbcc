@@ -32,7 +32,9 @@ BUILTINS = {"ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4)
 
 SYSTEM_CONSTANTS = {
     'TRUE': '"1"', 'FALSE': '"0"',
+    'IM': r'"\377"', 'RM': r'"\377"',
     'AM': r'"\376"', 'FM': r'"\376"', 'VM': r'"\375"', 'SM': r'"\374"',
+    'SVM': r'"\374"', 'TM': r'"\373"',
 }
 
 

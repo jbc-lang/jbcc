@@ -336,7 +336,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
   field. Tight postfix brackets distinguish extraction from relational
   operators. Missing components read as empty strings. Sparse assignments
   fill intervening positions with marks. The runtime uses single-byte
-  `@FM` (also `@AM`), `@VM` and `@SM`. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
+  `@FM` (also `@AM`), `@VM` and `@SM`. The text mark `@TM` is byte 251
+  and can separate text within a subvalue. The reference compiler also defines
+  `@SVM` as an alias for `@SM` (byte 252) and `@IM` and `@RM` as names for
+  byte 255. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
 - `INS X BEFORE R<field[,value[,subvalue]]>` inserts X at the selected
   level, shifting later siblings and padding missing positions with empty
   components. The first negative index appends at its level and subsequent
