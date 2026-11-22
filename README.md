@@ -278,7 +278,9 @@ PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
 FOR supports inclusive bounds, a default step of one, optional STEP,
-and an optional variable name after NEXT. The limit and step are evaluated
+and an optional variable name after NEXT. Following the reference parser,
+jbcc warns if that name differs from the innermost FOR counter. The NEXT
+still increments the counter from that FOR header. The limit and step are evaluated
 at the start of each iteration. The captured step increments the counter
 after the body. FOR accepts WHILE and UNTIL guards in its header.
 The reference grammar also allows guards between statements in FOR and

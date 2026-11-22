@@ -1240,7 +1240,9 @@ class Compiler:
         self.guarded_body(opening, 'NEXT')
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
             if self.word != counter.word:
-                self.error(f"expected NEXT {counter.word}")
+                name = self.current
+                print(f"{name.path}:{name.line}:{name.column}: warning: NEXT {name.word} "
+                      f"closes FOR {counter.word}", file=sys.stderr)
             self.advance()
         self.end_loop_body()
         increment = self.arithmetic(opening, symbol + ".value", step, '+')

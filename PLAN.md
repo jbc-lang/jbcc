@@ -868,7 +868,17 @@ After FOR body guards, 14,707 of 17,336 candidates pass strict C99
 checking, including all 14,673 previous passes. Of the units previously
 blocked at UNTIL or WHILE, 26 and 8 respectively now pass.
 
-- [ ] Match the reference parser when NEXT names a different counter. It
+- [x] Match the reference parser when NEXT names a different counter. It
   warns and closes the innermost FOR using the counter from its header.
   Test nested loops, the warning location and the counter values after
   each loop. A mismatched NEXT is the first diagnostic in 69 units.
+
+After accepting mismatched NEXT counters with a warning, 14,762 of
+17,336 candidates pass strict C99 checking. All 14,707 previous passes
+still pass. Of the 69 units previously blocked here, 55 now pass and
+14 reach a later diagnostic.
+
+- [ ] Implement plain EXECUTE and its PERFORM synonym for native programs.
+  EXECUTE is the first blocker in 346 units. Test a local command's
+  output and that the caller resumes after the child exits. Follow with
+  CAPTURING and its newline-to-field-mark conversion.

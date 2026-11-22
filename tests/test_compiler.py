@@ -93,7 +93,7 @@ class CompilerTest(unittest.TestCase):
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
-                                  ('FOR I = 1 TO 2\nNEXT J\n', ':2:6:'),
+                                  ('FOR I = 1 TO 2\nNEXT J = 7\n', ":2:8: unexpected '='"),
                                   ('LOOP WHILE 0\n', ':1:1:'),
                                   ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
             with self.subTest(program=program):
@@ -199,6 +199,19 @@ class CompilerTest(unittest.TestCase):
         run = self.run_native(main, sub)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{sub}:2:1: expected a numeric value'.encode(), run.stderr)
+
+    def test_mismatched_next_counter(self):
+        source = ROOT / 'tests/programs/mismatched-next.b'
+        binary = self.work / 'program'
+        build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
+        self.assertEqual(build.returncode, 0, build.stderr)
+        self.assertEqual(build.stderr.splitlines(), [
+            f'{source}:4:10: warning: NEXT Outer closes FOR Inner',
+            f'{source}:6:6: warning: NEXT Unused closes FOR Outer',
+        ])
+        run = subprocess.run([binary], capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'1.1\n1.3\ninner 5\n2.1\n2.3\ninner 5\nouter 3\n')
 
     def test_loop_exit_control_flow_diagnostics(self):
         source = self.work / 'exit.b'

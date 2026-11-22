@@ -20,7 +20,7 @@ def group(message):
     # Preserve keyword spellings for unsupported statements. Group arbitrary
     # user identifiers together and retain full diagnostics in the file report.
     for prefix in ("unknown variable or unsupported function", "unknown label",
-                   "include file", "expected NEXT", "unassigned variable"):
+                   "include file", "unassigned variable"):
         if message.startswith(prefix):
             return prefix
     return message
