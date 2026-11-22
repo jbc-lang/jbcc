@@ -1324,6 +1324,42 @@ END
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CAPTURING cannot store a NUL byte'.encode(), run.stderr)
 
+    def test_execute_returning_and_setting(self):
+        run = self.run_native(ROOT / 'tests/programs/returning.b')
+        self.assertEqual(run.returncode, 0, run.stderr)
+        status = b'7\xfebad\xfeworse\xfe\n'
+        captured = b'one\xfetwo\n'
+        self.assertEqual(run.stdout, captured + status + status + captured + b'visible\n5\n0\n2\n143\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_execute_large_stdout_and_stderr(self):
+        source = self.work / 'execute.b'
+        source.write_text("""EXECUTE "awk 'BEGIN {for(i=0;i<65536;i++) print 1}' >&2; cat" RETURNING R CAPTURING O
+CRT R
+CRT O:
+""")
+        binary = self.work / 'execute'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        payload = b'x' * (256 * 1024)
+        run = subprocess.run([binary], input=payload, timeout=5, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\xfe' + b'1\xfe' * 65536 + b'\n' + payload)
+        self.assertEqual(run.stderr, b'')
+
+    def test_execute_result_diagnostics(self):
+        source = self.work / 'execute.b'
+        for clauses, repeated in [('SETTING A RETURNING B', 'RETURNING'),
+                                  ('CAPTURING A CAPTURING B', 'CAPTURING')]:
+            source.write_text(f"EXECUTE ':' {clauses}\n")
+            run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+            column = source.read_text().rindex(repeated) + 1
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(f'{source}:1:{column}: duplicate {repeated} clause'.encode(), run.stderr)
+        source.write_text("""EXECUTE "printf '\\000' >&2" SETTING R\n""")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: RETURNING cannot store a NUL byte'.encode(), run.stderr)
+
     def test_execute_child_program(self):
         child = self.work / 'child.b'
         child.write_text("PROMPT ''\nINPUT value\nCRT 'child read ' : value\nEXIT(4)\n")

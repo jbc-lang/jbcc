@@ -2292,9 +2292,35 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #endif
 
 #ifdef JBC_EXECUTE
-#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-void jbc_execute(const char *command, jbc_variable *capture, const char *file, int line, int column)
+static const char *read_command_output(FILE *stream, const char **result, const char *nul_error)
+{
+    char *bytes = NULL;
+    size_t capacity = 0;
+    ssize_t length = getdelim(&bytes, &capacity, '\0', stream);
+    const char *error = NULL;
+    if (ferror(stream) || (length < 0 && !feof(stream))) error = "cannot read command output";
+    else if (length > 0 && bytes[length - 1] == '\0') error = nul_error;
+    else *result = length > 0 ? jbc_convert(bytes, "\n", "\376") : "";
+    free(bytes);
+    return error;
+}
+
+static void redirect_command_fd(int fd, int target)
+{
+    if (fd == target) {
+        if (fcntl(fd, F_SETFD, 0) == -1) _exit(127);
+    } else {
+        if (dup2(fd, target) == -1) _exit(127);
+        close(fd);
+    }
+}
+
+void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *returning,
+                 const char *file, int line, int column)
 {
     if ((unsigned char)command[0] == 255) {
         if (command[1] != 's')
@@ -2305,27 +2331,56 @@ void jbc_execute(const char *command, jbc_variable *capture, const char *file, i
         numeric_error(file, line, column, "field-mark-separated EXECUTE commands are unsupported");
     if (fflush(stdout) == EOF || fflush(stderr) == EOF)
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
-    if (!capture) {
+    if (!capture && !returning) {
         if (system(command) == -1) numeric_error(file, line, column, "cannot execute command");
         return;
     }
 
-    FILE *pipe = popen(command, "r");
-    if (!pipe) numeric_error(file, line, column, "cannot execute command");
-    char *output = NULL;
-    size_t capacity = 0;
-    /* A jBC string can contain every byte except NUL, so read up to NUL or EOF. */
-    ssize_t length = getdelim(&output, &capacity, '\0', pipe);
-    const char *error = NULL;
-    if (ferror(pipe) || (length < 0 && !feof(pipe)))
-        error = "cannot read captured output";
-    else if (length > 0 && output[length - 1] == '\0')
-        error = "CAPTURING cannot store a NUL byte";
-    if (pclose(pipe) == -1 && !error) error = "cannot wait for command";
-    if (!error)
-        assign_value(capture, length > 0 ? jbc_convert(output, "\n", "\376") : "");
-    free(output);
+    int output_pipe[2];
+    FILE *output = NULL;
+    if (capture) {
+        if (pipe(output_pipe) == -1 || !(output = fdopen(output_pipe[0], "r")))
+            numeric_error(file, line, column, "cannot open command output pipe");
+    }
+    /* Spool stderr so the child can write either stream without blocking on the other. */
+    FILE *errors = returning ? tmpfile() : NULL;
+    if (returning && !errors) numeric_error(file, line, column, "cannot open command error file");
+    int error_fd = errors ? fileno(errors) : -1;
+    pid_t child = fork();
+    if (child == -1) numeric_error(file, line, column, "cannot start command");
+    if (!child) {
+        if (capture) {
+            close(output_pipe[0]);
+            redirect_command_fd(output_pipe[1], STDOUT_FILENO);
+        }
+        if (returning) redirect_command_fd(error_fd, STDERR_FILENO);
+        execl("/bin/sh", "sh", "-c", command, (char *)NULL);
+        _exit(127);
+    }
+
+    const char *captured = "", *messages = "", *error = NULL;
+    if (capture) {
+        close(output_pipe[1]);
+        error = read_command_output(output, &captured, "CAPTURING cannot store a NUL byte");
+        fclose(output);
+    }
+    int status;
+    pid_t waited;
+    do { waited = waitpid(child, &status, 0); } while (waited == -1 && errno == EINTR);
+    if (waited == -1) error = "cannot wait for command";
+    if (errors) {
+        if (!error && fseek(errors, 0, SEEK_SET)) error = "cannot rewind command error file";
+        if (!error) error = read_command_output(errors, &messages, "RETURNING cannot store a NUL byte");
+        fclose(errors);
+    }
     if (error) numeric_error(file, line, column, error);
+    if (capture) assign_value(capture, captured);
+    if (returning) {
+        int code = WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
+        const char *value = size_value(code);
+        if (*messages) value = jbc_concat(value, jbc_concat("\376", messages));
+        assign_value(returning, value);
+    }
 }
 #endif
 

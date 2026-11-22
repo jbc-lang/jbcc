@@ -896,7 +896,16 @@ After CAPTURING, 14,935 of 17,336 candidates pass strict C99 checking.
 All 14,918 previous passes still pass. Of the 32 units first blocked at
 CAPTURING, 17 now pass and 15 reach another diagnostic.
 
-- [ ] Implement RETURNING and its synonym SETTING for EXECUTE and
+- [x] Implement RETURNING and its synonym SETTING for EXECUTE and
   PERFORM. Put the child exit status in the first field and check how
   error text is represented. Test both orders with CAPTURING and a child
   that writes to both stdout and stderr before exiting nonzero.
+
+After RETURNING and SETTING, 14,936 of 17,336 candidates pass strict
+C99 checking. All 14,935 previous passes still pass. Of the four units
+previously blocked at SETTING after a command, one now passes and three
+reach later diagnostics.
+
+- [ ] Investigate and implement `@SYSTEM.RETURN.CODE`, the first blocker
+  in 67 units. Check which command forms update it and what a caller
+  reads after consecutive successful and unsuccessful commands.
