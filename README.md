@@ -428,6 +428,14 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+SUBSTRINGS extracts a byte range from each field, value and subvalue,
+preserving every mark, including those around empty elements. A start of
+zero selects the first byte, as in the guide’s example and T24.
+Negative starts and fractional arguments follow jbcc’s scalar substring
+rules. The guide’s table omits the two bytes from `DDDDD` in its
+`SUBSTRINGS(t,4,20)` result. Applying the stated rule gives `DD` for
+that subvalue. [SUBSTRINGS](https://jbc-lang.org/pages/substrings.html).
+
 FIELDS applies FIELD to each element of a dynamic array. It preserves
 field, value and subvalue marks, including those around empty elements.
 For example, `FIELDS("a:b":@VM:"c:d", ":", 2)` returns `"b":@VM:"d"`.

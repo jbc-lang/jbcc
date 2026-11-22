@@ -1921,13 +1921,40 @@ const char *jbc_space(const char *value, const char *file, int line, int column)
     return out;
 }
 
+static size_t substring_range(size_t n, int64_t start, int64_t count, size_t *offset)
+{
+    *offset = 0;
+    if (start > 0) *offset = (uint64_t)(start - 1) > n ? n : (size_t)(start - 1);
+    if (start < 0 && start >= -(int64_t)n) *offset = n - (size_t)(-start);
+    size_t available = n - *offset;
+    return count <= 0 ? 0 : (uint64_t)count > available ? available : (size_t)count;
+}
+
+const char *jbc_substrings(const char *source, const char *start, const char *length,
+                           const char *file, int line, int column)
+{
+    int64_t first = truncated(start, file, line, column);
+    int64_t count = truncated(length, file, line, column);
+    char *out = allocate(strlen(source));
+    char *write = out;
+    for (;;) {
+        size_t bytes = strcspn(source, "\376\375\374");
+        size_t offset;
+        size_t take = substring_range(bytes, first, count, &offset);
+        memcpy(write, source + offset, take);
+        write += take;
+        source += bytes;
+        *write++ = *source;
+        if (!*source) return out;
+        ++source;
+    }
+}
+
 static const char *substring(const char *text, int64_t i, int64_t count, const char *replacement)
 {
     size_t n = strlen(text);
-    size_t offset = 0;
-    if (i > 0) offset = (uint64_t)(i - 1) > n ? n : (size_t)(i - 1);
-    if (i < 0 && i >= -(int64_t)n) offset = n - (size_t)(-i);
-    size_t take = count <= 0 ? 0 : (uint64_t)count > n - offset ? n - offset : (size_t)count;
+    size_t offset;
+    size_t take = substring_range(n, i, count, &offset);
     if (!replacement) {
         char *out = allocate(take);
         memcpy(out, text + offset, take);

@@ -602,6 +602,14 @@ After MAXIMUM and MINIMUM, 11,884 of 17,336 candidates pass strict C99
 checking, including all 11,846 previous passes. Of the 48 units previously
 blocked at these functions, 34 now pass and 14 reach another diagnostic.
 
-- [ ] Implement SUBSTRINGS, the first blocker in 32 units. Verify byte
+- [x] Implement SUBSTRINGS, the first blocker in 32 units. Verify byte
   extraction within each element, oversized lengths, and preservation of
   field, value and subvalue marks around empty elements.
+
+After SUBSTRINGS, 11,903 of 17,336 candidates pass strict C99 checking,
+including all 11,884 previous passes. Of the 32 units previously blocked
+at SUBSTRINGS, 17 now pass and 15 reach another diagnostic.
+
+- [ ] Implement SPLICE, the first blocker in 31 units. Verify the guide’s
+  mixed value/subvalue example and how unmatched elements are combined
+  with the separator when the two arrays have different shapes.

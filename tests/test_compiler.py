@@ -61,6 +61,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT DELETE('a',1,2,3,4)\n", ":1:5: wrong argument count for 'DELETE'"),
                                   ("CRT MINIMUM()\n", ":1:5: wrong argument count for 'MINIMUM'"),
                                   ("CRT MAXIMUM(1, 2)\n", ":1:5: wrong argument count for 'MAXIMUM'"),
+                                  ("CRT SUBSTRINGS('x', 1)\n", ":1:5: wrong argument count for 'SUBSTRINGS'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -372,6 +373,15 @@ time_t test_clock(time_t *out)
         for name in ('LEFT', 'RIGHT'):
             with self.subTest(name=name):
                 source.write_text(f"CRT {name}('', 'bad')\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+
+    def test_substrings_requires_numeric_bounds(self):
+        source = self.work / 'substrings.b'
+        for args in ("'x', 1", "1, 'x'"):
+            with self.subTest(args=args):
+                source.write_text(f"CRT SUBSTRINGS('', {args})\n")
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
