@@ -306,6 +306,12 @@ callee reads the status field, selects a CASE arm, and updates the output.
   as empty, truncates fractional indices, and treats trailing zero indices
   as omitted and other zeros as one. These choices are provisional pending
   a reference run. [INS](https://jbc-lang.org/pages/ins.html)
+- `INSERT(R, field, value; X)` returns a new array with X inserted at
+  that value position. R keeps its original contents. Supply one to three
+  indices before the semicolon. With all three indices, the final separator
+  can also be a comma, as in `INSERT(R, field, value, 0, X)` in T24.
+  Both forms follow the reference parser’s `insert_delims` rule and use
+  the same index handling as INS. [INSERT](https://jbc-lang.org/pages/insert.html)
 - `DEL R<field[,value[,subvalue]]>` removes the selected component and
   closes the gap between its siblings. The target can be an assigned scalar
   or a matrix element. Fractional positions truncate toward zero. A missing

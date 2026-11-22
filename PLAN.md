@@ -532,7 +532,17 @@ including all 11,472 previous passes. Of the 67 units whose first
 diagnostic pointed at a STR call’s opening parenthesis, 18 now pass
 and 49 reach another diagnostic.
 
-- [ ] Implement the INSERT function, whose opening parenthesis is the
+- [x] Implement the INSERT function, whose opening parenthesis is the
   first diagnostic in 94 units. Cover the guide’s semicolon before the
   inserted value and the five-argument comma form used in T24. Check the
   returned array and verify that evaluating INSERT preserves its input.
+
+After INSERT, 11,556 of 17,336 candidates pass strict C99 checking,
+including all 11,497 previous passes. Of the 94 units whose first
+diagnostic pointed at an INSERT call’s opening parenthesis, 54 now
+pass and 40 reach another diagnostic.
+
+- [ ] Implement REPLACE, the first diagnostic at a function call’s opening
+  parenthesis in 20 units. Use the guide’s value replacement example to
+  verify the returned array, preservation of the source, and preservation
+  of neighboring elements. Check argument forms against the reference parser.

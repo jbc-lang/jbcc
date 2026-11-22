@@ -58,7 +58,7 @@ def angle_tokens(words):
             j = openings.pop()
             words[j] = words[j]._replace(kind='array_open')
             words[i] = token._replace(kind='array_close')
-        elif token.word in (';', 'THEN', 'ELSE'):
+        elif token.word in (';', 'THEN', 'ELSE') and token.kind != 'argument_separator':
             openings.clear()
     i = 0
     while i < len(words):
@@ -82,6 +82,7 @@ def lex_line(line, n, path):
         return []
     words = []
     statement_start = 0
+    parentheses = 0
     offset = 0
     while offset < len(line):
         match = TOKEN.match(line, offset)
@@ -100,8 +101,14 @@ def lex_line(line, n, path):
             if name:
                 kind = 'program_header'
                 offset = name.end()
+        if word == '(':
+            parentheses += 1
+        elif word == ')' and parentheses:
+            parentheses -= 1
+        elif word == ';' and parentheses:
+            kind = 'argument_separator'
         words.append(Token(word, kind, n, match.start() + 1, path))
-        if word == ';' or (len(words) == statement_start + 2
+        if (word == ';' and not parentheses) or (len(words) == statement_start + 2
                            and is_label(words[statement_start], words[-1])):
             statement_start = len(words)
     while words and words[-1].word == ';':
@@ -379,6 +386,9 @@ class Compiler:
             if target.word not in self.matrices:
                 self.assignment_facts[value, assigned] = {target.word}
             return self.postfix(value, locate_source)
+        elif word == 'INSERT' and self.following.word == '(':
+            value = self.insert_function()
+            return self.postfix(value, locate_source)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
             self.advance()
@@ -596,6 +606,26 @@ class Compiler:
         if indices:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
+
+    def insert_function(self):
+        target = self.current
+        self.advance()
+        self.expect('(')
+        source = self.expression()
+        self.expect(',')
+        indices = [self.expression()]
+        while self.word == ',' and len(indices) < 3:
+            self.advance()
+            indices.append(self.expression())
+        if self.word == ',' and len(indices) == 3:
+            self.advance()
+        else:
+            self.expect(';')
+        value = self.expression()
+        self.expect(')')
+        positions = ", ".join(indices)
+        return self.temporary(f"jbc_insert({source}, {value}, (const char *[]){{{positions}}}, "
+                              f"{len(indices)}, {self.location(target)})")
 
     def ins_statement(self):
         self.advance()

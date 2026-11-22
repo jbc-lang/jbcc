@@ -110,6 +110,21 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:16: expected a numeric value'.encode(), run.stderr)
 
+    def test_insert_diagnostics(self):
+        source = self.work / 'insert.b'
+        for program, message in [
+                ("CRT INSERT('a', 1, 'x')", ":1:23: expected ';'"),
+                ("CRT INSERT('a', 1; 'x', 2)", ":1:23: expected ')'")]:
+            with self.subTest(program=program):
+                source.write_text(program + '\n')
+                run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(str(source) + message, run.stderr)
+        source.write_text("CRT INSERT('a', 'bad'; 'x')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+
     def test_del_diagnostics(self):
         source = self.work / 'del.b'
         for program, diagnostic in [

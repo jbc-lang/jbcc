@@ -1704,8 +1704,8 @@ void jbc_exit(const char *value, const char *file, int line, int column)
     exit((int)status);
 }
 
-void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int count,
-             const char *file, int line, int column)
+const char *jbc_insert(const char *source, const char *value, const char **indices, int count,
+                       const char *file, int line, int column)
 {
     int64_t index[3];
     int appended = 0;
@@ -1720,8 +1720,14 @@ void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int co
     for (int i = 0; i < count; ++i) {
         if (!index[i]) index[i] = 1;
     }
-    const char *text = slot->value ? slot->value : "";
-    assign_value(slot, array_part(text, strlen(text), index, count, 0, value, 1));
+    return array_part(source, strlen(source), index, count, 0, value, 1);
+}
+
+void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int count,
+             const char *file, int line, int column)
+{
+    const char *source = slot->value ? slot->value : "";
+    assign_value(slot, jbc_insert(source, value, indices, count, file, line, column));
 }
 
 const char *jbc_index(const char *text, const char *needle, const char *occurrence,
