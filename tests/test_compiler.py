@@ -66,6 +66,7 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
                                   ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),

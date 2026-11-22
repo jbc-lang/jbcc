@@ -595,6 +595,12 @@ that result position empty. A scalar occupies the first position.
 A direct `REUSE(scalar)` in either argument repeats it at every position.
 [EQS](https://jbc-lang.org/pages/eqs.html), [NES](https://jbc-lang.org/pages/nes.html).
 
+CATS concatenates corresponding fields, values and subvalues. An unmatched
+element is copied through, and a wholly empty operand returns the other
+array. jbcc treats an empty element within an array as contributing zero
+bytes, pending a reference run. A direct `REUSE(scalar)` can supply a
+prefix or suffix at every position. [CATS](https://jbc-lang.org/pages/cats.html).
+
 SPLICE joins corresponding field, value and subvalue positions with a
 separator. An unmatched element still gets the separator on its missing
 side. An explicitly empty element paired with another element gives an

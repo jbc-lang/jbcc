@@ -1721,7 +1721,7 @@ static void advance_array_item(struct array_cursor *cursor, unsigned mark)
 
 /* Run once to size the result, then again to fill it. A side that reaches
    a higher-level mark waits while the other emits its remaining siblings. */
-static size_t splice_elements(const char *left, const char *separator, const char *right,
+static size_t join_array_elements(const char *left, const char *separator, const char *right,
                               int reuse_left, int reuse_right, char *out)
 {
     size_t used = 0, width = strlen(separator);
@@ -1730,9 +1730,11 @@ static size_t splice_elements(const char *left, const char *separator, const cha
     for (;;) {
         size_t a = lhs.present ? lhs.length : 0;
         size_t b = rhs.present ? rhs.length : 0;
-        if (!(lhs.present && rhs.present && (!a || !b))) {
+        /* SPLICE propagates a paired empty element. CATS has no
+           separator and concatenates the available bytes at every position. */
+        if (!width || !(lhs.present && rhs.present && (!a || !b))) {
             if (a > SIZE_MAX - used || width > SIZE_MAX - used - a ||
-                b > SIZE_MAX - used - a - width) fail("SPLICE result too large");
+                b > SIZE_MAX - used - a - width) fail("array concatenation result too large");
             if (out) {
                 memcpy(out + used, lhs.item, a);
                 memcpy(out + used + a, separator, width);
@@ -1742,7 +1744,7 @@ static size_t splice_elements(const char *left, const char *separator, const cha
         }
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         if (mark == 256) return used;
-        if (used == SIZE_MAX) fail("SPLICE result too large");
+        if (used == SIZE_MAX) fail("array concatenation result too large");
         if (out) out[used] = (char)mark;
         ++used;
         advance_array_item(&lhs, mark);
@@ -1750,15 +1752,28 @@ static size_t splice_elements(const char *left, const char *separator, const cha
     }
 }
 
+static const char *join_arrays(const char *left, const char *separator, const char *right,
+                       int reuse_left, int reuse_right)
+{
+    size_t length = join_array_elements(left, separator, right, reuse_left, reuse_right, NULL);
+    char *out = allocate(length);
+    join_array_elements(left, separator, right, reuse_left, reuse_right, out);
+    out[length] = '\0';
+    return out;
+}
+
 const char *jbc_splice(const char *left, const char *separator, const char *right,
                        int reuse_left, int reuse_right)
 {
     if (!*separator || (!*left && !*right)) return "";
-    size_t length = splice_elements(left, separator, right, reuse_left, reuse_right, NULL);
-    char *out = allocate(length);
-    splice_elements(left, separator, right, reuse_left, reuse_right, out);
-    out[length] = '\0';
-    return out;
+    return join_arrays(left, separator, right, reuse_left, reuse_right);
+}
+
+const char *jbc_cats(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    if (!*left) return right;
+    if (!*right) return left;
+    return join_arrays(left, "", right, reuse_left, reuse_right);
 }
 
 /* Supply NUL-terminated scalar views to jbc_compare at the same byte
