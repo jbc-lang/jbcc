@@ -888,6 +888,15 @@ strict C99 checking. All 14,762 previous passes still pass. Of the 346
 units first blocked at EXECUTE, 156 now pass and 190 reach another
 diagnostic.
 
-- [ ] Implement CAPTURING for EXECUTE and PERFORM. It is the first
+- [x] Implement CAPTURING for EXECUTE and PERFORM. It is the first
   diagnostic in 32 units. Test empty output, multiple lines, a final
   line without a newline, and stderr remaining visible to the caller.
+
+After CAPTURING, 14,935 of 17,336 candidates pass strict C99 checking.
+All 14,918 previous passes still pass. Of the 32 units first blocked at
+CAPTURING, 17 now pass and 15 reach another diagnostic.
+
+- [ ] Implement RETURNING and its synonym SETTING for EXECUTE and
+  PERFORM. Put the child exit status in the first field and check how
+  error text is represented. Test both orders with CAPTURING and a child
+  that writes to both stdout and stderr before exiting nonzero.

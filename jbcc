@@ -1730,7 +1730,14 @@ class Compiler:
             opening = self.current
             self.advance()
             self.uses_execute = True
-            self.emit(f"jbc_execute({self.expression()}, {self.location(opening)});")
+            command = self.expression()
+            capture = 'NULL'
+            if self.word == 'CAPTURING':
+                self.advance()
+                target = self.identifier()
+                capture = '&' + self.variable_slot(target)
+                self.assigned.add(target.word)
+            self.emit(f"jbc_execute({command}, {capture}, {self.location(opening)});")
         elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'
               and not (self.word in self.matrices and self.following.word == '(')):

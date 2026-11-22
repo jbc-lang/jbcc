@@ -1305,6 +1305,25 @@ END
         self.assertEqual(run.stdout, b'before\nchild\nsecond\nafter\n')
         self.assertEqual(run.stderr, b'stderr\n')
 
+    def test_capturing(self):
+        run = self.run_native(ROOT / 'tests/programs/capturing.b')
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'one\xfe\xfethree\xfe\nunterminated\n[]\n')
+        self.assertEqual(run.stderr, b'diagnostic\n')
+
+    def test_capture_from_pipe(self):
+        source = self.work / 'capture.b'
+        source.write_text("EXECUTE 'cat' CAPTURING Output\nCRT Output:\n")
+        binary = self.work / 'capture'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        payload = b'x' * (256 * 1024) + b'\r\n\xff'
+        run = subprocess.run([binary], input=payload, capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, payload.replace(b'\n', b'\xfe'))
+        run = subprocess.run([binary], input=b'one\x00two', capture_output=True, timeout=5)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: CAPTURING cannot store a NUL byte'.encode(), run.stderr)
+
     def test_execute_child_program(self):
         child = self.work / 'child.b'
         child.write_text("PROMPT ''\nINPUT value\nCRT 'child read ' : value\nEXIT(4)\n")

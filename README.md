@@ -112,8 +112,11 @@ standard input, output and error. The caller waits for it and continues
 even if the command exits with a nonzero status. For example,
 `PERFORM './report today'` can invoke another jbcc-built executable.
 The native runtime also accepts the explicit `CHAR(255) : 's'` shell
-prefix. Alternate shells, field-mark-separated commands and result
-clauses such as CAPTURING are currently unsupported.
+prefix. With `CAPTURING variable`, the child’s stdout is collected into
+the variable and stderr stays on the caller’s error stream. Each LF,
+including a final LF, becomes one field mark. An empty stream assigns
+an empty string. NUL bytes produce a runtime diagnostic. Alternate
+shells, field-mark-separated commands and RETURNING are currently unsupported.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative

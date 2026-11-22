@@ -1,4 +1,4 @@
-#if (defined(JBC_TERMINAL) || defined(JBC_SLEEP)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -2292,7 +2292,9 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #endif
 
 #ifdef JBC_EXECUTE
-void jbc_execute(const char *command, const char *file, int line, int column)
+#include <sys/types.h>
+
+void jbc_execute(const char *command, jbc_variable *capture, const char *file, int line, int column)
 {
     if ((unsigned char)command[0] == 255) {
         if (command[1] != 's')
@@ -2303,8 +2305,27 @@ void jbc_execute(const char *command, const char *file, int line, int column)
         numeric_error(file, line, column, "field-mark-separated EXECUTE commands are unsupported");
     if (fflush(stdout) == EOF || fflush(stderr) == EOF)
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
-    if (system(command) == -1)
-        numeric_error(file, line, column, "cannot execute command");
+    if (!capture) {
+        if (system(command) == -1) numeric_error(file, line, column, "cannot execute command");
+        return;
+    }
+
+    FILE *pipe = popen(command, "r");
+    if (!pipe) numeric_error(file, line, column, "cannot execute command");
+    char *output = NULL;
+    size_t capacity = 0;
+    /* A jBC string can contain every byte except NUL, so read up to NUL or EOF. */
+    ssize_t length = getdelim(&output, &capacity, '\0', pipe);
+    const char *error = NULL;
+    if (ferror(pipe) || (length < 0 && !feof(pipe)))
+        error = "cannot read captured output";
+    else if (length > 0 && output[length - 1] == '\0')
+        error = "CAPTURING cannot store a NUL byte";
+    if (pclose(pipe) == -1 && !error) error = "cannot wait for command";
+    if (!error)
+        assign_value(capture, length > 0 ? jbc_convert(output, "\n", "\376") : "");
+    free(output);
+    if (error) numeric_error(file, line, column, error);
 }
 #endif
 
