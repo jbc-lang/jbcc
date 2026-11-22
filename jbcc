@@ -63,20 +63,27 @@ def angle_tokens(words):
         yield token
 
 
+def is_label(name, colon):
+    return (name.kind in ('name', 'number') and name.word not in ('CRT', 'PRINT')
+            and colon.word == ':' and colon.column == name.column + len(name.word))
+
+
 def lex_line(line, n, path):
     words = []
-    at_start = True
+    statement_start = 0
     for match in TOKEN.finditer(line):
         word = match[0]
         if match.lastgroup == 'space':
             continue
-        if at_start and word in ('*', '!', 'REM'):
+        if len(words) == statement_start and word in ('*', '!', 'REM'):
             break
         kind = match.lastgroup
         if kind == 'name' and words and words[-1].word == '@':
             kind = 'system_name'
         words.append(Token(word, kind, n, match.start() + 1, path))
-        at_start = word == ';'
+        if word == ';' or (len(words) == statement_start + 2
+                           and is_label(words[statement_start], words[-1])):
+            statement_start = len(words)
     while words and words[-1].word == ';':
         words.pop()
     return list(angle_tokens(words))
@@ -1057,9 +1064,7 @@ class Compiler:
             if self.word in (';', '\n'):
                 self.advance()
                 continue
-            if (self.current.kind in ('name', 'number') and self.following.word == ':'
-                    and self.word not in ('CRT', 'PRINT')
-                    and self.following.column == self.current.column + len(self.word)):
+            if is_label(self.current, self.following):
                 token = self.local_label()
                 if token.word in self.labels:
                     self.error("duplicate label", token)

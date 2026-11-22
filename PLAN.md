@@ -217,7 +217,16 @@ including all 7,475 previous passes. Of the 410 units whose first diagnostic
 pointed to the opening parenthesis of either function, 155 now pass and 255
 reach another diagnostic.
 
-- [ ] Recognize a comment immediately after a label. In 723 units the
+- [x] Recognize a comment immediately after a label. In 723 units the
   first diagnostic points to an asterisk following a colon, commonly in
   `DEFINE.PARAMETERS:* ...`. Test named and numeric labels and preserve
   multiplication and concatenation in expressions.
+
+After label comments, 8,334 of 17,336 candidates pass strict C99 checking,
+including all 7,666 previous passes. Of the 723 units stopped at the
+asterisk after a label, 668 now pass and 55 reach another diagnostic.
+
+- [ ] Implement three-argument bracket extraction, as in
+  `Text["-",1,1]`. In 467 units the first diagnostic expects a closing
+  bracket at a comma. Check the reference parser's
+  `spec_substring_extract_gen` and verify field selection in native tests.

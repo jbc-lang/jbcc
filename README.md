@@ -45,7 +45,9 @@ Use scalar assignment, PRINT and CRT, decimal numeric
 literals, quoted strings (single, double or backslash delimiters),
 parentheses, arithmetic, concatenation, and compound assignments (`+=`, `-=`, and `:=`). Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO or GOSUB check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
-with `*`, `!` or `REM` comments out the rest of its line.
+with `*`, `!` or `REM` comments out the rest of its line. These markers
+can follow a named or numeric label directly, as in `setup:* read inputs`
+or `100: REM retry`.
 
 Concatenating assignment appends the right-hand value as a string.
 For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
