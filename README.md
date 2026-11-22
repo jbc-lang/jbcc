@@ -330,7 +330,13 @@ Declare a function before its first use with `DEFFUN DOUBLE.IT()`. Parameter
 names in a declaration are optional. The compiler checks each call against
 the supplied `FUNCTION` definition. As with `CALL`, scalar variables and
 matrix elements are passed by reference and expressions use temporary slots.
-Whole-matrix (`MAT`) parameters are outside the current subset.
+Pass a whole matrix with `CALL UPDATE(MAT Rows)` or `F(MAT Rows)`, and
+declare the receiving parameter with `MAT` in SUBROUTINE or FUNCTION.
+The callee uses the caller’s storage and bounds, including for COMMON
+matrices and calls that forward the parameter. When a DEFFUN lists
+parameters, mark its matrix parameters with MAT as well. T24 routines
+often repeat DIM for a MAT parameter. Pending a reference run, jbcc
+checks that such a declaration matches the caller’s dimensions exactly.
 
 ```sh
 ./jbcc --exe tests/routines/function.caller.b tests/routines/DOUBLE.IT -o /tmp/function-caller

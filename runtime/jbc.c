@@ -245,6 +245,13 @@ typedef struct {
     size_t remove_offset;
 } jbc_variable;
 
+typedef struct {
+    jbc_variable *values;
+    const int *bounds;
+    int rank;
+    size_t count;
+} jbc_matrix;
+
 static void assign_value(jbc_variable *slot, const char *value)
 {
     slot->value = value;

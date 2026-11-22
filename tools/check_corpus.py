@@ -33,15 +33,15 @@ def check(relative, root, directories):
     try:
         unit = COMPILER["compile_unit"](path, directories)
         externals = {}
-        for target, argc, is_function in unit.calls:
+        for target, kinds, is_function in unit.calls:
             if unit.routine and unit.routine.word == target.word:
-                if (argc, is_function) != (len(unit.formals), unit.is_function):
+                if (kinds, is_function) != (tuple(unit.formals.values()), unit.is_function):
                     unit.error("recursive call has incompatible signature", target)
-            signature = (argc, is_function)
+            signature = (kinds, is_function)
             if externals.setdefault(target.word, signature) != signature:
                 unit.error("external calls disagree on signature", target)
-        prototypes = [COMPILER["routine_signature"](name, argc, is_function) + ";"
-                      for name, (argc, is_function) in externals.items()]
+        prototypes = [COMPILER["routine_signature"](name, kinds, is_function) + ";"
+                      for name, (kinds, is_function) in externals.items()]
         generated = "\n".join([COMPILER["runtime_features"]([unit]), RUNTIME] + prototypes + [unit.render()])
         result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],

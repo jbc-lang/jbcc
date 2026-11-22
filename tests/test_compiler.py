@@ -256,6 +256,55 @@ PRINT '[' : EMPTY() : ']'
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'233\n54\n[]\n')
 
+    def test_matrix_parameters(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'relay.b'
+        func = self.work / 'edit.b'
+        main.write_text("""N = 2
+COMMON /DATA/ Grid(N,3)
+DIM Copy(2,3)
+MAT Grid = 'seed'
+CALL RELAY(MAT Grid, MAT Copy, N, Result)
+PRINT Grid(0,0), Grid(2,3), Copy(2,3), Result
+""")
+        sub.write_text("""SUBROUTINE RELAY(MAT G, MAT D, N, Out)
+DIM G(N,3)
+DEFFUN EDIT(MAT A, S)
+Out = EDIT(MAT G, G(0,0))
+MAT D = MAT G
+MATBUILD Rec FROM D, 5, 6 USING '|'
+Out := Rec
+""")
+        func.write_text("""FUNCTION EDIT(MAT M, Alias)
+FOR I = 1 TO 2
+    M(2,3) = Alias : I
+NEXT I
+Alias = 'new'
+RETURN M(2,3)
+""")
+        run = self.run_native(main, sub, func)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'new\tseed2\tseed2\tseed2seed|seed2\n')
+
+    def test_matrix_parameter_diagnostics(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'sub.b'
+        for call, formal in [('CALL S(MAT A)', 'X'), ('CALL S(N)', 'MAT X')]:
+            main.write_text(f'DIM A(2)\n{call}\n')
+            sub.write_text(f'SUBROUTINE S({formal})\n')
+            result = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(f"{main}:2:6: scalar/MAT argument mismatch for 'S'", result.stderr)
+        main.write_text('DIM A(2)\nCALL S(MAT A)\n')
+        for body, message in [('DIM X(3)', 'incompatible MAT parameter dimensions'),
+                              ('PRINT X(1,1)', 'wrong number of MAT parameter subscripts'),
+                              ('PRINT X(3)', 'matrix subscript out of bounds')]:
+            sub.write_text(f'SUBROUTINE S(MAT X)\n{body}\n')
+            run = self.run_native(main, sub)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(f'{sub}:2:'.encode(), run.stderr)
+            self.assertIn(message.encode(), run.stderr)
+
     def test_function_diagnostics(self):
         main = self.work / 'main.b'
         definition = ROOT / 'tests/routines/DOUBLE.IT'
@@ -311,6 +360,16 @@ PRINT '[' : EMPTY() : ']'
         self.assertEqual(data['files']['ok']['status'], 'translated')
         self.assertEqual(data['first_blockers'], {"expected a dimensioned array 'A'": 1})
         self.assertIn('bad:1:5:', data['files']['bad']['diagnostic'])
+
+    def test_corpus_matrix_signatures(self):
+        (self.work / 'forward').write_text('SUBROUTINE F(MAT A)\nCALL EXT(MAT A)\n'
+                                          'IF 0 THEN CALL F(MAT A)\n')
+        (self.work / 'mixed').write_text('DIM A(1)\nCALL EXT(MAT A)\nCALL EXT(A(1))\n')
+        result = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', self.work],
+                                capture_output=True, text=True, check=True)
+        files = json.loads(result.stdout)['files']
+        self.assertEqual(files['forward']['status'], 'translated')
+        self.assertIn('mixed:3:6: external calls disagree on signature', files['mixed']['diagnostic'])
 
     def test_quine(self):
         source = ROOT / 'tests/programs/quine.b'

@@ -288,7 +288,17 @@ After MATPARSE, 9,410 of 17,336 candidates pass strict C99 checking,
 including all 9,348 previous passes. Of the 174 units stopped at MATPARSE,
 62 now pass and 112 reach another diagnostic.
 
-- [ ] Support MAT routine parameters, the first blocker in 247 units.
+- [x] Support MAT routine parameters, the first blocker in 247 units.
   Trace the reference grammar for formal and actual arguments. Verify
   that a callee sees the caller's bounds and can update its matrix, and
   diagnose mismatched scalar and matrix arguments.
+
+After whole-matrix arguments, 9,571 of 17,336 candidates pass strict C99
+checking, including all 9,410 previous passes. Of the 247 units stopped
+at a MAT formal parameter, 60 now pass and 187 reach another diagnostic.
+Accepting MAT at call sites also lets 101 other units pass.
+
+- [ ] Investigate the three-position LOCATE selector, the first blocker
+  in 227 units. Check how the reference handles the starting subvalue in
+  `LOCATE X IN R<F,V,S>` and verify the SETTING position for matches and
+  misses, including starting positions greater than one.

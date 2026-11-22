@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Translate a subset of jBC to standalone C99."""
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 import argparse
 import math
 import os
@@ -193,24 +193,39 @@ class CommonBlock:
 
 class Matrix(NamedTuple):
     field: str
-    shape: tuple  # None denotes a bound evaluated at the COMMON declaration.
+    shape: Optional[tuple]  # A caller supplies the shape of a MAT parameter.
     common: bool
 
     @property
     def base(self):
+        if self.shape is None:
+            return f"frame->{self.field}.values"
         return f"frame->{self.field}" + ("->values" if self.common else "")
 
     @property
     def limits(self):
+        if self.shape is None:
+            return f"frame->{self.field}.bounds"
         if None in self.shape:
             return f"frame->{self.field}->bounds"
         return "(const int[]){" + ", ".join(map(str, self.shape)) + "}"
 
     @property
     def count(self):
+        if self.shape is None:
+            return f"frame->{self.field}.count"
         if None in self.shape:
             return f"frame->{self.field}->count"
         return math.prod(n + 1 for n in self.shape)
+
+    @property
+    def rank(self):
+        return f"frame->{self.field}.rank" if self.shape is None else len(self.shape)
+
+    def argument(self):
+        if self.shape is None:
+            return f"frame->{self.field}"
+        return f"(jbc_matrix){{{self.base}, {self.limits}, {self.rank}, {self.count}}}"
 
 
 def compatible_dimensions(a, b):
@@ -223,8 +238,8 @@ class Compiler:
         self.unit = unit
         self.routine = None
         self.is_function = False
-        self.functions = set()
-        self.formals = []
+        self.functions = {}
+        self.formals = {}  # Parameter name to matrix/scalar kind, in declaration order.
         self.labels = {}
         self.targets = {}
         self.calls = []
@@ -325,8 +340,11 @@ class Compiler:
             return self.postfix(value, locate_source)
         elif word in self.functions and self.following.word == '(':
             target = self.identifier()
-            args = self.call_arguments()
-            self.calls.append((target, len(args), True))
+            args, kinds = self.call_arguments()
+            declared = self.functions[word]
+            if declared and (any(declared) or any(kinds)) and kinds != declared:
+                self.error(f"arguments disagree with DEFFUN for '{word}'", target)
+            self.calls.append((target, kinds, True))
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
@@ -809,10 +827,17 @@ class Compiler:
 
     def call_arguments(self):
         args = []
+        kinds = []
         if self.word == '(':
             self.advance()
             while self.word != ')':
-                if self.word in self.matrices:
+                matrix_argument = self.word == 'MAT'
+                kinds.append(matrix_argument)
+                if matrix_argument:
+                    self.advance()
+                    matrix = self.checked_matrix(self.matrix_name())
+                    args.append(matrix.argument())
+                elif self.word in self.matrices:
                     target_element = self.identifier()
                     slot = self.matrix_slot(target_element)
                     if self.word in (',', ')'):
@@ -832,13 +857,13 @@ class Compiler:
                 if self.word == ')':
                     self.error("expected call argument")
             self.expect(')')
-        return args
+        return args, tuple(kinds)
 
     def call_statement(self):
         self.advance()
         target = self.identifier()
-        args = self.call_arguments()
-        self.calls.append((target, len(args), False))
+        args, kinds = self.call_arguments()
+        self.calls.append((target, kinds, False))
         self.emit(f"{routine_symbol(target.word)}({', '.join(args)});")
 
     def label_number(self, name):
@@ -851,7 +876,7 @@ class Compiler:
         self.advance()
         return token
 
-    def dimension_bounds(self, common):
+    def dimension_bounds(self, allow_expressions):
         self.expect('(')
         bounds = []
         while True:
@@ -861,7 +886,7 @@ class Compiler:
                     self.error("expected a positive constant dimension")
                 bounds.append(int(token.word))
                 self.advance()
-            elif common:
+            elif allow_expressions:
                 value = self.expression()
                 bound = f"bound_{self.temporaries}"
                 self.temporaries += 1
@@ -908,6 +933,14 @@ class Compiler:
         name = token.word
         if common and self.common_scalars.get(name) == block_name and self.word != '(':
             return
+        if not common and self.formals.get(name):
+            bounds = self.dimension_bounds(allow_expressions=True)
+            matrix = self.matrices[name]
+            self.emit(f"if ({matrix.rank} != {len(bounds)} || "
+                      f"memcmp({matrix.limits}, (const int[]){{{', '.join(map(str, bounds))}}}, "
+                      f"{len(bounds)} * sizeof(int))) numeric_error({self.location(token)}, "
+                      '"incompatible MAT parameter dimensions");')
+            return
         if name in self.names or name in self.matrices:
             self.error(f"duplicate declaration of '{name}'", token)
         bounds = self.dimension_bounds(common) if self.word == '(' or not common else ()
@@ -942,7 +975,7 @@ class Compiler:
 
     def checked_matrix(self, token):
         matrix = self.matrices[token.word]
-        if None in matrix.shape:
+        if matrix.shape is not None and None in matrix.shape:
             self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
                       '"COMMON matrix declaration has not executed");')
         return matrix
@@ -974,7 +1007,7 @@ class Compiler:
         matrix = self.checked_matrix(source)
         start, end = self.matrix_range()
         delimiter = self.matrix_delimiter()
-        result = self.temporary(f"jbc_matbuild({matrix.base}, {len(matrix.shape)}, {matrix.limits}, "
+        result = self.temporary(f"jbc_matbuild({matrix.base}, {matrix.rank}, {matrix.limits}, "
                                 f"{start}, {end}, {delimiter}, {c_string(source.word)}, {self.location(opening)})")
         self.emit(f"assign_value(&{dest}, {result});")
         if target.word not in self.matrices:
@@ -995,7 +1028,7 @@ class Compiler:
             setting = '&' + self.variable_slot(target)
             if target.word not in self.matrices:
                 self.assigned.add(target.word)
-        self.emit(f"jbc_matparse({matrix.base}, {len(matrix.shape)}, {matrix.limits}, "
+        self.emit(f"jbc_matparse({matrix.base}, {matrix.rank}, {matrix.limits}, "
                   f"{start}, {end}, {source}, {delimiter}, {setting}, {self.location(opening)});")
 
     def matrix_assignment(self):
@@ -1007,10 +1040,10 @@ class Compiler:
             self.advance()
             source = self.matrix_name()
             src = self.checked_matrix(source)
-            if not compatible_dimensions(src.shape, dest.shape):
+            if src.shape is not None and dest.shape is not None and not compatible_dimensions(src.shape, dest.shape):
                 self.error("MAT copy between different dimensions is unsupported", source)
-            if None in src.shape or None in dest.shape:
-                self.emit(f"if (memcmp({dest.limits}, {src.limits}, {len(src.shape)} * sizeof(int))) "
+            if src.shape is None or dest.shape is None or None in src.shape or None in dest.shape:
+                self.emit(f"if ({dest.rank} != {src.rank} || memcmp({dest.limits}, {src.limits}, {src.rank} * sizeof(int))) "
                           f'numeric_error({self.location(source)}, "incompatible MAT copy dimensions");')
             self.emit(f"jbc_matrix_copy({dest.base}, {src.base}, {dest.count}, "
                       f"{c_string(source.word)}, {self.location(source)});")
@@ -1019,14 +1052,17 @@ class Compiler:
 
     def matrix_slot(self, token):
         matrix = self.checked_matrix(token)
-        rank = len(matrix.shape)
+        rank = matrix.rank
         self.expect('(')
         subscripts = [self.expression()]
         while self.word == ',':
             self.advance()
             subscripts.append(self.expression())
         self.expect(')')
-        if len(subscripts) != rank:
+        if matrix.shape is None:
+            self.emit(f'if ({rank} != {len(subscripts)}) numeric_error({self.location(token)}, '
+                      '"wrong number of MAT parameter subscripts");')
+        elif len(subscripts) != rank:
             self.error(f"expected {rank} subscripts for '{token.word}'", token)
         index = f"index_{self.temporaries}"
         self.temporaries += 1
@@ -1060,13 +1096,15 @@ class Compiler:
             self.emit(f"jbc_set_precision({self.expression()}, {self.location(token)});")
         elif self.word == 'DEFFUN':
             self.advance()
-            self.functions.add(self.identifier().word)
+            function = self.identifier()
+            kinds = []
             self.expect('(')
             if self.word != ')':
-                self.scalar_parameter()
+                kinds.append(self.parameter()[1])
                 while self.word == ',':
                     self.advance()
-                    self.scalar_parameter()
+                    kinds.append(self.parameter()[1])
+            self.functions[function.word] = tuple(kinds)
             self.expect(')')
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
@@ -1177,10 +1215,11 @@ class Compiler:
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
 
-    def scalar_parameter(self):
-        if self.word == 'MAT':
-            self.error("MAT parameters are unsupported")
-        return self.identifier()
+    def parameter(self):
+        is_matrix = self.word == 'MAT'
+        if is_matrix:
+            self.advance()
+        return self.identifier(), is_matrix
 
     def parse(self, tokens):
         self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') for t in tokens)
@@ -1197,13 +1236,16 @@ class Compiler:
             if self.word == '(':
                 self.advance()
                 while self.word != ')':
-                    param = self.scalar_parameter()
+                    param, is_matrix = self.parameter()
                     if param.word in self.formals:
                         self.error("duplicate parameter", param)
                     i = len(self.formals)
-                    self.formals.append(param.word)
-                    self.names[param.word] = f"(*frame->arg{i})"
-                    self.assigned.add(param.word)
+                    self.formals[param.word] = is_matrix
+                    if is_matrix:
+                        self.matrices[param.word] = Matrix(f"arg{i}", None, False)
+                    else:
+                        self.names[param.word] = f"(*frame->arg{i})"
+                        self.assigned.add(param.word)
                     if self.word != ',':
                         break
                     self.advance()
@@ -1229,11 +1271,11 @@ class Compiler:
     def signature(self):
         if not self.routine:
             return "int main(void)"
-        return routine_signature(self.routine.word, len(self.formals), self.is_function)
+        return routine_signature(self.routine.word, self.formals.values(), self.is_function)
 
     def render(self, memory_files=()):
         u = self.unit
-        fields = [f"jbc_variable *arg{i};" for i in range(len(self.formals))]
+        fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
         if self.is_function:
             fields.append("const char *result;")
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
@@ -1288,9 +1330,13 @@ def routine_symbol(name):
     return "routine_" + name.encode("utf8").hex()
 
 
-def routine_signature(name, argc, is_function):
+def routine_parameters(kinds):
+    return [f"jbc_matrix arg{i}" if matrix else f"jbc_variable *arg{i}" for i, matrix in enumerate(kinds)]
+
+
+def routine_signature(name, kinds, is_function):
     params = ["const char **result"] if is_function else []
-    params.extend(f"jbc_variable *arg{i}" for i in range(argc))
+    params.extend(routine_parameters(kinds))
     return f"void {routine_symbol(name)}({', '.join(params) or 'void'})"
 
 
@@ -1325,12 +1371,14 @@ def compile_program(paths, directories, memory_files=()):
                 unit.error(f"incompatible COMMON layout for /{name}/", block.token)
             for i, shape in enumerate(block.shapes):
                 known[i] = tuple(x if x is not None else y for x, y in zip(known[i], shape))
-        for target, argc, is_function in unit.calls:
+        for target, kinds, is_function in unit.calls:
             if target.word not in routines or routines[target.word].is_function != is_function:
                 kind = "function" if is_function else "subroutine"
                 unit.error(f"unknown {kind} '{target.word}'", target)
-            if argc != len(routines[target.word].formals):
+            if len(kinds) != len(routines[target.word].formals):
                 unit.error(f"wrong argument count for '{target.word}'", target)
+            if kinds != tuple(routines[target.word].formals.values()):
+                unit.error(f"scalar/MAT argument mismatch for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
     features = runtime_features(units)
