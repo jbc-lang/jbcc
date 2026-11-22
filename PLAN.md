@@ -514,6 +514,15 @@ first diagnostic pointed at an ICONV call’s opening parenthesis, 85 now
 pass and 106 reach another diagnostic. Mask selection happens at runtime,
 so the corpus count includes calls using masks beyond D and D4.
 
-- [ ] Implement FIELDS, whose opening parenthesis is the first diagnostic
+- [x] Implement FIELDS, whose opening parenthesis is the first diagnostic
   in 68 units. Use the guide’s example to check extraction across field,
   value and subvalue marks, with and without an explicit extraction count.
+
+After FIELDS, 11,472 of 17,336 candidates pass strict C99 checking,
+including all 11,425 previous passes. Of the 68 units whose first
+diagnostic pointed at a FIELDS call’s opening parenthesis, 43 now pass
+and 25 reach another diagnostic.
+
+- [ ] Implement STR(text, repetitions), whose opening parenthesis is the
+  first diagnostic in 67 units. Verify whole-string repetition with the
+  guide’s 999-copy example, empty input, and zero repetitions.

@@ -367,6 +367,15 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+FIELDS applies FIELD to each element of a dynamic array. It preserves
+field, value and subvalue marks, including those around empty elements.
+For example, `FIELDS("a:b":@VM:"c:d", ":", 2)` returns `"b":@VM:"d"`.
+The optional fourth argument selects how many delimited fields to keep
+per element. In the guide’s example table, jbcc retains the trailing
+marks on the third attribute of `r1` and the leading colon before `W` in
+`r3`, following the element-wise FIELD rule. jbcc accepts multi-byte
+delimiters as in the guide’s `jbase_field` example. [FIELDS](https://jbc-lang.org/pages/fields.html).
+
 ## In-memory file tests
 
 The test backend starts with empty files explicitly named at translation

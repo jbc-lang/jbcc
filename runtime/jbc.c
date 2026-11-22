@@ -1332,29 +1332,70 @@ static int64_t field_index(const char *s, const char *file, int line, int column
     return n;
 }
 
+/* Each selected range fits inside its input, including separators between
+   selected fields. A missing occurrence selects an empty range. */
+static const char *field_range(const char *s, const char *separator, size_t width,
+                               int64_t first, int64_t count, size_t *bytes)
+{
+    while (first > 1) {
+        const char *next = width ? strstr(s, separator) : NULL;
+        if (!next) {
+            *bytes = 0;
+            return "";
+        }
+        s = next + width;
+        --first;
+    }
+    const char *end = s;
+    while (width && count--) {
+        const char *next = strstr(end, separator);
+        if (!next) break;
+        end = next;
+        if (!count) {
+            *bytes = (size_t)(end - s);
+            return s;
+        }
+        end += width;
+    }
+    *bytes = (size_t)(end - s) + strlen(end);
+    return s;
+}
+
 const char *jbc_field(const char *s, const char *separator, const char *start,
                       const char *count, const char *file, int line, int column)
 {
     int64_t first = field_index(start, file, line, column);
     int64_t length = field_index(count, file, line, column);
-    size_t width = strlen(separator);
-    if (!width) return first == 1 ? s : "";
-    while (--first) {
-        const char *next = strstr(s, separator);
-        if (!next) return "";
-        s = next + width;
-    }
-    const char *end = s;
-    while (length--) {
-        end = strstr(end, separator);
-        if (!end) return s;
-        if (length) end += width;
-    }
-    size_t bytes = (size_t)(end - s);
+    size_t bytes;
+    const char *selected = field_range(s, separator, strlen(separator), first, length, &bytes);
+    if (!bytes) return "";
+    if (selected == s && !s[bytes]) return s;
     char *field = allocate(bytes);
-    memcpy(field, s, bytes);
+    memcpy(field, selected, bytes);
     field[bytes] = '\0';
     return field;
+}
+
+const char *jbc_fields(const char *source, const char *separator, const char *start,
+                       const char *count, const char *file, int line, int column)
+{
+    int64_t first = field_index(start, file, line, column);
+    int64_t length = field_index(count, file, line, column);
+    size_t width = strlen(separator);
+    char *out = strcpy(allocate(strlen(source)), source);
+    char *write = out, *item = out;
+    for (;;) {
+        char *end = item + strcspn(item, "\376\375\374");
+        char mark = *end;
+        *end = '\0';
+        size_t bytes;
+        const char *selected = field_range(item, separator, width, first, length, &bytes);
+        memmove(write, selected, bytes);
+        write += bytes;
+        *write++ = mark;
+        if (!mark) return out;
+        item = end + 1;
+    }
 }
 
 /* Test files own their record bytes independently of expression temporaries.
