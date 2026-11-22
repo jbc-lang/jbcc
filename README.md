@@ -349,6 +349,12 @@ callee reads the status field, selects a CASE arm, and updates the output.
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
 
+`QUOTE(text)` and `DQUOTE(text)` enclose the value in double quotes.
+`SQUOTE(text)` uses single quotes. Each function adds one quote at each
+end, preserving embedded quotes and array marks. The native snippet checks
+the guide’s `QWERTY` examples and the two quote bytes returned for empty
+input. [QUOTE / DQUOTE / SQUOTE](https://jbc-lang.org/pages/quote___dquote___squote.html).
+
 `UPCASE(text)` converts ASCII letters to uppercase. `DOWNCASE(text)` and
 its alias `LOWCASE(text)` convert them to lowercase. In the current byte
 runtime, punctuation, digits, array marks and other non-ASCII bytes pass

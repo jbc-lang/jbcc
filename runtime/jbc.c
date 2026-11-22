@@ -1226,6 +1226,28 @@ const char *jbc_convert(const char *text, const char *from, const char *to)
     return out;
 }
 
+static const char *enclose(const char *text, char quote)
+{
+    size_t length = strlen(text);
+    if (length > SIZE_MAX - 2) fail("quoted value is too large");
+    char *out = allocate(length + 2);
+    out[0] = quote;
+    memcpy(out + 1, text, length);
+    out[length + 1] = quote;
+    out[length + 2] = '\0';
+    return out;
+}
+
+const char *jbc_quote(const char *text)
+{
+    return enclose(text, '"');
+}
+
+const char *jbc_squote(const char *text)
+{
+    return enclose(text, '\'');
+}
+
 static const char *shift_bytes(const char *text, int first, int last, int step)
 {
     size_t length = strlen(text);

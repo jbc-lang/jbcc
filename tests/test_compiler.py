@@ -52,6 +52,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
+                                  ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
+                                  ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),

@@ -560,6 +560,14 @@ After case conversion, 11,615 of 17,336 candidates pass strict C99 checking,
 including all 11,572 previous passes. Of the 69 units previously blocked
 at these functions, 40 now pass and 29 reach another diagnostic.
 
-- [ ] Implement QUOTE and DQUOTE for double quotes and SQUOTE for single
+- [x] Implement QUOTE and DQUOTE for double quotes and SQUOTE for single
   quotes. Verify empty strings, embedded quotes and array marks. Calls to
   these functions are the first diagnostic in 27, 48 and 14 units respectively.
+
+After the quote functions, 11,682 of 17,336 candidates pass strict C99
+checking, including all 11,615 previous passes. Of the 89 units previously
+blocked at these calls, 63 now pass and 26 reach another diagnostic.
+
+- [ ] Implement MOD(dividend, divisor), the first blocker in 84 units.
+  Check the guide’s loop example and its rule that a zero divisor returns
+  the dividend. Cover signed and fractional operands and nonnumeric input.
