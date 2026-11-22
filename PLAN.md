@@ -368,6 +368,15 @@ including all 10,267 previous passes. Of the 50 units previously reporting
 an unknown DATE or stopping at its opening parenthesis, 19 now pass and
 31 reach another diagnostic.
 
-- [ ] Implement TIME() and the common OCONV time masks `MT` and `MTS`.
+- [x] Implement TIME() and the common OCONV time masks `MT` and `MTS`.
   Check seconds since local midnight and the guide’s formatted examples,
   including midnight and the last second of the day.
+
+After TIME(), 10,384 of 17,336 candidates pass strict C99 checking,
+including all 10,325 previous passes. Of the 44 units previously reporting
+an unknown TIME or stopping at its opening parenthesis, 20 now pass and
+24 reach another diagnostic.
+
+- [ ] Implement TIMEDATE(), the first blocker in 120 units. Format a
+  single local clock reading as `hh:mm:ss dd mmm yyyy` and verify that
+  the date and time agree at midnight.

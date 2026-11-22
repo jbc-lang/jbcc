@@ -965,11 +965,23 @@ static int leap_year(int year)
 /* Zero-based Gregorian ordinal of the jBC epoch, 1967-12-31. */
 enum { JBC_DATE_EPOCH = 718430 };
 
-const char *jbc_date(const char *file, int line, int column)
+static const struct tm *local_clock(const char *file, int line, int column, const char *error)
 {
     time_t now = time(NULL);
     const struct tm *today = now == (time_t)-1 ? NULL : localtime(&now);
-    if (!today) numeric_error(file, line, column, "DATE cannot read local date");
+    if (!today) numeric_error(file, line, column, error);
+    return today;
+}
+
+const char *jbc_time(const char *file, int line, int column)
+{
+    const struct tm *now = local_clock(file, line, column, "TIME cannot read local time");
+    return size_value(now->tm_hour * 3600 + now->tm_min * 60 + now->tm_sec);
+}
+
+const char *jbc_date(const char *file, int line, int column)
+{
+    const struct tm *today = local_clock(file, line, column, "DATE cannot read local date");
     if (today->tm_year < 1 - 1900 || today->tm_year > 9999 - 1900)
         numeric_error(file, line, column, "DATE outside years 1 through 9999");
     int years = today->tm_year + 1899; /* Complete years before the current year. */
@@ -987,6 +999,23 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     static const char *const weekdays[] = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
         "FRIDAY", "SATURDAY", "SUNDAY"};
     static const int lengths[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+    if (strncmp(mask, "MT", 2) == 0) {
+        const char *suffix = mask + 2;
+        int with_seconds = *suffix == 'S';
+        if (with_seconds) ++suffix;
+        if (*suffix && strcmp(suffix, ":") != 0) goto unsupported;
+        struct decimal n;
+        if (!parse_decimal(value, &n) || n.places || n.sign < 0 || n.digits > 5)
+            numeric_error(file, line, column, "OCONV time requires whole seconds from 0 to 86399");
+        int seconds = (int)integer(value, file, line, column);
+        if (seconds > 86399)
+            numeric_error(file, line, column, "OCONV time requires whole seconds from 0 to 86399");
+        char *out = allocate(8);
+        snprintf(out, 9, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
+        if (!with_seconds) out[5] = '\0';
+        return out;
+    }
 
     if (*mask != 'D') goto unsupported;
     const char *p = mask + 1;

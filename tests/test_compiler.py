@@ -44,6 +44,7 @@ class CompilerTest(unittest.TestCase):
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('CRT DATE(1)\n', ':1:5:'),
+                                  ('CRT TIME(1)\n', ':1:5:'),
                                   ('FOR I = 1 TO 2\nNEXT J\n', ':2:6:'),
                                   ('LOOP WHILE 0\n', ':1:1:'),
                                   ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
@@ -228,9 +229,9 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
 
-    def test_date_in_local_timezone(self):
+    def test_date_and_time_in_local_timezone(self):
         source = self.work / 'date.b'
-        source.write_text("PRINT DATE()\nPRINT OCONV(DATE(),'D-')\n")
+        source.write_text("PRINT DATE()\nPRINT OCONV(DATE(),'D-')\nPRINT OCONV(TIME(),'MTS')\n")
         binary = self.work / 'date'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         epoch = date(1967, 12, 31)
@@ -238,18 +239,24 @@ class CompilerTest(unittest.TestCase):
         for zone, offset in [('UTC+10', -10), ('UTC-14', 14)]:
             with self.subTest(zone=zone):
                 tz = timezone(timedelta(hours=offset))
-                before = datetime.now(tz).date()
+                before = datetime.now(tz).replace(microsecond=0)
                 run = subprocess.run([binary], env=dict(os.environ, TZ=zone),
                                      capture_output=True, text=True, check=True)
-                after = datetime.now(tz).date()
-                count, formatted = run.stdout.splitlines()
-                self.assertIn(int(count), [(d - epoch).days for d in (before, after)])
+                after = datetime.now(tz).replace(microsecond=0)
+                count, formatted, clock = run.stdout.splitlines()
+                self.assertIn(int(count), [(d.date() - epoch).days for d in (before, after)])
                 self.assertIn(formatted, [d.strftime('%m-%d-%Y') for d in (before, after)])
+                local_time = datetime.strptime(clock, '%H:%M:%S').time()
+                self.assertTrue(any(before <= datetime.combine(d.date(), local_time, tz) <= after
+                                    for d in (before, after)))
                 self.assertEqual(run.stderr, '')
 
-    def test_oconv_date_diagnostics(self):
+    def test_oconv_diagnostics(self):
         source = self.work / 'date.b'
-        for args, message in [("0,'MT'", "unsupported OCONV mask 'MT'"),
+        for args, message in [("0,'MTH'", "unsupported OCONV mask 'MTH'"),
+                              ("86400,'MT'", "OCONV time requires whole seconds"),
+                              ("0.5,'MTS'", "OCONV time requires whole seconds"),
+                              ("-1,'MTS'", "OCONV time requires whole seconds"),
                               ("0,'D5/'", "unsupported OCONV mask 'D5/'"),
                               ("1.5,'D'", "OCONV date requires an integer day count"),
                               ("2933629,'D'", "OCONV date outside years 1 through 9999")]:

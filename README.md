@@ -68,7 +68,14 @@ DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
 
-OCONV currently formats internal dates. `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
+TIME() returns the local clock time in seconds past midnight. The OCONV
+mask `MT` prints hours and minutes on a 24-hour clock, and `MTS` adds
+seconds. For example, `OCONV(1,'MTS')` returns `00:00:01`. Both masks
+accept an explicit colon separator. The current runtime accepts whole
+seconds from 0 through 86399. [TIME](https://jbc-lang.org/pages/time.html),
+[OCONV](https://jbc-lang.org/pages/oconv.html).
+
+For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
 worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns
 `01/17/2013`. Append `E` for day-first order. The guide’s syntax table
