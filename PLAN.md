@@ -752,8 +752,17 @@ strict C99 checking, including all 13,746 previous passes. Of the 544
 units identified at the coordinate comma, 275 pass and 269 reach another
 diagnostic.
 
-- [ ] Implement the common terminal clearing codes `@(-1)`, `@(-3)` and
+- [x] Implement the common terminal clearing codes `@(-1)`, `@(-3)` and
   `@(-4)` using the guide’s SCREENCODE table. Among the 280 new strict C99
   passes, 166 source files contain at least one of these literal forms.
   Verify clear-and-home, erase to end of screen, and erase to end of line
   by comparing the native output bytes.
+
+All 14,026 of the 17,336 candidates that passed strict C99 checking before
+the screen-code runtime change still pass. Native tests check the bytes
+for a stored clear-and-home sequence and both partial clears.
+
+- [ ] Implement indirect `CALL @Name(args)`. In 376 units the first
+  diagnostic points at the `@` after CALL. Resolve the variable's value
+  against the subroutines supplied to the compiler and test by-reference
+  updates, missing targets, and incompatible argument lists.

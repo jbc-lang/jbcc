@@ -1145,7 +1145,9 @@ END
         source = self.work / 'cursor.b'
         for args, message in [("0, 'x'", 'expected a numeric value'),
                               ('-1, 0', 'negative cursor coordinate'),
-                              ('0, -1', 'negative cursor coordinate')]:
+                              ('0, -1', 'negative cursor coordinate'),
+                              ('-3.5', 'unsupported one-argument @ code'),
+                              ('-5', 'unsupported one-argument @ code')]:
             with self.subTest(args=args):
                 source.write_text(f'CRT @({args})\n')
                 run = self.run_native(source)

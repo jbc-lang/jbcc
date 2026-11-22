@@ -747,7 +747,11 @@ positions count from the end). The guide defines `@(column,row)` with a
 zero-based origin. jbcc returns an ANSI cursor-position string, so
 `@(5,2)` emits `ESC[3;6H` when printed. The runtime truncates fractional
 coordinates toward zero and reports a negative result at the call site.
-`@(-2)` returns the ANSI cursor-home string. `SYSTEM(14)` checks pending
+The guide’s SCREENCODE table defines `@(-1)` to clear the screen and home
+the cursor, `@(-2)` to home the cursor, `@(-3)` to clear from the cursor to
+the end of the screen, and `@(-4)` to clear to the end of the current line.
+Each returns an ANSI sequence that takes effect when printed.
+`SYSTEM(14)` checks pending
 input using the POSIX input device's line discipline. Native mode links the math library for programs
 that use trigonometry. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),

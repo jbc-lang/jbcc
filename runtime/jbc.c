@@ -2123,9 +2123,11 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
 const char *jbc_cursor(const char *col, const char *row, const char *file, int line, int column)
 {
     if (!row) {
-        if (jbc_compare(col, "-2", -1))
-            numeric_error(file, line, column, "only @(-2) is supported with one argument");
-        return "\033[H";
+        if (jbc_compare(col, "-1", -1) == 0) return "\033[2J\033[H";
+        if (jbc_compare(col, "-2", -1) == 0) return "\033[H";
+        if (jbc_compare(col, "-3", -1) == 0) return "\033[J";
+        if (jbc_compare(col, "-4", -1) == 0) return "\033[K";
+        numeric_error(file, line, column, "unsupported one-argument @ code");
     }
     int64_t x = truncated(col, file, line, column);
     int64_t y = truncated(row, file, line, column);
