@@ -477,19 +477,6 @@ void jbc_matrix_fill(jbc_variable *dest, size_t count, const char *value)
     for (size_t i = 0; i < count; ++i) assign_value(&dest[i], value);
 }
 
-void jbc_matrix_copy(jbc_variable *dest, const jbc_variable *src, size_t count,
-                     const char *name, const char *file, int line, int column)
-{
-    for (size_t i = 0; i < count; ++i) {
-        if (!src[i].value) {
-            fprintf(stderr, "%s:%d:%d: unassigned element in matrix '%s'\n",
-                    file, line, column, name);
-            exit(EXIT_FAILURE);
-        }
-    }
-    for (size_t i = 0; i < count; ++i) assign_value(&dest[i], src[i].value);
-}
-
 /* Convert a zero-based ordinal among the one-based elements to a storage
    offset. Each dimension also has a zero subscript in jbcc's storage. */
 static size_t matrix_element_offset(size_t ordinal, int rank, const int *bounds)
@@ -509,6 +496,35 @@ static size_t matrix_elements(int rank, const int *bounds)
     size_t total = 1;
     for (int d = 0; d < rank; ++d) total *= (size_t)bounds[d];
     return total;
+}
+
+void jbc_matrix_copy(jbc_matrix dest, jbc_matrix src, const char *name,
+                     const char *file, int line, int column)
+{
+    for (size_t i = 0; i < src.count; ++i) {
+        if (!src.values[i].value) {
+            fprintf(stderr, "%s:%d:%d: unassigned element in matrix '%s'\n",
+                    file, line, column, name);
+            exit(EXIT_FAILURE);
+        }
+    }
+    /* Identical shapes also have matching zero-subscript slots. Vector
+       copies are contiguous even when their extents differ. */
+    if (dest.rank == src.rank && (src.rank == 1 ||
+        !memcmp(dest.bounds, src.bounds, src.rank * sizeof *src.bounds))) {
+        size_t count = dest.count < src.count ? dest.count : src.count;
+        for (size_t i = 0; i < count; ++i) assign_value(&dest.values[i], src.values[i].value);
+        return;
+    }
+
+    assign_value(&dest.values[0], src.values[0].value);
+    size_t count = matrix_elements(src.rank, src.bounds);
+    size_t capacity = matrix_elements(dest.rank, dest.bounds);
+    for (size_t i = 0; i < count && i < capacity; ++i) {
+        size_t from = matrix_element_offset(i, src.rank, src.bounds);
+        size_t to = matrix_element_offset(i, dest.rank, dest.bounds);
+        assign_value(&dest.values[to], src.values[from].value);
+    }
 }
 
 static size_t matrix_position(const char *value, size_t fallback, size_t total,

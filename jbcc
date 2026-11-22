@@ -1596,12 +1596,7 @@ class Compiler:
             self.advance()
             source = self.matrix_name()
             src = self.checked_matrix(source)
-            if src.shape is not None and dest.shape is not None and not compatible_dimensions(src.shape, dest.shape):
-                self.error("MAT copy between different dimensions is unsupported", source)
-            if src.shape is None or dest.shape is None or None in src.shape or None in dest.shape:
-                self.emit(f"if ({dest.rank} != {src.rank} || memcmp({dest.limits}, {src.limits}, {src.rank} * sizeof(int))) "
-                          f'numeric_error({self.location(source)}, "incompatible MAT copy dimensions");')
-            self.emit(f"jbc_matrix_copy({dest.base}, {src.base}, {dest.count}, "
+            self.emit(f"jbc_matrix_copy({dest.argument()}, {src.argument()}, "
                       f"{c_string(source.word)}, {self.location(source)});")
         else:
             self.emit(f"jbc_matrix_fill({dest.base}, {dest.count}, {self.expression()});")

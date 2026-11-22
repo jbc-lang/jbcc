@@ -1030,6 +1030,16 @@ After LN, 15,193 of 17,336 candidates pass strict C99 checking.
 DX.PR.BLACK76 and EB.CALC.TERM now pass,
 and all 15,191 previous passes still pass.
 
-- [ ] Investigate MAT copies between differently dimensioned arrays, the
+- [x] Investigate MAT copies between differently dimensioned arrays, the
   first diagnostic in 110 units. Check unequal extents and rank changes
   against the reference before changing copy lengths or runtime checks.
+
+All 110 first failures at MAT copy involved vectors. In 61 the
+destination was shorter and in 49 it was longer. After supporting
+unequal shapes, 91 of those units pass strict C99 checking and 19
+reach another diagnostic. All previous passes still pass, for a total
+of 15,284 of 17,336 candidates.
+
+- [ ] Investigate HEADING, the first diagnostic in 103 units. Check
+  plain headings and HEADING ON print-unit forms against the reference.
+  Exercise header placement and page breaks through native output tests.

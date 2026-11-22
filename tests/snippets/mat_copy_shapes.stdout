@@ -1,0 +1,5 @@
+zero	a	b	c	d	tail
+zero	a	b
+zero	padding	a	b	c
+zero	keep	a	b	keep
+new	new	new	c	d	tail

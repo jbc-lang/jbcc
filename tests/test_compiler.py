@@ -1222,7 +1222,6 @@ PRINT X, Grid(1,2+N)
             ("N = 1.5\nCOMMON A(N)", ':2:10: expected a positive integer dimension'),
             ("N = 50000\nCOMMON A(N,N)", ':2:8: dimensioned array is too large'),
             ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", ':3:5: COMMON matrix declaration has not executed'),
-            ("N = 2\nCOMMON A(N,1), B(1,N)\nMAT B = 0\nMAT A = MAT B", ':4:13: incompatible MAT copy dimensions'),
             ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", ':2:8: incompatible COMMON matrix dimensions'),
         ]
         for program, location in cases:
@@ -1310,10 +1309,10 @@ END
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:3:13: unassigned element in matrix 'B'".encode(), run.stderr)
-        source.write_text('DIM A(2,1), B(1,2)\nMAT A = MAT B\n')
-        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        source.write_text('DIM A(1), B(2)\nB(0) = 0\nB(1) = 1\nMAT A = MAT B\n')
+        run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:2:13: MAT copy between different dimensions', run.stderr)
+        self.assertIn(f"{source}:4:13: unassigned element in matrix 'B'".encode(), run.stderr)
 
     def test_matrix_fill_evaluates_expression_once(self):
         source = self.work / 'main.b'

@@ -426,9 +426,20 @@ runtime diagnostics.
 `MAT A = expression` evaluates the expression once and fills every slot,
 including index zero. `MAT A = MAT B` copies the values of a fully
 assigned matrix. An unassigned source slot raises a runtime error at the
-copy statement. Both forms work with local and COMMON matrices. For now,
-jbcc supports copies between matrices with identical declared bounds.
-[MAT](https://jbc-lang.org/pages/mat.html).
+copy statement, including when that slot falls beyond the destination.
+The reference compiler checks that both operands are dimensioned and
+passes them to a runtime routine. T24 uses unequal vector bounds in
+both directions.
+
+For unequal shapes, jbcc provisionally copies the all-zero slot, then
+copies one-based elements in row-major order until either matrix ends.
+Extra destination elements retain their previous values and assignment
+state. In a multidimensional destination, slots with a mix of zero and
+positive subscripts also retain their values. Identical shapes copy every
+slot. These rules apply to local matrices, COMMON matrices and MAT
+parameters. The unequal-shape policy draws on the OpenQM manual pending
+a jBC reference run. [jBC MAT](https://jbc-lang.org/pages/mat.html),
+[OpenQM reference, MAT](https://krowemoh.com/static/qm.pdf).
 
 `MATBUILD record FROM matrix` joins the one-based elements with field
 marks. In `MATBUILD record FROM matrix, 3, 7 USING ':'`, positions 3
