@@ -226,6 +226,16 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
 
+    def test_trim_diagnostics(self):
+        source = self.work / 'trim.b'
+        for args, message in [("' ', 'X'", 'unknown TRIM mode'),
+                              ("'xx', 'A'", 'TRIM requires a single trim byte')]:
+            with self.subTest(args=args):
+                source.write_text(f"PRINT TRIM('abc', {args})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+
     def test_abs_diagnostics(self):
         source = self.work / 'abs.b'
         source.write_text("PRINT ABS('text')\n")

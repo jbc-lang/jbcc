@@ -340,6 +340,15 @@ After SUM, 10,194 of 17,336 candidates pass strict C99 checking, including
 all 10,062 previous passes. Of the 168 units previously stopped at the
 opening parenthesis of SUM, 95 now pass and 73 reach another diagnostic.
 
-- [ ] Implement TRIM, the first blocker in 114 units. Check the default
+- [x] Implement TRIM, the first blocker in 114 units. Check the default
   behavior and the guide’s eight trim modes with spaces, tabs and a
   caller-supplied trim character.
+
+After TRIM, 10,256 of 17,336 candidates pass strict C99 checking, including
+all 10,194 previous passes. Of the 114 units previously stopped at the
+opening parenthesis of TRIM, 43 now pass and 71 reach another diagnostic.
+
+- [ ] Start OCONV, the first blocker in 258 units. Begin with date masks
+  observed in T24, including `D-`. Verify the internal date epoch, leap
+  years and output layout against the guide, and diagnose unsupported
+  conversions at the call site.

@@ -956,6 +956,38 @@ const char *jbc_matches(const char *text, const char *pattern)
     return matched ? "1" : "0";
 }
 
+const char *jbc_trim(const char *text, const char *character, const char *mode,
+                     const char *file, int line, int column)
+{
+    if (!*mode || mode[1] || !strchr("LTBARFED", *mode))
+        numeric_error(file, line, column, "unknown TRIM mode");
+    const char *set = *character ? character : " ";
+    if (strchr("FED", *mode)) set = " \t";
+    else if (set[1]) numeric_error(file, line, column, "TRIM requires a single trim byte");
+
+    char *out = allocate(strlen(text));
+    char *write = out;
+    while (*text) {
+        size_t run = strspn(text, set);
+        if (!run) {
+            run = strcspn(text, set);
+            memcpy(write, text, run);
+            write += run;
+        } else {
+            int leading = write == out && strchr("LBFRD", *mode);
+            int trailing = !text[run] && strchr("TBERD", *mode);
+            if (!leading && !trailing && *mode != 'A') {
+                size_t keep = (*mode == 'R' || *mode == 'D') ? 1 : run;
+                memcpy(write, text, keep);
+                write += keep;
+            }
+        }
+        text += run;
+    }
+    *write = '\0';
+    return out;
+}
+
 const char *jbc_convert(const char *text, const char *from, const char *to)
 {
     if (!*from || !*text) return text;

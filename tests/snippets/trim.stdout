@@ -1,0 +1,9 @@
+[A   string  ]	[   A   string]
+[A   string]	[A string]
+33	A string	A.B
+AB	0	0
+[A~  B ~]
+[~  A~  B]
+[A~B]
+[~ A~ B ~]
+AB

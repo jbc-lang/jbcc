@@ -64,6 +64,17 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
+TRIM accepts one to three arguments. In jbcc, `TRIM(text)` removes
+leading and trailing spaces and collapses internal runs to one space.
+A second argument selects the trim byte. An empty second argument selects
+space, as seen in T24. Explicit modes are `L` (leading), `T` (trailing),
+`B` (both ends), `A` (all), and `R` (both ends and repeated bytes).
+`F`, `E`, and `D` apply leading, trailing, and run trimming respectively
+to spaces and tabs. The omitted mode defaults to `R`, and `D` keeps the
+first byte of a mixed internal run. Both choices are provisional pending
+a reference run. [TRIM](https://jbc-lang.org/pages/trim.html),
+[jBASE TRIM manual](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_TRIM.htm).
+
 SUM adds numeric elements at the deepest mark present in the array
 (field, value, or subvalue) and preserves each higher-level mark.
 For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.
