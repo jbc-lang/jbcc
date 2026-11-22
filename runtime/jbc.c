@@ -288,6 +288,24 @@ static int held_in_storage(const char *value)
     return 0;
 }
 
+void jbc_matrix_fill(const char **dest, size_t count, const char *value)
+{
+    for (size_t i = 0; i < count; ++i) dest[i] = value;
+}
+
+void jbc_matrix_copy(const char **dest, const char *const *src, size_t count,
+                     const char *name, const char *file, int line, int column)
+{
+    for (size_t i = 0; i < count; ++i) {
+        if (!src[i]) {
+            fprintf(stderr, "%s:%d:%d: unassigned element in matrix '%s'\n",
+                    file, line, column, name);
+            exit(EXIT_FAILURE);
+        }
+    }
+    memmove(dest, src, count * sizeof *dest);
+}
+
 size_t jbc_index(int rank, const int *bounds, const char **indices,
                  const char *file, int line, int column)
 {

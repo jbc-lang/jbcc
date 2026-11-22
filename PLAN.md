@@ -110,6 +110,14 @@ After logical operator support, 3,596 of 17,336 candidate units passed C99
 checking, including all 3,427 previous passes. The scan reported 13,512
 compiler diagnostics and 228 encoding errors.
 
-- [ ] Implement whole-matrix assignment. MAT is the first blocker in 1,551
+- [x] Implement whole-matrix assignment. MAT is the first blocker in 1,551
   units. Of those, 1,488 use scalar fill and 63 use matrix copy. Verify both
   forms against the guide and test local and COMMON matrices before rescanning.
+
+After MAT fill and copy, 4,309 of 17,336 candidate units passed C99 checking,
+including all 3,596 previous passes. The scan reported 12,799 compiler
+diagnostics and 228 encoding errors.
+
+- [ ] Implement LOCATE, the first unsupported statement in 1,329 units.
+  Check the corpus syntax against the guide. Test the returned position and
+  THEN/ELSE branches for successful and unsuccessful searches.

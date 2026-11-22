@@ -207,8 +207,8 @@ PRINT '[' : EMPTY() : ']'
         data = json.loads(report.stdout)
         self.assertEqual(data['counts'], {'translated': 1, 'rejected': 1, 'include fragment': 1})
         self.assertEqual(data['files']['ok']['status'], 'translated')
-        self.assertEqual(data['first_blockers'], {"unsupported statement 'MAT'": 1})
-        self.assertIn('bad:1:1:', data['files']['bad']['diagnostic'])
+        self.assertEqual(data['first_blockers'], {"expected a dimensioned array 'A'": 1})
+        self.assertIn('bad:1:5:', data['files']['bad']['diagnostic'])
 
     def test_quine(self):
         source = ROOT / 'tests/programs/quine.b'
@@ -278,6 +278,27 @@ RETURN
         self.assertNotEqual(run.returncode, 0)
         self.assertIn('status 42', run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
+
+    def test_matrix_assignment_diagnostics(self):
+        source = self.work / 'main.b'
+        source.write_text('DIM A(2), B(2)\nB(0) = 0\nMAT A = MAT B\n')
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:3:13: unassigned element in matrix 'B'".encode(), run.stderr)
+        source.write_text('DIM A(2,1), B(1,2)\nMAT A = MAT B\n')
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:2:13: MAT copy between different dimensions', run.stderr)
+
+    def test_matrix_fill_evaluates_expression_once(self):
+        source = self.work / 'main.b'
+        function = self.work / 'BUMP'
+        source.write_text('DIM A(2)\nDEFFUN BUMP()\nN = 0\nMAT A = BUMP(N)\n'
+                          'PRINT N, A(0), A(1), A(2)\n')
+        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        run = self.run_native(source, function)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'1\t1\t1\t1\n')
 
     def test_matrix_element_argument_and_bounds(self):
         main = self.work / 'main.b'

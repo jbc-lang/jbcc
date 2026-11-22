@@ -703,6 +703,29 @@ class Compiler:
             while self.word == '\n':
                 self.advance()
 
+    def matrix_name(self):
+        token = self.identifier()
+        if token.word not in self.matrices:
+            self.error(f"expected a dimensioned array '{token.word}'", token)
+        return token
+
+    def matrix_assignment(self):
+        self.advance()
+        target = self.matrix_name()
+        dest, bounds = self.matrices[target.word]
+        count = math.prod(n + 1 for n in bounds)
+        self.expect('=')
+        if self.word == 'MAT':
+            self.advance()
+            source = self.matrix_name()
+            src, source_bounds = self.matrices[source.word]
+            if source_bounds != bounds:
+                self.error("MAT copy between different dimensions is unsupported", source)
+            self.emit(f"jbc_matrix_copy({dest}, {src}, {count}, "
+                      f"{c_string(source.word)}, {self.location(source)});")
+        else:
+            self.emit(f"jbc_matrix_fill({dest}, {count}, {self.expression()});")
+
     def matrix_slot(self, token):
         base, bounds = self.matrices[token.word]
         self.expect('(')
@@ -734,6 +757,8 @@ class Compiler:
             self.emit(f"label_{self.label_number(token.word)}: ;")
             if self.word not in (';', '\n'):
                 self.statement()
+        elif self.word == 'MAT':
+            self.matrix_assignment()
         elif self.word == 'PRECISION':
             token = self.current
             self.advance()

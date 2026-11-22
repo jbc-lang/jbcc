@@ -104,6 +104,13 @@ Local matrices belong to one invocation. Passing an element to CALL passes
 that slot by reference. Unassigned reads and out-of-range subscripts produce
 runtime diagnostics.
 
+`MAT A = expression` evaluates the expression once and fills every slot,
+including index zero. `MAT A = MAT B` copies the values of a fully
+assigned matrix. An unassigned source slot raises a runtime error at the
+copy statement. Both forms work with local and COMMON matrices. For now,
+jbcc supports copies between matrices with identical declared bounds.
+[MAT](https://jbc-lang.org/pages/mat.html).
+
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
 program. The compiler checks the number and dimensions of slots across
