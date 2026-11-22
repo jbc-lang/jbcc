@@ -219,6 +219,15 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
 
+    def test_fmt_diagnostics(self):
+        source = self.work / 'fmt.b'
+        for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,']:
+            with self.subTest(mask=mask):
+                source.write_text(f'M = "{mask}"\nPRINT FMT(42,M)\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:2:7: unsupported FMT mask '{mask}'".encode(), run.stderr)
+
     def test_index_diagnostics(self):
         source = self.work / 'index.b'
         source.write_text("PRINT INDEX('abc', 'b')\n")

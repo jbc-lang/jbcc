@@ -315,7 +315,15 @@ After EXIT, 9,804 of 17,336 candidates pass strict C99 checking, including
 all 9,693 previous passes. Of the 189 units stopped at a bare EXIT, 111
 pass and 78 reach another diagnostic.
 
-- [ ] Start FMT with the mask forms observed in T24. In 277 units the
+- [x] Start FMT with the mask forms observed in T24. In 277 units the
   first diagnostic points to the opening parenthesis of FMT. Cross-check
   width, justification, padding and decimal precision against the guide,
   and report unsupported masks at the call site.
+
+After adding the common FMT masks, 9,926 of 17,336 candidates pass strict
+C99 checking, including all 9,804 previous passes. Of the 277 units
+previously stopped at FMT, 105 now pass and 172 reach another diagnostic.
+Other mask forms still need runtime support.
+
+- [ ] Implement ABS, the first blocker in 172 units. Cover negative decimal
+  values, zero, and numeric strings in native execution tests.

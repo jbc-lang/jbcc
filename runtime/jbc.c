@@ -698,15 +698,15 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
     return found;
 }
 
-static int pattern_digit(unsigned char c)
+static int ascii_digit(unsigned char c)
 {
     return c >= '0' && c <= '9';
 }
 
-static size_t pattern_count(const char **cursor, const char *end)
+static size_t read_decimal_count(const char **cursor, const char *end)
 {
     size_t count = 0;
-    while (*cursor < end && pattern_digit(**cursor)) {
+    while (*cursor < end && ascii_digit(**cursor)) {
         unsigned digit = (unsigned)(**cursor - '0');
         ++*cursor;
         count = count > (SIZE_MAX - digit) / 10 ? SIZE_MAX : 10 * count + digit;
@@ -714,13 +714,113 @@ static size_t pattern_count(const char **cursor, const char *end)
     return count;
 }
 
+/* Keep a spare leading digit for a carry when rounding, e.g. 9.995 -> 10.00. */
+static const char *fmt_decimal(struct decimal n, size_t places)
+{
+    size_t whole = n.digits ? n.digits : 1;
+    if (places > SIZE_MAX - 4 || whole > SIZE_MAX - places - 4) fail("FMT result too large");
+    char *out = allocate(whole + places + 4);
+    char *first = out + 2;
+    first[-1] = '0';
+    if (n.digits) memcpy(first, n.whole, whole);
+    else first[0] = '0';
+    char *end = first + whole;
+    if (places) {
+        *end++ = '.';
+        size_t copied = n.places < places ? n.places : places;
+        memcpy(end, n.fraction, copied);
+        memset(end + copied, '0', places - copied);
+        end += places;
+    }
+    *end = '\0';
+    if (n.places > places && n.fraction[places] >= '5') {
+        char *digit = end;
+        do {
+            --digit;
+            if (*digit == '.') continue;
+            if (*digit != '9') { ++*digit; break; }
+            *digit = '0';
+        } while (digit >= first);
+        if (digit < first) first = digit;
+    }
+    if (n.sign < 0 && first[strspn(first, "0.")] != '\0') *--first = '-';
+    /* The runtime's collector tracks buffers by their starting address. */
+    memmove(out, first, (size_t)(end - first) + 1);
+    return out;
+}
+
+const char *jbc_negate(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (strchr(value, '.') && parse_decimal(value, &n) &&
+        (jbc_precision >= 0 || n.places <= 15)) {
+        limit_places(&n, jbc_precision);
+        n.sign = -n.sign;
+        return fmt_decimal(n, n.places);
+    }
+    return jbc_arithmetic('-', "0", value, file, line, column);
+}
+
+const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
+{
+    const char *p = mask;
+    int wrap = ascii_digit(*p);
+    char fill = ' ';
+    size_t width = 0;
+    if (wrap) {
+        width = read_decimal_count(&p, mask + strlen(mask));
+        if ((*p == '\'' || *p == '"') && p[1] && p[2] == *p) {
+            fill = p[1];
+            p += 3;
+        }
+    }
+    if (*p != 'L' && *p != 'R') goto unsupported;
+    char align = *p++;
+    int precision = -1;
+    if (ascii_digit(*p)) precision = *p++ - '0';
+    if (!wrap && (*p == '%' || *p == '#' || *p == '*')) {
+        fill = *p == '%' ? '0' : (*p == '#' ? ' ' : '*');
+        ++p;
+        if (!ascii_digit(*p)) goto unsupported;
+        width = read_decimal_count(&p, mask + strlen(mask));
+        if (!width) goto unsupported;
+    }
+    if (*p || (wrap && !width)) goto unsupported;
+    if (width == SIZE_MAX) numeric_error(file, line, column, "FMT width too large");
+    struct decimal n;
+    if (precision >= 0 && parse_decimal(text, &n)) text = fmt_decimal(n, (size_t)precision);
+    if (!*text || !width) return text;
+    size_t length = strlen(text);
+    size_t blocks = wrap ? 1 + (length - 1) / width : 1;
+    if (width > (SIZE_MAX - (blocks - 1)) / blocks)
+        numeric_error(file, line, column, "FMT result too large");
+    char *out = allocate(blocks * width + (blocks - 1));
+    char *write = out;
+    if (!wrap && length > width && align == 'R') text += length - width;
+    for (size_t i = 0; i < blocks; ++i) {
+        size_t used = length < width ? length : width;
+        memset(write, fill, width);
+        memcpy(write + (align == 'R' ? width - used : 0), text, used);
+        write += width;
+        text += used;
+        length -= used;
+        if (i + 1 < blocks) *write++ = (char)251;
+    }
+    *write = '\0';
+    return out;
+
+unsupported:
+    fprintf(stderr, "%s:%d:%d: unsupported FMT mask '%s'\n", file, line, column, mask);
+    exit(EXIT_FAILURE);
+}
+
 static int pattern_byte(unsigned char c, char kind)
 {
     int alpha = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
     switch (kind) {
     case 'A': return alpha;
-    case 'N': return pattern_digit(c);
-    case 'C': return alpha || pattern_digit(c);
+    case 'N': return ascii_digit(c);
+    case 'C': return alpha || ascii_digit(c);
     default:  return 1; /* X */
     }
 }
@@ -745,12 +845,12 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
             if (!close) return 0;
             p = close + 1;
             literal_length = (size_t)(close - literal);
-        } else if (pattern_digit(*p)) {
-            low = pattern_count(&p, end);
+        } else if (ascii_digit(*p)) {
+            low = read_decimal_count(&p, end);
             high = low ? low : SIZE_MAX;
-            if (end - p >= 2 && *p == '-' && pattern_digit(p[1])) {
+            if (end - p >= 2 && *p == '-' && ascii_digit(p[1])) {
                 const char *after = p + 1;
-                size_t upper = pattern_count(&after, end);
+                size_t upper = read_decimal_count(&after, end);
                 if (after < end && strchr("ANCX", *after)) {
                     p = after;
                     high = upper;
@@ -759,7 +859,7 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
             if (p < end && strchr("ANCX", *p)) kind = *p++;
             else literal_length = (size_t)(p - literal);
         } else {
-            do { ++p; } while (p < end && !pattern_digit(*p) && *p != '\'' && *p != '"');
+            do { ++p; } while (p < end && !ascii_digit(*p) && *p != '\'' && *p != '"');
             literal_length = (size_t)(p - literal);
         }
 

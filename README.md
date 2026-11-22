@@ -102,6 +102,18 @@ in `PL5N` is literal, including periods in the default jBASE mode.
 Concatenation binds more tightly than MATCH, so a program can build a
 pattern expression directly on its right. [MATCHES](https://jbc-lang.org/pages/matches.html).
 
+The initial `FMT(value, mask)` implementation supports byte-width masks
+such as `35L` and `3'0'R`, including a single fill byte in single or
+double quotes. Overlong input wraps into padded blocks separated by
+CHAR(251). With alignment first, `L` or `R` can be followed by a single
+decimal precision digit and a field such as `#10` (spaces), `%10` (zeros)
+or `*10` (asterisks). For example, `FMT(1234.56,'R2%10')` returns
+`0001234.56`. Precision follows the guide’s worked examples, with no
+implicit scaling. Ties round away from zero. Fixed fields retain the
+aligned end on overflow. These edge rules are provisional pending a
+reference run. Unsupported masks produce a source-located runtime
+diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
+
 PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
