@@ -492,7 +492,18 @@ including all 11,087 previous passes. Of the 135 units previously blocked
 by the constant-bound requirement, 24 now pass and 111 reach another
 diagnostic.
 
-- [ ] Implement NUM(expression). In 368 units the first diagnostic points
+- [x] Implement NUM(expression). In 368 units the first diagnostic points
   at the opening parenthesis of a NUM call. Test the guide’s prime-emulation
   examples, including empty strings, lone signs, a lone decimal point,
   and rejected exponent notation.
+
+After NUM, 11,325 of 17,336 candidates pass strict C99 checking,
+including all 11,111 previous passes. Of the 368 units whose first
+diagnostic pointed to a NUM call’s opening parenthesis, 176 now pass
+and 192 reach another diagnostic. Another 38 units with different first
+diagnostics also pass.
+
+- [ ] Start ICONV with the guide’s compact calendar dates and the D and D4
+  masks. Check the internal day count and leap-year example with native
+  tests. In 191 units the first diagnostic points at an ICONV call’s opening
+  parenthesis. These calls use several conversion masks.

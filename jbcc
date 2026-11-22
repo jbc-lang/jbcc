@@ -25,7 +25,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7})
 
 
-BUILTINS = {"CHANGE": (3, 4, 5), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "OCONV": (2,), "TRIM": (1, 2, 3), "ABS": (1,), "SUM": (1,), "SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"NUM": (1,), "CHANGE": (3, 4, 5), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "OCONV": (2,), "TRIM": (1, 2, 3), "ABS": (1,), "SUM": (1,), "SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 SYSTEM_CONSTANTS = {

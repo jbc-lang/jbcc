@@ -85,6 +85,13 @@ static int parse_decimal(const char *text, struct decimal *n)
     return 1;
 }
 
+const char *jbc_num(const char *value)
+{
+    if (!*value || (!value[1] && strchr(".+-", *value))) return "1";
+    struct decimal n;
+    return parse_decimal(value, &n) ? "1" : "0";
+}
+
 /* -1 preserves jbcc's default formatting until a PRECISION statement runs. */
 static int jbc_precision = -1;
 

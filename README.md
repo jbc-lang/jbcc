@@ -68,6 +68,12 @@ boundaries reclaim temporary values that are no longer in use. Integer addition,
 overflow. Division and fractional arithmetic use native long double,
 rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
 
+NUM tests whether an expression has numeric text and returns 1 or 0.
+It follows the guide’s prime-emulation examples. Signed decimals and leading
+zeros are accepted, as are the empty string and the single characters
+`.`, `+`, and `-`. Spaces, thousands separators, and exponent notation
+return 0. [NUM](https://jbc-lang.org/pages/num.html).
+
 ABS returns the magnitude of a numeric expression. For example,
 `ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
 preserving their significant digits, and truncates the result when an

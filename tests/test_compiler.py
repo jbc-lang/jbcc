@@ -46,6 +46,8 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),
+                                  ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
