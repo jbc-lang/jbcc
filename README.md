@@ -18,7 +18,7 @@ The second concatenates 3 and prints `23`. Each output ends in a newline.
 
 ## Implemented subset
 
-Use scalar assignment, CRT with one expression, unsigned decimal integer
+Use scalar assignment, PRINT and CRT, unsigned decimal integer
 literals, quoted strings (single, double or backslash delimiters),
 parentheses, addition and concatenation. Addition binds more tightly than
 concatenation. Names are case-sensitive. Variables must be assigned on every path reaching a use. Separate statements with a newline or semicolon. A statement beginning
@@ -37,6 +37,9 @@ other pairs compare in byte order. Numeric zero and the empty string are
 false. This subset uses exact decimal comparison without PRECISION rounding.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
 and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
+
+PRINT and CRT write to standard output. Commas separate items with tabs.
+A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
 ## Test corpus
 

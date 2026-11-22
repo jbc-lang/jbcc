@@ -10,7 +10,7 @@ an argument.
   `GT`, and `GE`. Add snippets for zero, empty strings, and numeric strings.
 - [x] **IF / THEN / ELSE / END.** Support single-line, multiline, and nested
   forms. Test that only the selected branch executes.
-- [ ] **PRINT and fuller CRT.** Support comma-separated expressions, blank
+- [x] **PRINT and fuller CRT.** Support comma-separated expressions, blank
   lines, and a trailing colon to suppress the newline. Compare stdout byte
   for byte.
 - [ ] **Arithmetic and assignment.** Implement subtraction, unary minus,

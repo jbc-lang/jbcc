@@ -76,11 +76,6 @@ const char *jbc_add(const char *left, const char *right, const char *file, int l
     return out;
 }
 
-void jbc_print(const char *value)
-{
-    puts(value);
-}
-
 /* Compare decimal text directly so significant digits survive on every target. */
 struct decimal {
     const char *whole, *fraction;
