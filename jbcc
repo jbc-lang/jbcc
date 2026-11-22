@@ -606,17 +606,20 @@ class Compiler:
         self.expect('IN')
         source = self.expression(locate_source=True)
         indices = []
+        start = None
         if self.current.kind == 'array_open':
-            selector = self.current
             indices = self.index_expressions()
-            if len(indices) > 2:
-                self.error("LOCATE expects a field and optional value selector", selector)
+            if len(indices) == 3:
+                start = indices.pop()
             args = ', '.join(indices)
             source = self.temporary(f"jbc_array({source}, (const char *[]){{{args}}}, {len(indices)}, NULL)")
-        start = '"1"'
         if self.word == ',':
+            if start is not None:
+                self.error("LOCATE with both a subvalue start and a separate start is unsupported")
             self.advance()
             start = self.expression()
+        if start is None:
+            start = '"1"'
         order = '""'
         if self.word == 'BY':
             self.advance()

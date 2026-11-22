@@ -295,6 +295,13 @@ Use `record<field>` to search values in a field and `record<field,value>`
 to search subvalues. An optional comma and starting position restrict the
 search. Positions are one-based within the selected dimension.
 
+T24 also uses `record<field,value,start>`. jbcc treats its third expression
+as the first subvalue to search. For example, with subvalues `A,B,A`,
+starting at 2 finds `A` at position 3. The reference parser accepts a third
+selector and passes it to the runtime separately from the comma-start
+argument. Its runtime behavior is provisional pending a reference run.
+Supplying both starts produces a compiler diagnostic.
+
 A match sets `pos` and takes the THEN branch. An unordered miss sets it
 one past the end. With `BY`, a miss returns the insertion position for
 an already sorted array. jbcc supports AL/DL (byte order), AR/DR

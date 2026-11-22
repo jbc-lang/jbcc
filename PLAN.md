@@ -298,7 +298,15 @@ checking, including all 9,410 previous passes. Of the 247 units stopped
 at a MAT formal parameter, 60 now pass and 187 reach another diagnostic.
 Accepting MAT at call sites also lets 101 other units pass.
 
-- [ ] Investigate the three-position LOCATE selector, the first blocker
+- [x] Investigate the three-position LOCATE selector, the first blocker
   in 227 units. Check how the reference handles the starting subvalue in
   `LOCATE X IN R<F,V,S>` and verify the SETTING position for matches and
   misses, including starting positions greater than one.
+
+After three-position LOCATE, 9,693 of 17,336 candidates pass strict C99
+checking, including all 9,571 previous passes. Of the 227 units previously
+stopped at the selector, 122 pass and 105 reach another diagnostic.
+
+- [ ] Implement EXIT, the first blocker in 189 units. Distinguish a bare
+  EXIT inside a loop from EXIT(expression), which returns a process status.
+  Test nested loops, CASE inside a loop, and the native executable's status.

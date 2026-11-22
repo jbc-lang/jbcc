@@ -182,6 +182,17 @@ class CompilerTest(unittest.TestCase):
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
 
+    def test_locate_subvalue_start_diagnostics(self):
+        main = self.work / 'main.b'
+        main.write_text("R = 'x'\nLOCATE 'x' IN R<1,1,0> SETTING P ELSE NULL\n")
+        run = self.run_native(main)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{main}:2:1: LOCATE positions start at one'.encode(), run.stderr)
+        main.write_text("R = 'x'\nLOCATE 'x' IN R<1,1,1>,2 SETTING P ELSE NULL\n")
+        result = subprocess.run([CLI, main, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
+
     def test_index_diagnostics(self):
         source = self.work / 'index.b'
         source.write_text("PRINT INDEX('abc', 'b')\n")

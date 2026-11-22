@@ -22,3 +22,13 @@ LOCATE '2' IN ('9' : @AM : '2' : @AM : '-1') BY Order SETTING P THEN PRINT P
 LOCATE P IN ('a' : @AM : '2') SETTING P THEN
   PRINT 'alias ':P
 END
+M(1)<2,2> = 'cat' : @SM : 'dog' : @SM : 'cat'
+M(1)<2,3> = 'other'
+LOCATE 'dog' IN M(1)<2,2,1> SETTING P THEN PRINT 'from first ':P
+P = 1
+LOCATE 'cat' IN M(1)<2,2,P+1> SETTING P THEN PRINT 'from second ':P
+LOCATE 'dog' IN M(1)<2,2,P> SETTING P ELSE PRINT 'earlier only ':P
+LOCATE 'other' IN M(1)<2,2,1> SETTING P ELSE PRINT 'next value excluded ':P
+M(1)<2,2> = '1' : @SM : '5' : @SM : '10'
+LOCATE '8' IN M(1)<2,2,2> BY 'AN' SETTING Pos(1) ELSE PRINT 'insert ':Pos(1)
+LOCATE '10' IN M(1)<2,2,99> SETTING P ELSE PRINT 'past end ':P
