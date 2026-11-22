@@ -57,19 +57,28 @@ compiler diagnostics, and 228 encountered UTF-8 decoding errors. The other
 5,138 files were classified as include fragments by name.
 
 The first unsupported statement was COM in 16,482 units and COMMON in 18.
-Implementing shared COMMON storage and its declarations is the next
-coverage milestone. Rerun the scan afterward to identify the next blocker.
+Shared COMMON storage and dimensioned declarations are now implemented.
 
 ## Whole-program fixture milestones
 
 - [x] Compile and run the quine with byte-oriented CHAR and verify that its
   output reproduces its complete source byte for byte.
-- [ ] Implement DIM storage and indexed reads/writes alongside COMMON.
+- [x] Implement DIM storage and indexed reads/writes alongside COMMON.
   Start with local arrays, including the demo's zero index, then reuse
   the same representation for dimensioned members of shared COMMON blocks.
-- [ ] Bring up the demo's frame calculation with SPACE, INT, SIN, COS, AND,
+- [x] Bring up the demo's frame calculation with SPACE, INT, SIN, COS, AND,
   and substring reads and writes on indexed strings. Verify trigonometric
   conventions against the guide.
-- [ ] Run the unchanged demo with GOTO, cursor control and SYSTEM(14).
+- [x] Run the unchanged demo with GOTO, cursor control and SYSTEM(14).
   Use deterministic terminal input so the native test can check frame output
   and exit.
+
+## Next coverage milestone
+
+After the COMMON and demo changes, 66 of 17,336 candidate units passed
+C99 syntax checking, 17,042 produced compiler diagnostics and 228 encountered
+encoding errors. The same 5,138 include fragments were classified separately.
+
+- [ ] Implement DEFFUN declarations and function calls. DEFFUN was the first
+  blocker in 16,478 units. Check the calling convention and test a
+  declared function from a separately supplied source before rerunning the corpus.
