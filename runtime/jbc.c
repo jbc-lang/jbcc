@@ -229,6 +229,47 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     return format_decimal(result);
 }
 
+const char *jbc_sum(const char *source, const char *file, int line, int column)
+{
+    /* The lowest mark present sets the reduction level for the entire array. */
+    unsigned level = 254;
+    for (const unsigned char *p = (const unsigned char *)source; *p; ++p)
+        if (*p >= 252 && *p < level) level = *p;
+
+    size_t capacity = strlen(source);
+    char *item = strcpy(allocate(capacity), source);
+    char *out = NULL;
+    size_t used = 0;
+    const char *total = "0";
+    for (char *p = item; ; ++p) {
+        unsigned char mark = (unsigned char)*p;
+        if (mark && (mark < 252 || mark > 254)) continue;
+        *p = '\0';
+        struct decimal n;
+        if (parse_decimal(item, &n))
+            total = jbc_arithmetic('+', total, item, file, line, column);
+        if (mark != level) {
+            if (!mark && !out) return total;
+            size_t bytes = strlen(total);
+            if (bytes >= SIZE_MAX - used) fail("SUM result is too large");
+            size_t required = used + bytes + 1;
+            if (!out || required > capacity) {
+                if (capacity < required)
+                    capacity = required <= SIZE_MAX / 2 ? required * 2 : required;
+                char *larger = allocate(capacity);
+                if (used) memcpy(larger, out, used);
+                out = larger;
+            }
+            memcpy(out + used, total, bytes);
+            used += bytes;
+            out[used++] = (char)mark;
+            if (!mark) return out;
+            total = "0";
+        }
+        item = p + 1;
+    }
+}
+
 int jbc_for_test(const char *value, const char *limit, const char *step,
                  const char *file, int line, int column)
 {

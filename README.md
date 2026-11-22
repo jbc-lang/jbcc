@@ -64,6 +64,13 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
+SUM adds numeric elements at the deepest mark present in the array
+(field, value, or subvalue) and preserves each higher-level mark.
+For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.
+The guide specifies that nonnumeric elements are ignored. For a group
+with no numeric elements, jbcc returns zero provisionally. Each addition
+uses the runtime's arithmetic and PRECISION rules. [SUM](https://jbc-lang.org/pages/sum.html).
+
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END and start its alternative with END ELSE.
 The system constants `@TRUE` and `@FALSE` evaluate to 1 and 0.

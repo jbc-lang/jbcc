@@ -332,6 +332,14 @@ After ABS, 10,062 of 17,336 candidates pass strict C99 checking, including
 all 9,926 previous passes. Of the 172 units previously stopped at the
 opening parenthesis of ABS, 104 now pass and 68 reach another diagnostic.
 
-- [ ] Implement SUM, the first blocker in 168 units. Test the guide’s
+- [x] Implement SUM, the first blocker in 168 units. Test the guide’s
   dynamic-array examples for fields, values and subvalues, including
   how SUM preserves higher-level marks and ignores nonnumeric elements.
+
+After SUM, 10,194 of 17,336 candidates pass strict C99 checking, including
+all 10,062 previous passes. Of the 168 units previously stopped at the
+opening parenthesis of SUM, 95 now pass and 73 reach another diagnostic.
+
+- [ ] Implement TRIM, the first blocker in 114 units. Check the default
+  behavior and the guide’s eight trim modes with spaces, tabs and a
+  caller-supplied trim character.

@@ -219,6 +219,13 @@ class CompilerTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
 
+    def test_sum_overflow_reports_call_site(self):
+        source = self.work / 'sum.b'
+        source.write_text("PRINT SUM('9223372036854775807' : @FM : 1)\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
+
     def test_abs_diagnostics(self):
         source = self.work / 'abs.b'
         source.write_text("PRINT ABS('text')\n")
