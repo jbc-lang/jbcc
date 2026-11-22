@@ -207,7 +207,17 @@ After CONTINUE, 7,475 of 17,336 candidates pass strict C99 checking,
 including all 7,406 previous passes. Of the 384 units previously stopped
 at CONTINUE, 69 pass and 315 reach another diagnostic.
 
-- [ ] Implement RAISE and LOWER for dynamic-array delimiters. The first
+- [x] Implement RAISE and LOWER for dynamic-array delimiters. The first
   diagnostic points to the opening parenthesis of RAISE in 273 units and
   LOWER in 137. Verify each delimiter level and the boundary cases against
   the guide with native output tests.
+
+After RAISE and LOWER, 7,666 of 17,336 candidates pass strict C99 checking,
+including all 7,475 previous passes. Of the 410 units whose first diagnostic
+pointed to the opening parenthesis of either function, 155 now pass and 255
+reach another diagnostic.
+
+- [ ] Recognize a comment immediately after a label. In 723 units the
+  first diagnostic points to an asterisk following a colon, commonly in
+  `DEFINE.PARAMETERS:* ...`. Test named and numeric labels and preserve
+  multiplication and concatenation in expressions.

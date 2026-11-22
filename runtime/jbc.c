@@ -563,6 +563,28 @@ const char *jbc_convert(const char *text, const char *from, const char *to)
     return out;
 }
 
+static const char *shift_delimiters(const char *text, int first, int last, int step)
+{
+    size_t length = strlen(text);
+    char *out = allocate(length);
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char byte = (unsigned char)text[i];
+        out[i] = (byte >= first && byte <= last) ? (char)(byte + step) : text[i];
+    }
+    out[length] = '\0';
+    return out;
+}
+
+const char *jbc_raise(const char *text)
+{
+    return shift_delimiters(text, 248, 254, 1);
+}
+
+const char *jbc_lower(const char *text)
+{
+    return shift_delimiters(text, 249, 255, -1);
+}
+
 const char *jbc_len(const char *s)
 {
     return size_value(strlen(s));
