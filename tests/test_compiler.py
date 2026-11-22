@@ -66,6 +66,7 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
@@ -459,6 +460,19 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_rnd_invalid_bound(self):
+        source = self.work / 'rnd.b'
+        for bound, diagnostic in [('1.5', 'requires an integer bound'),
+                                  ("'x'", 'requires an integer bound'),
+                                  ('0', 'requires a nonzero bound'),
+                                  ('-2147483648', 'bound exceeds 2147483647'),
+                                  ("'100000000000000000000'", 'bound exceeds 2147483647')]:
+            with self.subTest(bound=bound):
+                source.write_text(f"CRT RND({bound})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: RND {diagnostic}'.encode(), run.stderr)
 
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'

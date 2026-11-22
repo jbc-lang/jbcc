@@ -937,6 +937,38 @@ static char *scaled_digits(struct decimal n, size_t scale)
     return digits;
 }
 
+const char *jbc_rnd(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.places)
+        numeric_error(file, line, column, "RND requires an integer bound");
+    if (!n.sign)
+        numeric_error(file, line, column, "RND requires a nonzero bound");
+
+    /* parse_decimal strips the sign and leading zeros from the digit span. */
+    if (n.digits > 10)
+        numeric_error(file, line, column, "RND bound exceeds 2147483647");
+    uint64_t magnitude = strtoull(n.whole, NULL, 10);
+    if (magnitude > INT32_MAX)
+        numeric_error(file, line, column, "RND bound exceeds 2147483647");
+    uint32_t bound = (uint32_t)magnitude;
+    if (bound == 1) return "0";
+
+    FILE *random = fopen("/dev/urandom", "rb");
+    if (!random) numeric_error(file, line, column, "RND cannot open /dev/urandom");
+    /* Discard the incomplete interval so each remainder is equally likely. */
+    uint32_t threshold = (UINT64_C(1) << 32) % bound;
+    uint32_t sample;
+    do {
+        if (fread(&sample, sizeof sample, 1, random) != 1) {
+            fclose(random);
+            numeric_error(file, line, column, "RND cannot read /dev/urandom");
+        }
+    } while (sample < threshold);
+    fclose(random);
+    return size_value(sample % bound);
+}
+
 const char *jbc_mod(const char *left, const char *right, const char *file, int line, int column)
 {
     struct decimal a, b;

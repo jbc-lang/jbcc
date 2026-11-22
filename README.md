@@ -91,6 +91,13 @@ rule is provisional pending a reference run. Explicit PRECISION truncates
 the nonzero-divisor result after the remainder is computed.
 [MOD](https://jbc-lang.org/pages/mod.html).
 
+On Unix, `RND(bound)` returns a random integer from zero through
+`ABS(bound) - 1`. The bound must be an integer with magnitude at most
+2,147,483,647. The native runtime samples from `/dev/urandom` and uses
+rejection sampling for bounds that do not evenly divide the sample range.
+The guide leaves the zero case unspecified. jbcc provisionally reports a
+runtime error at the call to `RND(0)`. [RND](https://jbc-lang.org/pages/rnd.html).
+
 ABS returns the magnitude of a numeric expression. For example,
 `ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
 preserving their significant digits, and truncates the result when an

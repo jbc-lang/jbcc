@@ -965,7 +965,15 @@ After CATS, 15,071 of 17,336 candidates pass strict C99 checking.
 All 15,065 previous passes still pass. Six more units now pass and
 one reaches a different diagnostic.
 
-- [ ] Implement RND(bound). Test the guide's integer range for positive
+- [x] Implement RND(bound). Test the guide's integer range for positive
   and negative bounds, the single possible result for a bound of one,
   and diagnostics for invalid inputs. Check zero-bound behavior separately
   since the guide's stated range is empty for zero.
+
+After RND, 15,088 of 17,336 candidates pass strict C99 checking.
+All 15,071 previous passes still pass. Seventeen more units now pass
+and one reaches a different diagnostic.
+
+- [ ] Implement REM(dividend, divisor) in expressions. The reference
+  compiler emits the same runtime call for REM and MOD. Cover signed
+  and decimal operands, zero divisors, and REM comments at statement start.
