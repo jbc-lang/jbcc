@@ -359,6 +359,68 @@ void jbc_matrix_copy(jbc_variable *dest, const jbc_variable *src, size_t count,
     for (size_t i = 0; i < count; ++i) assign_value(&dest[i], src[i].value);
 }
 
+/* Convert a zero-based ordinal among the one-based elements to a storage
+   offset. Each dimension also has a zero subscript in jbcc's storage. */
+static size_t matrix_element_offset(size_t ordinal, int rank, const int *bounds)
+{
+    size_t offset = 0, stride = 1;
+    for (int d = rank - 1; d >= 0; --d) {
+        size_t bound = (size_t)bounds[d];
+        offset += (ordinal % bound + 1) * stride;
+        ordinal /= bound;
+        stride *= bound + 1;
+    }
+    return offset;
+}
+
+static size_t matbuild_position(const char *value, size_t fallback, size_t total,
+                                const char *file, int line, int column)
+{
+    if (!value) return fallback;
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.places)
+        numeric_error(file, line, column, "MATBUILD requires integer positions");
+    int64_t pos = integer(value, file, line, column);
+    if (pos == -1) return fallback;
+    if (pos < 1 || (uint64_t)pos > total)
+        numeric_error(file, line, column, "MATBUILD position out of bounds");
+    return (size_t)pos;
+}
+
+const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
+                         const char *start, const char *end, const char *delimiter,
+                         const char *name, const char *file, int line, int column)
+{
+    size_t total = 1;
+    for (int d = 0; d < rank; ++d) total *= (size_t)bounds[d];
+    size_t first = matbuild_position(start, 1, total, file, line, column);
+    size_t last = matbuild_position(end, total, total, file, line, column);
+    if (first > last) return "";
+    size_t length = *delimiter ? last - first : 0;
+    for (size_t i = first; i <= last; ++i) {
+        const char *value = src[matrix_element_offset(i - 1, rank, bounds)].value;
+        if (!value) {
+            fprintf(stderr, "%s:%d:%d: unassigned element %zu in matrix '%s'\n",
+                    file, line, column, i, name);
+            exit(EXIT_FAILURE);
+        }
+        size_t bytes = strlen(value);
+        if (bytes > SIZE_MAX - length) fail("MATBUILD result is too large");
+        length += bytes;
+    }
+    char *out = allocate(length);
+    char *write = out;
+    for (size_t i = first; i <= last; ++i) {
+        if (i != first && *delimiter) *write++ = *delimiter;
+        const char *value = src[matrix_element_offset(i - 1, rank, bounds)].value;
+        size_t bytes = strlen(value);
+        memcpy(write, value, bytes);
+        write += bytes;
+    }
+    *write = '\0';
+    return out;
+}
+
 size_t jbc_matrix_index(int rank, const int *bounds, const char **indices,
                  const char *file, int line, int column)
 {

@@ -133,6 +133,17 @@ copy statement. Both forms work with local and COMMON matrices. For now,
 jbcc supports copies between matrices with identical declared bounds.
 [MAT](https://jbc-lang.org/pages/mat.html).
 
+`MATBUILD record FROM matrix` joins the one-based elements with field
+marks. In `MATBUILD record FROM matrix, 3, 7 USING ':'`, positions 3
+through 7 are included. The last subscript varies fastest in a matrix
+with several dimensions. USING takes the first delimiter byte. Empty
+elements retain their positions, and reading an unassigned element in the
+selected range raises a diagnostic. Pending a reference run, jbcc joins
+without a separator for an empty USING string, returns an empty result for
+a reversed range, and diagnoses positions outside the matrix. The reference
+generator uses -1 for an omitted endpoint. Its grammar also accepts a
+comma before the delimiter when both endpoints are present. [MATBUILD](https://jbc-lang.org/pages/matbuild.html).
+
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
 program. Repeating a scalar in the same block reuses its original slot,

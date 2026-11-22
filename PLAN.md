@@ -272,6 +272,14 @@ After INS, 9,276 of 17,336 candidates pass strict C99 checking, including
 all 9,151 previous passes. Of the 230 units stopped at INS, 125 now pass
 and 105 reach another diagnostic.
 
-- [ ] Implement MATBUILD, the first blocker in 210 units. Check how the
+- [x] Implement MATBUILD, the first blocker in 210 units. Check how the
   guide maps matrix elements to a dynamic array, including the default
   delimiter, explicit delimiters and optional element ranges.
+
+After MATBUILD, 9,348 of 17,336 candidates pass strict C99 checking,
+including all 9,276 previous passes. Of the 210 units stopped at MATBUILD,
+72 now pass and 138 reach another diagnostic.
+
+- [ ] Implement MATPARSE, the first blocker in 174 units. Use the guide’s
+  examples to check element order, ranges, delimiters, SETTING and overflow
+  into element zero. Verify a MATPARSE/MATBUILD round trip in native tests.

@@ -53,6 +53,21 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(str(source) + location, run.stderr)
                 self.assertEqual(self.c.read_text(), 'previous output')
 
+    def test_matbuild_diagnostics(self):
+        source = self.work / 'matbuild.b'
+        source.write_text("MATBUILD Out FROM Missing\n")
+        build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(build.returncode, 0)
+        self.assertIn(f"{source}:1:19: expected a dimensioned array 'Missing'", build.stderr)
+        for bounds, message in [('', "unassigned element 2 in matrix 'A'"),
+                                (', 1, 3', 'MATBUILD position out of bounds'),
+                                (', 1.5', 'MATBUILD requires integer positions')]:
+            with self.subTest(bounds=bounds):
+                source.write_text(f"DIM A(2)\nA(1) = 42\nMATBUILD Out FROM A{bounds}\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
+
     def test_ins_diagnostics(self):
         source = self.work / 'ins.b'
         for program, diagnostic in [

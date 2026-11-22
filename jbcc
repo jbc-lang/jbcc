@@ -947,6 +947,31 @@ class Compiler:
                       '"COMMON matrix declaration has not executed");')
         return matrix
 
+    def matbuild_statement(self):
+        opening = self.current
+        self.advance()
+        target = self.identifier()
+        dest = self.variable_slot(target)
+        self.expect('FROM')
+        source = self.matrix_name()
+        matrix = self.checked_matrix(source)
+        start = end = 'NULL'
+        if self.word == ',':
+            self.advance()
+            start = self.expression()
+            if self.word == ',':
+                self.advance()
+                end = self.expression()
+        delimiter = SYSTEM_CONSTANTS['FM']
+        if self.word in ('USING', ','):
+            self.advance()
+            delimiter = self.expression()
+        result = self.temporary(f"jbc_matbuild({matrix.base}, {len(matrix.shape)}, {matrix.limits}, "
+                                f"{start}, {end}, {delimiter}, {c_string(source.word)}, {self.location(opening)})")
+        self.emit(f"assign_value(&{dest}, {result});")
+        if target.word not in self.matrices:
+            self.assigned.add(target.word)
+
     def matrix_assignment(self):
         self.advance()
         target = self.matrix_name()
@@ -986,6 +1011,8 @@ class Compiler:
     def statement(self):
         if self.word == 'MAT':
             self.matrix_assignment()
+        elif self.word == 'MATBUILD':
+            self.matbuild_statement()
         elif self.word == 'CONVERT':
             self.convert_statement()
         elif self.word == 'INS':
