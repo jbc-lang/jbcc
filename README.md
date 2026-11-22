@@ -419,8 +419,14 @@ an unread key skips it. Reselecting starts a fresh iteration.
 `READNEXT Key FROM L THEN ... ELSE ...` returns one key, and
 `LOOP WHILE READNEXT Key FROM L DO` uses the same operation as a Boolean
 expression. On exhaustion jbcc clears the destination and returns false.
-For ordinary file keys the optional multi-value position is zero. This
-milestone covers file-backed lists. [SELECT](https://jbc-lang.org/pages/select.html),
+For ordinary keys the optional multi-value position is zero.
+
+With an explicit string or dynamic array, SELECT makes a list of its fields
+in source order. Value and subvalue marks stay inside their fields. Leading,
+interior and trailing empty fields are entries. jbcc treats a completely
+empty source as an empty list. Reassigning the source leaves the selected
+fields available to READNEXT. A standalone `//` line, as used in the
+guide’s CLEARSELECT example, is accepted as a separator. [SELECT](https://jbc-lang.org/pages/select.html),
 [READNEXT](https://jbc-lang.org/pages/readnext.html).
 
 CLEARSELECT discards one cursor. Bare `CLEARSELECT` clears the default

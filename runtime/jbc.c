@@ -285,7 +285,10 @@ int jbc_for_test(const char *value, const char *limit, const char *step,
 typedef struct {
     const char *value;
     size_t remove_offset;
+    int array_list;
 } jbc_variable;
+
+static jbc_variable select_lists[12];
 
 typedef struct {
     jbc_variable *values;
@@ -298,6 +301,7 @@ static void assign_value(jbc_variable *slot, const char *value)
 {
     slot->value = value;
     slot->remove_offset = 0;
+    slot->array_list = 0;
 }
 
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
@@ -384,6 +388,8 @@ static void free_storages(void)
 
 static int held_in_storage(const char *value)
 {
+    for (size_t i = 0; i < sizeof select_lists / sizeof select_lists[0]; ++i)
+        if (select_lists[i].value == value) return 1;
     for (struct jbc_slots *s = storages; s; s = s->next)
         for (size_t i = 0; i < s->count; ++i)
             if (s->values[i].value == value) return 1;
@@ -636,7 +642,7 @@ static const char *size_value(size_t n)
     return out;
 }
 
-static const char *take_matrix_field(const char **field, unsigned char delimiter)
+static const char *take_field(const char **field, unsigned char delimiter)
 {
     if (!*field) return "";
     const char *start = *field;
@@ -661,7 +667,7 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
     const char *field = *source ? source : NULL;
     for (size_t i = first; i <= last; ++i) {
         if (field) ++assigned;
-        const char *value = take_matrix_field(&field, (unsigned char)*delimiter);
+        const char *value = take_field(&field, (unsigned char)*delimiter);
         assign_value(&dest[matrix_element_offset(i - 1, rank, bounds)], value);
     }
     if (first <= last) {
@@ -1401,10 +1407,10 @@ static struct memory_file *file_for(const char *handle)
 
 /* Each cursor stores its last record serial, so deletion cannot leave it
    pointing at freed storage. last_read speeds up sequential iteration. */
-static jbc_variable select_lists[12];
 
 static jbc_variable *list_slot(jbc_variable *slot)
 {
+    if (slot->array_list) return slot;
     const char *s = slot->value;
     if (s && *s >= '0' && *s <= '9' && !s[1]) return &select_lists[*s - '0'];
     if (s && strcmp(s, "10") == 0) return &select_lists[10];
@@ -1414,29 +1420,49 @@ static jbc_variable *list_slot(jbc_variable *slot)
 void jbc_clearselect(jbc_variable *slot, const char *file, int line, int column)
 {
     /* CLEARSELECT also accepts list 11, unlike SELECT and READNEXT. */
-    if (slot->value && strcmp(slot->value, "11") == 0) slot = &select_lists[11];
+    if (!slot->array_list && slot->value && strcmp(slot->value, "11") == 0) slot = &select_lists[11];
     else slot = list_slot(slot);
-    if (slot->value && *slot->value)
+    if (!slot->array_list && slot->value && *slot->value)
         numeric_error(file, line, column, "CLEARSELECT requires a select list");
     assign_value(slot, "");
 }
 
-int jbc_select(const char *handle, jbc_variable *list, jbc_variable *setting)
+int jbc_select(const char *source, jbc_variable *list, jbc_variable *setting)
 {
-    struct memory_file *f = file_for(handle);
-    assign_value(list_slot(list), f ? &f->list_token : "");
-    if (setting) assign_value(setting, f ? "" : "128");
-    return f != NULL;
+    int use_default = source == NULL;
+    struct memory_file *f = file_for(use_default ? jbc_default_file.value : source);
+    int success = f || !use_default;
+    list = list_slot(list);
+    assign_value(list, f ? &f->list_token : (use_default ? "" : source));
+    if (!f && !use_default) {
+        list->array_list = 1;
+        if (!*source) list->remove_offset = SIZE_MAX;
+    }
+    if (setting) assign_value(setting, success ? "" : "128");
+    return success;
 }
 
 int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_variable *setting,
                  const char *file, int line, int column)
 {
     list = list_slot(list);
+    if (list->array_list) {
+        int found = list->remove_offset != SIZE_MAX;
+        const char *value = "";
+        if (found) {
+            const char *field = list->value + list->remove_offset;
+            value = take_field(&field, 254);
+            list->remove_offset = field ? (size_t)(field - list->value) : SIZE_MAX;
+        }
+        assign_value(key, value);
+        if (mv) assign_value(mv, found ? "0" : "");
+        if (setting) assign_value(setting, "");
+        return found;
+    }
     struct memory_file *f = files;
     while (f && &f->list_token != list->value) f = f->next;
     if (!f && list->value && *list->value)
-        numeric_error(file, line, column, "READNEXT requires a file select list");
+        numeric_error(file, line, column, "READNEXT requires a select list");
     struct memory_record *r = NULL;
     if (f && list->remove_offset != SIZE_MAX) {
         r = f->last_read && f->last_read->serial == list->remove_offset
@@ -1508,7 +1534,7 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
     const char *field = *record->value ? record->value : NULL;
     jbc_matrix_fill(dest, storage_count, "");
     for (size_t i = 0; i < total && field; ++i) {
-        const char *value = take_matrix_field(&field, i + 1 == total ? 0 : 254);
+        const char *value = take_field(&field, i + 1 == total ? 0 : 254);
         assign_value(&dest[matrix_element_offset(i, rank, bounds)], value);
     }
     if (setting) assign_value(setting, jbc_dcount(record->value, "\376"));

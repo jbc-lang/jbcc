@@ -467,6 +467,14 @@ After CLEARSELECT, 11,084 of 17,336 candidates pass strict C99 checking,
 including all 11,072 previous passes. Of the 28 units first blocked at
 CLEARSELECT, 12 now pass and 16 reach another diagnostic.
 
-- [ ] Extend SELECT to dynamic arrays. Run the CLEARSELECT guide example
+- [x] Extend SELECT to dynamic arrays. Run the CLEARSELECT guide example
   with two field-mark-separated inputs and verify that READNEXT preserves
   field order and that the lists can be cleared independently.
+
+The guide’s two-list example now runs as written. All 11,084 previous
+strict C99 passes remain among the 17,336 T24 candidates. Array selection
+adds runtime behavior to SELECT syntax the compiler already accepted.
+
+- [ ] Implement PROGRAM, the first blocker in 64 units. Check the guide’s
+  documentation-only header, the names used in T24, and native execution
+  of the statements following the header.
