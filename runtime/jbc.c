@@ -173,3 +173,30 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     if (out[length - 1] == '.') out[--length] = '\0';
     return strcmp(out, "-0") == 0 ? "0" : out;
 }
+
+int jbc_for_test(const char *value, const char *limit, const char *step,
+                 const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || !parse_decimal(limit, &n) || !parse_decimal(step, &n))
+        numeric_error(file, line, column, "FOR requires numeric bounds and step");
+    int cmp = jbc_compare(value, limit);
+    return n.sign < 0 ? cmp >= 0 : cmp <= 0;
+}
+
+/* Keep variable values and protect temporaries belonging to enclosing loops. */
+void jbc_collect(struct jbc_buffer *mark, const char ***live)
+{
+    struct jbc_buffer **link = &buffers;
+    while (*link != mark) {
+        struct jbc_buffer *buffer = *link;
+        const char ***slot = live;
+        while (*slot && **slot != buffer->text) ++slot;
+        if (*slot) {
+            link = &buffer->next;
+        } else {
+            *link = buffer->next;
+            free(buffer);
+        }
+    }
+}

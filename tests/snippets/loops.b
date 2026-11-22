@@ -1,0 +1,28 @@
+Limit = 7
+Stride = 1
+FOR I = 1 TO Limit STEP Stride
+  PRINT I :
+  Stride = 2
+  Limit = 4
+NEXT I
+PRINT
+FOR I = 3 TO 1 STEP -1
+  FOR J = 1 TO 2
+    CRT I : J :
+  NEXT
+NEXT
+PRINT
+FOR I = 1 TO 0
+  PRINT "wrong"
+NEXT I
+N = 0
+LOOP N += 1 UNTIL N EQ 3 DO PRINT N : REPEAT
+PRINT
+LOOP WHILE N GT 0 DO
+  CRT N :
+  N -= 1
+REPEAT
+PRINT
+LOOP
+  PRINT "once" UNTIL 1
+REPEAT

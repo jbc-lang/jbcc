@@ -17,7 +17,7 @@ PRECEDENCE = {op: 1 if cmp in ("==", "!=") else 2 for op, cmp in COMPARISONS.ite
 PRECEDENCE.update({":": 3, "+": 4, "-": 4, "*": 5, "/": 5})
 
 
-OUTPUT_END = {";", "\n", "ELSE"}
+OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 
 
 class Token(NamedTuple):
@@ -63,6 +63,7 @@ class Compiler:
         self.names = {}
         self.body = []
         self.temporaries = 0
+        self.loops = 0
 
         self.depth = 0
         self.assigned = set()
@@ -188,9 +189,89 @@ class Compiler:
                 self.advance()
         self.emit("putchar('\\n');")
 
+    def begin_loop(self):
+        mark = f"loop_mark_{self.loops}"
+        self.loops += 1
+        self.emit(f"struct jbc_buffer *{mark} = buffers;")
+        self.emit("for (;;) {")
+        self.depth += 1
+        return mark
+
+    def end_loop(self, mark):
+        self.emit(f"jbc_collect({mark}, live);")
+        self.depth -= 1
+        self.emit("}")
+        self.emit(f"jbc_collect({mark}, live);")
+
+    def guard(self):
+        until = self.word == 'UNTIL'
+        self.advance()
+        condition = self.expression()
+        self.emit(f"if ({'' if until else '!'}jbc_truth({condition})) break;")
+
+    def for_statement(self):
+        opening = self.current
+        self.advance()
+        counter = self.current
+        if counter.kind != 'name':
+            self.error("expected FOR variable")
+        self.advance()
+        self.expect('=')
+        initial = self.expression()
+        symbol = self.names.setdefault(counter.word, f"var_{len(self.names)}")
+        self.emit(f"{symbol} = {initial};")
+        self.assigned.add(counter.word)
+        self.expect('TO')
+        mark = self.begin_loop()
+        limit = self.expression()
+        step = '"1"'
+        if self.word == 'STEP':
+            self.advance()
+            # Capture even a plain variable before the loop body can change it.
+            step = self.temporary(self.expression())
+        location = f"{c_string(str(self.path))}, {opening.line}, {opening.column}"
+        self.emit(f"if (!jbc_for_test({symbol}, {limit}, {step}, {location})) break;")
+        if self.word in ('WHILE', 'UNTIL'):
+            self.guard()
+        if self.word not in (';', '\n'):
+            self.error("expected statement separator after FOR")
+        before = self.assigned.copy()
+        self.sequence({'NEXT'}, opening)
+        self.advance()
+        if self.current.kind == 'name' and self.word not in OUTPUT_END:
+            if self.word != counter.word:
+                self.error(f"expected NEXT {counter.word}")
+            self.advance()
+        increment = self.arithmetic(opening, symbol, step, '+')
+        self.emit(f"{symbol} = {increment};")
+        self.end_loop(mark)
+        self.assigned = before
+
+    def loop_statement(self):
+        opening = self.current
+        self.advance()
+        mark = self.begin_loop()
+        exits = None
+        while True:
+            self.sequence({'WHILE', 'UNTIL', 'REPEAT'}, opening)
+            if self.word == 'REPEAT':
+                self.advance()
+                break
+            exits = self.assigned.copy() if exits is None else exits & self.assigned
+            self.guard()
+            if self.word == 'DO':
+                self.advance()
+        self.end_loop(mark)
+        if exits is not None:
+            self.assigned = exits
+
     def statement(self):
         if self.word == 'IF':
             self.conditional()
+        elif self.word == 'FOR':
+            self.for_statement()
+        elif self.word == 'LOOP':
+            self.loop_statement()
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()
         elif self.current.kind == 'name':
@@ -214,7 +295,7 @@ class Compiler:
     def sequence(self, stops, opening=None):
         while self.word not in stops:
             if self.word == '':
-                self.error("unterminated conditional", opening)
+                self.error(f"unterminated {opening.word}", opening)
             if self.word in (';', '\n'):
                 self.advance()
                 continue
@@ -229,6 +310,9 @@ class Compiler:
         self.sequence({''})
         runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
         lines = [f"const char *{var} = NULL;" for var in self.names.values()]
+        if self.loops:
+            roots = [f"&{var}" for var in self.names.values()] + ["NULL"]
+            lines.append("const char **live[] = {" + ", ".join(roots) + "};")
         lines += self.body + [f"(void){var};" for var in self.names.values()]
         lines += ["jbc_finish();", "return 0;"]
         return runtime + "\nint main(void)\n{\n" + ''.join("    " + line + "\n" for line in lines) + "}\n"

@@ -24,8 +24,8 @@ parentheses, arithmetic, concatenation, and compound assignments (+= and -=). Ad
 concatenation. Names are case-sensitive. Variables must be assigned on every path reaching a use. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line.
 
-The generated file includes the C runtime. It keeps immutable string values
-alive until program exit, so assignment preserves a copied value. Integer addition, subtraction and multiplication check signed 64-bit
+The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop
+boundaries reclaim temporary values that are no longer in use. Integer addition, subtraction and multiplication check signed 64-bit
 overflow. Division and fractional arithmetic use native long double,
 rounding results to at most 15 fractional places. This precision is a
 provisional project choice. Division by zero reports the operator location.
@@ -40,6 +40,14 @@ and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
 
 PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
+
+FOR supports inclusive bounds, a default step of one, optional STEP,
+and an optional variable name after NEXT. The limit and step are evaluated
+at the start of each iteration. The captured step increments the counter
+after the body. LOOP allows WHILE and UNTIL guards before or after other
+statements, including on the same line. FOR also accepts a WHILE or UNTIL
+guard in its header. See the [FOR](https://jbc-lang.org/pages/for.html) and
+[LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
 ## Test corpus
 
@@ -88,6 +96,6 @@ output are the evidence for runtime behavior.
 
 ## After the first milestone
 
-Continue the standalone-program milestones in [PLAN.md](PLAN.md). Once native
+Continue with dynamic-array extraction and replacement in [PLAN.md](PLAN.md). Once native
 execution is repeatable, evaluate compiling the same generated C and runtime
 to WebAssembly for a browser playground.

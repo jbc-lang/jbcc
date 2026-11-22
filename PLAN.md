@@ -17,9 +17,9 @@ an argument.
   multiplication, `+=`, and `-=`.
 - [x] **Division.** Extend the integer runtime to represent fractional results.
   Use `CRT 7 / 2` with expected output `3.5` as the first snippet.
-- [ ] **FOR / TO / STEP / NEXT.** Cover ascending, descending, zero-iteration,
+- [x] **FOR / TO / STEP / NEXT.** Cover ascending, descending, zero-iteration,
   and nested loops. Verify when the limit and step expressions are evaluated.
-- [ ] **LOOP / WHILE / UNTIL / REPEAT.** Test conditions before and after
+- [x] **LOOP / WHILE / UNTIL / REPEAT.** Test conditions before and after
   statements in the body. Include the form observed in the corpus where
   `UNTIL` shares a line with the preceding statement.
 
