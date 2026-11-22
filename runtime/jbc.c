@@ -1,4 +1,4 @@
-#if (defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -21,6 +21,7 @@ struct jbc_buffer {
 
 static struct jbc_buffer *buffers;
 static const char *jbc_command_line = "";
+static const char *report_heading;
 static const char *jbc_input_prompt = "?";
 
 static void fail(const char *message)
@@ -601,7 +602,8 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
         struct jbc_buffer *buffer = *link;
         const char ***slot = live;
         while (*slot && **slot != buffer->text) ++slot;
-        if (*slot || buffer->text == jbc_input_prompt || held_in_storage(buffer->text)) {
+        if (*slot || buffer->text == jbc_input_prompt || buffer->text == report_heading ||
+            held_in_storage(buffer->text)) {
             link = &buffer->next;
         } else {
             *link = buffer->next;
@@ -2979,4 +2981,150 @@ const char *jbc_cursor(const char *col, const char *row, const char *file, int l
     snprintf(out, capacity, "\033[%" PRIu64 ";%" PRIu64 "H", (uint64_t)y + 1, (uint64_t)x + 1);
     return out;
 }
+#endif
+
+#ifdef JBC_REPORT
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+static int64_t report_page = 1;
+static unsigned report_rows, report_lines;
+static int report_no_pause;
+static const char *heading_file;
+static int heading_line, heading_column;
+
+static void report_char(int ch)
+{
+    putchar(ch);
+    if (ch == '\n' && report_lines < UINT_MAX) ++report_lines;
+}
+
+static void report_title(void)
+{
+    const char *p = report_heading;
+    if (!p) return;
+    if ((unsigned char)*p == 254) ++p;
+    int pending_line = 0;
+    report_no_pause = 0;
+    while (*p) {
+        if (*p == '\'' || *p == '"') {
+            char quote = *p++;
+            if (*p == quote) {
+                report_char(*p++);
+                pending_line = 1;
+                continue;
+            }
+            while (*p && *p != quote) {
+                switch (*p++) {
+                case 'N': report_no_pause = 1; break;
+                case 'L': report_char('\n'); pending_line = 0; break;
+                case 'P': {
+                    int padded = *p == 'P';
+                    if (padded) ++p;
+                    printf("%*" PRId64, padded ? 4 : 1, report_page);
+                    pending_line = 1;
+                    break;
+                }
+                case 'D': {
+                    const char *date = jbc_date(heading_file, heading_line, heading_column);
+                    fputs(jbc_oconv(date, "D", heading_file, heading_line, heading_column), stdout);
+                    pending_line = 1;
+                    break;
+                }
+                case 'T':
+                    fputs(jbc_timedate(heading_file, heading_line, heading_column), stdout);
+                    pending_line = 1;
+                    break;
+                default:
+                    numeric_error(heading_file, heading_line, heading_column, "unsupported HEADING option");
+                }
+            }
+            if (!*p) numeric_error(heading_file, heading_line, heading_column, "unterminated HEADING option");
+            ++p;
+        } else if (*p == '^') {
+            int padded = *++p == '^';
+            if (padded) ++p;
+            printf("%*" PRId64, padded ? 4 : 1, report_page);
+            pending_line = 1;
+        } else {
+            int ch = (unsigned char)*p++;
+            if (ch == ']') ch = '\n';
+            if (ch == '\\') numeric_error(heading_file, heading_line, heading_column, "unsupported HEADING option");
+            report_char(ch);
+            pending_line = ch != '\n';
+        }
+    }
+    if (pending_line) report_char('\n');
+    /* Leave room for one body line even if the title fills the screen. */
+    if (report_lines >= report_rows) report_lines = report_rows - 1;
+}
+
+static void report_break(void)
+{
+    if (report_heading && !report_no_pause && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
+        fflush(stdout);
+        char ch;
+        for (;;) {
+            ssize_t count = read(STDIN_FILENO, &ch, 1);
+            if (count < 0 && errno == EINTR) continue;
+            if (count <= 0 || ch == '\n') break;
+        }
+    }
+    putchar('\f');
+    report_lines = 0;
+    report_title();
+}
+
+static void next_report_page(void)
+{
+    if (report_page == INT64_MAX) fail("page number overflow");
+    ++report_page;
+}
+
+void jbc_page(const char *unit, const char *number, const char *file, int line, int column)
+{
+    if (unit) numeric_error(file, line, column, "PAGE ON requires a print-unit backend");
+    if (number) {
+        struct decimal value;
+        if (!parse_decimal(number, &value) || value.places)
+            numeric_error(file, line, column, "PAGE requires an integer page number");
+        report_page = integer(number, file, line, column);
+    } else next_report_page();
+    report_break();
+}
+
+void jbc_heading(const char *unit, const char *heading, int no_eject, const char *file, int line, int column)
+{
+    if (unit) numeric_error(file, line, column, "HEADING ON requires a print-unit backend");
+    int first = !report_heading;
+    report_heading = heading;
+    heading_file = file;
+    heading_line = line;
+    heading_column = column;
+    struct winsize size;
+    report_rows = ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_row ? size.ws_row : 24;
+    if ((unsigned char)*heading == 254) return;
+    if (first) report_title();
+    else if (!no_eject) {
+        next_report_page();
+        report_break();
+    }
+}
+
+void jbc_output(const char *text)
+{
+    if (!report_heading) {
+        fputs(text, stdout);
+        return;
+    }
+    while (*text) {
+        if (report_lines >= report_rows) {
+            next_report_page();
+            report_break();
+        }
+        report_char((unsigned char)*text++);
+    }
+}
+#else
+#define jbc_output(text) fputs((text), stdout)
 #endif

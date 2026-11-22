@@ -40,6 +40,59 @@ class CompilerTest(unittest.TestCase):
                 self.assertEqual(run.stdout, source.with_suffix('.stdout').read_bytes())
                 self.assertEqual(run.stderr, b'')
 
+    def test_heading_automatic_page_break(self):
+        source = self.work / 'pages.b'
+        source.write_text("""HEADING "Page ^'N'"
+FOR I = 1 TO 24
+    PRINT I
+NEXT I
+""")
+        result = self.run_native(source)
+        body = b''.join(f"{i}\n".encode() for i in range(1, 24))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b"Page 1\n" + body + b"\fPage 2\n24\n")
+
+    def test_heading_terminal_pause(self):
+        source = self.work / 'report.b'
+        source.write_text("""HEADING 'First'
+HEADING "Second'N'"
+PAGE
+CRT 'done'
+""")
+        binary = self.work / 'report'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        with subprocess.Popen([binary], stdin=slave, stdout=slave) as proc:
+            try:
+                output = bytearray()
+                while not output.endswith(b'First\r\n'):
+                    self.assertTrue(select.select([master], [], [], 5)[0], output)
+                    output.extend(os.read(master, 1024))
+                self.assertFalse(select.select([master], [], [], 0.1)[0])
+                os.write(master, b'\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+                while not output.endswith(b'done\r\n'):
+                    self.assertTrue(select.select([master], [], [], 5)[0], output)
+                    output.extend(os.read(master, 1024))
+                self.assertIn(b'\fSecond\r\n\fSecond\r\ndone\r\n', output)
+            finally:
+                proc.kill()
+
+    def test_report_diagnostics(self):
+        source = self.work / 'report.b'
+        for statement, message in [
+                ('HEADING ON 0 "title"', 'HEADING ON requires a print-unit backend'),
+                ('PAGE ON 3', 'PAGE ON requires a print-unit backend'),
+                ('PAGE 2.5', 'PAGE requires an integer page number'),
+                ("HEADING \"'C'\"", 'unsupported HEADING option')]:
+            with self.subTest(statement=statement):
+                source.write_text(statement + '\n')
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:1: {message}".encode(), result.stderr)
+
     def test_diagnostics_preserve_existing_output(self):
         source = self.work / 'invalid.b'
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),

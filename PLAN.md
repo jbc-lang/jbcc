@@ -1040,6 +1040,18 @@ unequal shapes, 91 of those units pass strict C99 checking and 19
 reach another diagnostic. All previous passes still pass, for a total
 of 15,284 of 17,336 candidates.
 
-- [ ] Investigate HEADING, the first diagnostic in 103 units. Check
+- [x] Investigate HEADING, the first diagnostic in 103 units. Check
   plain headings and HEADING ON print-unit forms against the reference.
   Exercise header placement and page breaks through native output tests.
+
+After HEADING and PAGE, 15,388 of 17,336 candidates pass strict C99
+checking. All 15,284 previous passes still pass. Of the 130 files
+previously blocked first by HEADING, HEADINGN or PAGE, 104 pass and
+26 reach another diagnostic. Native fixtures cover header replacement,
+page numbering, automatic breaks, and terminal pause and resume.
+Explicit print units currently produce a source-located runtime error.
+
+- [ ] Investigate PRINT ON and PRINTER against the reference grammar.
+  BUILD.DICTS.INDICES now reaches PRINT ON 1. Establish how unit
+  selection interacts with CRT, headings and page state, and exercise
+  separate units with a native test backend.

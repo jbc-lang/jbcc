@@ -380,6 +380,24 @@ diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 PRINT and CRT write to standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 
+`HEADING expression` puts a title on the first page and repeats it on
+page breaks. `PAGE` advances the page number and `PAGE n` sets it. A
+replacement `HEADING` or `HEADINGE` starts a new page. Prefixing the text
+with `@AM` defers it until the next break. jbcc also defers replacement
+for `HEADINGN`; that timing is provisional. Quoted options support page
+numbers (`P` and four-column `PP`), newlines (`L`), date (`D`), time
+and date (`T`) and continuous output (`N`). The shortcuts `^`, `^^`
+and `]` also work. Centering and backslash options produce diagnostics.
+[HEADING](https://jbc-lang.org/pages/heading.html) and
+[PAGE](https://jbc-lang.org/pages/page.html).
+
+The native runtime counts output lines against the terminal height and
+waits for Enter at page breaks when both input and output are terminals,
+unless the heading specifies `N`. For redirected output the provisional
+layout is 24 lines per page, with a form feed between pages. Explicit
+`HEADING ON unit` and `PAGE ON unit` compile and report the missing
+print-unit backend when executed.
+
 FOR supports inclusive bounds, a default step of one, optional STEP,
 and an optional variable name after NEXT. Following the reference parser,
 jbcc warns if that name differs from the innermost FOR counter. The NEXT
