@@ -174,6 +174,16 @@ The guide specifies that nonnumeric elements are ignored. For a group
 with no numeric elements, jbcc returns zero provisionally. Each addition
 uses the runtime's arithmetic and PRECISION rules. [SUM](https://jbc-lang.org/pages/sum.html).
 
+`INPUT Var` writes the current prompt and reads a line from standard input.
+`PROMPT expression` sets the prompt for subsequent reads. The default is
+`?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps
+typed characters visible and suppresses the echoed newline. With piped
+input, the program writes the prompt and reads through the next LF.
+In jbcc an empty line assigns an empty string. At EOF, INPUT assigns any
+remaining bytes, or an empty string if none remain. These EOF rules are
+provisional pending a reference run. [INPUT](https://jbc-lang.org/pages/input.html),
+[PROMPT](https://jbc-lang.org/pages/prompt.html).
+
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END. Its ELSE can follow on the same line or
 on the next line. The reference preprocessor joins a line beginning with

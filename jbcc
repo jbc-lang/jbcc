@@ -1657,6 +1657,21 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
+        elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+            opening = self.current
+            self.advance()
+            self.terminal = True
+            if opening.word == 'PROMPT':
+                self.emit(f"jbc_input_prompt = {self.expression()};")
+            else:
+                target = self.identifier()
+                slot = self.variable_slot(target)
+                suppress = self.word == ':'
+                if suppress:
+                    self.advance()
+                self.emit(f"jbc_input(&{slot}, {int(suppress)}, {self.location(opening)});")
+                self.assigned.add(target.word)
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()
         elif self.current.kind == 'name':

@@ -790,7 +790,17 @@ After MATREADU, 14,546 of 17,336 candidates pass strict C99 checking,
 including all 14,527 previous passes. Of the 35 files blocked at MATREADU,
 19 now pass and 16 reach another diagnostic.
 
-- [ ] Implement line-oriented `INPUT Var`, including the trailing colon
+- [x] Implement line-oriented `INPUT Var`, including the trailing colon
   seen in T24. Check prompt and newline handling against the INPUT chapter
   and exercise consecutive reads, an empty line and end-of-file through
   the native executable. INPUT is the first blocker in 84 files.
+
+After line-oriented INPUT and PROMPT, 14,574 of 17,336 candidates pass
+strict C99 checking, including all 14,546 previous passes. Of the 84
+files blocked at INPUT, 25 now pass and 59 reach another diagnostic.
+Three more pass after PROMPT support.
+
+- [ ] Implement length-limited `INPUT Var, n` and its trailing-colon
+  form. In 32 units the first diagnostic points at the comma after
+  the input variable. Exercise early Enter, automatic completion at the
+  limit and the bytes available to a subsequent INPUT.

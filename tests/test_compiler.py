@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import termios
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -1208,6 +1209,63 @@ END
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+
+    def test_input_from_pipe(self):
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', ROOT / 'tests/io/input.b', '-o', binary], check=True)
+        first = b'  ' + b'x' * 512 + b'  '
+        run = subprocess.run([binary], input=first + b'\n\nlast', capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'?"' + first + b'"\nline2> ""\n"last"\n""\n')
+        run = subprocess.run([binary], input=b'a\0b\n', capture_output=True, timeout=5)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(b'input.b:2:1: INPUT cannot store a NUL byte', run.stderr)
+
+    def test_input_terminal_echo(self):
+        source = self.work / 'input.b'
+        source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n")
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        original = termios.tcgetattr(slave)
+
+        def check_mode_restored():
+            actual = termios.tcgetattr(slave)
+            # BSD may set the line discipline's pending-input flag on restore.
+            actual[3] &= ~getattr(termios, 'PENDIN', 0)
+            self.assertEqual(actual, original)
+
+        def read_until(marker):
+            data = bytearray()
+            while not data.endswith(marker):
+                self.assertTrue(select.select([master], [], [], 5)[0], data)
+                data.extend(os.read(master, 1024))
+            return bytes(data)
+
+        with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
+            try:
+                self.assertEqual(read_until(b'?'), b'?')
+                os.write(master, b'ax')
+                self.assertEqual(read_until(b'x'), b'ax')
+                os.write(master, original[6][termios.VERASE] + b'b\n')
+                self.assertEqual(read_until(b'?'), b'\b \bb[ab]\r\n?')
+                os.write(master, b'c\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+                self.assertEqual(read_until(b'c\r\nc\r\n'), b'c\r\nc\r\n')
+                check_mode_restored()
+            finally:
+                proc.kill()
+
+        with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
+            try:
+                self.assertEqual(read_until(b'?'), b'?')
+                proc.terminate()
+                proc.wait(timeout=5)
+                check_mode_restored()
+            finally:
+                proc.kill()
 
     def test_banner(self):
         source = ROOT / 'tests/programs/banner.b'

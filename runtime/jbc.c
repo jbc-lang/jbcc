@@ -1,3 +1,7 @@
+#if defined(JBC_TERMINAL) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 /* jbcc runtime for straight-line programs. Values are immutable strings. */
 #include <errno.h>
 #include <float.h>
@@ -16,6 +20,7 @@ struct jbc_buffer {
 };
 
 static struct jbc_buffer *buffers;
+static const char *jbc_input_prompt = "?";
 
 static void fail(const char *message)
 {
@@ -523,7 +528,7 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
         struct jbc_buffer *buffer = *link;
         const char ***slot = live;
         while (*slot && **slot != buffer->text) ++slot;
-        if (*slot || held_in_storage(buffer->text)) {
+        if (*slot || buffer->text == jbc_input_prompt || held_in_storage(buffer->text)) {
             link = &buffer->next;
         } else {
             *link = buffer->next;
@@ -2247,8 +2252,108 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #endif
 
 #ifdef JBC_TERMINAL
+#include <fcntl.h>
+#include <signal.h>
+#include <termios.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+/* Only INPUT with a trailing colon needs to take over terminal echo. */
+static struct termios input_saved;
+static volatile sig_atomic_t input_modified;
+
+static void input_signal(int sig)
+{
+    if (input_modified) tcsetattr(STDIN_FILENO, TCSANOW, &input_saved);
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+void jbc_input(jbc_variable *out, int suppress_newline, const char *file, int line, int column)
+{
+    const int signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
+    struct sigaction saved[sizeof signals / sizeof *signals];
+    size_t handlers = 0;
+    int echo_fd = -1, edit = 0;
+    const char *error = NULL;
+    char *text = NULL;
+    size_t length = 0, capacity = 0;
+
+    if (suppress_newline && isatty(STDIN_FILENO)) {
+        if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
+            numeric_error(file, line, column, "cannot read input terminal settings");
+        if (input_saved.c_lflag & (ECHO | ECHONL)) {
+            if (input_saved.c_lflag & ECHO) {
+                const char *tty = ttyname(STDIN_FILENO);
+                if (!tty || (echo_fd = open(tty, O_WRONLY | O_NOCTTY)) < 0)
+                    numeric_error(file, line, column, "cannot echo terminal input");
+            }
+            struct sigaction action = {0};
+            action.sa_handler = input_signal;
+            sigemptyset(&action.sa_mask);
+            for (; handlers < sizeof signals / sizeof *signals; ++handlers) {
+                int sig = signals[handlers];
+                if (sigaction(sig, NULL, &saved[handlers]) ||
+                    (saved[handlers].sa_handler == SIG_DFL && sigaction(sig, &action, NULL))) {
+                    error = "cannot protect input terminal settings";
+                    break;
+                }
+            }
+            struct termios mode = input_saved;
+            edit = (mode.c_lflag & ICANON) != 0;
+            mode.c_lflag &= ~(ICANON | ECHO | ECHONL);
+            mode.c_cc[VMIN] = 1;
+            mode.c_cc[VTIME] = 0;
+            input_modified = 1;
+            if (!error && tcsetattr(STDIN_FILENO, TCSANOW, &mode))
+                error = "cannot set input terminal mode";
+        }
+    }
+    if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
+        error = "cannot write input prompt";
+    while (!error) {
+        unsigned char c;
+        ssize_t count = read(STDIN_FILENO, &c, 1);
+        if (count < 0 && errno == EINTR) continue;
+        if (count < 0) { error = "cannot read input"; break; }
+        if (!count || c == '\n' || (edit && c == input_saved.c_cc[VEOF])) break;
+        if (edit && (c == input_saved.c_cc[VERASE] || c == input_saved.c_cc[VKILL])) {
+            size_t keep = c == input_saved.c_cc[VKILL] || !length ? 0 : length - 1;
+            while (length > keep) {
+                --length;
+                if (echo_fd >= 0 && write(echo_fd, "\b \b", 3) != 3) error = "cannot echo terminal input";
+            }
+            continue;
+        }
+        if (c == 0) { error = "INPUT cannot store a NUL byte"; break; }
+        if (length == capacity) {
+            if (capacity > SIZE_MAX / 2) { error = "input line too long"; break; }
+            capacity = capacity ? 2 * capacity : 128;
+            char *grown = realloc(text, capacity);
+            if (!grown) { error = "out of memory"; break; }
+            text = grown;
+        }
+        text[length++] = (char)c;
+        if (echo_fd >= 0 && write(echo_fd, &c, 1) != 1) error = "cannot echo terminal input";
+    }
+    if (input_modified && tcsetattr(STDIN_FILENO, TCSANOW, &input_saved))
+        error = "cannot restore input terminal mode";
+    input_modified = 0;
+    while (handlers) {
+        --handlers;
+        sigaction(signals[handlers], &saved[handlers], NULL);
+    }
+    if (echo_fd >= 0) close(echo_fd);
+    if (error) {
+        free(text);
+        numeric_error(file, line, column, error);
+    }
+    char *value = allocate(length);
+    if (length) memcpy(value, text, length);
+    value[length] = '\0';
+    free(text);
+    assign_value(out, value);
+}
 
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
