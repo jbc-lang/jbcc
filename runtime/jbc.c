@@ -1124,12 +1124,19 @@ static int pattern_byte(unsigned char c, char kind)
     }
 }
 
+struct match_span {
+    size_t start, length;
+};
+
 /* reachable[i] means the preceding pattern matched exactly the first i bytes.
    Keep one row per pattern component so adjacent variable counts can share
    a run of input bytes without recursive backtracking. */
 static int match_alternative(const char *text, size_t n, const char *p, const char *end,
-                             char *reachable, char *next)
+                             char *reachable, char *next, size_t field,
+                             struct match_span *spans, struct match_span *result)
 {
+    size_t component = 0;
+    struct match_span *next_spans = spans ? spans + n + 1 : NULL;
     memset(reachable, 0, n + 1);
     reachable[0] = 1;
     while (p < end) {
@@ -1162,46 +1169,80 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
             literal_length = (size_t)(p - literal);
         }
 
-        if (kind) {
-            size_t run = 0, latest = 0;
-            int have_start = 0;
-            for (size_t i = 0; i <= n; ++i) {
+        ++component;
+        if (!kind && literal_length > n) return 0;
+        size_t run = 0, start = 0;
+        int have_start = 0;
+        for (size_t i = 0; i <= n; ++i) {
+            if (kind) {
                 if (i && pattern_byte((unsigned char)text[i - 1], kind)) ++run;
                 else { run = 0; have_start = 0; }
                 if (run >= low && reachable[i - low]) {
-                    latest = i - low;
+                    start = i - low;
                     have_start = 1;
                 }
-                next[i] = have_start && i - latest <= high;
+                next[i] = have_start && i - start <= high;
+            } else {
+                start = i >= literal_length ? i - literal_length : 0;
+                next[i] = i >= literal_length && reachable[start] &&
+                          memcmp(text + start, literal, literal_length) == 0;
             }
-        } else {
-            if (literal_length > n) return 0;
-            for (size_t i = 0; i <= n; ++i)
-                next[i] = i >= literal_length && reachable[i - literal_length] &&
-                          memcmp(text + (i - literal_length), literal, literal_length) == 0;
+            if (field && component >= field && next[i]) {
+                next_spans[i] = component == field ? (struct match_span){start, i - start} : spans[start];
+            }
         }
+        struct match_span *previous_spans = spans;
+        spans = next_spans;
+        next_spans = previous_spans;
         char *swap = reachable;
         reachable = next;
         next = swap;
     }
+    if (reachable[n] && field && field <= component) *result = spans[n];
     return reachable[n];
 }
 
-const char *jbc_matches(const char *text, const char *pattern)
+static const char *match_pattern(const char *text, const char *pattern, size_t field)
 {
     size_t n = strlen(text);
     char *rows = calloc(n + 1, 2);
-    if (!rows) fail("out of memory");
+    struct match_span *spans = field ? calloc(n + 1, 2 * sizeof *spans) : NULL;
+    if (!rows || (field && !spans)) fail("out of memory");
+    struct match_span result = {0, 0};
     int matched;
     do {
         const char *mark = strchr(pattern, 253);
         const char *end = mark ? mark : pattern + strlen(pattern);
-        matched = match_alternative(text, n, pattern, end, rows, rows + n + 1);
+        matched = match_alternative(text, n, pattern, end, rows, rows + n + 1, field, spans, &result);
         if (!mark) break;
         pattern = mark + 1;
     } while (!matched);
     free(rows);
-    return matched ? "1" : "0";
+    free(spans);
+    if (!field) return matched ? "1" : "0";
+    if (!result.length) return "";
+    char *value = allocate(result.length);
+    memcpy(value, text + result.start, result.length);
+    value[result.length] = '\0';
+    return value;
+}
+
+const char *jbc_matches(const char *text, const char *pattern)
+{
+    return match_pattern(text, pattern, 0);
+}
+
+const char *jbc_matchfield(const char *text, const char *pattern, const char *field,
+                           const char *file, int line, int column)
+{
+    struct decimal index;
+    if (!parse_decimal(field, &index) || index.places)
+        numeric_error(file, line, column, "MATCHFIELD requires an integer field number");
+    if (index.sign <= 0 || !*text || !*pattern) return "";
+    errno = 0;
+    uintmax_t position = strtoumax(field, NULL, 10);
+    if (errno || position > SIZE_MAX) return "";
+    return match_pattern(text, pattern, (size_t)position);
 }
 
 static int leap_year(int year)

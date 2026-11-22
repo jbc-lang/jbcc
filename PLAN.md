@@ -923,7 +923,16 @@ After GO and GO TO, 14,985 of 17,336 candidates pass strict C99 checking.
 All 14,975 previous passes still pass. Of the 13 units blocked at GO,
 10 now pass and three reach another diagnostic.
 
-- [ ] Implement MATCHFIELD(string, pattern, field) using the existing
+- [x] Implement MATCHFIELD(string, pattern, field) using the existing
   MATCHES pattern rules. Test extraction from a full match, variable-width
   components and a pattern that leaves unmatched input. The guide gives
   executable examples for each of these cases.
+
+After MATCHFIELD, 15,021 of 17,336 candidates pass strict C99 checking.
+All 14,985 previous passes still pass. Another 36 units now pass and
+nine reach a different diagnostic.
+
+- [ ] Implement SORT(expression). The guide specifies ascending
+  left-justified order across mixed dynamic-array delimiters and
+  attribute marks between sorted elements. Test mixed delimiters,
+  duplicates, empty elements and preservation of the input.

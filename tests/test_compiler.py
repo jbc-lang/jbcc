@@ -1389,6 +1389,15 @@ CRT O:
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
 
+    def test_matchfield_invalid_field(self):
+        source = self.work / 'matchfield.b'
+        for field in ("''", "'two'", '1.5'):
+            with self.subTest(field=field):
+                source.write_text(f"CRT MATCHFIELD('12', '2N', {field})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: MATCHFIELD requires an integer field number'.encode(), run.stderr)
+
     def test_sleep_duration_and_default(self):
         source = ROOT / 'tests/programs/sleep.b'
         binary = self.work / 'pause'

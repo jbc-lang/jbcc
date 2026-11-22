@@ -291,6 +291,15 @@ in `PL5N` is literal, including periods in the default jBASE mode.
 Concatenation binds more tightly than MATCH, so a program can build a
 pattern expression directly on its right. [MATCHES](https://jbc-lang.org/pages/matches.html).
 
+`MATCHFIELD(text, pattern, field)` returns the part of a whole-string
+match consumed by the numbered pattern component, starting at 1.
+For example, `MATCHFIELD('QA123end', '2A0N3A', 2)` returns `123`.
+Literal components count. A failed match or a missing component returns
+an empty string. The field number must be an integer. For ambiguous
+matches jbcc provisionally uses the first matching alternative and the
+shortest possible final component, applying the same rule to the prefix.
+[MATCHFIELD](https://jbc-lang.org/pages/matchfield.html).
+
 The initial `FMT(value, mask)` implementation supports byte-width masks
 such as `35L` and `3'0'R`, including a single fill byte in single or
 double quotes. Overlong input wraps into padded blocks separated by
