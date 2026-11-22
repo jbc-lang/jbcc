@@ -542,6 +542,27 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
     return found;
 }
 
+const char *jbc_convert(const char *text, const char *from, const char *to)
+{
+    if (!*from || !*text) return text;
+    unsigned char map[256];
+    for (size_t i = 0; i < sizeof map; ++i) map[i] = (unsigned char)i;
+    size_t to_length = strlen(to);
+    /* Install earlier entries last, so the first occurrence wins. */
+    for (size_t i = strlen(from); i > 0; --i) {
+        size_t pos = i - 1;
+        map[(unsigned char)from[pos]] = pos < to_length ? (unsigned char)to[pos] : 0;
+    }
+    char *out = allocate(strlen(text));
+    char *write = out;
+    for (const unsigned char *read = (const unsigned char *)text; *read; ++read) {
+        unsigned char mapped = map[*read];
+        if (mapped) *write++ = (char)mapped;
+    }
+    *write = '\0';
+    return out;
+}
+
 const char *jbc_len(const char *s)
 {
     return size_value(strlen(s));

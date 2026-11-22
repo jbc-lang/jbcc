@@ -176,6 +176,14 @@ callee reads the status field, selects a CASE arm, and updates the output.
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
 
+`CONVERT from TO to IN target` maps each input byte once. A source byte
+without a corresponding replacement is deleted, so `CONVERT '-' TO '' IN S`
+removes every hyphen. The target may be a scalar, a matrix element, or a
+selected dynamic-array component. The function form uses the default jBASE
+argument order, `CONVERT(text, from, to)`, and returns a new value.
+jbcc uses the first mapping for a repeated source byte, a provisional
+choice pending a reference run. [CONVERT](https://jbc-lang.org/pages/convert.html).
+
 `INDEX(text, needle, occurrence)` returns the one-based byte position of
 the requested match, or zero when it is missing. For example,
 `INDEX('ab--ab', 'ab', 2)` returns 5. jbcc currently counts

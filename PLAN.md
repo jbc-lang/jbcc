@@ -179,6 +179,16 @@ stopped at the declaration in I_SEAT.COMMON, 304 passed and 424 reached
 another diagnostic. The scan reported 10,124 compiler diagnostics and 228
 encoding errors.
 
-- [ ] Implement the CONVERT statement, the first blocker in 590 units.
+- [x] Implement the CONVERT statement, the first blocker in 590 units.
   Check character substitution and deletion against the guide and test
   byte-oriented conversions on dynamic arrays.
+
+After CONVERT statement and function support, 7,214 of 17,336 candidate
+units passed strict C99 checking, including all 6,984 previous passes.
+Of the 590 previously stopped at the statement, 223 passed and 367 reached
+another diagnostic. The scan reported 9,894 compiler diagnostics and 228
+encoding errors.
+
+- [ ] Investigate the duplicate declaration of `AA$RULE.TYPE`, the first
+  diagnostic in 488 units. Trace the include chain and compare the
+  declarations before changing COMMON handling.

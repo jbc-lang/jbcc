@@ -22,7 +22,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update({":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
 
 
-BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "CONVERT": (3,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
@@ -499,6 +499,25 @@ class Compiler:
             return self.matrix_slot(token)
         return self.variable(token.word)
 
+    def convert_statement(self):
+        self.advance()
+        source_chars = self.expression()
+        self.expect('TO')
+        replacements = self.expression()
+        self.expect('IN')
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
+            self.error(f"unassigned variable '{target.word}'", target)
+        indices = self.array_indices() if self.current.kind == 'array_open' else None
+        value = self.checked_read(slot, target)
+        if indices:
+            value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
+        value = self.temporary(f"jbc_convert({value}, {source_chars}, {replacements})")
+        if indices:
+            value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
+        self.emit(f"assign_value(&{slot}, {value});")
+
     def remove_statement(self):
         self.advance()
         target = self.identifier()
@@ -893,6 +912,8 @@ class Compiler:
     def statement(self):
         if self.word == 'MAT':
             self.matrix_assignment()
+        elif self.word == 'CONVERT':
+            self.convert_statement()
         elif self.word == 'REMOVE':
             self.remove_statement()
         elif self.word == 'LOCATE':
