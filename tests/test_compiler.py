@@ -399,6 +399,13 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
 
+    def test_suffix_requires_numeric_length(self):
+        source = self.work / 'suffix.b'
+        source.write_text("CRT 'abc'['bad']\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
+
     def test_substrings_requires_numeric_bounds(self):
         source = self.work / 'substrings.b'
         for args in ("'x', 1", "1, 'x'"):

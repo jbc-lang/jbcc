@@ -457,7 +457,9 @@ LEFT and RIGHT extract leading and trailing bytes respectively. For example,
 `RIGHT("The world is my lobster", 7)` returns `"lobster"`. A length below
 one gives an empty string, and a length exceeding the input size gives the
 whole string. Both functions use the existing substring rules for numeric
-lengths, truncating fractional values toward zero.
+lengths, truncating fractional values toward zero. In an expression,
+`Text[n]` is equivalent to `RIGHT(Text, n)`. For example,
+`Record<2>[3]` reads the last three bytes of the second field.
 [LEFT](https://jbc-lang.org/pages/left.html), [RIGHT](https://jbc-lang.org/pages/right.html).
 
 LEN counts bytes in the current byte-oriented runtime. FIELD accepts a

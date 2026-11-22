@@ -503,14 +503,14 @@ class Compiler:
         while self.current.kind == 'array_open' or self.word == '[':
             if self.word == '[':
                 location = self.location(self.current)
-                args = self.bracket_pair()
-                if self.word == ',':
-                    self.advance()
-                    count = self.expression()
-                    value = self.temporary(f"jbc_field({value}, {args}, {count}, {location})")
+                args = self.bracket_arguments(1, 3)
+                operands = ", ".join(args)
+                if len(args) == 1:
+                    value = self.temporary(f"jbc_right({value}, {operands}, {location})")
+                elif len(args) == 2:
+                    value = self.temporary(f"jbc_substring({value}, {operands}, {location}, NULL)")
                 else:
-                    value = self.temporary(f"jbc_substring({value}, {args}, {location}, NULL)")
-                self.expect(']')
+                    value = self.temporary(f"jbc_field({value}, {operands}, {location})")
             else:
                 if locate_source:
                     break
@@ -518,12 +518,14 @@ class Compiler:
                 value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         return value
 
-    def bracket_pair(self):
+    def bracket_arguments(self, minimum, maximum):
         self.expect('[')
-        first = self.expression()
-        self.expect(',')
-        second = self.expression()
-        return f"{first}, {second}"
+        args = [self.expression()]
+        while len(args) < minimum or (len(args) < maximum and self.word == ','):
+            self.expect(',')
+            args.append(self.expression())
+        self.expect(']')
+        return args
 
     def index_expressions(self):
         token = self.current
@@ -1602,8 +1604,8 @@ class Compiler:
             substring = None
             if self.word == '[':
                 location = self.location(self.current)
-                substring = f"{self.bracket_pair()}, {location}"
-                self.expect(']')
+                start_pos, length = self.bracket_arguments(2, 2)
+                substring = f"{start_pos}, {length}, {location}"
             operator = self.current
             if self.word not in ASSIGNMENTS:
                 self.error(f"unsupported statement '{start.word}'", start)

@@ -732,7 +732,17 @@ strict C99 checking, including all 13,340 previous passes. Of the 107
 units previously blocked at the prefix, 19 now pass and 88 reach another
 diagnostic.
 
-- [ ] Support single-argument substring extraction, `expression[n]`.
+- [x] Support single-argument substring extraction, `expression[n]`.
   The RIGHT chapter defines it as the last n characters. Check the
   reference grammar, dynamic-array values, and zero and oversized lengths.
   In 532 units the first diagnostic expects a comma at a closing bracket.
+
+After suffix extraction, 13,746 of 17,336 candidates pass strict C99
+checking, including all 13,359 previous passes. Of the 532 units with a
+closing-bracket diagnostic, 387 now pass, 142 reach a new diagnostic and
+three still require single-argument substring assignment.
+
+- [ ] Implement two-coordinate terminal positioning, `@(col,row)`. In at
+  least 544 units the first diagnostic points at the coordinate comma.
+  Check the guide’s zero-based origin, verify the emitted terminal bytes
+  for constant and computed coordinates, and retain the existing @(-2) test.
