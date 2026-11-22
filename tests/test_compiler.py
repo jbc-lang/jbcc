@@ -83,3 +83,26 @@ class CompilerTest(unittest.TestCase):
         source.write_text('$INSERT I_BROKEN\nPRINT BAD\n')
         run = self.run_native(source)
         self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
+
+    def test_call_aliases_and_expression_arguments(self):
+        caller = self.work / 'caller.b'
+        callee = self.work / 'callee.b'
+        caller.write_text('X = 1\nCALL TWICE(X, X)\nCALL TWICE(X + 1, X)\nPRINT X\n')
+        callee.write_text('SUBROUTINE TWICE(A, B)\nA += 1\nB += A\nRETURN\n')
+        run = self.run_native(callee, caller)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'10\n')
+
+    def test_bad_routine_references(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'sub.b'
+        sub.write_text('SUBROUTINE CHECK(X)\nRETURN\n')
+        for program, message in [('CALL CHECK()', 'wrong argument count'),
+                                 ('CALL MISSING()', 'unknown subroutine'),
+                                 ('GOSUB missing', 'unknown label'),
+                                 ('here:\nhere:', 'duplicate label')]:
+            with self.subTest(program=program):
+                main.write_text(program)
+                run = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(message, run.stderr)
