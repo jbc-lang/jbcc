@@ -1775,22 +1775,23 @@ static char *comparison_items(const char *array, size_t *marks)
     return copy;
 }
 
-const char *jbc_eqs(const char *left, const char *right, int reuse_left, int reuse_right)
+static const char *compare_array_items(const char *left, const char *right, int reuse_left,
+                                       int reuse_right, const char *equal, const char *unequal)
 {
     struct array_cursor lhs = array_cursor(left, reuse_left, 1);
     struct array_cursor rhs = array_cursor(right, reuse_right, 1);
     if (lhs.mark == 256 && rhs.mark == 256)
-        return !*left || !*right ? "" : (jbc_compare(left, right, jbc_precision) ? "0" : "1");
+        return !*left || !*right ? "" : (jbc_compare(left, right, jbc_precision) ? unequal : equal);
 
     size_t marks = 0;
     char *a = comparison_items(left, &marks);
     char *b = comparison_items(right, &marks);
-    if (marks > (SIZE_MAX - 1) / 2) fail("EQS result too large");
+    if (marks > (SIZE_MAX - 1) / 2) fail("array comparison result too large");
     char *out = allocate(2 * marks + 1), *write = out;
     for (;;) {
-        if (!lhs.present || !rhs.present) *write++ = '0';
+        if (!lhs.present || !rhs.present) *write++ = *unequal;
         else if (lhs.length && rhs.length)
-            *write++ = jbc_compare(a + (lhs.item - left), b + (rhs.item - right), jbc_precision) ? '0' : '1';
+            *write++ = jbc_compare(a + (lhs.item - left), b + (rhs.item - right), jbc_precision) ? *unequal : *equal;
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         if (mark == 256) break;
         *write++ = (char)mark;
@@ -1801,6 +1802,16 @@ const char *jbc_eqs(const char *left, const char *right, int reuse_left, int reu
     free(a);
     free(b);
     return out;
+}
+
+const char *jbc_eqs(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, "1", "0");
+}
+
+const char *jbc_nes(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, "0", "1");
 }
 
 const char *jbc_fields(const char *source, const char *separator, const char *start,

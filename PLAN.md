@@ -949,6 +949,14 @@ After EQS, 15,057 of 17,336 candidates pass strict C99 checking.
 All 15,038 previous passes still pass. Another 19 units now pass and
 one reaches a different diagnostic.
 
-- [ ] Implement NES(array1, array2) with the same element alignment as
+- [x] Implement NES(array1, array2) with the same element alignment as
   EQS. The guide specifies 1 for missing elements and null for a pair
   containing a null element. Exercise both cases with nested marks.
+
+After NES, 15,065 of 17,336 candidates pass strict C99 checking.
+All 15,057 previous passes still pass. Eight more units now pass and
+one reaches a different diagnostic.
+
+- [ ] Implement CATS(array1, array2) to concatenate corresponding elements.
+  Exercise the guide's mixed value and subvalue example, a wholly empty
+  operand, and the scalar REUSE prefix used in T24.
