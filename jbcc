@@ -128,6 +128,20 @@ def lex_line(line, n, path, words, parentheses):
 INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
 
 
+def branch_continuations(lines):
+    # jpp joins the preceding line to a branch keyword, skipping comment lines.
+    joined = set()
+    previous = 0
+    for n, line in enumerate(lines, 1):
+        content = line.lstrip(' \t')
+        if not content or content.startswith(('*', '!')):
+            continue
+        if re.match(r'(?:THEN|ELSE|LOCKED)(?:[ \t]|$)', content):
+            joined.update(range(previous, n))
+        previous = n
+    return joined
+
+
 def directive_error(token, message):
     raise Diagnostic(f"{token.path}:{token.line}:{token.column}: {message}")
 
@@ -171,7 +185,9 @@ class Preprocessor:
             raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
         words = []
         parentheses = 0
-        for n, line in enumerate(source.split('\n'), 1):
+        lines = source.split('\n')
+        joined = branch_continuations(lines)
+        for n, line in enumerate(lines, 1):
             newline = Token('\n', 'newline', n, len(line) + 1, path)
             include = INCLUDE.fullmatch(line)
             if include and not words:
@@ -195,7 +211,8 @@ class Preprocessor:
                 self.define(tokens)
             else:
                 yield from self.expand(tokens)
-            yield newline
+            if n not in joined:
+                yield newline
             words = []
             parentheses = 0
         if words:

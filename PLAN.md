@@ -712,7 +712,17 @@ After two-expression OPEN, 13,057 of 17,336 candidates pass strict C99
 checking, including all 13,025 previous passes. Of the 158 units blocked
 at the first OPEN comma, 32 now pass and 126 reach another diagnostic.
 
-- [ ] Handle ELSE on a following line. The reference preprocessor joins
+- [x] Handle ELSE on a following line. The reference preprocessor joins
   the newline before this keyword, including across blank and comment
   lines. Exercise inline arms, END followed by ELSE, and nested IFs.
   An unexpected standalone ELSE is the first blocker in 251 units.
+
+After branch-keyword continuation, 13,340 of 17,336 candidates pass strict
+C99 checking, including all 13,057 previous passes. Of the 251 units
+previously blocked at a standalone ELSE, 199 now pass and 52 reach
+another diagnostic.
+
+- [ ] Support static routine names beginning with `!`, such as
+  `CALL !HUSHIT(1)`. The first diagnostic points at this prefix in 104
+  CALL statements and three SUBROUTINE headers. Check a caller and
+  definition together and preserve `!` in comments and expressions.

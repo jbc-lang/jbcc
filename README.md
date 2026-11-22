@@ -175,7 +175,10 @@ with no numeric elements, jbcc returns zero provisionally. Each addition
 uses the runtime's arithmetic and PRECISION rules. [SUM](https://jbc-lang.org/pages/sum.html).
 
 Single-line and multiline IF support THEN, ELSE, and nested branches.
-Close a multiline arm with END and start its alternative with END ELSE.
+Close a multiline arm with END. Its ELSE can follow on the same line or
+on the next line. The reference preprocessor joins a line beginning with
+THEN, ELSE or LOCKED to the preceding statement, including across blank
+lines and full-line `*` or `!` comments.
 The system constants `@TRUE` and `@FALSE` evaluate to 1 and 0.
 Comparisons return the same values. Two decimal strings compare numerically;
 other pairs compare in byte order. Numeric zero and the empty string are
