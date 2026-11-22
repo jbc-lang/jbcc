@@ -568,6 +568,14 @@ After the quote functions, 11,682 of 17,336 candidates pass strict C99
 checking, including all 11,615 previous passes. Of the 89 units previously
 blocked at these calls, 63 now pass and 26 reach another diagnostic.
 
-- [ ] Implement MOD(dividend, divisor), the first blocker in 84 units.
+- [x] Implement MOD(dividend, divisor), the first blocker in 84 units.
   Check the guide’s loop example and its rule that a zero divisor returns
   the dividend. Cover signed and fractional operands and nonnumeric input.
+
+After MOD, 11,740 of 17,336 candidates pass strict C99 checking,
+including all 11,682 previous passes. Of the 84 units previously blocked
+at MOD, 47 now pass and 37 reach another diagnostic.
+
+- [ ] Implement LEFT and RIGHT. Their calls are the first diagnostic in
+  51 and 35 units respectively. Verify the guide’s leading and trailing
+  substring examples, oversized lengths, and lengths below one.

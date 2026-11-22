@@ -849,6 +849,56 @@ static const char *fmt_decimal(struct decimal n, size_t places)
     return out;
 }
 
+/* Decimal long division works on magnitudes with a common scale. Keep a
+   leading zero for the borrow when subtracting a shifted divisor. */
+static char *scaled_digits(struct decimal n, size_t scale)
+{
+    if (scale >= SIZE_MAX - n.digits) fail("MOD operand too large");
+    size_t length = 1 + n.digits + scale;
+    char *digits = allocate(length);
+    digits[0] = '0';
+    memcpy(digits + 1, n.whole, n.digits);
+    memcpy(digits + 1 + n.digits, n.fraction, n.places);
+    memset(digits + 1 + n.digits + n.places, '0', scale - n.places);
+    digits[length] = '\0';
+    return digits;
+}
+
+const char *jbc_mod(const char *left, const char *right, const char *file, int line, int column)
+{
+    struct decimal a, b;
+    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
+        numeric_error(file, line, column, "MOD requires numeric operands");
+    if (!b.sign) return left;
+    if (!a.sign) return "0";
+
+    size_t scale = a.places > b.places ? a.places : b.places;
+    char *digits = scaled_digits(a, scale);
+    const char *divisor = scaled_digits(b, scale);
+    divisor += strspn(divisor, "0");
+    size_t width = strlen(divisor);
+    size_t length = a.digits + scale;
+    for (size_t end = width; end <= length; ++end) {
+        char *start = digits + 1 + (end - width);
+        while (start[-1] != '0' || memcmp(start, divisor, width) >= 0) {
+            int borrow = 0;
+            for (size_t i = width; i > 0; --i) {
+                int d = start[i - 1] - divisor[i - 1] - borrow;
+                borrow = d < 0;
+                start[i - 1] = (char)('0' + d + 10 * borrow);
+            }
+            start[-1] -= borrow;
+        }
+    }
+    a.whole = digits + 1;
+    a.fraction = a.whole + a.digits;
+    a.places = scale;
+    while (a.digits && *a.whole == '0') { ++a.whole; --a.digits; }
+    while (a.places && a.fraction[a.places - 1] == '0') --a.places;
+    limit_places(&a, jbc_precision);
+    return fmt_decimal(a, a.places);
+}
+
 const char *jbc_abs(const char *value, const char *file, int line, int column)
 {
     struct decimal n;

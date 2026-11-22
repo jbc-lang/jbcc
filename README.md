@@ -74,6 +74,14 @@ zeros are accepted, as are the empty string and the single characters
 `.`, `+`, and `-`. Spaces, thousands separators, and exponent notation
 return 0. [NUM](https://jbc-lang.org/pages/num.html).
 
+MOD returns the decimal remainder of two numeric expressions. For example,
+`MOD(12.34, 0.5)` returns `0.34`. A zero divisor returns the original
+dividend, as specified in the guide. For signed operands, jbcc uses a
+quotient truncated toward zero, so `MOD(-7, 3)` returns `-1`. This sign
+rule is provisional pending a reference run. Explicit PRECISION truncates
+the nonzero-divisor result after the remainder is computed.
+[MOD](https://jbc-lang.org/pages/mod.html).
+
 ABS returns the magnitude of a numeric expression. For example,
 `ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
 preserving their significant digits, and truncates the result when an

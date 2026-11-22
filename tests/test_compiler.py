@@ -54,6 +54,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -352,6 +353,15 @@ time_t test_clock(time_t *out)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+
+    def test_mod_requires_numeric_operands(self):
+        source = self.work / 'mod.b'
+        for args in ("'x', 0", "1, 'x'"):
+            with self.subTest(args=args):
+                source.write_text(f"CRT MOD({args})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: MOD requires numeric operands'.encode(), run.stderr)
 
     def test_case_conversion_bytes(self):
         source = self.work / 'case.b'
