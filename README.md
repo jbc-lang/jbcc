@@ -585,6 +585,15 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+EQS compares corresponding fields, values and subvalues using scalar
+equality, including numeric comparison for numeric pairs. The result
+retains the combined array structure. An equal pair gives 1, an unequal
+pair gives 0, and an element missing on either side gives 0. For the
+guide's null-element rule, jbcc provisionally treats an explicitly empty
+element as null and leaves that result position empty. A scalar occupies
+the first position. A direct `REUSE(scalar)` in either argument repeats
+it at every position, as in T24. [EQS](https://jbc-lang.org/pages/eqs.html).
+
 SPLICE joins corresponding field, value and subvalue positions with a
 separator. An unmatched element still gets the separator on its missing
 side. An explicitly empty element paired with another element gives an

@@ -1679,11 +1679,44 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     return field;
 }
 
-const char *jbc_reuse_scalar(const char *value, const char *file, int line, int column)
+const char *jbc_reuse_scalar(const char *value, const char *message, const char *file, int line, int column)
 {
     if (strpbrk(value, "\376\375\374"))
-        numeric_error(file, line, column, "REUSE in SPLICE requires a scalar");
+        numeric_error(file, line, column, message);
     return value;
+}
+
+struct array_cursor {
+    const char *item;
+    size_t length;
+    unsigned mark;
+    int present;
+    int reuse;
+};
+
+static void read_array_item(struct array_cursor *cursor, const char *item)
+{
+    cursor->item = item;
+    cursor->length = strcspn(item, "\376\375\374");
+    unsigned char mark = (unsigned char)item[cursor->length];
+    cursor->mark = mark ? mark : 256;
+}
+
+static struct array_cursor array_cursor(const char *text, int reuse, int present)
+{
+    struct array_cursor cursor = {0};
+    cursor.present = present;
+    cursor.reuse = reuse;
+    read_array_item(&cursor, text);
+    return cursor;
+}
+
+/* The higher-level mark waits while the other side visits its siblings. */
+static void advance_array_item(struct array_cursor *cursor, unsigned mark)
+{
+    if (cursor->reuse) return;
+    cursor->present = cursor->mark == mark;
+    if (cursor->present) read_array_item(cursor, cursor->item + cursor->length + 1);
 }
 
 /* Run once to size the result, then again to fill it. A side that reaches
@@ -1692,37 +1725,28 @@ static size_t splice_elements(const char *left, const char *separator, const cha
                               int reuse_left, int reuse_right, char *out)
 {
     size_t used = 0, width = strlen(separator);
-    int has_left = *left != '\0', has_right = *right != '\0';
+    struct array_cursor lhs = array_cursor(left, reuse_left, *left != 0);
+    struct array_cursor rhs = array_cursor(right, reuse_right, *right != 0);
     for (;;) {
-        size_t a = has_left ? strcspn(left, "\376\375\374") : 0;
-        size_t b = has_right ? strcspn(right, "\376\375\374") : 0;
-        if (!(has_left && has_right && (!a || !b))) {
+        size_t a = lhs.present ? lhs.length : 0;
+        size_t b = rhs.present ? rhs.length : 0;
+        if (!(lhs.present && rhs.present && (!a || !b))) {
             if (a > SIZE_MAX - used || width > SIZE_MAX - used - a ||
                 b > SIZE_MAX - used - a - width) fail("SPLICE result too large");
             if (out) {
-                memcpy(out + used, left, a);
+                memcpy(out + used, lhs.item, a);
                 memcpy(out + used + a, separator, width);
-                memcpy(out + used + a + width, right, b);
+                memcpy(out + used + a + width, rhs.item, b);
             }
             used += a + width + b;
         }
-        if (!reuse_left) left += a;
-        if (!reuse_right) right += b;
-        unsigned lm = !reuse_left && *left ? (unsigned char)*left : 256;
-        unsigned rm = !reuse_right && *right ? (unsigned char)*right : 256;
-        unsigned mark = lm < rm ? lm : rm;
+        unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         if (mark == 256) return used;
         if (used == SIZE_MAX) fail("SPLICE result too large");
         if (out) out[used] = (char)mark;
         ++used;
-        if (!reuse_left) {
-            has_left = lm == mark;
-            if (has_left) ++left;
-        }
-        if (!reuse_right) {
-            has_right = rm == mark;
-            if (has_right) ++right;
-        }
+        advance_array_item(&lhs, mark);
+        advance_array_item(&rhs, mark);
     }
 }
 
@@ -1734,6 +1758,48 @@ const char *jbc_splice(const char *left, const char *separator, const char *righ
     char *out = allocate(length);
     splice_elements(left, separator, right, reuse_left, reuse_right, out);
     out[length] = '\0';
+    return out;
+}
+
+/* Supply NUL-terminated scalar views to jbc_compare at the same byte
+   offsets as the original array. Count marks to bound the output size. */
+static char *comparison_items(const char *array, size_t *marks)
+{
+    char *copy = malloc(strlen(array) + 1);
+    if (!copy) fail("out of memory");
+    strcpy(copy, array);
+    for (char *p = copy; (p = strpbrk(p, "\376\375\374")) != NULL; ++p) {
+        *p = '\0';
+        ++*marks;
+    }
+    return copy;
+}
+
+const char *jbc_eqs(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    struct array_cursor lhs = array_cursor(left, reuse_left, 1);
+    struct array_cursor rhs = array_cursor(right, reuse_right, 1);
+    if (lhs.mark == 256 && rhs.mark == 256)
+        return !*left || !*right ? "" : (jbc_compare(left, right, jbc_precision) ? "0" : "1");
+
+    size_t marks = 0;
+    char *a = comparison_items(left, &marks);
+    char *b = comparison_items(right, &marks);
+    if (marks > (SIZE_MAX - 1) / 2) fail("EQS result too large");
+    char *out = allocate(2 * marks + 1), *write = out;
+    for (;;) {
+        if (!lhs.present || !rhs.present) *write++ = '0';
+        else if (lhs.length && rhs.length)
+            *write++ = jbc_compare(a + (lhs.item - left), b + (rhs.item - right), jbc_precision) ? '0' : '1';
+        unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
+        if (mark == 256) break;
+        *write++ = (char)mark;
+        advance_array_item(&lhs, mark);
+        advance_array_item(&rhs, mark);
+    }
+    *write = '\0';
+    free(a);
+    free(b);
     return out;
 }
 

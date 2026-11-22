@@ -66,6 +66,7 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
                                   ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),
                                   ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
                                   ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
@@ -449,6 +450,13 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:22: REUSE in SPLICE requires a scalar'.encode(), run.stderr)
+
+    def test_eqs_reuse_requires_scalar(self):
+        source = self.work / 'eqs.b'
+        source.write_text("CRT EQS(REUSE('a':@VM:'b'), 'a')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
 
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'

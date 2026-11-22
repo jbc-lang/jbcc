@@ -941,6 +941,14 @@ After SORT, 15,038 of 17,336 candidates pass strict C99 checking.
 All 15,021 previous passes still pass. Another 17 units now pass and
 five reach a different diagnostic.
 
-- [ ] Implement EQS(array1, array2). Use the guide's mixed value and
+- [x] Implement EQS(array1, array2). Use the guide's mixed value and
   subvalue example to test how corresponding elements align. Cover
   unequal lengths and distinguish a missing element from an empty one.
+
+After EQS, 15,057 of 17,336 candidates pass strict C99 checking.
+All 15,038 previous passes still pass. Another 19 units now pass and
+one reaches a different diagnostic.
+
+- [ ] Implement NES(array1, array2) with the same element alignment as
+  EQS. The guide specifies 1 for missing elements and null for a pair
+  containing a null element. Exercise both cases with nested marks.
