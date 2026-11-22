@@ -189,6 +189,16 @@ Of the 590 previously stopped at the statement, 223 passed and 367 reached
 another diagnostic. The scan reported 9,894 compiler diagnostics and 228
 encoding errors.
 
-- [ ] Investigate the duplicate declaration of `AA$RULE.TYPE`, the first
+- [x] Investigate the duplicate declaration of `AA$RULE.TYPE`, the first
   diagnostic in 488 units. Trace the include chain and compare the
   declarations before changing COMMON handling.
+
+I_AA.APP.COMMON declares the same scalar twice within /AAAAP/, at lines
+4 and 41. The reference parser and symbol table keep the original slot.
+With that rule, 7,406 of 17,336 candidates pass strict C99 checking,
+including all 7,214 previous passes. Of the 488 units stopped at this
+declaration, 125 now pass and 363 reach another diagnostic.
+
+- [ ] Implement CONTINUE, the first blocker in 384 units. Verify its
+  destination inside nested LOOP and FOR statements, including the FOR
+  counter increment and cleanup of iteration temporaries.

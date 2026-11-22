@@ -223,7 +223,7 @@ class Compiler:
         self.matrices = {}
         self.local_arrays = {}
         self.commons = {}
-        self.common_names = set()
+        self.common_scalars = {}
         self.body = []
         self.temporaries = 0
         self.loops = 0
@@ -815,6 +815,8 @@ class Compiler:
         opening = self.current
         common = self.word in ('COM', 'COMMON')
         self.advance()
+        block_name = None
+        block = None
         if common:
             name = ''
             if self.word == '/':
@@ -827,38 +829,44 @@ class Compiler:
             block_name = name
             block = self.commons[name]
         while True:
-            token = self.identifier()
-            name = token.word
-            if name in self.names or name in self.matrices:
-                self.error(f"duplicate declaration of '{name}'", token)
-            bounds = self.dimension_bounds(common) if self.word == '(' or not common else ()
-            shape = tuple(n if isinstance(n, int) else None for n in bounds)
-            if common:
-                member = len(block.shapes)
-                block.shapes.append(shape)
-                self.common_names.add(name)
-                if bounds:
-                    field = f"{block.field}_m{member}"
-                    key = c_string(f"{block_name}:{member}")
-                    call = (f"jbc_common_matrix({key}, {len(bounds)}, "
-                            f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
-                    if None in shape:
-                        self.emit(f"frame->{field} = {call};")
-                    else:
-                        block.initializers.append(f"frame.{field} = {call};")
-                else:
-                    self.names[name] = f"frame->{block.field}[{member}]"
-                    self.assigned.add(name)
-            else:
-                field = f"matrix{len(self.local_arrays)}"
-                self.local_arrays[field] = math.prod(n + 1 for n in bounds)
-            if bounds:
-                self.matrices[name] = Matrix(field, shape, common)
+            self.declaration_member(block_name, block)
             if self.word != ',':
                 break
             self.advance()
             while self.word == '\n':
                 self.advance()
+
+    def declaration_member(self, block_name, block):
+        common = block is not None
+        token = self.identifier()
+        name = token.word
+        if common and self.common_scalars.get(name) == block_name and self.word != '(':
+            return
+        if name in self.names or name in self.matrices:
+            self.error(f"duplicate declaration of '{name}'", token)
+        bounds = self.dimension_bounds(common) if self.word == '(' or not common else ()
+        shape = tuple(n if isinstance(n, int) else None for n in bounds)
+        if common:
+            member = len(block.shapes)
+            block.shapes.append(shape)
+            if bounds:
+                field = f"{block.field}_m{member}"
+                key = c_string(f"{block_name}:{member}")
+                call = (f"jbc_common_matrix({key}, {len(bounds)}, "
+                        f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
+                if None in shape:
+                    self.emit(f"frame->{field} = {call};")
+                else:
+                    block.initializers.append(f"frame.{field} = {call};")
+            else:
+                self.common_scalars[name] = block_name
+                self.names[name] = f"frame->{block.field}[{member}]"
+                self.assigned.add(name)
+        else:
+            field = f"matrix{len(self.local_arrays)}"
+            self.local_arrays[field] = math.prod(n + 1 for n in bounds)
+        if bounds:
+            self.matrices[name] = Matrix(field, shape, common)
 
     def matrix_name(self):
         token = self.identifier()
@@ -1100,7 +1108,7 @@ class Compiler:
         if self.is_function:
             fields.append("const char *result;")
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
-                   if name not in self.formals and name not in self.common_names]
+                   if name not in self.formals and name not in self.common_scalars]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
         fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.common]
         fields += [f"jbc_variable *{field};" for field in self.local_arrays]

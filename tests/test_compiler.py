@@ -266,8 +266,9 @@ PRINT '[' : EMPTY() : ']'
         caller = self.work / 'caller.b'
         sub = self.work / 'sub.b'
         caller.write_text("""COM /EXAMPLE/ X, A(2),
-   Y
-COMMON Z
+   X, Y
+COMMON Z, Z
+COM /EXAMPLE/ X
 X = 'caller'
 A(2) = 'matrix'
 FOR I = 1 TO 2
@@ -291,6 +292,18 @@ RETURN
         result = subprocess.run([CLI, caller, sub, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('incompatible COMMON layout', result.stderr)
+
+    def test_conflicting_common_declarations(self):
+        source = self.work / 'conflict.b'
+        for first, second in [('COMMON /X/ A', 'COMMON /Y/ A'),
+                              ('COMMON A', 'COMMON /X/ A'),
+                              ('COMMON /X/ A(2)', 'COMMON /X/ A'),
+                              ('COMMON /X/ A', 'COMMON /X/ A(2)')]:
+            with self.subTest(first=first, second=second):
+                source.write_text(f'{first}\n{second}\n')
+                run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:2:12: duplicate declaration of 'A'", run.stderr)
 
     def test_runtime_common_dimensions(self):
         main = self.work / 'main.b'

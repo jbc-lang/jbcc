@@ -118,7 +118,10 @@ jbcc supports copies between matrices with identical declared bounds.
 
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
-program. The compiler checks the member count, rank, and known bounds
+program. Repeating a scalar in the same block reuses its original slot,
+including across separate COMMON statements. This follows the reference
+parser’s `common_identifier` rule and its symbol-table allocation. The
+compiler checks the member count, rank, and known bounds
 across input files. For T24 declarations such as
 `COMMON /CACHE/ Rows(Config<1>), Tail`, jbcc evaluates the bound when
 execution reaches the declaration. Each matrix has its own storage, so
