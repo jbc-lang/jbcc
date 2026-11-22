@@ -1,3 +1,4 @@
+import fcntl
 import json
 import math
 import re
@@ -25,12 +26,12 @@ class CompilerTest(unittest.TestCase):
         self.work = Path(tmp.name)
         self.c = self.work / 'generated.c'
 
-    def run_native(self, *sources, options=(), env=None):
+    def run_native(self, *sources, options=(), env=None, cwd=None):
         subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
                         '-pedantic', self.c, '-lm', '-o', binary], check=True)
-        return subprocess.run([binary], capture_output=True, timeout=5, env=env)
+        return subprocess.run([binary], capture_output=True, timeout=5, env=env, cwd=cwd)
 
     def test_snippets(self):
         for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
@@ -79,6 +80,47 @@ CRT 'done'
                 self.assertIn(b'\fSecond\r\n\fSecond\r\ndone\r\n', output)
             finally:
                 proc.kill()
+
+    def test_sequential_files(self):
+        data = b'first\n\n' + b'x' * 1100 + b'\nlast'
+        (self.work / 'input').write_bytes(data)
+        result = self.run_native(ROOT / 'tests/io/sequential.b', cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'0\nlocked -2\nbusy\n[first]\n[]\n1024\nlast\n'
+                         b'eof 128\n24576\nclosed\nalready closed\nmissing\ndone\n')
+        self.assertEqual((self.work / 'input').read_bytes(), data)
+        self.assertEqual((self.work / 'new').read_bytes(), b'one\nTWO\nlast\nend\n')
+
+    def test_sequential_external_lock_and_fifo(self):
+        source = self.work / 'open.b'
+        source.write_text("""OPENSEQ 'input' READONLY TO F LOCKED CRT 'locked' THEN STOP ELSE STOP
+OPENSEQ 'pipe' TO F SETTING S ON ERROR CRT S THEN STOP ELSE STOP
+""")
+        os.mkfifo(self.work / 'pipe')
+        with (self.work / 'input').open('wb') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            result = self.run_native(source, cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'locked\n32768\n')
+
+    def test_sequential_routine_lifetime(self):
+        (self.work / 'input').write_bytes(b'hello\n')
+        source = self.work / 'main.b'
+        sub = self.work / 'sub.b'
+        source.write_text("""CALL OPENER(0, ARG)
+CALL OPENER(1, ARG)
+READSEQ V FROM ARG ELSE STOP
+CRT V
+CLOSESEQ ARG
+""")
+        sub.write_text("""SUBROUTINE OPENER(KEEP, ARG)
+OPENSEQ 'input' TO LOCAL ELSE STOP
+IF KEEP THEN ARG = LOCAL
+RETURN
+""")
+        result = self.run_native(source, sub, cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'hello\n')
 
     def test_print_units(self):
         env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))

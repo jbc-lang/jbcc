@@ -744,6 +744,34 @@ marks on the third attribute of `r1` and the leading colon before `W` in
 `r3`, following the element-wise FIELD rule. jbcc accepts multi-byte
 delimiters as in the guide’s `jbase_field` example. [FIELDS](https://jbc-lang.org/pages/fields.html).
 
+## Sequential files
+
+`OPENSEQ path TO F` and `OPENSEQ directory, name TO F` open regular files
+on the native filesystem. Relative paths use the executable’s working
+directory. `READONLY` takes a shared advisory lock. A writable open takes
+an exclusive lock. Contention takes `LOCKED` when supplied, otherwise
+`ELSE`. Pipes and devices currently take the I/O error branch.
+[OPENSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_OPENSEQ.htm).
+
+A missing file takes `ELSE`. As in the guide’s first example, a subsequent
+`WRITESEQ` through that handle can create the file. Creation is exclusive.
+`OPENSEQ EXISTING` and `READONLY` disable this deferred creation.
+`READSEQ` consumes a line, strips the newline and takes `ELSE` at EOF.
+For long lines jbcc returns the first 1,024 bytes and advances to the
+following line. That advancement is provisional pending a reference run.
+Embedded NUL bytes produce an I/O error.
+[READSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_READSEQ.htm).
+
+`WRITESEQ` adds a newline at the current position. Its `APPEND` option
+seeks to the end before each write, and `WRITESEQF` also synchronizes
+the file to disk. The grammar’s `OPENSEQ APPEND` starts at the end of
+an existing file. `CLOSESEQ` releases the lock and invalidates aliases.
+`SETTING` returns 0 on success, 128 for missing files or EOF, 24576 for
+denied writes, and 32768 for other I/O failures. jbcc uses −2 for lock
+contention, following its existing lock convention.
+[WRITESEQ](https://jbc-lang.org/pages/writeseq.html) and
+[CLOSESEQ](https://jbc-lang.org/pages/closeseq.html).
+
 ## In-memory file tests
 
 The test backend starts with empty files explicitly named at translation

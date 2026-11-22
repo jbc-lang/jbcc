@@ -1,4 +1,7 @@
-#if (defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
+#if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#define _DARWIN_C_SOURCE 1
+#endif
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -42,12 +45,18 @@ static char *allocate(size_t length)
 }
 
 static void free_storages(void);
+#ifdef JBC_SEQUENTIAL
+static int release_sequential(const char *token);
+#endif
 
 void jbc_finish(void)
 {
     free_storages();
     while (buffers) {
         struct jbc_buffer *next = buffers->next;
+#ifdef JBC_SEQUENTIAL
+        release_sequential(buffers->text);
+#endif
         free(buffers);
         buffers = next;
     }
@@ -606,6 +615,9 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
             link = &buffer->next;
         } else {
             *link = buffer->next;
+#ifdef JBC_SEQUENTIAL
+            release_sequential(buffer->text);
+#endif
             free(buffer);
         }
     }
@@ -3214,4 +3226,152 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #define JBC_SCREEN (-1)
 #define jbc_print_channel JBC_SCREEN
 #define jbc_output(channel, text, file, line, column) ((void)(channel), fputs((text), stdout))
+#endif
+
+#ifdef JBC_SEQUENTIAL
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/* The immutable token is shared by scalar aliases. Only its address identifies
+   the handle. A pending handle remembers a missing file until the first write. */
+struct sequential_file {
+    struct sequential_file *next;
+    const char *token;
+    FILE *stream;
+    int readonly;
+    unsigned depth;
+};
+static struct sequential_file *sequential_files;
+static unsigned seq_depth;
+
+static struct sequential_file **sequential_slot(const char *token)
+{
+    struct sequential_file **slot = &sequential_files;
+    while (*slot && (*slot)->token != token) slot = &(*slot)->next;
+    return slot;
+}
+
+static int release_sequential(const char *token)
+{
+    struct sequential_file **slot = sequential_slot(token), *file = *slot;
+    if (!file) return 0;
+    *slot = file->next;
+    int result = file->stream ? fclose(file->stream) : 0;
+    free(file);
+    return result;
+}
+
+/* Returning routines transfer handles in result, reference arguments and
+   persistent storage to their caller. Local-only handles release their lock. */
+void jbc_leave_sequential(const char ***roots)
+{
+    struct sequential_file *file = sequential_files;
+    while (file && file->depth == seq_depth) {
+        struct sequential_file *next = file->next;
+        const char ***root = roots;
+        while (*root && **root != file->token) ++root;
+        if (*root || held_in_storage(file->token)) --file->depth;
+        else release_sequential(file->token);
+        file = next;
+    }
+    --seq_depth;
+}
+
+static int seq_error(int error)
+{
+    if (error == ENOENT || error == ENOTDIR) return 128;
+    if (error == EACCES || error == EPERM || error == EROFS) return 24576;
+    return 32768;
+}
+
+void jbc_seq_setting(jbc_variable *out, int status)
+{
+    assign_value(out, status == JBC_LOCKED ? "-2" : size_value((size_t)status));
+}
+
+static int open_sequential(const char *path, int readonly, int create, int append, FILE **out)
+{
+    int flags = readonly ? O_RDONLY : O_RDWR;
+    if (create) flags |= O_CREAT | O_EXCL;
+    int fd = open(path, flags | O_NONBLOCK | O_NOCTTY | O_CLOEXEC, 0666);
+    if (fd < 0) return seq_error(errno);
+    struct stat st;
+    int status = 0;
+    if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) status = 32768;
+    else if (flock(fd, (readonly ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
+        status = errno == EWOULDBLOCK ? JBC_LOCKED : seq_error(errno);
+    else if (append && lseek(fd, 0, SEEK_END) < 0) status = seq_error(errno);
+    else if (!(*out = fdopen(fd, readonly ? "rb" : "r+b"))) status = seq_error(errno);
+    if (status) close(fd);
+    return status;
+}
+
+int jbc_openseq(const char *path, const char *name, int existing, int append, int readonly,
+                jbc_variable *out)
+{
+    if (name) path = jbc_concat(jbc_concat(path, "/"), name);
+    FILE *stream = NULL;
+    int status = open_sequential(path, readonly, 0, append, &stream);
+    assign_value(out, "");
+    if (status && (status != 128 || existing || readonly)) return status;
+    struct sequential_file *file = malloc(sizeof *file);
+    if (!file) fail("out of memory");
+    file->token = strcpy(allocate(strlen(path)), path);
+    file->depth = seq_depth;
+    file->readonly = readonly;
+    file->stream = stream;
+    file->next = sequential_files;
+    sequential_files = file;
+    assign_value(out, file->token);
+    return status;
+}
+
+int jbc_readseq(const char *token, jbc_variable *out)
+{
+    struct sequential_file *file = *sequential_slot(token);
+    assign_value(out, "");
+    if (!file || !file->stream) return 128;
+    char record[1024];
+    size_t length = 0;
+    int ch, binary = 0;
+    while ((ch = fgetc(file->stream)) != EOF && ch != '\n') {
+        if (ch == 0) binary = 1;
+        if (length < sizeof record) record[length++] = (char)ch;
+    }
+    if (ferror(file->stream) || binary) return 32768;
+    if (ch == EOF && !length) return 128;
+    char *value = allocate(length);
+    memcpy(value, record, length);
+    value[length] = '\0';
+    assign_value(out, value);
+    return 0;
+}
+
+int jbc_writeseq(const char *token, const char *value, int append, int flush)
+{
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file) return 128;
+    if (file->readonly) return 24576;
+    if (!file->stream) {
+        int status = open_sequential(file->token, 0, 1, 0, &file->stream);
+        if (status) return status;
+    }
+    FILE *out = file->stream;
+    /* Positioning synchronizes stdio after a buffered read. */
+    if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||
+        fputs(value, out) == EOF || fputc('\n', out) == EOF || fflush(out))
+        return seq_error(errno);
+    if (flush && fsync(fileno(out))) return seq_error(errno);
+    return 0;
+}
+
+int jbc_closeseq(jbc_variable *slot)
+{
+    if (!*sequential_slot(slot->value)) return 0;
+    int status = release_sequential(slot->value);
+    assign_value(slot, "");
+    return status == 0;
+}
 #endif

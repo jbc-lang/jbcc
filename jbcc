@@ -352,6 +352,7 @@ class Compiler:
         self.needs_sentence = False
         self.uses_math = False
         self.terminal = False
+        self.uses_sequential = False
         self.uses_report = False
         self.uses_sleep = False
         self.uses_execute = False
@@ -903,6 +904,66 @@ class Compiler:
             self.assigned.add(target.word)
         return setting
 
+    def sequential_statement(self):
+        opening = self.current
+        op = opening.word
+        self.advance()
+        self.uses_sequential = True
+        if op == 'OPENSEQ':
+            existing = self.word == 'EXISTING'
+            if existing:
+                self.advance()
+            append = self.word == 'APPEND'
+            if append:
+                self.advance()
+            path = self.expression()
+            name = 'NULL'
+            if self.word == ',':
+                self.advance()
+                path = self.temporary(path)
+                name = self.expression()
+            readonly = self.word == 'READONLY'
+            if readonly:
+                self.advance()
+            self.expect('TO')
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            self.assigned.add(target.word)
+            call = f'jbc_openseq({path}, {name}, {int(existing)}, {int(append)}, {int(readonly)}, &{slot})'
+        elif op == 'READSEQ':
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            self.expect('FROM')
+            handle = self.expression()
+            self.assigned.add(target.word)
+            call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'CLOSESEQ':
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            call = f'jbc_closeseq(&{slot})'
+            if self.word in ('THEN', 'ELSE'):
+                self.conditional_arms(opening, call)
+            else:
+                self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "CLOSESEQ failed");')
+            return
+        else:
+            value = self.expression()
+            append = self.word == 'APPEND'
+            if append:
+                self.advance()
+            if self.word not in ('ON', 'TO'):
+                self.error(f"expected ON or TO after {op} value")
+            self.advance()
+            handle = self.expression()
+            call = f"jbc_writeseq({handle}, {value}, {int(append)}, {int(op == 'WRITESEQF')})"
+        setting = self.file_setting()
+        status = f'seq_status_{self.temporaries}'
+        self.temporaries += 1
+        self.emit(f'int {status} = {call};')
+        if setting != 'NULL':
+            self.emit(f'jbc_seq_setting({setting}, {status});')
+        self.record_read_arms(opening, status)
+
     def readv_statement(self):
         opening = self.current
         self.advance()
@@ -998,7 +1059,7 @@ class Compiler:
             self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
-        if opening.word in ('READU', 'MATREADU'):
+        if opening.word in ('READU', 'MATREADU', 'OPENSEQ'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -1007,7 +1068,7 @@ class Compiler:
                 self.assigned = before.copy()
                 self.emit("} else {")
                 self.depth += 1
-            else:
+            elif opening.word != 'OPENSEQ':
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
         self.conditional_arms(opening, f"!{status}")
@@ -1786,6 +1847,10 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
+        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ')
+              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_OR_SUBSTRING
+              and self.following.kind != 'array_open'):
+            self.sequential_statement()
         elif self.word in ('OPEN', 'READ', 'WRITE'):
             self.file_statement()
         elif self.word == 'BEGIN':
@@ -2069,6 +2134,9 @@ class Compiler:
                 lines.append(f"    jbc_seed_memory_lock({c_string(name)}, {c_string(key)});")
         if self.routine and self.sets_precision:
             lines.append("    int saved_precision = jbc_precision;")
+        seq_scope = self.routine and (self.uses_sequential or self.calls or self.has_indirect_call)
+        if seq_scope:
+            lines.extend(["#ifdef JBC_SEQUENTIAL", "    ++seq_depth;", "#endif"])
         lines.append(f"    body_{u}(&frame, 0);")
         if self.opens_local_files:
             lines.append("    jbc_close_local_files(frame.opened_files);")
@@ -2078,6 +2146,13 @@ class Compiler:
             lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:
             lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
+        if seq_scope:
+            roots = [f"&arg{i}->value" for i, matrix in enumerate(self.formals.values()) if not matrix]
+            if self.is_function:
+                roots.append("result")
+            roots.append("NULL")
+            lines.extend(["#ifdef JBC_SEQUENTIAL", "    jbc_leave_sequential((const char **[]){"
+                          + ", ".join(roots) + "});", "#endif"])
         if not self.routine:
             lines.extend(["    jbc_finish();", "    return 0;"])
         return "\n".join(lines + ["}", ""])
@@ -2198,6 +2273,8 @@ def runtime_features(units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_sleep for unit in units):
         flags.append("#define JBC_SLEEP 1")
+    if any(unit.uses_sequential for unit in units):
+        flags.append("#define JBC_SEQUENTIAL 1")
     if any(unit.uses_report for unit in units):
         flags.append("#define JBC_REPORT 1")
     if any(unit.terminal for unit in units):
