@@ -370,7 +370,9 @@ callee reads the status field, selects a CASE arm, and updates the output.
   `DELETE(R, 2, 0, 0)` removes field 2 and `DELETE(R, 1, 2, 0)` removes
   value 2 of field 1. Other index handling follows DEL.
 - Define a local label with a trailing colon, including inside IF, CASE,
-  LOOP and FOR bodies. GOTO can jump within or leave a FOR. A jump that
+  LOOP and FOR bodies. The reference grammar also accepts an optional
+  colon after a GOTO or GOSUB target, as in `GOTO finish:` or `GOSUB 100:`.
+  GOTO can jump within or leave a FOR. A jump that
   would enter a FOR without executing its header gets a source diagnostic.
   GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through

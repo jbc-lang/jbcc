@@ -694,7 +694,16 @@ checking, including all 12,493 previous passes. Of the 498 units previously
 blocked at a CALL line ending in a comma, 399 pass and 99 reach another
 diagnostic.
 
-- [ ] Accept an optional colon after GOSUB and GOTO targets, as the
+- [x] Accept an optional colon after GOSUB and GOTO targets, as the
   reference grammar does with `Label_opt_colon`. The first diagnostic
   points at this colon in 151 GOSUB units and 44 GOTO units. Exercise named
   and numeric targets and preserve the existing checks for invalid jumps.
+
+After optional jump-target colons, 13,025 of 17,336 candidates pass strict
+C99 checking, including all 12,957 previous passes. Of the 195 units
+blocked at a target colon, 68 now pass and 127 reach another diagnostic.
+
+- [ ] Support the two-expression OPEN form. In 158 units the first
+  diagnostic points at the comma after the first OPEN operand. Check
+  `OPEN '', name` and `OPEN 'DICT', name` against the guide and exercise
+  data and dictionary handles separately with the in-memory file backend.

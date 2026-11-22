@@ -678,9 +678,10 @@ RETURN M(2,3)
 
     def test_jump_cannot_bypass_for_header(self):
         source = self.work / 'jump.b'
-        for jump in ('GOTO', 'GOSUB'):
-            with self.subTest(jump=jump):
-                source.write_text(f'{jump} middle\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\n')
+        for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'),
+                             ('GOSUB', 'middle'), ('GOSUB', 'middle:')]:
+            with self.subTest(jump=jump, target=target):
+                source.write_text(f'{jump} {target}\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\n')
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:{len(jump) + 2}: jump to 'middle' would bypass a FOR header",
@@ -719,6 +720,10 @@ RETURN M(2,3)
         for program, message in [('CALL CHECK()', 'wrong argument count'),
                                  ('CALL MISSING()', 'unknown subroutine'),
                                  ('GOSUB missing', 'unknown label'),
+                                 ('GOSUB missing:', ":1:7: unknown label 'missing'"),
+                                 ('GOTO 90:', ":1:6: unknown label '90'"),
+                                 ('GOTO :', ':1:6: expected a label'),
+                                 ('GOTO here::\nhere:', ":1:11: unexpected ':'"),
                                  ('RETURN TO missing', 'unknown label'),
                                  ('RETURN TO', 'expected a label'),
                                  ('here:\nhere:', 'duplicate label')]:

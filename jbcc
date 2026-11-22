@@ -1231,6 +1231,8 @@ class Compiler:
             self.error("expected a label")
         token = self.current
         self.advance()
+        if self.word == ':':
+            self.advance()
         return token
 
     def dimension_bounds(self):
@@ -1504,8 +1506,6 @@ class Compiler:
                     self.error("RETURN TO is not allowed in a FUNCTION", opening)
                 self.advance()
                 target = self.local_label()
-                if self.word == ':':
-                    self.advance()
                 if not self.routine:
                     self.emit(f'if (!entry) numeric_error({self.location(opening)}, '
                               '"RETURN TO without an outstanding GOSUB");')
@@ -1615,7 +1615,6 @@ class Compiler:
                 if token.word in self.labels:
                     self.error("duplicate label", token)
                 self.labels[token.word] = tuple(self.for_stack)
-                self.expect(':')
                 self.emit(f"label_{self.label_number(token.word)}: ;")
                 continue
             self.statement()
