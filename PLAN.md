@@ -809,6 +809,14 @@ After length-limited INPUT, 14,592 of 17,336 candidates pass strict
 C99 checking. All 14,574 previous passes still pass. Of the 32 units
 blocked at the comma, 18 now pass and 14 reach another diagnostic.
 
-- [ ] Implement timed `INPUT Var FOR n` with THEN and ELSE. The INPUT
+- [x] Implement timed `INPUT Var FOR n` with THEN and ELSE. The INPUT
   chapter specifies a timeout in tenths of a second between keystrokes.
   Test successful completion and timeout with a partially filled variable.
+
+After timed INPUT, 14,592 of 17,336 candidates still pass strict C99
+checking. The only changed diagnostic is in WHERE.MONITOR, which now
+reaches a read of `@SENTENCE` after its timed INPUT.
+
+- [ ] Support reading `@SENTENCE`, the next blocker in 23 units.
+  Check how the invocation is represented, then exercise a native program
+  with and without command-line arguments and read the value in a subroutine.

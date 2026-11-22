@@ -2256,9 +2256,10 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 #include <unistd.h>
 
-/* Length-limited INPUT reads keystrokes without waiting for the line discipline. */
+/* Bounded and timed reads need each keystroke before the line is submitted. */
 static struct termios input_saved;
 static volatile sig_atomic_t input_modified;
 
@@ -2269,8 +2270,8 @@ static void input_signal(int sig)
     raise(sig);
 }
 
-void jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
-               const char *file, int line, int column)
+int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
+              const char *timeout_text, const char *file, int line, int column)
 {
     const int signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
     struct sigaction saved[sizeof signals / sizeof *signals];
@@ -2282,11 +2283,15 @@ void jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
 
     int64_t limit = limit_text ? truncated(limit_text, file, line, column) : 0;
     if (limit < 0) numeric_error(file, line, column, "negative INPUT length");
-    int echo_chars = 0, ended_line = 0;
-    if ((suppress_newline || limit_text) && isatty(STDIN_FILENO)) {
+    int64_t ticks = timeout_text ? truncated(timeout_text, file, line, column) : 0;
+    if (ticks < 0) numeric_error(file, line, column, "negative INPUT timeout");
+    struct timespec interval = {(time_t)(ticks / 10), (long)(ticks % 10) * 100000000L};
+    if (interval.tv_sec != ticks / 10) numeric_error(file, line, column, "INPUT timeout too large");
+    int echo_chars = 0, ended_line = 0, timed_out = 0;
+    if ((suppress_newline || limit_text || timeout_text) && isatty(STDIN_FILENO)) {
         if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
             numeric_error(file, line, column, "cannot read input terminal settings");
-        if (limit_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
+        if (limit_text || timeout_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
             echo_chars = (input_saved.c_lflag & ECHO) != 0;
             if (echo_chars || (!suppress_newline && (input_saved.c_lflag & ECHONL))) {
                 const char *tty = ttyname(STDIN_FILENO);
@@ -2317,6 +2322,15 @@ void jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
         error = "cannot write input prompt";
     while (!error && (!limit_text || length < (uint64_t)limit)) {
+        if (timeout_text) {
+            fd_set readable;
+            FD_ZERO(&readable);
+            FD_SET(STDIN_FILENO, &readable);
+            int ready = pselect(STDIN_FILENO + 1, &readable, NULL, NULL, &interval, NULL);
+            if (ready < 0 && errno == EINTR) continue;
+            if (ready < 0) { error = "cannot wait for input"; break; }
+            if (!ready) { timed_out = 1; break; }
+        }
         unsigned char c;
         ssize_t count = read(STDIN_FILENO, &c, 1);
         if (count < 0 && errno == EINTR) continue;
@@ -2366,6 +2380,7 @@ void jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     value[length] = '\0';
     free(text);
     assign_value(out, value);
+    return !timed_out;
 }
 
 const char *jbc_system(const char *code, const char *file, int line, int column)

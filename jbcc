@@ -552,20 +552,20 @@ class Compiler:
         indices = self.index_expressions()
         return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
-    def expression(self, minimum=1, output=False, locate_source=False):
-        return self.expression_tail(self.primary(locate_source), minimum, output, locate_source)
+    def expression(self, minimum=1, colon_stops=(), locate_source=False):
+        return self.expression_tail(self.primary(locate_source), minimum, colon_stops, locate_source)
 
-    def expression_tail(self, left, minimum=1, output=False, locate_source=False):
+    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False):
         while self.current.kind not in ('array_open', 'array_close') and PRECEDENCE.get(self.word, 0) >= minimum:
-            if output and self.word == ':' and self.following.word in OUTPUT_END:
+            if self.word == ':' and self.following.word in colon_stops:
                 break
             operator = self.word
             token = self.current
             self.advance()
             if operator in LOGICAL:
-                left = self.logical_expression(left, operator, output, locate_source)
+                left = self.logical_expression(left, operator, colon_stops, locate_source)
                 continue
-            right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
+            right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator in ('MATCH', 'MATCHES'):
@@ -578,7 +578,7 @@ class Compiler:
             left = self.temporary(call)
         return left
 
-    def logical_expression(self, left, operator, output, locate_source):
+    def logical_expression(self, left, operator, colon_stops, locate_source):
         result = self.temporary(f'jbc_truth({left}) ? "1" : "0"')
         evaluate_at = '0' if operator in ('OR', '!') else '1'
         self.emit(f"if (*{result} == '{evaluate_at}') {{")
@@ -588,7 +588,7 @@ class Compiler:
         both = evaluate_at == '1'  # AND needs both true, OR needs both false.
         left_facts = self.assignment_facts.get((left, both), set())
         self.assigned.update(left_facts)
-        right = self.expression(PRECEDENCE[operator] + 1, output, locate_source)
+        right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source)
         facts = left_facts | self.assignment_facts.get((right, both), set())
         if facts:
             self.assignment_facts[result, both] = facts
@@ -1103,7 +1103,7 @@ class Compiler:
         if self.word not in OUTPUT_END:
             while True:
                 if self.word != ':':
-                    self.emit(f"fputs({self.expression(output=True)}, stdout);")
+                    self.emit(f"fputs({self.expression(colon_stops=OUTPUT_END)}, stdout);")
                 if self.word == ':':
                     self.advance()
                     return
@@ -1670,12 +1670,20 @@ class Compiler:
                 limit = 'NULL'
                 if self.word == ',':
                     self.advance()
-                    limit = self.expression(output=True)
+                    limit = self.expression(colon_stops=OUTPUT_END | {'FOR'})
                 suppress = self.word == ':'
                 if suppress:
                     self.advance()
-                self.emit(f"jbc_input(&{slot}, {limit}, {int(suppress)}, {self.location(opening)});")
+                timeout = 'NULL'
+                if self.word == 'FOR':
+                    self.advance()
+                    timeout = self.expression()
+                call = f"jbc_input(&{slot}, {limit}, {int(suppress)}, {timeout}, {self.location(opening)})"
                 self.assigned.add(target.word)
+                if timeout == 'NULL':
+                    self.emit(call + ";")
+                else:
+                    self.conditional_arms(opening, call)
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()
         elif self.current.kind == 'name':

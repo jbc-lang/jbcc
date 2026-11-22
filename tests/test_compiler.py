@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import termios
+import time
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -1228,6 +1229,38 @@ END
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
 
+    def test_timed_input_restarts_after_each_byte(self):
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-timeout.b', '-o', binary], check=True)
+        for data in (b'x\n', b'x'):
+            run = subprocess.run([binary], input=data, capture_output=True, timeout=5)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertEqual(run.stdout, b'?complete [x]\n')
+        with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
+            try:
+                self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
+                self.assertEqual(proc.stdout.read(1), b'?')
+                for byte in (b'a', b'b', b'c'):
+                    proc.stdin.write(byte)
+                    proc.stdin.flush()
+                    if byte != b'c':
+                        time.sleep(0.6)
+                self.assertEqual(proc.wait(timeout=5), 0)
+                self.assertEqual(proc.stdout.read(), b'complete [abc]\n')
+            finally:
+                proc.kill()
+
+    def test_timed_input_diagnostics(self):
+        source = self.work / 'input.b'
+        source.write_text('INPUT X FOR 2\n')
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:14: expected THEN or ELSE'.encode(), run.stderr)
+        source.write_text('INPUT X FOR -1 ELSE CRT X\n')
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: negative INPUT timeout'.encode(), run.stderr)
+
     def test_input_length_diagnostics(self):
         source = self.work / 'input.b'
         for limit, message in [('-1', 'negative INPUT length'), ("'x'", 'expected a numeric value')]:
@@ -1240,7 +1273,9 @@ END
     def test_input_terminal_echo(self):
         source = self.work / 'input.b'
         source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n"
-                          "INPUT X, 2\nCRT X\nINPUT X, 1:\nCRT X\n")
+                          "INPUT X, 2\nCRT X\nINPUT X, 1:\nCRT X\n"
+                          "INPUT X FOR 4 ELSE CRT '[' : X : ']'\n"
+                          "INPUT X FOR 0 THEN CRT 'unexpected' ELSE CRT DQUOTE(X)\n")
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -1273,8 +1308,10 @@ END
                 os.write(master, b'xy')
                 self.assertEqual(read_until(b'?'), b'xy\r\nxy\r\n?')
                 os.write(master, b'z')
+                self.assertEqual(read_until(b'?'), b'zz\r\n?')
+                os.write(master, b'ab')
                 self.assertEqual(proc.wait(timeout=5), 0)
-                self.assertEqual(read_until(b'zz\r\n'), b'zz\r\n')
+                self.assertEqual(read_until(b'""\r\n'), b'ab[ab]\r\n?""\r\n')
                 check_mode_restored()
             finally:
                 proc.kill()

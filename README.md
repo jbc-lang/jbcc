@@ -186,8 +186,17 @@ reaching the limit echoes a newline unless the statement ends in a colon.
 Provisionally, jbcc truncates fractional lengths toward zero. A zero
 length consumes no input, and a negative integer length raises an error.
 
+`INPUT Var FOR n THEN ... ELSE ...` waits up to `n` tenths of a second
+for the first byte and restarts the interval after each byte. Enter or
+the length limit selects THEN. A timeout selects ELSE and assigns the
+bytes received so far, including an empty string if none arrived.
+Either arm may be omitted. With `FOR 0`, jbcc checks immediately for
+available input. Fractional intervals are provisionally truncated toward
+zero, and a negative whole interval raises an error.
+
 In jbcc an empty line assigns an empty string. At EOF, INPUT assigns any
-remaining bytes, or an empty string if none remain. These EOF rules are
+remaining bytes, or an empty string if none remain. Timed INPUT takes
+the success branch at EOF. These EOF rules are
 provisional pending a reference run. [INPUT](https://jbc-lang.org/pages/input.html),
 [PROMPT](https://jbc-lang.org/pages/prompt.html).
 
