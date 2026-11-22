@@ -52,6 +52,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
+                                  ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
+                                  ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
                                   ('CRT TIME(1)\n', ':1:5:'),
                                   ('CRT TIMEDATE(1)\n', ':1:5:'),
@@ -348,6 +350,24 @@ time_t test_clock(time_t *out)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+
+    def test_case_conversion_bytes(self):
+        source = self.work / 'case.b'
+        source.write_text("""Text = ''
+FOR I = 1 TO 255
+    Text := CHAR(I)
+NEXT I
+CRT UPCASE(Text)
+CRT DOWNCASE(Text)
+CRT LOWCASE(Text)
+CRT Text
+CRT UPCASE(''):LOWCASE('')
+""")
+        run = self.run_native(source)
+        data = bytes(range(1, 256))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'\n'.join([data.upper(), data.lower(), data.lower(), data, b'', b'']))
+        self.assertEqual(run.stderr, b'')
 
     def test_trim_diagnostics(self):
         source = self.work / 'trim.b'

@@ -551,7 +551,15 @@ After REPLACE, 11,572 of 17,336 candidates pass strict C99 checking,
 including all 11,556 previous passes. Of the 20 units previously blocked
 at a REPLACE call, 16 now pass and four reach another diagnostic.
 
-- [ ] Implement UPCASE, DOWNCASE and the LOWCASE alias in the current
+- [x] Implement UPCASE, DOWNCASE and the LOWCASE alias in the current
   byte-oriented runtime. Test ASCII letters, punctuation and array marks.
   Calls to these functions are the first diagnostic in 60, seven and two
   units respectively.
+
+After case conversion, 11,615 of 17,336 candidates pass strict C99 checking,
+including all 11,572 previous passes. Of the 69 units previously blocked
+at these functions, 40 now pass and 29 reach another diagnostic.
+
+- [ ] Implement QUOTE and DQUOTE for double quotes and SQUOTE for single
+  quotes. Verify empty strings, embedded quotes and array marks. Calls to
+  these functions are the first diagnostic in 27, 48 and 14 units respectively.

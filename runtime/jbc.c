@@ -1226,7 +1226,7 @@ const char *jbc_convert(const char *text, const char *from, const char *to)
     return out;
 }
 
-static const char *shift_delimiters(const char *text, int first, int last, int step)
+static const char *shift_bytes(const char *text, int first, int last, int step)
 {
     size_t length = strlen(text);
     char *out = allocate(length);
@@ -1238,14 +1238,24 @@ static const char *shift_delimiters(const char *text, int first, int last, int s
     return out;
 }
 
+const char *jbc_upcase(const char *text)
+{
+    return shift_bytes(text, 'a', 'z', 'A' - 'a');
+}
+
+const char *jbc_downcase(const char *text)
+{
+    return shift_bytes(text, 'A', 'Z', 'a' - 'A');
+}
+
 const char *jbc_raise(const char *text)
 {
-    return shift_delimiters(text, 248, 254, 1);
+    return shift_bytes(text, 248, 254, 1);
 }
 
 const char *jbc_lower(const char *text)
 {
-    return shift_delimiters(text, 249, 255, -1);
+    return shift_bytes(text, 249, 255, -1);
 }
 
 const char *jbc_len(const char *s)

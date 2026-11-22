@@ -349,6 +349,12 @@ callee reads the status field, selects a CASE arm, and updates the output.
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
 
+`UPCASE(text)` converts ASCII letters to uppercase. `DOWNCASE(text)` and
+its alias `LOWCASE(text)` convert them to lowercase. In the current byte
+runtime, punctuation, digits, array marks and other non-ASCII bytes pass
+through unchanged. The guide describes Unicode case conversion separately
+under International Mode. [DOWNCASE](https://jbc-lang.org/pages/downcase.html).
+
 `RAISE(text)` increments delimiter bytes 248 through 254 by one.
 `LOWER(text)` decrements bytes 249 through 255 by one. Each function
 preserves all other bytes. For example, LOWER turns field marks into value
