@@ -428,6 +428,15 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+SPLICE joins corresponding field, value and subvalue positions with a
+separator. An unmatched element still gets the separator on its missing
+side. An explicitly empty element paired with another element gives an
+empty result at that position. An empty separator produces an empty
+result, following the guide’s null-separator rule. For T24 calls such as
+`SPLICE(ids, '*HIS', '')`, jbcc treats a wholly empty input array as
+absent, giving each ID the suffix `*HIS`. This empty-array convention
+is provisional pending a reference run. [SPLICE](https://jbc-lang.org/pages/splice.html).
+
 SUBSTRINGS extracts a byte range from each field, value and subvalue,
 preserving every mark, including those around empty elements. A start of
 zero selects the first byte, as in the guide’s example and T24.

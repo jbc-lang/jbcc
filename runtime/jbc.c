@@ -1518,6 +1518,52 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     return field;
 }
 
+/* Run once to size the result, then again to fill it. A side that reaches
+   a higher-level mark waits while the other emits its remaining siblings. */
+static size_t splice_elements(const char *left, const char *separator, const char *right,
+                              char *out)
+{
+    size_t used = 0, width = strlen(separator);
+    int has_left = *left != '\0', has_right = *right != '\0';
+    for (;;) {
+        size_t a = has_left ? strcspn(left, "\376\375\374") : 0;
+        size_t b = has_right ? strcspn(right, "\376\375\374") : 0;
+        if (!(has_left && has_right && (!a || !b))) {
+            if (a > SIZE_MAX - used || width > SIZE_MAX - used - a ||
+                b > SIZE_MAX - used - a - width) fail("SPLICE result too large");
+            if (out) {
+                memcpy(out + used, left, a);
+                memcpy(out + used + a, separator, width);
+                memcpy(out + used + a + width, right, b);
+            }
+            used += a + width + b;
+        }
+        left += a;
+        right += b;
+        unsigned lm = *left ? (unsigned char)*left : 256;
+        unsigned rm = *right ? (unsigned char)*right : 256;
+        unsigned mark = lm < rm ? lm : rm;
+        if (mark == 256) return used;
+        if (used == SIZE_MAX) fail("SPLICE result too large");
+        if (out) out[used] = (char)mark;
+        ++used;
+        has_left = lm == mark;
+        has_right = rm == mark;
+        if (has_left) ++left;
+        if (has_right) ++right;
+    }
+}
+
+const char *jbc_splice(const char *left, const char *separator, const char *right)
+{
+    if (!*separator || (!*left && !*right)) return "";
+    size_t length = splice_elements(left, separator, right, NULL);
+    char *out = allocate(length);
+    splice_elements(left, separator, right, out);
+    out[length] = '\0';
+    return out;
+}
+
 const char *jbc_fields(const char *source, const char *separator, const char *start,
                        const char *count, const char *file, int line, int column)
 {

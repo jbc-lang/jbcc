@@ -610,6 +610,14 @@ After SUBSTRINGS, 11,903 of 17,336 candidates pass strict C99 checking,
 including all 11,884 previous passes. Of the 32 units previously blocked
 at SUBSTRINGS, 17 now pass and 15 reach another diagnostic.
 
-- [ ] Implement SPLICE, the first blocker in 31 units. Verify the guide’s
+- [x] Implement SPLICE, the first blocker in 31 units. Verify the guide’s
   mixed value/subvalue example and how unmatched elements are combined
   with the separator when the two arrays have different shapes.
+
+After SPLICE, 11,916 of 17,336 candidates pass strict C99 checking,
+including all 11,903 previous passes. Of the 31 units previously blocked
+at SPLICE, 11 now pass and 20 reach another diagnostic.
+
+- [ ] Support scalar REUSE operands in SPLICE. The first diagnostic points
+  at a REUSE call in 17 units. T24 uses this form to repeat a prefix or
+  suffix. Test both operand positions across differently shaped arrays.
