@@ -100,6 +100,46 @@ class CompilerTest(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'10\n')
 
+    def test_external_function(self):
+        directory = ROOT / 'tests/routines'
+        binary = self.work / 'program'
+        subprocess.run([CLI, '--exe', directory / 'function.caller.b',
+                        directory / 'DOUBLE.IT', '-o', binary], check=True)
+        self.assertEqual(subprocess.check_output([binary]), b'43\n')
+
+    def test_function_arguments_and_returns(self):
+        main = self.work / 'main.b'
+        inc = self.work / 'INC'
+        empty = self.work / 'EMPTY'
+        main.write_text("""DEFFUN INC(N)
+DEFFUN EMPTY()
+DEFFUN UNUSED()
+DIM M(1)
+M(0) = 2
+PRINT M(0) : INC(M(0)) : M(0)
+PRINT INC(INC(M(0))) : M(0)
+PRINT '[' : EMPTY() : ']'
+""")
+        inc.write_text('FUNCTION INC(N)\nGOSUB increment\nGOSUB finish\nRETURN 99\n'
+                       'increment: N += 1\nRETURN\nfinish: RETURN N\n')
+        empty.write_text('FUNCTION EMPTY()\nRETURN\n')
+        run = self.run_native(empty, inc, main)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'233\n54\n[]\n')
+
+    def test_function_diagnostics(self):
+        main = self.work / 'main.b'
+        definition = ROOT / 'tests/routines/DOUBLE.IT'
+        for text, message in [('DEFFUN MISSING()\nCRT MISSING()', ":2:5: unknown function 'MISSING'"),
+                              ('DEFFUN DOUBLE.IT()\nCRT DOUBLE.IT()', ":2:5: wrong argument count"),
+                              ('CRT DOUBLE.IT(1)\nDEFFUN DOUBLE.IT()', ':1:5: unknown variable'),
+                              ('CALL DOUBLE.IT(1)', ":1:6: unknown subroutine")]:
+            with self.subTest(text=text):
+                main.write_text(text)
+                run = subprocess.run([CLI, main, definition, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(str(main) + message, run.stderr)
+
     def test_bad_routine_references(self):
         main = self.work / 'main.b'
         sub = self.work / 'sub.b'
@@ -121,7 +161,7 @@ class CompilerTest(unittest.TestCase):
                                      b'record2\nempty=0\nrecord2\n')
 
     def test_corpus_report(self):
-        (self.work / 'ok').write_text('SUBROUTINE S(X)\nCALL OTHER(X)\n')
+        (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\nX = F(X)\n')
         (self.work / 'bad').write_text('MAT A = 2\n')
         (self.work / 'I_SHARED').write_text('EQU X TO 1\n')
         report = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', self.work],
@@ -213,9 +253,9 @@ RETURN
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)
 
-    def test_demo(self):
-        source = ROOT / 'tests/programs/demo.b'
-        binary = self.work / 'demo'
+    def test_banner(self):
+        source = ROOT / 'tests/programs/banner.b'
+        binary = self.work / 'banner'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         home = b'\x1b[H\n'
         blank = home + (b' ' * 79 + b'\n') * 24
@@ -226,7 +266,7 @@ RETURN
                 while len(frames) < 2 * len(blank):
                     self.assertTrue(select.select([process.stdout], [], [], 5)[0], 'frame timeout')
                     chunk = os.read(process.stdout.fileno(), 4096)
-                    self.assertTrue(chunk, 'demo exited before second frame')
+                    self.assertTrue(chunk, 'banner exited before second frame')
                     frames.extend(chunk)
                 _, err = process.communicate(input=b'q', timeout=5)
                 self.assertEqual(process.returncode, 0, err)
@@ -247,3 +287,17 @@ RETURN
                 expected.append(ord(pixel))
             expected.append(10)
         self.assertEqual(frames[len(blank):2 * len(blank)], expected)
+
+    def test_system14_input_queue(self):
+        source = self.work / 'pending.b'
+        source.write_text('PRINT SYSTEM(14)\nPRINT SYSTEM(14)\n')
+        binary = self.work / 'pending'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        with open(os.devnull, 'rb') as empty:
+            self.assertEqual(subprocess.check_output([binary], stdin=empty), b'0\n0\n')
+        # Preload the pipe before starting the program. Polling leaves its bytes queued.
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(write_fd, 'wb') as writer:
+            writer.write(b'abc')
+        with os.fdopen(read_fd, 'rb') as reader:
+            self.assertEqual(subprocess.check_output([binary], stdin=reader), b'3\n3\n')

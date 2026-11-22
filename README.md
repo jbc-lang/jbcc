@@ -23,6 +23,22 @@ with the resulting arguments.
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
 
+## Just recipes
+
+Run `just` to list the optional shortcuts. Build recipes accept the output
+path first, followed by one or more source files.
+
+```sh
+just test
+just build /tmp/quine tests/programs/quine.b
+just emit-c /tmp/banner.c tests/programs/banner.b
+just run tests/snippets/coercion.b
+just banner
+just quine
+just routine
+just corpus ~/Downloads/t24 > /tmp/jbcc-corpus.json
+```
+
 ## Implemented subset
 
 Use scalar assignment, PRINT and CRT, decimal numeric
@@ -74,7 +90,7 @@ written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 
 ## Compile a T24-style routine
 
-Pass one main program and its subroutine source files to the same command.
+Pass one main program and its subroutine and function source files to the same command.
 The translator resolves direct calls by the declared routine name and checks
 argument counts before writing a single C translation unit.
 
@@ -145,7 +161,31 @@ ON ERROR remain outside this test backend.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
 [WRITE](https://jbc-lang.org/pages/write.html).
 
+## User-defined functions
+
+Declare a function before its first use with `DEFFUN DOUBLE.IT()`. Parameter
+names in a declaration are optional. The compiler checks each call against
+the supplied `FUNCTION` definition. As with `CALL`, scalar variables and
+matrix elements are passed by reference and expressions use temporary slots.
+Whole-matrix (`MAT`) parameters are outside the current subset.
+
+```sh
+./jbcc --exe tests/routines/function.caller.b tests/routines/DOUBLE.IT -o /tmp/function-caller
+/tmp/function-caller
+```
+
+The caller prints `43` from `1 + DOUBLE.IT(21)`. The function returns
+`N * 2` through a hidden result argument. A bare `RETURN` gives an empty
+string. The example follows the calling convention in the
+[DEFFUN](https://jbc-lang.org/pages/deffun.html) and
+[FUNCTION](https://jbc-lang.org/pages/function.html) chapters.
+
 ## Check a local source corpus
+
+The coverage goal is to translate every program, subroutine and function in
+the local T24 sources to valid C99, expanding include fragments wherever
+they are used. The latest counts and the next language feature are in
+[the compiler plan](PLAN.md).
 
 ```sh
 python3 tools/check_corpus.py ~/Downloads/t24 -j 8 > /tmp/jbcc-corpus.json
@@ -184,10 +224,10 @@ These snippets have yet to be run on a reference jBC implementation.
 - `quine.b` reproduces its source byte for byte, including the semicolon
   between statements and the final newline. The native test compares stdout
   directly with the source file.
-- `demo.b` animates a 24-by-79 character display until a key is available.
+- `banner.b` animates a 24-by-79 character display until a key is available.
   It exercises dimensioned arrays, substring assignment, fractional
   arithmetic, trigonometry, and terminal I/O. Build it with
-  `./jbcc --exe tests/programs/demo.b -o /tmp/demo`. Run `/tmp/demo` in an
+  `./jbcc --exe tests/programs/banner.b -o /tmp/banner`. Run `/tmp/banner` in an
   ANSI terminal and enter a line to stop. The native test captures the blank
   opening frame and checks every pixel of the next frame before sending input.
 
@@ -197,7 +237,7 @@ positions count from the end). Terminal support covers ANSI cursor-home
 `@(-2)` and POSIX pending input `SYSTEM(14)`; the latter follows the input
 device's line discipline. Native mode links the math library for programs
 that use trigonometry. When compiling their generated C manually, use
-`cc -std=c99 demo.c -lm -o demo`. [SIN](https://jbc-lang.org/pages/sin.html),
+`cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 
 ## Evidence for the implementation

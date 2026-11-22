@@ -181,6 +181,8 @@ class Compiler:
         self.path = path
         self.unit = unit
         self.routine = None
+        self.is_function = False
+        self.functions = set()
         self.formals = []
         self.labels = {}
         self.targets = {}
@@ -236,7 +238,9 @@ class Compiler:
         return self.checked_read(var, token)
 
     def checked_read(self, var, token):
-        return f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
+        read = f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
+        # A later function in the expression can change this variable by reference.
+        return self.temporary(read) if self.functions else read
 
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
@@ -271,6 +275,13 @@ class Compiler:
             slot = self.matrix_slot(target)
             value = self.checked_read(slot, target)
             return self.postfix(value)
+        elif word in self.functions and self.following.word == '(':
+            target = self.identifier()
+            args = self.call_arguments()
+            self.calls.append((target, len(args), True))
+            result = self.temporary("NULL")
+            self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
+            return self.postfix(result)
         elif word in BUILTINS and self.following.word == '(':
             target = self.current
             self.advance()
@@ -570,9 +581,7 @@ class Compiler:
         self.advance()
         return token
 
-    def call_statement(self):
-        self.advance()
-        target = self.identifier()
+    def call_arguments(self):
         args = []
         if self.word == '(':
             self.advance()
@@ -595,9 +604,15 @@ class Compiler:
                     break
                 self.advance()
                 if self.word == ')':
-                    self.error("expected CALL argument")
+                    self.error("expected call argument")
             self.expect(')')
-        self.calls.append((target, len(args)))
+        return args
+
+    def call_statement(self):
+        self.advance()
+        target = self.identifier()
+        args = self.call_arguments()
+        self.calls.append((target, len(args), False))
         self.emit(f"{routine_symbol(target.word)}({', '.join(args)});")
 
     def label_number(self, name):
@@ -701,6 +716,16 @@ class Compiler:
             self.emit(f"label_{self.label_number(token.word)}: ;")
             if self.word not in (';', '\n'):
                 self.statement()
+        elif self.word == 'DEFFUN':
+            self.advance()
+            self.functions.add(self.identifier().word)
+            self.expect('(')
+            if self.word != ')':
+                self.scalar_parameter()
+                while self.word == ',':
+                    self.advance()
+                    self.scalar_parameter()
+            self.expect(')')
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
         elif self.word in ('GOSUB', 'GOTO'):
@@ -715,8 +740,18 @@ class Compiler:
                 self.emit(f"goto label_{number};")
             else:
                 self.emit(f"body_{self.unit}(frame, {number});")
+                if self.is_function:
+                    self.emit("if (frame->result) return;")
         elif self.word == 'RETURN':
             self.advance()
+            if self.is_function and self.word not in OUTPUT_END and self.word != '':
+                if self.word == '(' and self.following.word == ')':
+                    self.advance()
+                    self.advance()
+                    value = '""'
+                else:
+                    value = self.expression()
+                self.emit(f"frame->result = {value};")
             self.emit("return;")
         elif self.word == 'STOP':
             self.advance()
@@ -778,6 +813,11 @@ class Compiler:
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
 
+    def scalar_parameter(self):
+        if self.word == 'MAT':
+            self.error("MAT parameters are unsupported")
+        return self.identifier()
+
     def parse(self, tokens):
         self.has_gosub = any(t.word == 'GOSUB' for t in tokens)
         self.tokens = iter(tokens)
@@ -785,13 +825,15 @@ class Compiler:
         self.advance()
         while self.word == '\n':
             self.advance()
-        if self.word in ('SUBROUTINE', 'SUB'):
+        if self.word in ('SUBROUTINE', 'SUB', 'FUNCTION'):
+            header = self.word
+            self.is_function = header == 'FUNCTION'
             self.advance()
             self.routine = self.identifier()
             if self.word == '(':
                 self.advance()
                 while self.word != ')':
-                    param = self.identifier()
+                    param = self.scalar_parameter()
                     if param.word in self.formals:
                         self.error("duplicate parameter", param)
                     i = len(self.formals)
@@ -805,7 +847,7 @@ class Compiler:
                         self.error("expected parameter")
                 self.expect(')')
             if self.word not in (';', '\n'):
-                self.error("expected separator after SUBROUTINE declaration")
+                self.error(f"expected separator after {header} declaration")
         self.sequence({'', 'END'})
         if self.word == 'END':
             self.advance()
@@ -820,12 +862,13 @@ class Compiler:
     def signature(self):
         if not self.routine:
             return "int main(void)"
-        params = ", ".join(f"const char **arg{i}" for i in range(len(self.formals)))
-        return f"void {routine_symbol(self.routine.word)}({params or 'void'})"
+        return routine_signature(self.routine.word, len(self.formals), self.is_function)
 
     def render(self, memory_files=()):
         u = self.unit
         fields = [f"const char **arg{i};" for i in range(len(self.formals))]
+        if self.is_function:
+            fields.append("const char *result;")
         fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
                    if name not in self.formals and name not in self.common_names]
         fields += [f"const char **{b.field};" for b in self.commons.values()]
@@ -856,6 +899,8 @@ class Compiler:
             for name in memory_files:
                 lines.append(f"    jbc_create_memory_file({c_string(name)});")
         lines.append(f"    body_{u}(&frame, 0);")
+        if self.is_function:
+            lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:
             lines.append(f"    jbc_release(frame.{field});")
         if not self.routine:
@@ -865,6 +910,12 @@ class Compiler:
 
 def routine_symbol(name):
     return "routine_" + name.encode("utf8").hex()
+
+
+def routine_signature(name, argc, is_function):
+    params = ["const char **result"] if is_function else []
+    params.extend(f"const char **arg{i}" for i in range(argc))
+    return f"void {routine_symbol(name)}({', '.join(params) or 'void'})"
 
 
 def compile_unit(path, directories, index=0):
@@ -883,7 +934,7 @@ def compile_program(paths, directories, memory_files=()):
         if unit.routine:
             name = unit.routine.word
             if name in routines:
-                unit.error("duplicate subroutine", unit.routine)
+                unit.error("duplicate routine", unit.routine)
             routines[name] = unit
         else:
             programs += 1
@@ -894,9 +945,10 @@ def compile_program(paths, directories, memory_files=()):
         for name, block in unit.commons.items():
             if layouts.setdefault(name, block.shapes) != block.shapes:
                 unit.error(f"incompatible COMMON layout for /{name}/", block.token)
-        for target, argc in unit.calls:
-            if target.word not in routines:
-                unit.error(f"unknown subroutine '{target.word}'", target)
+        for target, argc, is_function in unit.calls:
+            if target.word not in routines or routines[target.word].is_function != is_function:
+                kind = "function" if is_function else "subroutine"
+                unit.error(f"unknown {kind} '{target.word}'", target)
             if argc != len(routines[target.word].formals):
                 unit.error(f"wrong argument count for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()

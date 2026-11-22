@@ -1,5 +1,11 @@
 # Compiler plan
 
+The coverage goal is to compile every T24 program, subroutine and function in
+the local corpus to C99 that passes the system compiler's syntax checks.
+Count include fragments through the compilation units that use them. Track
+unreferenced fragments and undecodable files explicitly when assessing full
+coverage. Verify runtime behavior separately with executable tests.
+
 The first T24-style milestone is to compile and run a subroutine that reads a
 field from a dynamic array, makes a decision, and returns a result through
 an argument.
@@ -64,21 +70,29 @@ Shared COMMON storage and dimensioned declarations are now implemented.
 - [x] Compile and run the quine with byte-oriented CHAR and verify that its
   output reproduces its complete source byte for byte.
 - [x] Implement DIM storage and indexed reads/writes alongside COMMON.
-  Start with local arrays, including the demo's zero index, then reuse
+  Start with local arrays, including the banner's zero index, then reuse
   the same representation for dimensioned members of shared COMMON blocks.
-- [x] Bring up the demo's frame calculation with SPACE, INT, SIN, COS, AND,
+- [x] Bring up the banner's frame calculation with SPACE, INT, SIN, COS, AND,
   and substring reads and writes on indexed strings. Verify trigonometric
   conventions against the guide.
-- [x] Run the unchanged demo with GOTO, cursor control and SYSTEM(14).
+- [x] Run the unchanged banner with GOTO, cursor control and SYSTEM(14).
   Use deterministic terminal input so the native test can check frame output
   and exit.
 
 ## Next coverage milestone
 
-After the COMMON and demo changes, 66 of 17,336 candidate units passed
+After the COMMON and banner changes, 66 of 17,336 candidate units passed
 C99 syntax checking, 17,042 produced compiler diagnostics and 228 encountered
 encoding errors. The same 5,138 include fragments were classified separately.
 
-- [ ] Implement DEFFUN declarations and function calls. DEFFUN was the first
-  blocker in 16,478 units. Check the calling convention and test a
-  declared function from a separately supplied source before rerunning the corpus.
+- [x] Compile scalar DEFFUN declarations and FUNCTION calls. The native
+  two-source fixture prints 43. Missing definitions and arity mismatches
+  report the call site.
+
+After DEFFUN support, 68 of 17,336 candidate units passed C99 checking,
+17,040 produced compiler diagnostics, and 228 had encoding errors.
+PRECISION is the first blocker in 16,500 units, including uses in I_COMMON.
+
+- [ ] Implement PRECISION. Check how it affects numeric operations and
+  comparisons against the guide, test those effects in a running program,
+  then repeat the corpus scan.

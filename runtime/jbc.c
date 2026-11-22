@@ -624,9 +624,17 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     if (jbc_compare(code, "14")) numeric_error(file, line, column, "only SYSTEM(14) is supported");
     int bytes = 0;
     fflush(stdout);
-    if (ioctl(STDIN_FILENO, FIONREAD, &bytes) < 0)
+    int result;
+    do {
+        result = ioctl(STDIN_FILENO, FIONREAD, &bytes);
+    } while (result < 0 && errno == EINTR);
+    if (result < 0) {
+        /* Devices such as /dev/null have no input queue to inspect. */
+        if (errno == ENODEV || errno == ENOTTY || errno == EOPNOTSUPP)
+            return "0";
         numeric_error(file, line, column, "cannot query pending input bytes");
-    return size_value((size_t)bytes);
+    }
+    return bytes > 0 ? size_value((size_t)bytes) : "0";
 }
 
 const char *jbc_cursor(const char *code, const char *file, int line, int column)
