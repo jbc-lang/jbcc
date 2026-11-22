@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol><=|>=|<>|\+=|-=|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>\+=|-=|.)""")
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
@@ -27,6 +27,33 @@ class Token(NamedTuple):
     column: int
 
 
+def angle_tokens(words):
+    # A tight postfix opening bracket with a matching close denotes extraction.
+    # Classify it before joining comparison operators: REC<1>=X ends in ] =.
+    openings = []
+    for i, token in enumerate(words):
+        prev = words[i - 1] if i else None
+        if token.word == '<' and prev and prev.column + len(prev.word) == token.column:
+            if prev.kind in ('name', 'number', 'string') or prev.word in (')', '>'):
+                openings.append(i)
+        elif token.word == '>' and openings and prev.word != '<':
+            j = openings.pop()
+            words[j] = words[j]._replace(kind='array_open')
+            words[i] = token._replace(kind='array_close')
+        elif token.word in (';', 'THEN', 'ELSE'):
+            openings.clear()
+    i = 0
+    while i < len(words):
+        token = words[i]
+        i += 1
+        if i < len(words) and token.kind == words[i].kind == 'symbol':
+            pair = token.word + words[i].word
+            if pair in ('<=', '>=', '<>') and words[i].column == token.column + 1:
+                token = token._replace(word=pair)
+                i += 1
+        yield token
+
+
 def tokenize(source):
     for n, line in enumerate(source.split('\n'), 1):
         words = []
@@ -41,7 +68,7 @@ def tokenize(source):
             at_start = word == ';'
         while words and words[-1].word == ';':
             words.pop()
-        yield from words
+        yield from angle_tokens(words)
         yield Token('\n', 'newline', n, len(line) + 1)
     yield Token('', 'eof', n, len(line) + 1)
 
@@ -99,6 +126,12 @@ class Compiler:
             value = self.expression()
             if self.word != ')':
                 self.error("expected ')'")
+        elif word == '@':
+            self.advance()
+            marks = {'AM': 254, 'FM': 254, 'VM': 253, 'SM': 252}
+            if self.word not in marks:
+                self.error("expected a dynamic-array mark")
+            value = '"\\%03o"' % marks[self.word]
         elif self.current.kind == 'name':
             if word not in self.assigned:
                 self.error(f"unknown variable or unsupported function '{word}'")
@@ -112,11 +145,26 @@ class Compiler:
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
         self.advance()
+        while self.current.kind == 'array_open':
+            indices = self.array_indices()
+            value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         return value
+
+    def array_indices(self):
+        token = self.current
+        self.advance()
+        indices = [self.expression()]
+        while self.word == ',':
+            self.advance()
+            indices.append(self.expression())
+        if self.current.kind != 'array_close' or len(indices) > 3:
+            self.error("expected one to three dynamic-array indices", token)
+        self.advance()
+        return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
     def expression(self, minimum=1, output=False):
         left = self.primary()
-        while PRECEDENCE.get(self.word, 0) >= minimum:
+        while self.current.kind != 'array_close' and PRECEDENCE.get(self.word, 0) >= minimum:
             if output and self.word == ':' and self.following.word in OUTPUT_END:
                 break
             operator = self.word
@@ -277,15 +325,20 @@ class Compiler:
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
+            indices = self.array_indices() if self.current.kind == 'array_open' else None
             operator = self.current
             if self.word not in ('=', '+=', '-='):
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
+            base = self.names.get(start.word, '""') if start.word in self.assigned else '""'
             if operator.word != '=':
                 if start.word not in self.assigned:
                     self.error(f"unassigned variable '{start.word}'", start)
-                value = self.arithmetic(operator, self.names[start.word], value, operator.word[0])
+                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else base
+                value = self.arithmetic(operator, old, value, operator.word[0])
+            if indices:
+                value = self.temporary(f"jbc_array({base}, {indices}, {value})")
             symbol = self.names.setdefault(start.word, f"var_{len(self.names)}")
             self.emit(f"{symbol} = {value};")
             self.assigned.add(start.word)

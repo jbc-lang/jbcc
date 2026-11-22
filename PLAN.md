@@ -25,7 +25,7 @@ an argument.
 
 ## T24-style routines
 
-- [ ] **Dynamic arrays.** Read and write `REC<field>`, then
+- [x] **Dynamic arrays.** Read and write `REC<field>`, then
   `REC<field,value>` and `REC<field,value,subvalue>`. Build the first test
   record in memory.
 - [ ] **Labels and GOSUB / RETURN.** Implement local subroutines and test

@@ -200,3 +200,65 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
         }
     }
 }
+
+/* Locate a component at this level, recurse within its byte range, then
+   splice the replacement back into the enclosing value. */
+static const char *array_part(const char *s, size_t len, const int64_t *index,
+                              int count, int level, const char *replacement)
+{
+    if (level == count) {
+        if (replacement) return replacement;
+        char *out = allocate(len);
+        memcpy(out, s, len);
+        out[len] = '\0';
+        return out;
+    }
+    unsigned char mark = (unsigned char)(254 - level);
+    size_t begin = 0, end = 0, padding = 0;
+    int64_t target = index[level];
+    if (target == -1 && replacement) {
+        begin = end = len;
+        padding = len != 0;
+    } else {
+        if (target < 1) return "";
+        for (int64_t n = 1; n < target; ++n) {
+            const char *next = memchr(s + begin, mark, len - begin);
+            if (!next) {
+                if (!replacement) return "";
+                padding = (size_t)(target - n);
+                begin = len;
+                break;
+            }
+            begin = (size_t)(next - s) + 1;
+        }
+        const char *next = memchr(s + begin, mark, len - begin);
+        end = next ? (size_t)(next - s) : len;
+    }
+    const char *part = array_part(s + begin, end - begin, index, count, level + 1, replacement);
+    if (!replacement) return part;
+    size_t bytes = strlen(part), kept = len - (end - begin);
+    if (padding > SIZE_MAX - kept || bytes > SIZE_MAX - kept - padding)
+        fail("dynamic array is too large");
+    char *out = allocate(kept + padding + bytes);
+    memcpy(out, s, begin);
+    memset(out + begin, mark, padding);
+    memcpy(out + begin + padding, part, bytes);
+    memcpy(out + begin + padding + bytes, s + end, len - end);
+    out[kept + padding + bytes] = '\0';
+    return out;
+}
+
+const char *jbc_array(const char *s, const char **indices, int count, const char *replacement)
+{
+    int64_t index[3];
+    for (int i = 0; i < count; ++i) {
+        char *end;
+        errno = 0;
+        intmax_t n = strtoimax(indices[i], &end, 10);
+        if (errno || end == indices[i] || *end || n > INT64_MAX || n < -1)
+            fail("expected an integer dynamic-array index");
+        if (replacement && n == 0) fail("dynamic-array indices start at one");
+        index[i] = n;
+    }
+    return array_part(s, strlen(s), index, count, 0, replacement);
+}
