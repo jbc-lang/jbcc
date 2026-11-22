@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|\*\*|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
@@ -24,10 +24,10 @@ COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
-PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7})
+PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7, "^": 8, "**": 8})
 
 
-BUILTINS = {"RND": (1,), "CATS": (2,), "NES": (2,), "EQS": (2,), "SORT": (1,), "MATCHFIELD": (3,), "RECORDLOCKED": (2,), "ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ICONV": (2,), "OCONV": (2,), "TRIM": (1, 2, 3), "TRIMS": (1,), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "NEG": (1,), "MOD": (2,), "REM": (2,), "SUM": (1,), "SUMMATION": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "LEFT": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"PWR": (2,), "RND": (1,), "CATS": (2,), "NES": (2,), "EQS": (2,), "SORT": (1,), "MATCHFIELD": (3,), "RECORDLOCKED": (2,), "ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ICONV": (2,), "OCONV": (2,), "TRIM": (1, 2, 3), "TRIMS": (1,), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "NEG": (1,), "MOD": (2,), "REM": (2,), "SUM": (1,), "SUMMATION": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "LEFT": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 REUSE_POSITIONS = {"CATS": (0, 1), "SPLICE": (0, 2), "EQS": (0, 1), "NES": (0, 1)}
@@ -350,7 +350,7 @@ class Compiler:
         self.loop_exit_assignments = {}
         self.loops = 0
         self.needs_sentence = False
-        self.trig = False
+        self.uses_math = False
         self.terminal = False
         self.uses_sleep = False
         self.uses_execute = False
@@ -410,10 +410,12 @@ class Compiler:
 
     def primary(self, locate_source=False):
         word = self.word
-        if word == '-':
+        if word in ('-', '+'):
             operator = self.current
             self.advance()
-            operand = self.primary(locate_source)
+            operand = self.expression(PRECEDENCE["*"], locate_source=locate_source)
+            if word == '+':
+                return operand
             return self.temporary(f"jbc_negate({operand}, {self.location(operator)})")
         if word == '(':
             self.advance()
@@ -534,11 +536,11 @@ class Compiler:
             if word in ('MOD', 'REM'):
                 args.append(c_string(f"{word} requires numeric operands"))
                 word = 'MOD'
-            if word in ("SIN", "COS"):
-                self.trig = True
+            if word in ("SIN", "COS", "PWR"):
+                self.uses_math = True
             if word == "SYSTEM":
                 self.terminal = True
-            if word in ("RND", "MATCHFIELD", "CHANGE", "DELETE", "TIMEDATE", "TIME", "DATE", "ICONV", "OCONV", "TRIM", "ABS", "NEG", "MOD", "SUM", "SUMMATION", "LEFT", "RIGHT", "SUBSTRINGS", "CHAR", "FIELD", "FIELDS", "FMT", "INDEX", "SPACE", "STR", "INT", "SIN", "COS", "SYSTEM"):
+            if word in ("PWR", "RND", "MATCHFIELD", "CHANGE", "DELETE", "TIMEDATE", "TIME", "DATE", "ICONV", "OCONV", "TRIM", "ABS", "NEG", "MOD", "SUM", "SUMMATION", "LEFT", "RIGHT", "SUBSTRINGS", "CHAR", "FIELD", "FIELDS", "FMT", "INDEX", "SPACE", "STR", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             if word == 'LOWCASE':
                 word = 'DOWNCASE'
@@ -624,6 +626,9 @@ class Compiler:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator in ('MATCH', 'MATCHES'):
                 call = f"jbc_matches({left}, {right})"
+            elif operator in ('^', '**'):
+                self.uses_math = True
+                call = f"jbc_pwr({left}, {right}, {self.location(token)})"
             elif operator == ':':
                 call = f"jbc_concat({left}, {right})"
             else:
@@ -2138,8 +2143,8 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
 
 def runtime_features(units):
     flags = []
-    if any(unit.trig for unit in units):
-        flags.append("#define JBC_TRIG 1")
+    if any(unit.uses_math for unit in units):
+        flags.append("#define JBC_MATH 1")
     if any(unit.uses_execute for unit in units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_sleep for unit in units):
@@ -2162,7 +2167,7 @@ def build_executable(source, output):
         c_file = Path(directory) / 'program.c'
         binary = Path(directory) / 'program'
         c_file.write_text(source, encoding='utf-8')
-        libraries = ['-lm'] if source.startswith('#define JBC_TRIG 1\n') else []
+        libraries = ['-lm'] if source.startswith('#define JBC_MATH 1\n') else []
         command = compiler + ['-std=c99', str(c_file)] + libraries + flags + ['-o', str(binary)]
         completed = subprocess.run(command)
         if completed.returncode:

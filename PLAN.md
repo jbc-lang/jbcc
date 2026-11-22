@@ -998,6 +998,15 @@ After SUMMATION, 15,117 of 17,336 candidates pass strict C99 checking.
 All 15,109 previous passes still pass. Eight more units now pass and
 one reaches a different diagnostic.
 
-- [ ] Implement PWR(base, exponent) and the guide's infix power operator.
+- [x] Implement PWR(base, exponent) and the guide's infix power operator.
   Check precedence and associativity against the reference grammar.
   Cover integer and fractional powers, PRECISION and invalid domains.
+
+After power operators and unary signs, 15,190 of 17,336 candidates pass
+strict C99 checking. All 15,117 previous passes still pass. Of the 73 new
+passes, 44 previously stopped at a star and 11 at a plus. Seven more
+units reach a different diagnostic.
+
+- [ ] Implement SQRT(expression) using the guide's PRECISION examples.
+  Exercise positive, zero, negative and nonnumeric inputs through the
+  native compiler.

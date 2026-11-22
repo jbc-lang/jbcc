@@ -93,6 +93,17 @@ rule is provisional pending a reference run. Explicit PRECISION truncates
 the nonzero-divisor result after the remainder is computed.
 [MOD](https://jbc-lang.org/pages/mod.html).
 
+`PWR(base, exponent)`, `^` and `**` use the same host math operation.
+The reference grammar groups powers left to right, so `2 ^ 3 ^ 2` gives
+64. Power binds more tightly than multiplication and unary signs.
+`-2 ^ 2` gives -4 and `(-2) ^ 2` gives 4. Multiplication also binds inside a unary sign, so
+`2 ^ -1 * 2` gives 0.25. The runtime applies explicit
+PRECISION to the result. For a negative base with a fractional exponent,
+jbcc follows the guide's prose and reports the domain error, returns zero
+and continues. The guide also shows `0.0nan` as output, so the exact
+diagnostic and rendering remain provisional. Zero raised to a negative
+power and overflow produce runtime errors. [PWR](https://jbc-lang.org/pages/pwr.html).
+
 On Unix, `RND(bound)` returns a random integer from zero through
 `ABS(bound) - 1`. The bound must be an integer with magnitude at most
 2,147,483,647. The native runtime samples from `/dev/urandom` and uses
@@ -900,6 +911,12 @@ tests. UTF-8 decoding failures are counted separately.
 python3 -B -m unittest discover -s tests -v
 ```
 
+With uv installed, the same suite can run in parallel.
+
+```sh
+uvx --with pytest-xdist pytest -n auto
+```
+
 Each `tests/snippets/*.b` has a sibling `.stdout` file. The tests invoke
 the CLI, compile with strict C99 warnings, run the binary and compare output
 byte for byte. They also exercise translation errors and runtime errors.
@@ -934,7 +951,7 @@ the end of the screen, and `@(-4)` to clear to the end of the current line.
 Each returns an ANSI sequence that takes effect when printed.
 `SYSTEM(14)` checks pending
 input using the POSIX input device's line discipline. Native mode links the math library for programs
-that use trigonometry. When compiling their generated C manually, use
+that use trigonometry or exponentiation. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 

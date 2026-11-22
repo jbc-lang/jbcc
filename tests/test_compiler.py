@@ -29,7 +29,7 @@ class CompilerTest(unittest.TestCase):
         subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
-                        '-pedantic', self.c, '-o', binary], check=True)
+                        '-pedantic', self.c, '-lm', '-o', binary], check=True)
         return subprocess.run([binary], capture_output=True, timeout=5)
 
     def test_snippets(self):
@@ -78,6 +78,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT PWR(2)\n", ":1:5: wrong argument count for 'PWR'"),
                                   ("CRT SUMMATION(1, 2)\n", ":1:5: wrong argument count for 'SUMMATION'"),
                                   ("CRT TRIMS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMS'"),
                                   ("CRT REM(1)\n", ":1:5: wrong argument count for 'REM'"),
@@ -463,6 +464,20 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_power_domain_and_diagnostics(self):
+        source = self.work / 'power.b'
+        for expr, column, message, continues in [
+                ("PWR(-2, 0.5)", 5, "negative base with fractional exponent", True),
+                ("0 ^ -2", 7, "zero raised to a negative power", False),
+                ("2 ** 'x'", 7, "PWR requires numeric operands", False),
+                ("PWR(10, 10000)", 5, "PWR result out of range", False)]:
+            with self.subTest(expr=expr):
+                source.write_text(f"CRT {expr}\nCRT 'done'\n")
+                run = self.run_native(source)
+                self.assertEqual(run.returncode == 0, continues)
+                self.assertEqual(run.stdout, b'0\ndone\n' if continues else b'')
+                self.assertIn(f'{source}:1:{column}: {message}'.encode(), run.stderr)
 
     def test_rnd_invalid_bound(self):
         source = self.work / 'rnd.b'

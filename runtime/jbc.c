@@ -2578,7 +2578,31 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
     return count > 0 ? substring(text, -count, count, NULL) : "";
 }
 
-#ifdef JBC_TRIG
+#ifdef JBC_MATH
+const char *jbc_pwr(const char *left, const char *right, const char *file, int line, int column)
+{
+    struct decimal base, exponent;
+    if (!parse_decimal(left, &base) || !parse_decimal(right, &exponent))
+        numeric_error(file, line, column, "PWR requires numeric operands");
+    if (base.sign < 0 && exponent.places) {
+        fprintf(stderr, "%s:%d:%d: negative base with fractional exponent in PWR\n", file, line, column);
+        return "0";
+    }
+    if (!base.sign && exponent.sign < 0)
+        numeric_error(file, line, column, "zero raised to a negative power");
+
+    long double x = strtold(left, NULL), y = strtold(right, NULL);
+    if (!isfinite(x) || !isfinite(y))
+        numeric_error(file, line, column, "PWR operand out of range");
+    long double result = powl(fabsl(x), y);
+    if (!isfinite(result)) numeric_error(file, line, column, "PWR result out of range");
+    /* The decimal text retains the parity of integer exponents too large
+       to be represented exactly by the host floating-point type. */
+    if (base.sign < 0 && exponent.digits && (exponent.whole[exponent.digits - 1] - '0') % 2)
+        result = -result;
+    return format_decimal(result);
+}
+
 static long double radians(const char *s, const char *file, int line, int column)
 {
     struct decimal n;

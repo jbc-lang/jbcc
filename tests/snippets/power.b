@@ -1,0 +1,14 @@
+CRT PWR(2,31)
+CRT 2 ^ 3 ^ 2
+CRT 2 ** (3 ^ 2)
+CRT 2 * 3 ^ 2 + 1
+CRT -2 ^ 2
+CRT (-2) ** 2
+CRT 2 ^ -3
+CRT PWR(81,.5)
+CRT PWR(-1,'9007199254740993')
+CRT 0 ^ 0
+PRECISION 4
+CRT PWR(2,31.5)
+CRT 2 ^ +3
+CRT 2 ^ -1 * 2
