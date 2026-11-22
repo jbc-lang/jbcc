@@ -290,6 +290,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
   GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through
   labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
+- `PROGRAM name` documents the source. The name generates no C symbol and
+  execution continues with the following statement. The native snippet
+  exercises the guide's documented behavior with a dotted, hyphenated name
+  and a quoted name containing a semicolon. [PROGRAM](https://jbc-lang.org/pages/program.html)
 - SUBROUTINE parameters and plain variable arguments to CALL share storage,
   including output arguments. Expressions are passed in temporary slots.
   Each invocation has its own locals. A RETURN outside a local GOSUB ends

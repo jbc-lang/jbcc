@@ -475,6 +475,15 @@ The guide’s two-list example now runs as written. All 11,084 previous
 strict C99 passes remain among the 17,336 T24 candidates. Array selection
 adds runtime behavior to SELECT syntax the compiler already accepted.
 
-- [ ] Implement PROGRAM, the first blocker in 64 units. Check the guide’s
+- [x] Implement PROGRAM, the first blocker in 64 units. Check the guide’s
   documentation-only header, the names used in T24, and native execution
   of the statements following the header.
+
+After PROGRAM, 11,087 of 17,336 candidates pass strict C99 checking,
+including all 11,084 previous passes. Three of the 64 PROGRAM units now
+pass and the other 61 reach another diagnostic.
+
+- [ ] Support runtime bounds in local DIM declarations. Positive constant
+  bounds are currently required, the first diagnostic for 135 units. Cover
+  one- and two-dimensional arrays, expression evaluation at the declaration,
+  and element access using the resulting bounds.

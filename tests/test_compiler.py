@@ -41,6 +41,9 @@ class CompilerTest(unittest.TestCase):
     def test_diagnostics_preserve_existing_output(self):
         source = self.work / 'invalid.b'
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
+                                  ('PROGRAM\n', ':1:8:'),
+                                  ('PROGRAM one two\n', ':1:13:'),
+                                  ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('CRT DATE(1)\n', ':1:5:'),

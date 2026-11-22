@@ -13,6 +13,9 @@ import tempfile
 
 
 TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>\+=|-=|:=|.)""")
+# PROGRAM names follow the reference call-name delimiters. Reserve assignment
+# operators and postfix indexing for uses of PROGRAM as a variable.
+PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[+:-]=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
@@ -79,7 +82,10 @@ def lex_line(line, n, path):
         return []
     words = []
     statement_start = 0
-    for match in TOKEN.finditer(line):
+    offset = 0
+    while offset < len(line):
+        match = TOKEN.match(line, offset)
+        offset = match.end()
         word = match[0]
         if match.lastgroup == 'space':
             continue
@@ -88,6 +94,12 @@ def lex_line(line, n, path):
         kind = match.lastgroup
         if kind == 'name' and words and words[-1].word == '@':
             kind = 'system_name'
+        if word == 'PROGRAM' and (len(words) == statement_start
+                                  or words[-1].word in ('THEN', 'ELSE')):
+            name = PROGRAM_NAME.match(line, offset)
+            if name:
+                kind = 'program_header'
+                offset = name.end()
         words.append(Token(word, kind, n, match.start() + 1, path))
         if word == ';' or (len(words) == statement_start + 2
                            and is_label(words[statement_start], words[-1])):
@@ -1340,7 +1352,11 @@ class Compiler:
         return f"({matrix.base})[{index}]"
 
     def statement(self):
-        if self.word == 'MAT':
+        if self.current.kind == 'program_header':
+            self.advance()
+        elif self.word == 'PROGRAM' and self.following.word in (';', '\n', ''):
+            self.error("expected a program name", self.following)
+        elif self.word == 'MAT':
             self.matrix_assignment()
         elif self.word == 'MATPARSE':
             self.matparse_statement()
