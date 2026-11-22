@@ -44,6 +44,9 @@ class CompilerTest(unittest.TestCase):
                                   ('BEGIN CASE\nCRT 1\nEND CASE\n', ':1:1: expected CASE clause'),
                                   ('BEGIN CASE\nEND IF\n', ":2:5: expected 'CASE'"),
                                   ('BEGIN CASE END CASE\n', ':1:1: expected CASE clause'),
+                                  ('CALL F(1,\n', ':1:9: unfinished comma continuation'),
+                                  ('CALL F(1,\n )\n', ':2:2: expected call argument'),
+                                  ('CALL F(1\n, 2)\n', ":1:9: expected ')'"),
                                   ('PROGRAM\n', ':1:8:'),
                                   ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),
@@ -563,6 +566,26 @@ CRT UPCASE(''):LOWCASE('')
         run = self.run_native(callee, caller)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'10\n')
+
+    def test_multiline_call(self):
+        caller = self.work / 'caller.b'
+        callee = self.work / 'callee.b'
+        caller.write_text("""X = 4
+R<1,2> = 3
+CALL MIX(X + 1, ;* capture the first argument
+
+    * pass X twice by reference
+    X,
+    ! extract from a dynamic array
+    R<1,
+      2>,
+    X)
+CRT X
+""")
+        callee.write_text('SUBROUTINE MIX(A, B,\nC, D)\nB = A * 10 + C\nD += B\nRETURN\n')
+        run = self.run_native(caller, callee)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'106\n')
 
     def test_external_function(self):
         directory = ROOT / 'tests/routines'

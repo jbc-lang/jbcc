@@ -388,6 +388,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
   and a quoted name containing a semicolon. [PROGRAM](https://jbc-lang.org/pages/program.html)
 - SUBROUTINE parameters and plain variable arguments to CALL share storage,
   including output arguments. Expressions are passed in temporary slots.
+  A comma at the end of a line continues the argument list on the next
+  line. The reference preprocessor applies this rule before parsing, so
+  it also works in routine headers and expressions. A trailing semicolon
+  comment, blank lines and intervening comment lines are allowed.
   Each invocation has its own locals. A RETURN outside a local GOSUB ends
   the invocation. Reading an unassigned output reports a runtime diagnostic.
   [SUBROUTINE](https://jbc-lang.org/pages/subroutine.html)

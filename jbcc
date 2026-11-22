@@ -81,12 +81,11 @@ def is_label(name, colon):
             and colon.word == ':' and colon.column == name.column + len(name.word))
 
 
-def lex_line(line, n, path):
+def lex_line(line, n, path, words, parentheses):
     if line.strip() == "//":
-        return []
-    words = []
+        return parentheses
+    first_on_line = len(words)
     statement_start = 0
-    parentheses = 0
     offset = 0
     while offset < len(line):
         match = TOKEN.match(line, offset)
@@ -94,7 +93,10 @@ def lex_line(line, n, path):
         word = match[0]
         if match.lastgroup == 'space':
             continue
-        if len(words) == statement_start and (word.startswith('*') or word in ('!', 'REM')):
+        if len(words) in (first_on_line, statement_start) and (word.startswith('*') or word in ('!', 'REM')):
+            break
+        # jpp treats the rest of a line after comma-semicolon as a comment.
+        if word == ';' and words and words[-1].word == ',' and words[-1].line == n:
             break
         kind = match.lastgroup
         if kind == 'arithmetic_assign':
@@ -120,7 +122,7 @@ def lex_line(line, n, path):
             statement_start = len(words)
     while words and words[-1].word == ';':
         words.pop()
-    return list(angle_tokens(words))
+    return parentheses
 
 
 INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
@@ -167,11 +169,12 @@ class Preprocessor:
         source = path.read_text(encoding='utf-8')
         if '\0' in source:
             raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
-        pending = []
+        words = []
+        parentheses = 0
         for n, line in enumerate(source.split('\n'), 1):
             newline = Token('\n', 'newline', n, len(line) + 1, path)
             include = INCLUDE.fullmatch(line)
-            if include and not pending:
+            if include and not words:
                 name = next(group for group in include.groups() if group is not None)
                 for directory in (path.parent, *self.directories):
                     child = directory / name
@@ -184,18 +187,20 @@ class Preprocessor:
                     directive_error(newline._replace(column=1), f"recursive include '{name}'")
                 yield from self.read(child, ancestors)
                 continue
-            words = lex_line(line, n, path)
-            if pending or (words and words[0].word in ('EQU', 'EQUATE')):
-                pending.extend(words)
-                if pending[-1].word == ',':
-                    continue
-                self.define(pending)
-                pending = []
+            parentheses = lex_line(line, n, path, words, parentheses)
+            if words and words[-1].word == ',':
+                continue
+            tokens = list(angle_tokens(words))
+            if tokens and tokens[0].word in ('EQU', 'EQUATE'):
+                self.define(tokens)
             else:
-                yield from self.expand(words)
+                yield from self.expand(tokens)
             yield newline
-        if pending:
-            directive_error(pending[-1], "unfinished EQUATE list")
+            words = []
+            parentheses = 0
+        if words:
+            message = "unfinished EQUATE list" if words[0].word in ('EQU', 'EQUATE') else "unfinished comma continuation"
+            directive_error(words[-1], message)
         if not parents:
             yield newline._replace(word='', kind='eof')
 

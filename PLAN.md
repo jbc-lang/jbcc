@@ -684,7 +684,17 @@ After empty CASE blocks, 12,493 of 17,336 candidates pass strict C99
 checking, including all 12,255 previous passes. Of the 284 units blocked
 at an empty block, 238 now pass and 46 reach another diagnostic.
 
-- [ ] Support CALL argument lists that continue on the next line after a
+- [x] Support CALL argument lists that continue on the next line after a
   comma. In 498 units the first diagnostic expects an expression at the end
   of such a CALL line. Check the reference continuation rules and verify
   argument order and by-reference updates across a line break.
+
+After comma continuation, 12,957 of 17,336 candidates pass strict C99
+checking, including all 12,493 previous passes. Of the 498 units previously
+blocked at a CALL line ending in a comma, 399 pass and 99 reach another
+diagnostic.
+
+- [ ] Accept an optional colon after GOSUB and GOTO targets, as the
+  reference grammar does with `Label_opt_colon`. The first diagnostic
+  points at this colon in 151 GOSUB units and 44 GOTO units. Exercise named
+  and numeric targets and preserve the existing checks for invalid jumps.
