@@ -635,6 +635,14 @@ checking, including all 11,932 previous passes. Of the 27 units whose
 first diagnostic pointed to a TRIMF or TRIMB call’s opening parenthesis,
 nine now pass and 18 reach another diagnostic.
 
-- [ ] Implement ALPHA for the byte-oriented runtime. The first diagnostic
+- [x] Implement ALPHA for the byte-oriented runtime. The first diagnostic
   points at an ALPHA call in 25 units. Check the guide’s letters-only and
   trailing-digit examples, along with punctuation, empty input and array marks.
+
+After ALPHA, 11,975 of 17,336 candidates pass strict C99 checking,
+including all 11,957 previous passes. Of the 25 units previously blocked
+at ALPHA, 13 now pass and 12 reach another diagnostic.
+
+- [ ] Implement scalar NEG, the first blocker in 20 units. Check the NEGS
+  chapter’s scalar examples, including signed numbers, a comparison result
+  and the documented zero substitution for nonnumeric input.

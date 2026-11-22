@@ -68,6 +68,11 @@ boundaries reclaim temporary values that are no longer in use. Integer addition,
 overflow. Division and fractional arithmetic use native long double,
 rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
 
+ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
+Digits, punctuation and array marks return 0. jbcc provisionally returns
+0 for an empty string pending a reference run. The guide describes Unicode
+classification separately under International Mode. [ALPHA](https://jbc-lang.org/pages/alpha.html).
+
 NUM tests whether an expression has numeric text and returns 1 or 0.
 It follows the guide’s prime-emulation examples. Signed decimals and leading
 zeros are accepted, as are the empty string and the single characters

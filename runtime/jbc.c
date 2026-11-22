@@ -1034,13 +1034,25 @@ unsupported:
     exit(EXIT_FAILURE);
 }
 
+static int ascii_alpha(unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+const char *jbc_alpha(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (!ascii_alpha((unsigned char)*text)) return "0";
+    return "1";
+}
+
 static int pattern_byte(unsigned char c, char kind)
 {
-    int alpha = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
     switch (kind) {
-    case 'A': return alpha;
+    case 'A': return ascii_alpha(c);
     case 'N': return ascii_digit(c);
-    case 'C': return alpha || ascii_digit(c);
+    case 'C': return ascii_alpha(c) || ascii_digit(c);
     default:  return 1; /* X */
     }
 }

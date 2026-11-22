@@ -1,0 +1,9 @@
+Value = 'AWERC'
+CRT ALPHA(Value)
+Value := 1
+CRT ALPHA(Value)
+CRT ALPHA(''):ALPHA('a.b'):ALPHA('A B'):ALPHA('A':@FM:'B')
+FOR I = 1 TO 255
+    IF ALPHA(CHAR(I)) THEN CRT CHAR(I):
+NEXT I
+CRT
