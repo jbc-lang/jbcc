@@ -166,6 +166,14 @@ def c_string(value):
                          else '\\%03o' % b for b in value.encode('utf-8')) + '"'
 
 
+class CommonBlock:
+    def __init__(self, field, token):
+        self.field = field
+        self.token = token
+        self.shapes = []
+        self.size = 0
+
+
 class Compiler:
     def __init__(self, path, unit=0):
         self.path = path
@@ -180,6 +188,8 @@ class Compiler:
         self.names = {}
         self.matrices = {}
         self.local_arrays = {}
+        self.commons = {}
+        self.common_names = set()
         self.body = []
         self.temporaries = 0
         self.loops = 0
@@ -589,17 +599,40 @@ class Compiler:
         return tuple(bounds)
 
     def declaration(self):
+        opening = self.current
+        common = self.word in ('COM', 'COMMON')
         self.advance()
+        if common:
+            name = ''
+            if self.word == '/':
+                self.advance()
+                if self.word != '/':
+                    name = self.identifier().word
+                self.expect('/')
+            if name not in self.commons:
+                self.commons[name] = CommonBlock(f"common{len(self.commons)}", opening)
+            block = self.commons[name]
         while True:
             token = self.identifier()
             name = token.word
             if name in self.names or name in self.matrices:
                 self.error(f"duplicate declaration of '{name}'", token)
-            bounds = self.dimension_bounds()
+            bounds = self.dimension_bounds() if self.word == '(' or not common else ()
             count = math.prod(n + 1 for n in bounds)
-            field = f"matrix{len(self.local_arrays)}"
-            self.local_arrays[field] = count
-            self.matrices[name] = (f"frame->{field}", bounds)
+            if common:
+                base = f"frame->{block.field} + {block.size}"
+                block.shapes.append(bounds)
+                block.size += count
+                self.common_names.add(name)
+                if not bounds:
+                    self.names[name] = f"frame->{block.field}[{block.size - 1}]"
+                    self.assigned.add(name)
+            else:
+                field = f"matrix{len(self.local_arrays)}"
+                self.local_arrays[field] = count
+                base = f"frame->{field}"
+            if bounds:
+                self.matrices[name] = (base, bounds)
             if self.word != ',':
                 break
             self.advance()
@@ -637,7 +670,7 @@ class Compiler:
             self.emit(f"label_{self.label_number(token.word)}: ;")
             if self.word not in (';', '\n'):
                 self.statement()
-        elif self.word in ('DIM', 'DIMENSION'):
+        elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
         elif self.word == 'GOSUB':
             self.advance()
@@ -751,7 +784,8 @@ class Compiler:
         u = self.unit
         fields = [f"const char **arg{i};" for i in range(len(self.formals))]
         fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
-                   if name not in self.formals]
+                   if name not in self.formals and name not in self.common_names]
+        fields += [f"const char **{b.field};" for b in self.commons.values()]
         fields += [f"const char **{field};" for field in self.local_arrays]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
@@ -769,6 +803,8 @@ class Compiler:
         lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
+        for name, block in self.commons.items():
+            lines.append(f"    frame.{block.field} = jbc_storage({block.size}, {c_string(name)});")
         for field, size in self.local_arrays.items():
             lines.append(f"    frame.{field} = jbc_storage({size}, NULL);")
         if not self.routine:
@@ -808,7 +844,11 @@ def compile_program(paths, directories, memory_files=()):
             programs += 1
     if programs != 1:
         raise Diagnostic("expected one main program among the input files")
+    layouts = {}
     for unit in units:
+        for name, block in unit.commons.items():
+            if layouts.setdefault(name, block.shapes) != block.shapes:
+                unit.error(f"incompatible COMMON layout for /{name}/", block.token)
         for target, argc in unit.calls:
             if target.word not in routines:
                 unit.error(f"unknown subroutine '{target.word}'", target)

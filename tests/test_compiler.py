@@ -146,3 +146,33 @@ class CompilerTest(unittest.TestCase):
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message.encode(), run.stderr)
                 self.assertIn(f'{source}:1:5:'.encode(), run.stderr)
+
+    def test_common_storage(self):
+        caller = self.work / 'caller.b'
+        sub = self.work / 'sub.b'
+        caller.write_text("""COM /EXAMPLE/ X, A(2),
+   Y
+COMMON Z
+X = 'caller'
+A(2) = 'matrix'
+FOR I = 1 TO 2
+  CALL CHANGE(I)
+NEXT
+PRINT X, A(2), Y, Z
+""")
+        sub.write_text("""SUBROUTINE CHANGE(I)
+COMMON /EXAMPLE/ P, M(2), Q
+COMMON Unnamed
+P = P : I
+M(2) = M(2) : I
+Q = M(2)
+Unnamed = 'ok' : I
+RETURN
+""")
+        run = self.run_native(caller, sub)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'caller12\tmatrix12\tmatrix12\tok2\n')
+        sub.write_text('SUBROUTINE CHANGE(I)\nCOM /EXAMPLE/ P, M(3), Q\n')
+        result = subprocess.run([CLI, caller, sub, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('incompatible COMMON layout', result.stderr)
