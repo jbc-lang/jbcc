@@ -1072,8 +1072,19 @@ strict C99 checking. All 15,416 previous passes still pass. Fourteen
 additional passes came from the 44 OPENSEQ cases, three from WRITESEQ,
 two from READSEQ and two from CLOSESEQ.
 
-- [ ] Implement CREATE on the descriptor returned for a missing sequential
+- [x] Implement CREATE on the descriptor returned for a missing sequential
   file, and WEOFSEQ to truncate at the current file position. These are
   now the first blockers for seven and five of the original 44 OPENSEQ
   cases respectively. Check creation races and preservation of the prefix
   before the current position against native fixtures.
+
+After CREATE and WEOFSEQ, 15,441 of 17,336 candidates pass strict C99
+checking. All 15,437 previous passes still pass. ATM.SPOOL.LOG,
+CRP.GENERATE.DATABASE, CRP.GENERATE.TXN.DATABASE and OFS.INITIALISE.SOURCE
+now pass. Native tests cover competing pending handles, truncation after
+a buffered read, subsequent writes and read-only failures.
+
+- [ ] Implement SEEK for regular sequential files. ATM.CONTROL and
+  ATM.CONTROL.USW now reach SEEK with an offset of zero relative to EOF.
+  Check offsets relative to the start, current position and end, including
+  failed seeks, with native read/write fixtures.

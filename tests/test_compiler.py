@@ -81,6 +81,25 @@ CRT 'done'
             finally:
                 proc.kill()
 
+    def test_sequential_create_and_truncate(self):
+        (self.work / 'zero').write_bytes(b'old content')
+        (self.work / 'input').write_bytes(b'keep\n' + b'discard\n' * 2000)
+        result = self.run_native(ROOT / 'tests/io/seq-create.b', cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'created 0\nempty\nlost race\n32768\nexists\n'
+                         b'keep 0\nend\nreadonly 24576\ndenied\ndone\n')
+        self.assertEqual((self.work / 'new').read_bytes(), b'winner\n')
+        self.assertEqual((self.work / 'input').read_bytes(), b'keep\nreplacement\n')
+        self.assertEqual((self.work / 'empty').read_bytes(), b'')
+        self.assertEqual((self.work / 'zero').read_bytes(), b'')
+
+    def test_create_null_handle(self):
+        source = self.work / 'null.b'
+        source.write_text("F = ''\nCREATE F ELSE CRT 'failed'\n")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:1: CREATE requires an OPENSEQ handle'.encode(), result.stderr)
+
     def test_sequential_files(self):
         data = b'first\n\n' + b'x' * 1100 + b'\nlast'
         (self.work / 'input').write_bytes(data)

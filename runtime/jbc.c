@@ -3349,15 +3349,40 @@ int jbc_readseq(const char *token, jbc_variable *out)
     return 0;
 }
 
+static int writable_sequential(struct sequential_file *file)
+{
+    if (!file) return 128;
+    if (file->readonly) return 24576;
+    if (file->stream) return 0;
+    return open_sequential(file->token, 0, 1, 0, &file->stream);
+}
+
+int jbc_createseq(const char *token, const char *source, int line, int column)
+{
+    if (!*token) numeric_error(source, line, column, "CREATE requires an OPENSEQ handle");
+    struct sequential_file *file = *sequential_slot(token);
+    if (file && file->stream) return 32768;
+    return writable_sequential(file);
+}
+
+int jbc_weofseq(const char *token)
+{
+    struct sequential_file *file = *sequential_slot(token);
+    int status = writable_sequential(file);
+    if (status) return status;
+    FILE *out = file->stream;
+    /* Discard prefetched input so a later READSEQ sees the new EOF. */
+    off_t position = ftello(out);
+    if (position < 0 || fflush(out) || ftruncate(fileno(out), position) ||
+        fseeko(out, position, SEEK_SET)) return seq_error(errno);
+    return 0;
+}
+
 int jbc_writeseq(const char *token, const char *value, int append, int flush)
 {
     struct sequential_file *file = *sequential_slot(token);
-    if (!file) return 128;
-    if (file->readonly) return 24576;
-    if (!file->stream) {
-        int status = open_sequential(file->token, 0, 1, 0, &file->stream);
-        if (status) return status;
-    }
+    int status = writable_sequential(file);
+    if (status) return status;
     FILE *out = file->stream;
     /* Positioning synchronizes stdio after a buffered read. */
     if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||

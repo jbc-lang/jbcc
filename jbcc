@@ -937,6 +937,15 @@ class Compiler:
             handle = self.expression()
             self.assigned.add(target.word)
             call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'CREATE':
+            call = f'jbc_createseq({self.expression()}, {self.location(opening)})'
+        elif op == 'WEOFSEQ':
+            target = self.identifier()
+            if target.word in self.matrices:
+                handle = self.checked_read(self.matrix_slot(target), target)
+            else:
+                handle = self.read_variable(target)
+            call = f'jbc_weofseq({handle})'
         elif op == 'CLOSESEQ':
             target = self.identifier()
             slot = self.variable_slot(target)
@@ -962,7 +971,10 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        self.record_read_arms(opening, status)
+        if op == 'CREATE':
+            self.conditional_arms(opening, f"!{status}")
+        else:
+            self.record_read_arms(opening, status, setting)
 
     def readv_statement(self):
         opening = self.current
@@ -1047,7 +1059,7 @@ class Compiler:
         self.assigned.add(target.word)
         self.record_read_arms(opening, status)
 
-    def record_read_arms(self, opening, status):
+    def record_read_arms(self, opening, status, setting="NULL"):
         before = self.assigned.copy()
         branches = []
         if self.word == 'ON':
@@ -1071,7 +1083,11 @@ class Compiler:
             elif opening.word != 'OPENSEQ':
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
-        self.conditional_arms(opening, f"!{status}")
+        if opening.word == 'WEOFSEQ' and self.word not in ('THEN', 'ELSE'):
+            if setting == 'NULL':
+                self.emit(f'if ({status}) numeric_error({self.location(opening)}, "WEOFSEQ failed");')
+        else:
+            self.conditional_arms(opening, f"!{status}")
         for branch in reversed(branches):
             self.depth -= 1
             self.emit("}")
@@ -1847,7 +1863,7 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ')
+        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ', 'CREATE', 'WEOFSEQ')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.sequential_statement()

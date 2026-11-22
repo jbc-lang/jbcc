@@ -753,9 +753,20 @@ an exclusive lock. Contention takes `LOCKED` when supplied, otherwise
 `ELSE`. Pipes and devices currently take the I/O error branch.
 [OPENSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_OPENSEQ.htm).
 
-A missing file takes `ELSE`. As in the guide’s first example, a subsequent
-`WRITESEQ` through that handle can create the file. Creation is exclusive.
-`OPENSEQ EXISTING` and `READONLY` disable this deferred creation.
+A missing file takes `ELSE` and leaves a pending handle. `CREATE F THEN … ELSE …`
+creates and opens an empty file through that handle. If another handle
+created the file first, CREATE takes ELSE and preserves the existing
+contents. Passing an empty value to CREATE gives a source-located error.
+The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
+`READONLY` disable deferred creation. [CREATE](https://jbc-lang.org/pages/create.html).
+
+`WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
+the retained prefix includes the line terminator. The next read sees EOF,
+and the next write starts at that same position. WEOFSEQ accepts `SETTING`,
+`ON ERROR` and optional `THEN` or `ELSE` arms. On a pending writable
+handle jbcc creates an empty file, following the usage in T24’s ATM.CONTROL.
+That case is provisional pending a reference run. [WEOFSEQ](https://jbc-lang.org/pages/weofseq.html).
+
 `READSEQ` consumes a line, strips the newline and takes `ELSE` at EOF.
 For long lines jbcc returns the first 1,024 bytes and advances to the
 following line. That advancement is provisional pending a reference run.
