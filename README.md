@@ -47,6 +47,21 @@ rules draw on the guide's [string variables](https://jbc-lang.org/pages/string_v
 the [jBC grammar](https://github.com/jbc-lang/jbc-language/blob/master/spec/jbc.y).
 These snippets have yet to be run on a reference jBC implementation.
 
+### Whole-program fixtures
+
+`tests/programs/` contains two user-supplied programs for manual compiler
+checks. Try either with `./jbcc tests/programs/quine.b -o /tmp/quine.c`,
+substituting `demo.b` for the animation.
+
+- `quine.b` exercises same-line statements, `CHAR`, and concatenation.
+  Its source separates the assignment and CRT with a semicolon, while
+  `CHAR(58)` prints a colon at that position. A byte-for-byte comparison
+  with its source would therefore be an incorrect output test.
+- `demo.b` animates a 24-by-79 character display until a key is available.
+  It exercises dimensioned arrays, substring assignment, fractional
+  arithmetic, trigonometry, and terminal I/O. A future automated run
+  needs bounded input or a frame limit.
+
 ## Evidence for the implementation
 
 The [grammar investigation](https://github.com/jbc-lang/jbc-language/pull/11)
