@@ -1433,6 +1433,29 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
     return 1;
 }
 
+int jbc_read_field(const char *handle, const char *key, const char *field, jbc_variable *out,
+                   jbc_variable *setting, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(field, &n))
+        numeric_error(file, line, column, "READV requires a numeric field number");
+    struct memory_file *f = file_for(handle);
+    struct memory_record *record = f ? *record_link(f, key) : NULL;
+    const char *value = "";
+    if (record && n.sign == 0) value = key;
+    if (record && n.sign > 0 && !n.places) {
+        errno = 0;
+        intmax_t index = strtoimax(field, NULL, 10);
+        if (!errno && index <= INT64_MAX) {
+            int64_t position = (int64_t)index;
+            value = array_part(record->value, strlen(record->value), &position, 1, 0, NULL, 0);
+        }
+    }
+    assign_value(out, value);
+    if (setting) assign_value(setting, record ? "" : "128");
+    return record ? 0 : 128;
+}
+
 int jbc_write_record(const char *handle, const char *key, const char *value)
 {
     struct memory_file *f = file_for(handle);

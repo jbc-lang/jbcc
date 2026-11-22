@@ -379,6 +379,16 @@ consistent with the guide’s example, or to 128 for an invalid descriptor.
 `ON ERROR` handles failure in the same way as for DELETE.
 [CLEARFILE](https://jbc-lang.org/pages/clearfile.html).
 
+READV reads one field from a record. `READV R FROM F, Key, 2 ELSE STOP`
+reads the second field, including any value and subvalue marks inside it.
+Omit `F,` to use the default descriptor. An existing record takes THEN,
+including when the requested field is absent and R receives an empty string.
+For field zero, jbcc uses the `readv0=key` convention. A missing record or
+invalid descriptor clears R, sets the optional status to 128, and takes ELSE.
+Status is empty on success. READV reserves ON ERROR for incremental file
+errors other than 128. [READV](https://jbc-lang.org/pages/readv.html),
+[jBASE emulation settings](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup12_EMULATION.htm).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

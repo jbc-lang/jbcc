@@ -545,6 +545,19 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
 
+    def test_readv(self):
+        run = self.run_native(ROOT / 'tests/io/readv.b', options=['--memory-file', 'CUSTOMERS'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'two|values\nlast\nid\nlength 0\nlength 0\n0\n0\n'
+                                     b'missing 128 0\ninvalid 128\nfirst status=\ntwo|values\n')
+        self.assertEqual(run.stderr, b'')
+
+        source = self.work / 'readv.b'
+        source.write_text("READV R FROM 'id','not numeric' ELSE NULL\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: READV requires a numeric field number'.encode(), run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

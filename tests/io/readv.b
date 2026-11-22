@@ -1,0 +1,24 @@
+OPEN 'CUSTOMERS' TO F ELSE STOP
+OPEN 'CUSTOMERS' ELSE STOP
+Rec = 'first' : @FM : 'two' : @VM : 'values' : @FM : '' : @FM : 'last'
+WRITE Rec TO F,'id'
+DIM Fields(2)
+READV Fields(1) FROM F,'id',2 SETTING Code THEN PRINT CONVERT(Fields(1),@VM,'|') ELSE STOP
+READV R FROM 'id',4 ELSE STOP
+PRINT R
+READV R FROM 'id',0 THEN PRINT R
+FOR I = 3 TO 5 STEP 2
+    READV R FROM F,'id',I THEN PRINT 'length ':LEN(R) ELSE STOP
+NEXT
+READV R FROM F,'id',1.5 THEN PRINT LEN(R) ELSE STOP
+READV R FROM F,'id',-1 THEN PRINT LEN(R) ELSE STOP
+READV R FROM F,'missing',1 SETTING Fields(2) ON ERROR
+    PRINT 'unexpected I/O error'
+END ELSE
+    PRINT 'missing ':Fields(2):' ':LEN(R)
+END
+Bad = 'CUSTOMERS'
+READV R FROM Bad,'id',1 SETTING Code ON ERROR STOP ELSE PRINT 'invalid ':Code
+READV R FROM 'id',1 SETTING Code ON ERROR STOP THEN PRINT R:' status=':Code
+WRITE 'replaced' TO F,'id'
+PRINT CONVERT(Fields(1),@VM,'|')

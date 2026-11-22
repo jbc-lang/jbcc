@@ -511,7 +511,7 @@ class Compiler:
         location = self.location(token)
         return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
 
-    def clause(self, opening):
+    def clause(self, opening, inline_stops=None):
         # A multiline arm ends at END. An inline arm ends at EOL or ELSE.
         self.depth += 1
         if self.word == '\n':
@@ -519,7 +519,7 @@ class Compiler:
             self.sequence({'END'}, opening)
             self.expect('END')
         else:
-            self.sequence({'ELSE', '\n'}, opening)
+            self.sequence(inline_stops or {'ELSE', '\n'}, opening)
         self.depth -= 1
 
     def conditional(self):
@@ -702,12 +702,7 @@ class Compiler:
                 else:
                     handle = self.read_variable(target)
             operation = f"jbc_clear_file({handle}, "
-        setting = "NULL"
-        if self.word == 'SETTING':
-            self.advance()
-            target = self.identifier()
-            setting = '&' + self.variable_slot(target)
-            self.assigned.add(target.word)
+        setting = self.file_setting()
         call = f"{operation}{setting})"
         if self.word == 'ON':
             self.advance()
@@ -721,6 +716,51 @@ class Compiler:
             self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "{opening.word} failed");')
         else:
             self.emit(f"{call};")
+
+    def file_setting(self):
+        setting = "NULL"
+        if self.word == 'SETTING':
+            self.advance()
+            target = self.identifier()
+            setting = '&' + self.variable_slot(target)
+            self.assigned.add(target.word)
+        return setting
+
+    def readv_statement(self):
+        opening = self.current
+        self.advance()
+        target = self.identifier()
+        out = self.variable_slot(target)
+        self.expect('FROM')
+        key = self.expression()
+        self.expect(',')
+        field = self.expression()
+        handle = "jbc_default_file.value"
+        if self.word == ',':
+            self.advance()
+            handle, key, field = key, field, self.expression()
+        setting = self.file_setting()
+        status = f"readv_status_{self.temporaries}"
+        self.temporaries += 1
+        self.emit(f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
+                  f"{setting}, {self.location(opening)});")
+        self.assigned.add(target.word)
+        if self.word == 'ON':
+            self.advance()
+            self.expect('ERROR')
+            self.emit(f"if ({status} != 0 && {status} != 128) {{")
+            before = self.assigned.copy()
+            self.clause(opening, {'THEN', 'ELSE', '\n'})
+            error_arm = self.assigned
+            self.assigned = before
+            self.emit("} else {")
+            self.depth += 1
+            self.conditional_arms(opening, f"!{status}")
+            self.depth -= 1
+            self.emit("}")
+            self.assigned &= error_arm
+        else:
+            self.conditional_arms(opening, f"!{status}")
 
     def file_statement(self):
         opening = self.current
@@ -1269,6 +1309,10 @@ class Compiler:
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
             self.delete_or_clearfile_statement()
+        elif (self.word == 'READV' and self.word not in self.matrices
+              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.kind != 'array_open'):
+            self.readv_statement()
         elif self.word in ('OPEN', 'READ', 'WRITE'):
             self.file_statement()
         elif self.word == 'BEGIN':

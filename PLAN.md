@@ -425,6 +425,14 @@ After CLEARFILE, 10,901 of 17,336 candidates pass strict C99 checking,
 including all 10,844 previous passes. Of the 116 units previously stopped
 at CLEARFILE, 57 now pass and 59 reach another diagnostic.
 
-- [ ] Implement READV for the in-memory backend, the first blocker in
+- [x] Implement READV for the in-memory backend, the first blocker in
   108 units. Check field extraction, default and explicit descriptors,
   and the behavior of missing records and out-of-range fields.
+
+After READV, 10,980 of 17,336 candidates pass strict C99 checking,
+including all 10,901 previous passes. Of the 108 units previously stopped
+at READV, 79 now pass and 29 reach another diagnostic.
+
+- [ ] Implement MATREAD in the in-memory backend, the first blocker in
+  71 units. Verify field mapping into a dimensioned array and preservation
+  of the destination on a missing record.
