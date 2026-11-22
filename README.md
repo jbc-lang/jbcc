@@ -144,6 +144,17 @@ a reversed range, and diagnoses positions outside the matrix. The reference
 generator uses -1 for an omitted endpoint. Its grammar also accepts a
 comma before the delimiter when both endpoints are present. [MATBUILD](https://jbc-lang.org/pages/matbuild.html).
 
+`MATPARSE matrix FROM record SETTING used` splits a record on field marks
+in the same element order as MATBUILD. An optional range follows the matrix
+name. For example, `MATPARSE A, 2, 4 FROM S USING "|"` fills positions 2
+through 4. Element zero receives any unsplit remainder, including its
+internal delimiters. SETTING is optional and counts input fields placed in
+the selected one-based slots, including empty fields between or after
+delimiters. jbcc clears unused slots inside the range and treats empty
+input as zero fields. An empty delimiter treats nonempty input as one
+field. These edge cases are provisional pending a reference run.
+[MATPARSE](https://jbc-lang.org/pages/matparse.html).
+
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
 program. Repeating a scalar in the same block reuses its original slot,

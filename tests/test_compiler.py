@@ -68,6 +68,20 @@ class CompilerTest(unittest.TestCase):
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
 
+    def test_matparse_diagnostics(self):
+        source = self.work / 'matparse.b'
+        source.write_text('MATPARSE Missing FROM "x"\n')
+        build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(build.returncode, 0)
+        self.assertIn(f"{source}:1:10: expected a dimensioned array 'Missing'", build.stderr)
+        for bounds, message in [(', 1, 3', 'MATPARSE position out of bounds'),
+                                (', 1.5', 'MATPARSE requires integer positions')]:
+            with self.subTest(bounds=bounds):
+                source.write_text(f'DIM A(2)\nMATPARSE A{bounds} FROM "x"\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:2:1: {message}'.encode(), run.stderr)
+
     def test_ins_diagnostics(self):
         source = self.work / 'ins.b'
         for program, diagnostic in [

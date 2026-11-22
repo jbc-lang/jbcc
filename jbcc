@@ -947,6 +947,23 @@ class Compiler:
                       '"COMMON matrix declaration has not executed");')
         return matrix
 
+    def matrix_range(self):
+        start = end = 'NULL'
+        if self.word == ',':
+            self.advance()
+            start = self.expression()
+            if self.word == ',':
+                self.advance()
+                end = self.expression()
+        return start, end
+
+    def matrix_delimiter(self):
+        delimiter = SYSTEM_CONSTANTS['FM']
+        if self.word in ('USING', ','):
+            self.advance()
+            delimiter = self.expression()
+        return delimiter
+
     def matbuild_statement(self):
         opening = self.current
         self.advance()
@@ -955,22 +972,31 @@ class Compiler:
         self.expect('FROM')
         source = self.matrix_name()
         matrix = self.checked_matrix(source)
-        start = end = 'NULL'
-        if self.word == ',':
-            self.advance()
-            start = self.expression()
-            if self.word == ',':
-                self.advance()
-                end = self.expression()
-        delimiter = SYSTEM_CONSTANTS['FM']
-        if self.word in ('USING', ','):
-            self.advance()
-            delimiter = self.expression()
+        start, end = self.matrix_range()
+        delimiter = self.matrix_delimiter()
         result = self.temporary(f"jbc_matbuild({matrix.base}, {len(matrix.shape)}, {matrix.limits}, "
                                 f"{start}, {end}, {delimiter}, {c_string(source.word)}, {self.location(opening)})")
         self.emit(f"assign_value(&{dest}, {result});")
         if target.word not in self.matrices:
             self.assigned.add(target.word)
+
+    def matparse_statement(self):
+        opening = self.current
+        self.advance()
+        matrix = self.checked_matrix(self.matrix_name())
+        start, end = self.matrix_range()
+        self.expect('FROM')
+        source = self.expression()
+        delimiter = self.matrix_delimiter()
+        setting = 'NULL'
+        if self.word == 'SETTING':
+            self.advance()
+            target = self.identifier()
+            setting = '&' + self.variable_slot(target)
+            if target.word not in self.matrices:
+                self.assigned.add(target.word)
+        self.emit(f"jbc_matparse({matrix.base}, {len(matrix.shape)}, {matrix.limits}, "
+                  f"{start}, {end}, {source}, {delimiter}, {setting}, {self.location(opening)});")
 
     def matrix_assignment(self):
         self.advance()
@@ -1011,6 +1037,8 @@ class Compiler:
     def statement(self):
         if self.word == 'MAT':
             self.matrix_assignment()
+        elif self.word == 'MATPARSE':
+            self.matparse_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
         elif self.word == 'CONVERT':

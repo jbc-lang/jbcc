@@ -373,17 +373,28 @@ static size_t matrix_element_offset(size_t ordinal, int rank, const int *bounds)
     return offset;
 }
 
-static size_t matbuild_position(const char *value, size_t fallback, size_t total,
-                                const char *file, int line, int column)
+static size_t matrix_elements(int rank, const int *bounds)
+{
+    size_t total = 1;
+    for (int d = 0; d < rank; ++d) total *= (size_t)bounds[d];
+    return total;
+}
+
+static size_t matrix_position(const char *value, size_t fallback, size_t total,
+                              const char *statement, const char *file, int line, int column)
 {
     if (!value) return fallback;
     struct decimal n;
-    if (!parse_decimal(value, &n) || n.places)
-        numeric_error(file, line, column, "MATBUILD requires integer positions");
+    if (!parse_decimal(value, &n) || n.places) {
+        fprintf(stderr, "%s:%d:%d: %s requires integer positions\n", file, line, column, statement);
+        exit(EXIT_FAILURE);
+    }
     int64_t pos = integer(value, file, line, column);
     if (pos == -1) return fallback;
-    if (pos < 1 || (uint64_t)pos > total)
-        numeric_error(file, line, column, "MATBUILD position out of bounds");
+    if (pos < 1 || (uint64_t)pos > total) {
+        fprintf(stderr, "%s:%d:%d: %s position out of bounds\n", file, line, column, statement);
+        exit(EXIT_FAILURE);
+    }
     return (size_t)pos;
 }
 
@@ -391,10 +402,9 @@ const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
                          const char *start, const char *end, const char *delimiter,
                          const char *name, const char *file, int line, int column)
 {
-    size_t total = 1;
-    for (int d = 0; d < rank; ++d) total *= (size_t)bounds[d];
-    size_t first = matbuild_position(start, 1, total, file, line, column);
-    size_t last = matbuild_position(end, total, total, file, line, column);
+    size_t total = matrix_elements(rank, bounds);
+    size_t first = matrix_position(start, 1, total, "MATBUILD", file, line, column);
+    size_t last = matrix_position(end, total, total, "MATBUILD", file, line, column);
     if (first > last) return "";
     size_t length = *delimiter ? last - first : 0;
     for (size_t i = first; i <= last; ++i) {
@@ -575,6 +585,37 @@ static const char *size_value(size_t n)
     char *out = allocate(3 * sizeof(n));
     snprintf(out, 3 * sizeof(n) + 1, "%zu", n);
     return out;
+}
+
+void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
+                  const char *start, const char *end, const char *source,
+                  const char *delimiter, jbc_variable *setting,
+                  const char *file, int line, int column)
+{
+    size_t total = matrix_elements(rank, bounds);
+    size_t first = matrix_position(start, 1, total, "MATPARSE", file, line, column);
+    size_t last = matrix_position(end, total, total, "MATPARSE", file, line, column);
+    size_t assigned = 0;
+    const char *field = *source ? source : NULL;
+    for (size_t i = first; i <= last; ++i) {
+        const char *value = "";
+        if (field) {
+            const char *next = *delimiter ? strchr(field, (unsigned char)*delimiter) : NULL;
+            size_t bytes = next ? (size_t)(next - field) : strlen(field);
+            char *copy = allocate(bytes);
+            memcpy(copy, field, bytes);
+            copy[bytes] = '\0';
+            value = copy;
+            field = next ? next + 1 : NULL;
+            ++assigned;
+        }
+        assign_value(&dest[matrix_element_offset(i - 1, rank, bounds)], value);
+    }
+    if (first <= last) {
+        /* The unparsed suffix can point inside a temporary collected after this statement. */
+        assign_value(&dest[0], field && *field ? strcpy(allocate(strlen(field)), field) : "");
+    }
+    if (setting) assign_value(setting, size_value(assigned));
 }
 
 void jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,

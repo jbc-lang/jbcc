@@ -280,6 +280,15 @@ After MATBUILD, 9,348 of 17,336 candidates pass strict C99 checking,
 including all 9,276 previous passes. Of the 210 units stopped at MATBUILD,
 72 now pass and 138 reach another diagnostic.
 
-- [ ] Implement MATPARSE, the first blocker in 174 units. Use the guide’s
+- [x] Implement MATPARSE, the first blocker in 174 units. Use the guide’s
   examples to check element order, ranges, delimiters, SETTING and overflow
   into element zero. Verify a MATPARSE/MATBUILD round trip in native tests.
+
+After MATPARSE, 9,410 of 17,336 candidates pass strict C99 checking,
+including all 9,348 previous passes. Of the 174 units stopped at MATPARSE,
+62 now pass and 112 reach another diagnostic.
+
+- [ ] Support MAT routine parameters, the first blocker in 247 units.
+  Trace the reference grammar for formal and actual arguments. Verify
+  that a callee sees the caller's bounds and can update its matrix, and
+  diagnose mismatched scalar and matrix arguments.
