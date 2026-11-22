@@ -1237,8 +1237,7 @@ class Compiler:
             self.guard()
         if self.word not in (';', '\n'):
             self.error("expected statement separator after FOR")
-        self.sequence({'NEXT'}, opening)
-        self.advance()
+        self.guarded_body(opening, 'NEXT')
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
             if self.word != counter.word:
                 self.error(f"expected NEXT {counter.word}")
@@ -1250,20 +1249,23 @@ class Compiler:
         self.end_loop()
         self.assigned = before
 
-    def loop_statement(self):
-        opening = self.current
-        self.advance()
-        self.begin_loop()
+    def guarded_body(self, opening, terminator):
         exits = None
         while True:
-            self.sequence({'WHILE', 'UNTIL', 'REPEAT'}, opening)
-            if self.word == 'REPEAT':
+            self.sequence({'WHILE', 'UNTIL', terminator}, opening)
+            if self.word == terminator:
                 self.advance()
-                break
+                return exits
             exit_assigned = self.guard()
             exits = exit_assigned if exits is None else exits & exit_assigned
             if self.word == 'DO':
                 self.advance()
+
+    def loop_statement(self):
+        opening = self.current
+        self.advance()
+        self.begin_loop()
+        exits = self.guarded_body(opening, 'REPEAT')
         self.end_loop_body()
         bare_exits = self.end_loop()
         if bare_exits is not None:
@@ -1799,8 +1801,15 @@ class Compiler:
         else:
             self.error("expected an assignment, CRT or IF")
 
+    def for_guard_is_target(self):
+        # FOR bodies also accept assignments and labels named WHILE or UNTIL.
+        return self.word in ('WHILE', 'UNTIL') and (
+            self.following.word in ASSIGNMENT_OR_SUBSTRING or self.following.kind == 'array_open'
+            or (self.word in self.matrices and self.following.word == '(')
+            or is_label(self.current, self.following))
+
     def sequence(self, stops, opening=None):
-        while self.word not in stops:
+        while self.word not in stops or (opening and opening.word == 'FOR' and self.for_guard_is_target()):
             if self.word == '':
                 self.error(f"unterminated {opening.word}", opening)
             if self.word in (';', '\n'):

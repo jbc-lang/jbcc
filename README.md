@@ -280,9 +280,12 @@ A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
 FOR supports inclusive bounds, a default step of one, optional STEP,
 and an optional variable name after NEXT. The limit and step are evaluated
 at the start of each iteration. The captured step increments the counter
-after the body. LOOP allows WHILE and UNTIL guards before or after other
-statements, including on the same line. FOR also accepts a WHILE or UNTIL
-guard in its header. CONTINUE skips the rest of the innermost iteration.
+after the body. FOR accepts WHILE and UNTIL guards in its header.
+The reference grammar also allows guards between statements in FOR and
+LOOP bodies, with an optional DO after the condition. T24 uses
+`UNTIL found` immediately before `NEXT`. When the body reaches that
+guard and `found` is true, the FOR exits with its counter at the current
+value. CONTINUE skips the rest of the innermost iteration.
 In FOR it advances the counter by the captured step. In LOOP it resumes
 at the top, even when a guard appears later in the body. Outside a loop
 it issues a compile-time warning and execution proceeds normally.

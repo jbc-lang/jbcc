@@ -859,7 +859,16 @@ After bare BREAK, 14,673 of 17,336 candidates pass strict C99 checking.
 All 14,645 previous passes still pass. Of the 34 units blocked at BREAK,
 28 now pass and six reach another diagnostic.
 
-- [ ] Support a trailing UNTIL condition in a FOR body before NEXT. Of
+- [x] Support a trailing UNTIL condition in a FOR body before NEXT. Of
   the 41 units first blocked at an UNTIL statement, 26 have NEXT on the
   following non-comment line. Test early exit before the increment and
   normal iteration when the condition stays false.
+
+After FOR body guards, 14,707 of 17,336 candidates pass strict C99
+checking, including all 14,673 previous passes. Of the units previously
+blocked at UNTIL or WHILE, 26 and 8 respectively now pass.
+
+- [ ] Match the reference parser when NEXT names a different counter. It
+  warns and closes the innermost FOR using the counter from its header.
+  Test nested loops, the warning location and the counter values after
+  each loop. A mismatched NEXT is the first diagnostic in 69 units.
