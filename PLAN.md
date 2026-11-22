@@ -246,7 +246,16 @@ After MATCH and MATCHES, 8,873 of 17,336 candidates pass strict C99
 checking, including all 8,499 previous passes. Of the 550 units tracked
 above, 213 now pass and 337 reach another diagnostic.
 
-- [ ] Implement the system constants `@TRUE` and `@FALSE`. The first
+- [x] Implement the system constants `@TRUE` and `@FALSE`. The first
   diagnostic points to `@FALSE` in 250 units and `@TRUE` in 122. Check
   their values against the reference and test them in assignments,
   arithmetic and IF conditions.
+
+After the Boolean constants, 9,020 of 17,336 candidates pass strict C99
+checking, including all 8,873 previous passes. Of the 372 units stopped
+at either constant, 147 now pass and 225 reach another diagnostic.
+
+- [ ] Implement DEL for dynamic-array fields, values and subvalues. It is
+  the first blocker in 269 units. Check deletion at the start, middle and
+  end of a component list, missing positions and matrix-element targets
+  against the DEL chapter.

@@ -25,6 +25,12 @@ PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/"
 BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "CONVERT": (3,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
+SYSTEM_CONSTANTS = {
+    'TRUE': '"1"', 'FALSE': '"0"',
+    'AM': r'"\376"', 'FM': r'"\376"', 'VM': r'"\375"', 'SM': r'"\374"',
+}
+
+
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 
 
@@ -306,10 +312,11 @@ class Compiler:
                 code = self.expression()
                 self.expect(')')
                 return self.postfix(self.temporary(f"jbc_cursor({code}, {self.location(target)})"), locate_source)
-            marks = {'AM': 254, 'FM': 254, 'VM': 253, 'SM': 252}
-            if self.word not in marks:
-                self.error("expected a dynamic-array mark")
-            value = '"\\%03o"' % marks[self.word]
+            if self.word not in SYSTEM_CONSTANTS:
+                if self.current.kind in ('name', 'system_name'):
+                    self.error(f"unsupported system variable '@{self.word}'")
+                self.error("expected a system variable name")
+            value = SYSTEM_CONSTANTS[self.word]
         elif word in self.matrices:
             target = self.current
             self.advance()

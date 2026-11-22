@@ -61,7 +61,8 @@ rounding results to at most 15 fractional places by default. Division by zero re
 
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END and start its alternative with END ELSE.
-Comparisons return 1 or 0. Two decimal strings compare numerically;
+The system constants `@TRUE` and `@FALSE` evaluate to 1 and 0.
+Comparisons return the same values. Two decimal strings compare numerically;
 other pairs compare in byte order. Numeric zero and the empty string are
 false. Decimal comparisons are exact until an explicit PRECISION executes.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
