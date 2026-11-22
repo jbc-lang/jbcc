@@ -15,8 +15,8 @@ class CompilerTest(unittest.TestCase):
         self.work = Path(tmp.name)
         self.c = self.work / 'generated.c'
 
-    def run_native(self, source):
-        subprocess.run([CLI, source, '-o', self.c], check=True)
+    def run_native(self, *sources):
+        subprocess.run([CLI, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
                         '-pedantic', self.c, '-o', binary], check=True)
@@ -63,3 +63,9 @@ class CompilerTest(unittest.TestCase):
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: division by zero'.encode(), run.stderr)
+
+    def test_external_subroutine(self):
+        directory = ROOT / 'tests/routines'
+        run = self.run_native(directory / 'caller.b', directory / 'get.status.b')
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'open\nclosed\n')

@@ -28,9 +28,9 @@ an argument.
 - [x] **Dynamic arrays.** Read and write `REC<field>`, then
   `REC<field,value>` and `REC<field,value,subvalue>`. Build the first test
   record in memory.
-- [ ] **Labels and GOSUB / RETURN.** Implement local subroutines and test
+- [x] **Labels and GOSUB / RETURN.** Implement local subroutines and test
   nested returns.
-- [ ] **SUBROUTINE and CALL.** Compile a caller and a separately declared
+- [x] **SUBROUTINE and CALL.** Compile a caller and a separately declared
   callee together. Have the callee update an argument and the caller print
   the changed value.
 - [ ] **EQUATE and $INSERT.** Resolve local include files. Preserve original

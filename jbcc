@@ -85,8 +85,16 @@ def c_string(value):
 
 
 class Compiler:
-    def __init__(self, path):
+    def __init__(self, path, unit=0):
         self.path = path
+        self.unit = unit
+        self.routine = None
+        self.formals = []
+        self.labels = {}
+        self.targets = {}
+        self.calls = []
+        self.references = []
+        self.has_gosub = False
         self.names = {}
         self.body = []
         self.temporaries = 0
@@ -115,6 +123,20 @@ class Compiler:
     def emit(self, line):
         self.body.append("    " * self.depth + line)
 
+    def variable(self, name):
+        if name not in self.names:
+            self.names[name] = f"frame->v{len(self.names)}"
+        return self.names[name]
+
+    def read_variable(self, token):
+        if token.word not in self.assigned and not self.has_gosub:
+            self.error(f"unknown variable or unsupported function '{token.word}'", token)
+        var = self.variable(token.word)
+        return f"jbc_read({var}, {c_string(token.word)}, {self.location(token)})"
+
+    def location(self, token):
+        return f"{c_string(str(self.path))}, {token.line}, {token.column}"
+
     def primary(self):
         word = self.word
         if word == '-':
@@ -133,9 +155,7 @@ class Compiler:
                 self.error("expected a dynamic-array mark")
             value = '"\\%03o"' % marks[self.word]
         elif self.current.kind == 'name':
-            if word not in self.assigned:
-                self.error(f"unknown variable or unsupported function '{word}'")
-            value = self.names[word]
+            value = self.read_variable(self.current)
         elif self.current.kind == 'number':
             whole, dot, fraction = word.partition('.')
             fraction = fraction.rstrip('0')
@@ -266,7 +286,7 @@ class Compiler:
         self.advance()
         self.expect('=')
         initial = self.expression()
-        symbol = self.names.setdefault(counter.word, f"var_{len(self.names)}")
+        symbol = self.variable(counter.word)
         self.emit(f"{symbol} = {initial};")
         self.assigned.add(counter.word)
         self.expect('TO')
@@ -313,8 +333,74 @@ class Compiler:
         if exits is not None:
             self.assigned = exits
 
+    def identifier(self):
+        token = self.current
+        if token.kind != 'name':
+            self.error("expected a name")
+        self.advance()
+        return token
+
+    def call_statement(self):
+        self.advance()
+        target = self.identifier()
+        args = []
+        if self.word == '(':
+            self.advance()
+            while self.word != ')':
+                if self.current.kind == 'name' and self.following.word in (',', ')'):
+                    name = self.identifier().word
+                    args.append('&' + self.variable(name))
+                    self.assigned.add(name)
+                else:
+                    args.append('&' + self.temporary(self.expression()))
+                if self.word != ',':
+                    break
+                self.advance()
+                if self.word == ')':
+                    self.error("expected CALL argument")
+            self.expect(')')
+        self.calls.append((target, len(args)))
+        self.emit(f"{routine_symbol(target.word)}({', '.join(args)});")
+
+    def label_number(self, name):
+        return self.targets.setdefault(name, len(self.targets) + 1)
+
+    def local_label(self):
+        if self.current.kind not in ('name', 'number'):
+            self.error("expected a label")
+        token = self.current
+        self.advance()
+        return token
+
     def statement(self):
-        if self.word == 'IF':
+        if (self.current.kind in ('name', 'number') and self.following.word == ':'
+                and self.word not in ('CRT', 'PRINT')
+                and self.following.column == self.current.column + len(self.word)):
+            token = self.local_label()
+            if self.depth:
+                self.error("labels must be at routine scope", token)
+            if token.word in self.labels:
+                self.error("duplicate label", token)
+            self.labels[token.word] = token
+            self.expect(':')
+            self.emit(f"label_{self.label_number(token.word)}: ;")
+            if self.word not in (';', '\n'):
+                self.statement()
+        elif self.word == 'GOSUB':
+            self.advance()
+            target = self.local_label()
+            number = self.label_number(target.word)
+            self.references.append(target)
+            self.emit(f"body_{self.unit}(frame, {number});")
+        elif self.word == 'RETURN':
+            self.advance()
+            self.emit("return;")
+        elif self.word == 'STOP':
+            self.advance()
+            self.emit("exit(EXIT_SUCCESS);")
+        elif self.word == 'CALL':
+            self.call_statement()
+        elif self.word == 'IF':
             self.conditional()
         elif self.word == 'FOR':
             self.for_statement()
@@ -331,15 +417,16 @@ class Compiler:
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
-            base = self.names.get(start.word, '""') if start.word in self.assigned else '""'
+            var = self.variable(start.word)
+            base = f'({var} ? {var} : "")'
             if operator.word != '=':
-                if start.word not in self.assigned:
+                if start.word not in self.assigned and not self.has_gosub:
                     self.error(f"unassigned variable '{start.word}'", start)
-                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else base
+                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else self.read_variable(start)
                 value = self.arithmetic(operator, old, value, operator.word[0])
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")
-            symbol = self.names.setdefault(start.word, f"var_{len(self.names)}")
+            symbol = self.variable(start.word)
             self.emit(f"{symbol} = {value};")
             self.assigned.add(start.word)
         else:
@@ -356,33 +443,122 @@ class Compiler:
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
 
-    def translate(self, source):
-        self.tokens = tokenize(source)
+    def parse(self, tokens):
+        self.has_gosub = any(t.word == 'GOSUB' for t in tokens)
+        self.tokens = iter(tokens)
         self.following = next(self.tokens)
         self.advance()
-        self.sequence({''})
-        runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
-        lines = [f"const char *{var} = NULL;" for var in self.names.values()]
+        while self.word == '\n':
+            self.advance()
+        if self.word in ('SUBROUTINE', 'SUB'):
+            self.advance()
+            self.routine = self.identifier()
+            if self.word == '(':
+                self.advance()
+                while self.word != ')':
+                    param = self.identifier()
+                    if param.word in self.formals:
+                        self.error("duplicate parameter", param)
+                    i = len(self.formals)
+                    self.formals.append(param.word)
+                    self.names[param.word] = f"(*frame->arg{i})"
+                    self.assigned.add(param.word)
+                    if self.word != ',':
+                        break
+                    self.advance()
+                    if self.word == ')':
+                        self.error("expected parameter")
+                self.expect(')')
+            if self.word not in (';', '\n'):
+                self.error("expected separator after SUBROUTINE declaration")
+        self.sequence({'', 'END'})
+        if self.word == 'END':
+            self.advance()
+            while self.word in (';', '\n'):
+                self.advance()
+            if self.word:
+                self.error("unexpected text after final END")
+        for target in self.references:
+            if target.word not in self.labels:
+                self.error(f"unknown label '{target.word}'", target)
+
+    def signature(self):
+        if not self.routine:
+            return "int main(void)"
+        params = ", ".join(f"const char **arg{i}" for i in range(len(self.formals)))
+        return f"void {routine_symbol(self.routine.word)}({params or 'void'})"
+
+    def render(self):
+        u = self.unit
+        fields = [f"const char **arg{i};" for i in range(len(self.formals))]
+        fields += [f"const char *{var.split('->')[1]};" for name, var in self.names.items()
+                   if name not in self.formals]
+        lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
+        lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
+        lines += ["    (void)frame;", "    (void)entry;"]
         if self.loops:
-            roots = [f"&{var}" for var in self.names.values()] + ["NULL"]
-            lines.append("const char **live[] = {" + ", ".join(roots) + "};")
-        lines += self.body + [f"(void){var};" for var in self.names.values()]
-        lines += ["jbc_finish();", "return 0;"]
-        return runtime + "\nint main(void)\n{\n" + ''.join("    " + line + "\n" for line in lines) + "}\n"
+            roots = ["&" + var for var in self.names.values()] + ["NULL"]
+            lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
+        if self.labels:
+            lines.append("    switch (entry) {")
+            for name in self.labels:
+                n = self.targets[name]
+                lines.append(f"    case {n}: goto label_{n};")
+            lines.append("    }")
+        lines += ["    " + line for line in self.body]
+        lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
+        for i in range(len(self.formals)):
+            lines.append(f"    frame.arg{i} = arg{i};")
+        lines.append(f"    body_{u}(&frame, 0);")
+        if not self.routine:
+            lines.extend(["    jbc_finish();", "    return 0;"])
+        return "\n".join(lines + ["}", ""])
+
+
+def routine_symbol(name):
+    return "routine_" + name.encode("utf8").hex()
+
+
+def compile_program(paths):
+    units = []
+    routines = {}
+    programs = 0
+    for i, path in enumerate(paths):
+        source = path.read_text(encoding='utf-8')
+        if '\0' in source:
+            raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
+        unit = Compiler(path, i)
+        unit.parse(list(tokenize(source)))
+        units.append(unit)
+        if unit.routine:
+            name = unit.routine.word
+            if name in routines:
+                unit.error("duplicate subroutine", unit.routine)
+            routines[name] = unit
+        else:
+            programs += 1
+    if programs != 1:
+        raise Diagnostic("expected one main program among the input files")
+    for unit in units:
+        for target, argc in unit.calls:
+            if target.word not in routines:
+                unit.error(f"unknown subroutine '{target.word}'", target)
+            if argc != len(routines[target.word].formals):
+                unit.error(f"wrong argument count for '{target.word}'", target)
+    runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
+    prototypes = [u.signature() + ";" for u in routines.values()]
+    return "\n".join([runtime] + prototypes + [u.render() for u in units])
 
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('source', type=Path)
+    cli.add_argument('source', nargs='+', type=Path)
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT.c')
     args = cli.parse_args()
     try:
-        if args.o.resolve() == args.source.resolve():
+        if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        source = args.source.read_text(encoding='utf-8')
-        if '\0' in source:
-            raise Diagnostic(f"{args.source}: NUL bytes in source are unsupported")
-        result = Compiler(args.source).translate(source)
+        result = compile_program(args.source)
         with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
                                          encoding='utf-8') as output:
             try:

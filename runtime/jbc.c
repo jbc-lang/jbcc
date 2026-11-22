@@ -262,3 +262,12 @@ const char *jbc_array(const char *s, const char **indices, int count, const char
     }
     return array_part(s, strlen(s), index, count, 0, replacement);
 }
+
+const char *jbc_read(const char *value, const char *name, const char *file, int line, int column)
+{
+    if (!value) {
+        fprintf(stderr, "%s:%d:%d: unassigned variable '%s'\n", file, line, column, name);
+        exit(EXIT_FAILURE);
+    }
+    return value;
+}
