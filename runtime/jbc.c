@@ -969,11 +969,12 @@ const char *jbc_rnd(const char *value, const char *file, int line, int column)
     return size_value(sample % bound);
 }
 
-const char *jbc_mod(const char *left, const char *right, const char *file, int line, int column)
+const char *jbc_mod(const char *left, const char *right, const char *operand_error,
+                    const char *file, int line, int column)
 {
     struct decimal a, b;
     if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
-        numeric_error(file, line, column, "MOD requires numeric operands");
+        numeric_error(file, line, column, operand_error);
     if (!b.sign) return left;
     if (!a.sign) return "0";
 

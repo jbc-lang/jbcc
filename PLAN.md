@@ -974,6 +974,14 @@ After RND, 15,088 of 17,336 candidates pass strict C99 checking.
 All 15,071 previous passes still pass. Seventeen more units now pass
 and one reaches a different diagnostic.
 
-- [ ] Implement REM(dividend, divisor) in expressions. The reference
+- [x] Implement REM(dividend, divisor) in expressions. The reference
   compiler emits the same runtime call for REM and MOD. Cover signed
   and decimal operands, zero divisors, and REM comments at statement start.
+
+After REM, 15,102 of 17,336 candidates pass strict C99 checking.
+All 15,088 previous passes still pass. Fourteen more units now pass
+and two reach a different diagnostic.
+
+- [ ] Implement TRIMS(array). The reference lexer accepts one argument.
+  Verify trimming of leading, trailing and repeated interior spaces at
+  each dynamic-array position. Cover mixed marks and empty elements.

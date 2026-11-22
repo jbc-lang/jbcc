@@ -78,6 +78,7 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
+                                  ("CRT REM(1)\n", ":1:5: wrong argument count for 'REM'"),
                                   ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
                                   ("CRT LEFT('x')\n", ":1:5: wrong argument count for 'LEFT'"),
                                   ("CRT RIGHT('x',1,2)\n", ":1:5: wrong argument count for 'RIGHT'"),
@@ -476,12 +477,12 @@ time_t test_clock(time_t *out)
 
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'
-        for args in ("'x', 0", "1, 'x'"):
-            with self.subTest(args=args):
-                source.write_text(f"CRT MOD({args})\n")
+        for name, args in [('MOD', "'x', 0"), ('MOD', "1, 'x'"), ('REM', "1, 'x'")]:
+            with self.subTest(name=name, args=args):
+                source.write_text(f"CRT {name}({args})\n")
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: MOD requires numeric operands'.encode(), run.stderr)
+                self.assertIn(f'{source}:1:5: {name} requires numeric operands'.encode(), run.stderr)
 
     def test_case_conversion_bytes(self):
         source = self.work / 'case.b'
