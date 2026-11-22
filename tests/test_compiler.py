@@ -292,6 +292,59 @@ RETURN
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('incompatible COMMON layout', result.stderr)
 
+    def test_runtime_common_dimensions(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'change.b'
+        main.write_text("""CFG<1> = 2
+COMMON /CACHE/ Head, Rows(CFG<1>, 1), Tail, More(CFG<1> + 1)
+CFG<1> = 8
+Head = 'head'
+Tail = 'tail'
+MAT Rows = 'row'
+Rows(2,1) = 'edge'
+MAT More = 'extra'
+CALL CHANGE()
+PRINT Head, Rows(0,0), Rows(2,1), Tail, More(3)
+""")
+        sub.write_text("""SUBROUTINE CHANGE()
+N = 1
+COMMON /CACHE/ H, M(2,N), T, X(3)
+DIM Copy(2,1)
+MAT Copy = MAT M
+MAT Copy = Copy(2,1) : '!'
+MAT M = MAT Copy
+T := '!'
+X(3) := '!'
+""")
+        run = self.run_native(main, sub)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'head\tedge!\tedge!\ttail!\textra!\n')
+
+    def test_runtime_common_dimension_errors(self):
+        source = self.work / 'bad.b'
+        cases = [
+            ("N = 1.5\nCOMMON A(N)", ':2:10: expected a positive integer dimension'),
+            ("N = 50000\nCOMMON A(N,N)", ':2:8: dimensioned array is too large'),
+            ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", ':3:5: COMMON matrix declaration has not executed'),
+            ("N = 2\nCOMMON A(N,1), B(1,N)\nMAT B = 0\nMAT A = MAT B", ':4:13: incompatible MAT copy dimensions'),
+            ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", ':2:8: incompatible COMMON matrix dimensions'),
+        ]
+        for program, location in cases:
+            with self.subTest(program=program):
+                source.write_text(program)
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + location).encode(), run.stderr)
+
+    def test_common_runtime_shape_across_routines(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'sub.b'
+        main.write_text('N = 2\nCOMMON /X/ A(N,N-1)\nCALL DIFFERENT()\n')
+        sub.write_text('SUBROUTINE DIFFERENT()\nCOMMON /X/ B(1,2)\n')
+        run = self.run_native(main, sub)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{sub}:2:12: incompatible COMMON matrix dimensions'.encode(), run.stderr)
+
     def test_executable_mode(self):
         binary = self.work / 'output with spaces'
         cmd = [CLI, '--exe', ROOT / 'tests/snippets/coercion.b', '-o', binary]

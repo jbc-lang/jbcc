@@ -168,7 +168,17 @@ After INDEX, 6,657 of 17,336 candidate units passed C99 checking,
 including all 6,146 previous passes. The scan reported 10,451 compiler
 diagnostics and 228 encoding errors.
 
-- [ ] Support runtime-sized COMMON matrices as used in T24. The first
+- [x] Support runtime-sized COMMON matrices as used in T24. The first
   diagnostic in 728 units points to the same record-derived dimension in
   I_SEAT.COMMON. Verify when bounds are evaluated, how offsets for later
   members are computed, and how a second routine shares the block.
+
+After runtime-sized COMMON matrices, 6,984 of 17,336 candidate units passed
+C99 checking, including all 6,657 previous passes. Of the 728 units previously
+stopped at the declaration in I_SEAT.COMMON, 304 passed and 424 reached
+another diagnostic. The scan reported 10,124 compiler diagnostics and 228
+encoding errors.
+
+- [ ] Implement the CONVERT statement, the first blocker in 590 units.
+  Check character substitution and deletion against the guide and test
+  byte-oriented conversions on dynamic arrays.

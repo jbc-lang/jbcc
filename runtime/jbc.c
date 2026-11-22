@@ -256,16 +256,18 @@ struct jbc_slots {
     struct jbc_slots *next;
     const char *name;
     size_t count;
+    int rank;
+    int *bounds;
     jbc_variable values[];
 };
 
 static struct jbc_slots *storages;
 
-jbc_variable *jbc_storage(size_t count, const char *name)
+static struct jbc_slots *storage(size_t count, const char *name)
 {
     if (name) {
         for (struct jbc_slots *s = storages; s; s = s->next)
-            if (s->name && strcmp(name, s->name) == 0) return s->values;
+            if (s->name && strcmp(name, s->name) == 0) return s;
     }
     if (count > (SIZE_MAX - sizeof(struct jbc_slots)) / sizeof(jbc_variable))
         fail("storage too large");
@@ -275,7 +277,45 @@ jbc_variable *jbc_storage(size_t count, const char *name)
     s->name = name;
     s->next = storages;
     storages = s;
-    return s->values;
+    return s;
+}
+
+jbc_variable *jbc_storage(size_t count, const char *name)
+{
+    return storage(count, name)->values;
+}
+
+int jbc_dimension(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n) || n.sign <= 0 || n.places || n.digits > 10)
+        numeric_error(file, line, column, "expected a positive integer dimension");
+    int64_t bound = integer(text, file, line, column);
+    if (bound >= INT32_MAX) numeric_error(file, line, column, "dimensioned array is too large");
+    return (int)bound;
+}
+
+struct jbc_slots *jbc_common_matrix(const char *key, int rank, const int *bounds,
+                                    const char *file, int line, int column)
+{
+    size_t count = 1;
+    for (int i = 0; i < rank; ++i) {
+        size_t extent = (size_t)bounds[i] + 1;
+        if (count > INT32_MAX / extent)
+            numeric_error(file, line, column, "dimensioned array is too large");
+        count *= extent;
+    }
+    struct jbc_slots *s = storage(count, key);
+    size_t bytes = (size_t)rank * sizeof *bounds;
+    if (!s->bounds) {
+        s->bounds = malloc(bytes);
+        if (!s->bounds) fail("out of memory");
+        memcpy(s->bounds, bounds, bytes);
+        s->rank = rank;
+    } else if (s->rank != rank || memcmp(s->bounds, bounds, bytes)) {
+        numeric_error(file, line, column, "incompatible COMMON matrix dimensions");
+    }
+    return s;
 }
 
 void jbc_release(jbc_variable *slots)
@@ -284,6 +324,7 @@ void jbc_release(jbc_variable *slots)
     while ((*link)->values != slots) link = &(*link)->next;
     struct jbc_slots *s = *link;
     *link = s->next;
+    free(s->bounds);
     free(s);
 }
 

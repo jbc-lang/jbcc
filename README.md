@@ -118,8 +118,16 @@ jbcc supports copies between matrices with identical declared bounds.
 
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
-program. The compiler checks the number and dimensions of slots across
-input files. The current initialization policy leaves slots unassigned until
+program. The compiler checks the member count, rank, and known bounds
+across input files. For T24 declarations such as
+`COMMON /CACHE/ Rows(Config<1>), Tail`, jbcc evaluates the bound when
+execution reaches the declaration. Each matrix has its own storage, so
+the scalar after it keeps the same position in every routine. Indices and
+MAT operations use the saved bounds, even if Config changes later.
+Re-entering the declaration or binding the same member in another routine
+checks its dimensions and preserves its values. A different shape produces
+a source-located diagnostic. This timing and mismatch policy is provisional
+pending a reference run. Runtime bounds are supported for COMMON matrices. The current initialization policy leaves slots unassigned until
 written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 

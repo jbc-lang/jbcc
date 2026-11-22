@@ -175,7 +175,33 @@ class CommonBlock:
         self.field = field
         self.token = token
         self.shapes = []
-        self.size = 0
+        self.initializers = []
+
+
+class Matrix(NamedTuple):
+    field: str
+    shape: tuple  # None denotes a bound evaluated at the COMMON declaration.
+    common: bool
+
+    @property
+    def base(self):
+        return f"frame->{self.field}" + ("->values" if self.common else "")
+
+    @property
+    def limits(self):
+        if None in self.shape:
+            return f"frame->{self.field}->bounds"
+        return "(const int[]){" + ", ".join(map(str, self.shape)) + "}"
+
+    @property
+    def count(self):
+        if None in self.shape:
+            return f"frame->{self.field}->count"
+        return math.prod(n + 1 for n in self.shape)
+
+
+def compatible_dimensions(a, b):
+    return len(a) == len(b) and all(x is None or y is None or x == y for x, y in zip(a, b))
 
 
 class Compiler:
@@ -740,23 +766,30 @@ class Compiler:
         self.advance()
         return token
 
-    def dimension_bounds(self):
+    def dimension_bounds(self, common):
         self.expect('(')
         bounds = []
         while True:
-            if self.current.kind != 'number' or not self.word.isdigit() or len(self.word) > 9:
+            token = self.current
+            if token.kind == 'number' and token.word.isdigit() and self.following.word in (',', ')'):
+                if len(token.word) > 9 or int(token.word) == 0:
+                    self.error("expected a positive constant dimension")
+                bounds.append(int(token.word))
+                self.advance()
+            elif common:
+                value = self.expression()
+                bound = f"bound_{self.temporaries}"
+                self.temporaries += 1
+                self.emit(f"int {bound} = jbc_dimension({value}, {self.location(token)});")
+                bounds.append(bound)
+            else:
                 self.error("expected a positive constant dimension")
-            size = int(self.word)
-            if not size:
-                self.error("expected a positive constant dimension")
-            bounds.append(size)
-            if math.prod(n + 1 for n in bounds) > 2147483647:
-                self.error("dimensioned array is too large")
-            self.advance()
             if self.word != ',':
                 break
             self.advance()
         self.expect(')')
+        if math.prod(n + 1 for n in bounds if isinstance(n, int)) > 2147483647:
+            self.error("dimensioned array is too large", token)
         return tuple(bounds)
 
     def declaration(self):
@@ -772,28 +805,36 @@ class Compiler:
                 self.expect('/')
             if name not in self.commons:
                 self.commons[name] = CommonBlock(f"common{len(self.commons)}", opening)
+            block_name = name
             block = self.commons[name]
         while True:
             token = self.identifier()
             name = token.word
             if name in self.names or name in self.matrices:
                 self.error(f"duplicate declaration of '{name}'", token)
-            bounds = self.dimension_bounds() if self.word == '(' or not common else ()
-            count = math.prod(n + 1 for n in bounds)
+            bounds = self.dimension_bounds(common) if self.word == '(' or not common else ()
+            shape = tuple(n if isinstance(n, int) else None for n in bounds)
             if common:
-                base = f"frame->{block.field} + {block.size}"
-                block.shapes.append(bounds)
-                block.size += count
+                member = len(block.shapes)
+                block.shapes.append(shape)
                 self.common_names.add(name)
-                if not bounds:
-                    self.names[name] = f"frame->{block.field}[{block.size - 1}]"
+                if bounds:
+                    field = f"{block.field}_m{member}"
+                    key = c_string(f"{block_name}:{member}")
+                    call = (f"jbc_common_matrix({key}, {len(bounds)}, "
+                            f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
+                    if None in shape:
+                        self.emit(f"frame->{field} = {call};")
+                    else:
+                        block.initializers.append(f"frame.{field} = {call};")
+                else:
+                    self.names[name] = f"frame->{block.field}[{member}]"
                     self.assigned.add(name)
             else:
                 field = f"matrix{len(self.local_arrays)}"
-                self.local_arrays[field] = count
-                base = f"frame->{field}"
+                self.local_arrays[field] = math.prod(n + 1 for n in bounds)
             if bounds:
-                self.matrices[name] = (base, bounds)
+                self.matrices[name] = Matrix(field, shape, common)
             if self.word != ',':
                 break
             self.advance()
@@ -806,39 +847,48 @@ class Compiler:
             self.error(f"expected a dimensioned array '{token.word}'", token)
         return token
 
+    def checked_matrix(self, token):
+        matrix = self.matrices[token.word]
+        if None in matrix.shape:
+            self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
+                      '"COMMON matrix declaration has not executed");')
+        return matrix
+
     def matrix_assignment(self):
         self.advance()
         target = self.matrix_name()
-        dest, bounds = self.matrices[target.word]
-        count = math.prod(n + 1 for n in bounds)
+        dest = self.checked_matrix(target)
         self.expect('=')
         if self.word == 'MAT':
             self.advance()
             source = self.matrix_name()
-            src, source_bounds = self.matrices[source.word]
-            if source_bounds != bounds:
+            src = self.checked_matrix(source)
+            if not compatible_dimensions(src.shape, dest.shape):
                 self.error("MAT copy between different dimensions is unsupported", source)
-            self.emit(f"jbc_matrix_copy({dest}, {src}, {count}, "
+            if None in src.shape or None in dest.shape:
+                self.emit(f"if (memcmp({dest.limits}, {src.limits}, {len(src.shape)} * sizeof(int))) "
+                          f'numeric_error({self.location(source)}, "incompatible MAT copy dimensions");')
+            self.emit(f"jbc_matrix_copy({dest.base}, {src.base}, {dest.count}, "
                       f"{c_string(source.word)}, {self.location(source)});")
         else:
-            self.emit(f"jbc_matrix_fill({dest}, {count}, {self.expression()});")
+            self.emit(f"jbc_matrix_fill({dest.base}, {dest.count}, {self.expression()});")
 
     def matrix_slot(self, token):
-        base, bounds = self.matrices[token.word]
+        matrix = self.checked_matrix(token)
+        rank = len(matrix.shape)
         self.expect('(')
         subscripts = [self.expression()]
         while self.word == ',':
             self.advance()
             subscripts.append(self.expression())
         self.expect(')')
-        if len(subscripts) != len(bounds):
-            self.error(f"expected {len(bounds)} subscripts for '{token.word}'", token)
-        limits = ", ".join(map(str, bounds))
+        if len(subscripts) != rank:
+            self.error(f"expected {rank} subscripts for '{token.word}'", token)
         index = f"index_{self.temporaries}"
         self.temporaries += 1
-        self.emit(f"size_t {index} = jbc_matrix_index({len(bounds)}, (const int[]){{{limits}}}, "
+        self.emit(f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, "
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
-        return f"({base})[{index}]"
+        return f"({matrix.base})[{index}]"
 
     def statement(self):
         if self.word == 'MAT':
@@ -1031,6 +1081,7 @@ class Compiler:
         fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
                    if name not in self.formals and name not in self.common_names]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
+        fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.common]
         fields += [f"jbc_variable *{field};" for field in self.local_arrays]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         lines += [f"static void body_{u}(struct frame_{u} *frame, int entry)", "{"]
@@ -1054,7 +1105,8 @@ class Compiler:
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
         for name, block in self.commons.items():
-            lines.append(f"    frame.{block.field} = jbc_storage({block.size}, {c_string(name)});")
+            lines.append(f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});")
+            lines.extend("    " + init for init in block.initializers)
         for field, size in self.local_arrays.items():
             lines.append(f"    frame.{field} = jbc_storage({size}, NULL);")
         if not self.routine:
@@ -1109,8 +1161,12 @@ def compile_program(paths, directories, memory_files=()):
     layouts = {}
     for unit in units:
         for name, block in unit.commons.items():
-            if layouts.setdefault(name, block.shapes) != block.shapes:
+            known = layouts.setdefault(name, list(block.shapes))
+            if len(known) != len(block.shapes) or not all(
+                    compatible_dimensions(a, b) for a, b in zip(known, block.shapes)):
                 unit.error(f"incompatible COMMON layout for /{name}/", block.token)
+            for i, shape in enumerate(block.shapes):
+                known[i] = tuple(x if x is not None else y for x, y in zip(known[i], shape))
         for target, argc, is_function in unit.calls:
             if target.word not in routines or routines[target.word].is_function != is_function:
                 kind = "function" if is_function else "subroutine"
