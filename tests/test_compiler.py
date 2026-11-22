@@ -67,6 +67,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT TRIMB('a', 'b')\n", ":1:5: wrong argument count for 'TRIMB'"),
                                   ("CRT ALPHA()\n", ":1:5: wrong argument count for 'ALPHA'"),
                                   ("CRT ALPHA('a', 'b')\n", ":1:5: wrong argument count for 'ALPHA'"),
+                                  ("CRT NEG()\n", ":1:5: wrong argument count for 'NEG'"),
+                                  ("CRT NEG(1, 2)\n", ":1:5: wrong argument count for 'NEG'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -473,6 +475,14 @@ CRT UPCASE(''):LOWCASE('')
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: CHANGE requires integer occurrence arguments".encode(), run.stderr)
+
+    def test_neg_substitutes_zero(self):
+        source = self.work / 'neg.b'
+        source.write_text("CRT NEG('qwert') + 2\nCRT 'continued'\n")
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'2\ncontinued\n')
+        self.assertEqual(run.stderr, f'{source}:1:5: warning: NEG: Non-numeric value -- ZERO USED\n'.encode())
 
     def test_abs_diagnostics(self):
         source = self.work / 'abs.b'

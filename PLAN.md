@@ -643,6 +643,14 @@ After ALPHA, 11,975 of 17,336 candidates pass strict C99 checking,
 including all 11,957 previous passes. Of the 25 units previously blocked
 at ALPHA, 13 now pass and 12 reach another diagnostic.
 
-- [ ] Implement scalar NEG, the first blocker in 20 units. Check the NEGS
+- [x] Implement scalar NEG, the first blocker in 20 units. Check the NEGS
   chapter’s scalar examples, including signed numbers, a comparison result
   and the documented zero substitution for nonnumeric input.
+
+After NEG, 11,982 of 17,336 candidates pass strict C99 checking,
+including all 11,975 previous passes. Of the 20 units previously blocked
+at NEG, seven now pass and 13 reach another diagnostic.
+
+- [ ] Implement RETURN TO label. In 142 units the first diagnostic points
+  at TO in this statement. Check the reference compiler’s handling of the
+  GOSUB return stack, exercise nested calls and validate the target label.

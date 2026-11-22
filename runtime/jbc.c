@@ -969,15 +969,30 @@ const char *jbc_abs(const char *value, const char *file, int line, int column)
     return fmt_decimal(n, n.places);
 }
 
+static const char *negate_decimal(struct decimal n)
+{
+    limit_places(&n, jbc_precision);
+    n.sign = -n.sign;
+    return fmt_decimal(n, n.places);
+}
+
+const char *jbc_neg(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n)) {
+        fprintf(stderr, "%s:%d:%d: warning: NEG: Non-numeric value -- ZERO USED\n",
+                file, line, column);
+        return "0";
+    }
+    return negate_decimal(n);
+}
+
 const char *jbc_negate(const char *value, const char *file, int line, int column)
 {
     struct decimal n;
     if (strchr(value, '.') && parse_decimal(value, &n) &&
-        (jbc_precision >= 0 || n.places <= 15)) {
-        limit_places(&n, jbc_precision);
-        n.sign = -n.sign;
-        return fmt_decimal(n, n.places);
-    }
+        (jbc_precision >= 0 || n.places <= 15))
+        return negate_decimal(n);
     return jbc_arithmetic('-', "0", value, file, line, column);
 }
 

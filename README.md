@@ -92,6 +92,12 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
+NEG reverses the sign of a numeric expression, including a comparison
+result. For example, `NEG(2 LT 3)` returns `-1`. jbcc applies explicit
+PRECISION as it does for ABS. For nonnumeric input, NEG writes a warning
+to stderr at the call site and returns zero, allowing execution to continue.
+[NEGS and NEG](https://jbc-lang.org/pages/negs.html).
+
 DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
