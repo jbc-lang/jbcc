@@ -287,13 +287,12 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     return format_decimal(result);
 }
 
-const char *jbc_sum(const char *source, const char *file, int line, int column)
-{
-    /* The lowest mark present sets the reduction level for the entire array. */
-    unsigned level = 254;
-    for (const unsigned char *p = (const unsigned char *)source; *p; ++p)
-        if (*p >= 252 && *p < level) level = *p;
+static const char *add_sum_item(const char *total, const char *item, struct decimal b,
+                                const char *file, int line, int column);
 
+/* Marks above the reduction level delimit independent totals. */
+static const char *sum_elements(const char *source, unsigned level, const char *file, int line, int column)
+{
     size_t capacity = strlen(source);
     char *item = strcpy(allocate(capacity), source);
     char *out = NULL;
@@ -305,8 +304,8 @@ const char *jbc_sum(const char *source, const char *file, int line, int column)
         *p = '\0';
         struct decimal n;
         if (parse_decimal(item, &n))
-            total = jbc_arithmetic('+', total, item, file, line, column);
-        if (mark != level) {
+            total = add_sum_item(total, item, n, file, line, column);
+        if (!mark || mark > level) {
             if (!mark && !out) return total;
             size_t bytes = strlen(total);
             if (bytes >= SIZE_MAX - used) fail("SUM result is too large");
@@ -326,6 +325,21 @@ const char *jbc_sum(const char *source, const char *file, int line, int column)
         }
         item = p + 1;
     }
+}
+
+const char *jbc_sum(const char *source, const char *file, int line, int column)
+{
+    /* The lowest mark present sets the reduction level for the entire array. */
+    unsigned level = 254;
+    for (const unsigned char *p = (const unsigned char *)source; *p; ++p)
+        if (*p >= 252 && *p < level) level = *p;
+
+    return sum_elements(source, level, file, line, column);
+}
+
+const char *jbc_summation(const char *source, const char *file, int line, int column)
+{
+    return sum_elements(source, 254, file, line, column);
 }
 
 int jbc_for_test(const char *value, const char *limit, const char *step,
@@ -888,7 +902,7 @@ static size_t read_decimal_count(const char **cursor, const char *end)
 }
 
 /* Keep a spare leading digit for a carry when rounding, e.g. 9.995 -> 10.00. */
-static const char *fmt_decimal(struct decimal n, size_t places)
+static char *fmt_decimal(struct decimal n, size_t places)
 {
     size_t whole = n.digits ? n.digits : 1;
     if (places > SIZE_MAX - 4 || whole > SIZE_MAX - places - 4) fail("FMT result too large");
@@ -920,6 +934,66 @@ static const char *fmt_decimal(struct decimal n, size_t places)
     /* The runtime's collector tracks buffers by their starting address. */
     memmove(out, first, (size_t)(end - first) + 1);
     return out;
+}
+
+/* Address a decimal digit in a common, zero-padded field. */
+static int sum_digit(struct decimal n, size_t whole, size_t index)
+{
+    if (index < whole) {
+        size_t pad = whole - n.digits;
+        return index < pad ? 0 : n.whole[index - pad] - '0';
+    }
+    size_t place = index - whole;
+    return place < n.places ? n.fraction[place] - '0' : 0;
+}
+
+static const char *add_sum_item(const char *total, const char *item, struct decimal b,
+                                const char *file, int line, int column)
+{
+    if (!strchr(total, '.') && !strchr(item, '.'))
+        return jbc_arithmetic('+', total, item, file, line, column);
+
+    struct decimal a;
+    parse_decimal(total, &a);
+    int subtract = a.sign * b.sign < 0;
+    int sign = a.sign ? a.sign : b.sign;
+    if (subtract) {
+        a.sign = b.sign = 1;
+        if (compare_decimals(a, b, -1) < 0) {
+            struct decimal swap = a;
+            a = b;
+            b = swap;
+            sign = -sign;
+        }
+    }
+    size_t whole = a.digits > b.digits ? a.digits : b.digits;
+    size_t scale = a.places > b.places ? a.places : b.places;
+    if (scale >= SIZE_MAX - whole) fail("SUM result is too large");
+    char *digits = allocate(whole + scale + 1);
+    int carry = 0;
+    for (size_t i = whole + scale; i > 0; --i) {
+        int x = sum_digit(a, whole, i - 1), y = sum_digit(b, whole, i - 1);
+        int d = x + (subtract ? -y : y) + carry;
+        carry = d < 0 ? -1 : d / 10;
+        digits[i] = (char)('0' + d - 10 * carry);
+    }
+    digits[0] = (char)('0' + carry);
+    struct decimal result = {digits, digits + whole + 1, whole + 1, scale, sign};
+    while (result.digits && *result.whole == '0') {
+        ++result.whole;
+        --result.digits;
+    }
+    limit_places(&result, jbc_precision);
+    while (result.places && result.fraction[result.places - 1] == '0') --result.places;
+    if (jbc_precision < 0 && result.places > 15) {
+        char *rounded = fmt_decimal(result, 15);
+        char *end = rounded + strlen(rounded);
+        while (end[-1] == '0') --end;
+        if (end[-1] == '.') --end;
+        *end = '\0';
+        return rounded;
+    }
+    return fmt_decimal(result, result.places);
 }
 
 /* Decimal long division works on magnitudes with a common scale. Keep a

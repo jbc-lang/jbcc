@@ -1,0 +1,11 @@
+Amounts = '18.25' : @FM : '-4.50' : @VM : 2 : @SM : '3.75'
+CRT SUMMATION(Amounts)
+CRT SUMMATION(@VM : 'skip' : @FM : 6 : @SM)
+CRT SUMMATION('bad' : @FM : 'data')
+CRT SUMMATION('')
+CRT SUMMATION('-8')
+CRT SUMMATION('0.99' : @FM : '-4.52')
+CRT SUMMATION('-0.9999999999999999')
+CRT SUM('9.99' : @VM : '0.01')
+PRECISION 2
+CRT SUMMATION('2.129' : @FM : '0.129')

@@ -990,6 +990,14 @@ After TRIMS, 15,109 of 17,336 candidates pass strict C99 checking.
 All 15,102 previous passes still pass. Seven more units now pass and
 four reach a different diagnostic.
 
-- [ ] Implement SUMMATION(array). The reference lexer accepts one argument.
+- [x] Implement SUMMATION(array). The reference lexer accepts one argument.
   Check how it totals mixed field, value and subvalue levels, including
   empty and nonnumeric elements, before sharing arithmetic with SUM.
+
+After SUMMATION, 15,117 of 17,336 candidates pass strict C99 checking.
+All 15,109 previous passes still pass. Eight more units now pass and
+one reaches a different diagnostic.
+
+- [ ] Implement PWR(base, exponent) and the guide's infix power operator.
+  Check precedence and associativity against the reference grammar.
+  Cover integer and fractional powers, PRECISION and invalid domains.

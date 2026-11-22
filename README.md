@@ -228,12 +228,21 @@ also preserves empty elements, pending a reference run. International Mode
 locale collation is outside the current runtime.
 [SORT](https://jbc-lang.org/pages/sort.html).
 
+SUMMATION returns one total across fields, values and subvalues. For
+example, `SUMMATION(1 : @FM : 2 : @VM : 3)` returns 6. T24 uses it to
+total balances and charges. jbcc skips nonnumeric and empty elements and
+returns zero when there are no numbers. Each addition uses the current
+PRECISION. These rules follow jbcc's arithmetic and the MultiValue
+example pending a jBC reference run. [IBM BASIC Reference Guide, SUMMATION](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
+
 SUM adds numeric elements at the deepest mark present in the array
 (field, value, or subvalue) and preserves each higher-level mark.
 For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.
 The guide specifies that nonnumeric elements are ignored. For a group
-with no numeric elements, jbcc returns zero provisionally. Each addition
-uses the runtime's arithmetic and PRECISION rules. [SUM](https://jbc-lang.org/pages/sum.html).
+with no numeric elements, jbcc returns zero provisionally. Both SUM and
+SUMMATION add decimal digits directly. Each addition rounds to at most
+15 fractional places by default or truncates to an explicit PRECISION.
+Integer additions retain the signed 64-bit overflow check. [SUM](https://jbc-lang.org/pages/sum.html).
 
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
