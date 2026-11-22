@@ -60,6 +60,14 @@ false. Decimal comparisons are exact until an explicit PRECISION executes.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
 and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
 
+AND (`&`) and OR (`!`) have equal precedence and group left to right.
+Comparisons bind more tightly. For example, `1 OR 0 AND 0` evaluates to
+`0`. Both operators return `1` or `0` and skip the right operand when the
+left decides the result. At the start of a statement, `!` introduces a
+comment. Grouping follows the [jBC grammar](https://github.com/jbc-lang/jbc-language/blob/master/spec/jbc.y).
+Short-circuit evaluation follows the original C generator's use of C's
+`&&` and `||` in `operator_integer_gen`.
+
 PRECISION accepts an expression whose value is a nonnegative integer. For
 example, `PRECISION 6` followed by `CRT 2 / 3` prints `0.666666`. The
 runtime truncates fractional results toward zero at the selected number of

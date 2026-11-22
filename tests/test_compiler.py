@@ -64,6 +64,22 @@ class CompilerTest(unittest.TestCase):
                 self.assertIn(diagnostic.encode(), run.stderr)
                 self.assertIn(f'{source}:1:{len(text) + 6}:'.encode(), run.stderr)
 
+    def test_logical_function_calls(self):
+        main = self.work / 'main.b'
+        function = self.work / 'BUMP'
+        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN(N)\n')
+        main.write_text('DEFFUN BUMP()\nN = 0\n'
+                        'PRINT 1 OR BUMP(N), 0 AND BUMP(N), N\n'
+                        'PRINT 0 OR BUMP(N), 1 AND BUMP(N), N\n'
+                        'PRINT BUMP(N) OR BUMP(N), N\n')
+        run = self.run_native(main, function)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'1\t0\t0\n1\t1\t2\n1\t3\n')
+        main.write_text('DEFFUN BUMP()\nPRINT 1 OR BUMP(X)\nPRINT X\n')
+        run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{main}:3:7: unknown variable', run.stderr)
+
     def test_precision_call_scope(self):
         main = self.work / 'main.b'
         function = self.work / 'LOCAL'

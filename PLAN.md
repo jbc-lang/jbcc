@@ -102,6 +102,14 @@ candidate units passed strict C99 syntax checking, 13,681 produced compiler
 diagnostics, and 228 had encoding errors. The checker classified 5,138 files
 as include fragments.
 
-- [ ] Implement the logical OR operator. Of 3,335 first diagnostics reporting
+- [x] Implement the logical OR operator. Of 3,335 first diagnostics reporting
   an expected THEN or ELSE, 1,911 point at OR. Verify precedence, truth
   conversion and operand evaluation with executable snippets, then rescan.
+
+After logical operator support, 3,596 of 17,336 candidate units passed C99
+checking, including all 3,427 previous passes. The scan reported 13,512
+compiler diagnostics and 228 encoding errors.
+
+- [ ] Implement whole-matrix assignment. MAT is the first blocker in 1,551
+  units. Of those, 1,488 use scalar fill and 63 use matrix copy. Verify both
+  forms against the guide and test local and COMMON matrices before rescanning.

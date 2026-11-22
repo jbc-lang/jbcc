@@ -17,7 +17,9 @@ COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
-PRECEDENCE.update({"AND": 1, ":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
+LOGICAL = {"AND", "&", "OR", "!"}
+PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
+PRECEDENCE.update({":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
 
 
 BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
@@ -361,11 +363,12 @@ class Compiler:
             operator = self.word
             token = self.current
             self.advance()
+            if operator in LOGICAL:
+                left = self.logical_expression(left, operator, output)
+                continue
             right = self.expression(PRECEDENCE[operator] + 1, output)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
-            elif operator == 'AND':
-                call = f'(jbc_truth({left}) && jbc_truth({right}) ? "1" : "0")'
             elif operator == ':':
                 call = f"jbc_concat({left}, {right})"
             else:
@@ -373,6 +376,20 @@ class Compiler:
                 continue
             left = self.temporary(call)
         return left
+
+    def logical_expression(self, left, operator, output):
+        result = self.temporary(f'jbc_truth({left}) ? "1" : "0"')
+        evaluate_at = '0' if operator in ('OR', '!') else '1'
+        self.emit(f"if (*{result} == '{evaluate_at}') {{")
+        self.depth += 1
+        # A call on the skipped path cannot definitely initialize an argument.
+        before = self.assigned.copy()
+        right = self.expression(PRECEDENCE[operator] + 1, output)
+        self.assigned = before
+        self.emit(f'{result} = jbc_truth({right}) ? "1" : "0";')
+        self.depth -= 1
+        self.emit("}")
+        return result
 
     def temporary(self, call):
         name = f"expr_{self.temporaries}"
