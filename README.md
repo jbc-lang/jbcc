@@ -330,6 +330,12 @@ callee reads the status field, selects a CASE arm, and updates the output.
   or a matrix element. Fractional positions truncate toward zero. A missing
   or nonpositive position leaves the array intact, and a nonnumeric index
   raises a runtime diagnostic. [DEL](https://jbc-lang.org/pages/del.html)
+- `DELETE(R, field[, value[, subvalue]])` returns the array with the
+  selected component removed. R keeps its original contents. The reference
+  compiler emits function calls with two to four arguments. Following T24
+  usage, trailing zero indices omit the corresponding levels, so
+  `DELETE(R, 2, 0, 0)` removes field 2 and `DELETE(R, 1, 2, 0)` removes
+  value 2 of field 1. Other index handling follows DEL.
 - Define a local label with a trailing colon, including inside IF, CASE,
   LOOP and FOR bodies. GOTO can jump within or leave a FOR. A jump that
   would enter a FOR without executing its header gets a source diagnostic.

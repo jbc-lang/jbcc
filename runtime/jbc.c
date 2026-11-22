@@ -606,32 +606,34 @@ const char *jbc_read(const char *value, const char *name, const char *file, int 
     return value;
 }
 
-void jbc_del(jbc_variable *slot, const char **indices, int count, const char *name,
-             const char *file, int line, int column)
+static const char *delete_component(const char *text, const char **indices, int count,
+                                    int omit_trailing_zeros, const char *file, int line, int column)
 {
-    const char *text = jbc_read(slot->value, name, file, line, column);
+    int depth = omit_trailing_zeros ? 1 : count;
     uintmax_t position[3];
     for (int i = 0; i < count; ++i) {
         struct decimal number;
         if (!parse_decimal(indices[i], &number))
-            numeric_error(file, line, column, "DEL requires numeric indices");
+            numeric_error(file, line, column, omit_trailing_zeros ? "DELETE requires numeric indices"
+                                                                  : "DEL requires numeric indices");
+        if (omit_trailing_zeros && number.sign) depth = i + 1;
         /* An oversized position lies beyond the end of any stored array. */
         position[i] = number.sign > 0 ? strtoumax(number.whole, NULL, 10) : 0;
     }
 
     size_t length = strlen(text);
     const char *begin = text, *end = text + length;
-    for (int i = 0; i < count; ++i) {
+    for (int i = 0; i < depth; ++i) {
         int mark = 254 - i;
-        if (!position[i]) return;
+        if (!position[i]) return text;
         for (uintmax_t n = 1; n < position[i]; ++n) {
             const char *next = memchr(begin, mark, (size_t)(end - begin));
-            if (!next) return;
+            if (!next) return text;
             begin = next + 1;
         }
         const char *next = memchr(begin, mark, (size_t)(end - begin));
         if (next) end = next;
-        if (i == count - 1) {
+        if (i == depth - 1) {
             /* Remove the following delimiter, or the preceding one at the end. */
             if (next) ++end;
             else if (position[i] > 1) --begin;
@@ -641,7 +643,21 @@ void jbc_del(jbc_variable *slot, const char **indices, int count, const char *na
     size_t prefix = (size_t)(begin - text);
     memcpy(out, text, prefix);
     memcpy(out + prefix, end, (size_t)(text + length - end) + 1);
-    assign_value(slot, out);
+    return out;
+}
+
+const char *jbc_delete(const char *text, const char **indices, int count,
+                       const char *file, int line, int column)
+{
+    return delete_component(text, indices, count, 1, file, line, column);
+}
+
+void jbc_del(jbc_variable *slot, const char **indices, int count, const char *name,
+             const char *file, int line, int column)
+{
+    const char *text = jbc_read(slot->value, name, file, line, column);
+    const char *result = delete_component(text, indices, count, 0, file, line, column);
+    if (result != text) assign_value(slot, result);
 }
 
 static const char *size_value(size_t n)

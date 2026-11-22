@@ -585,7 +585,15 @@ checking, including all 11,740 previous passes. Of the 86 units
 previously blocked at these calls, 57 now pass and 29 reach another
 diagnostic.
 
-- [ ] Implement the dynamic-array DELETE function, the first diagnostic
+- [x] Implement the dynamic-array DELETE function, the first diagnostic
   at a call in 65 units. Check supported argument counts in the reference
   parser and verify field, value and subvalue removal on a copy of the
   source array.
+
+After the DELETE function, 11,846 of 17,336 candidates pass strict C99
+checking, including all 11,802 previous passes. Of the 65 units previously
+blocked at these calls, 38 now pass and 27 reach another diagnostic.
+
+- [ ] Implement MAXIMUM and MINIMUM, the first blockers in 35 and 13 units
+  respectively. Check the guide’s PRECISION examples, empty components
+  treated as zero, and nonnumeric components ignored across array levels.

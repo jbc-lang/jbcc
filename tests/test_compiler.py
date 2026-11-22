@@ -57,6 +57,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
                                   ("CRT LEFT('x')\n", ":1:5: wrong argument count for 'LEFT'"),
                                   ("CRT RIGHT('x',1,2)\n", ":1:5: wrong argument count for 'RIGHT'"),
+                                  ("CRT DELETE('a')\n", ":1:5: wrong argument count for 'DELETE'"),
+                                  ("CRT DELETE('a',1,2,3,4)\n", ":1:5: wrong argument count for 'DELETE'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -132,6 +134,13 @@ class CompilerTest(unittest.TestCase):
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+
+    def test_delete_function_rejects_nonnumeric_index(self):
+        source = self.work / 'delete.b'
+        source.write_text("CRT DELETE('a', 99, 'bad', 0)\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: DELETE requires numeric indices'.encode(), run.stderr)
 
     def test_del_diagnostics(self):
         source = self.work / 'del.b'
