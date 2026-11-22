@@ -651,6 +651,14 @@ After NEG, 11,982 of 17,336 candidates pass strict C99 checking,
 including all 11,975 previous passes. Of the 20 units previously blocked
 at NEG, seven now pass and 13 reach another diagnostic.
 
-- [ ] Implement RETURN TO label. In 142 units the first diagnostic points
+- [x] Implement RETURN TO label. In 142 units the first diagnostic points
   at TO in this statement. Check the reference compiler’s handling of the
   GOSUB return stack, exercise nested calls and validate the target label.
+
+After RETURN TO, 12,100 of 17,336 candidates pass strict C99 checking,
+including all 11,982 previous passes. Of the 142 units previously blocked
+at RETURN TO, 118 now pass and 24 reach another diagnostic.
+
+- [ ] Support the spaced augmented assignment seen in T24 sources, such
+  as `RESULT<1> + = 1`. Check how the reference grammar handles whitespace
+  and exercise both scalar and dynamic-array targets.

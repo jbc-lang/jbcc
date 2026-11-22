@@ -42,6 +42,7 @@ class CompilerTest(unittest.TestCase):
         source = self.work / 'invalid.b'
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
                                   ('PROGRAM\n', ':1:8:'),
+                                  ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
@@ -650,6 +651,32 @@ RETURN M(2,3)
                 self.assertIn(f"{source}:1:{len(jump) + 2}: jump to 'middle' would bypass a FOR header",
                               result.stderr)
 
+    def test_return_to_unwinds_subroutine(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'sub.b'
+        main.write_text('CALL CHECK()\nCRT "back in main"\n')
+        sub.write_text('SUBROUTINE CHECK()\nGOSUB outer\nCRT "unexpected"\nRETURN\n'
+                       'outer: GOSUB aborting\nCRT "unexpected"\nRETURN\n'
+                       'aborting: CRT "unwind"\nRETURN TO aborting\n')
+        run = self.run_native(main, sub)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'unwind\nunwind\nunwind\nback in main\n')
+
+    def test_return_to_without_caller(self):
+        main = self.work / 'main.b'
+        main.write_text('GOSUB noop\nendhere: RETURN TO endhere\nnoop: RETURN\n')
+        run = self.run_native(main)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{main}:2:10: RETURN TO without an outstanding GOSUB".encode(), run.stderr)
+
+    def test_return_to_bypasses_for_header(self):
+        main = self.work / 'main.b'
+        main.write_text('GOSUB redirect\nFOR I = 1 TO 2\nmiddle: CRT I\nNEXT I\n'
+                        'redirect: RETURN TO middle\n')
+        run = self.run_native(main)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{main}:1:7: RETURN TO would bypass a FOR header".encode(), run.stderr)
+
     def test_bad_routine_references(self):
         main = self.work / 'main.b'
         sub = self.work / 'sub.b'
@@ -657,6 +684,8 @@ RETURN M(2,3)
         for program, message in [('CALL CHECK()', 'wrong argument count'),
                                  ('CALL MISSING()', 'unknown subroutine'),
                                  ('GOSUB missing', 'unknown label'),
+                                 ('RETURN TO missing', 'unknown label'),
+                                 ('RETURN TO', 'expected a label'),
                                  ('here:\nhere:', 'duplicate label')]:
             with self.subTest(program=program):
                 main.write_text(program)

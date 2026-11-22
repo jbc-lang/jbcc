@@ -44,7 +44,7 @@ just corpus ~/Downloads/t24 > /tmp/jbcc-corpus.json
 Use scalar assignment, PRINT and CRT, decimal numeric
 literals, quoted strings (single, double or backslash delimiters),
 parentheses, arithmetic, concatenation, and compound assignments (`+=`, `-=`, and `:=`). Addition binds more tightly than
-concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO or GOSUB check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
+concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO, GOSUB or RETURN TO check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line. These markers
 can follow a named or numeric label directly, as in `setup:* read inputs`
 or `100: REM retry`.
@@ -368,6 +368,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
   GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through
   labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
+- `RETURN TO label` unwinds one local GOSUB and resumes at the label in
+  its caller. With no outstanding GOSUB it returns from an external
+  SUBROUTINE. In the main program it reports a runtime error. The label must
+  exist in the same source unit. The reference grammar accepts a trailing
+  colon, and the reference compiler rejects this form in a FUNCTION.
+  The nested-call test's expected output is inferred from the self-targeting
+  unwind in T24's DBUPDATE. [RETURN](https://jbc-lang.org/pages/return.html)
 - `PROGRAM name` documents the source. The name generates no C symbol and
   execution continues with the following statement. The native snippet
   exercises the guide's documented behavior with a dotted, hyphenated name
