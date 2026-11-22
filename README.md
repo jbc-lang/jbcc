@@ -106,6 +106,13 @@ DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
 
+`SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
+duration in seconds, including fractions such as `SLEEP .25`. Zero
+continues immediately. The native runtime truncates durations to whole
+nanoseconds and resumes an interrupted wait for the remaining duration.
+Clock-time strings such as `"08:30"` currently produce a diagnostic.
+[SLEEP](https://jbc-lang.org/pages/sleep.html).
+
 TIME() returns the local clock time in seconds past midnight. The OCONV
 mask `MT` prints hours and minutes on a 24-hour clock, and `MTS` adds
 seconds. For example, `OCONV(1,'MTS')` returns `00:00:01`. Both masks

@@ -1284,6 +1284,26 @@ END
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
 
+    def test_sleep_duration_and_default(self):
+        source = ROOT / 'tests/programs/sleep.b'
+        binary = self.work / 'pause'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        for args, minimum in [([], 1.0), (['.15'], 0.15), (['0'], 0)]:
+            with self.subTest(args=args):
+                start = time.monotonic()
+                run = subprocess.run(['pause', *args], executable=binary, capture_output=True, timeout=5)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertGreaterEqual(time.monotonic() - start, minimum)
+                self.assertEqual(run.stdout, b'awake\n')
+        for value, message in [('-0.1', 'nonnegative duration'), ('later', 'nonnegative duration'),
+                               ('08:30', 'clock time is unsupported')]:
+            with self.subTest(value=value):
+                run = subprocess.run(['pause', value], executable=binary, capture_output=True, timeout=5)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:2:34: SLEEP'.encode(), run.stderr)
+                self.assertIn(message.encode(), run.stderr)
+
     def test_timed_input_restarts_after_each_byte(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-timeout.b', '-o', binary], check=True)

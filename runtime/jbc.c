@@ -1,4 +1,4 @@
-#if defined(JBC_TERMINAL) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_TERMINAL) || defined(JBC_SLEEP)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -2288,6 +2288,33 @@ const char *jbc_sin(const char *s, const char *file, int line, int column)
 const char *jbc_cos(const char *s, const char *file, int line, int column)
 {
     return format_decimal(cosl(radians(s, file, line, column)));
+}
+#endif
+
+#ifdef JBC_SLEEP
+void jbc_sleep(const char *duration, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (strchr(duration, ':'))
+        numeric_error(file, line, column, "SLEEP until a clock time is unsupported");
+    if (!parse_decimal(duration, &n) || n.sign < 0)
+        numeric_error(file, line, column, "SLEEP requires a nonnegative duration in seconds");
+
+    int64_t seconds = n.digits ? integer(duration, file, line, column) : 0;
+    struct timespec delay = {(time_t)seconds, 0};
+    if (delay.tv_sec != seconds)
+        numeric_error(file, line, column, "SLEEP duration out of range");
+    long place = 100000000L;
+    for (size_t i = 0; i < n.places && place; ++i) {
+        delay.tv_nsec += (n.fraction[i] - '0') * place;
+        place /= 10;
+    }
+    while (delay.tv_sec || delay.tv_nsec) {
+        struct timespec remaining;
+        if (nanosleep(&delay, &remaining) == 0) break;
+        if (errno != EINTR) numeric_error(file, line, column, "SLEEP failed");
+        delay = remaining;
+    }
 }
 #endif
 

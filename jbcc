@@ -346,6 +346,7 @@ class Compiler:
         self.needs_sentence = False
         self.trig = False
         self.terminal = False
+        self.uses_sleep = False
         self.has_goto = False
         self.sets_precision = False
 
@@ -1717,6 +1718,14 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
+        elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
+              and self.following.kind != 'array_open'
+              and not (self.word in self.matrices and self.following.word == '(')):
+            opening = self.current
+            self.advance()
+            self.uses_sleep = True
+            duration = '"1"' if not self.word or self.word in OUTPUT_END else self.expression()
+            self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
         elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
             opening = self.current
@@ -2064,6 +2073,8 @@ def runtime_features(units):
     flags = []
     if any(unit.trig for unit in units):
         flags.append("#define JBC_TRIG 1")
+    if any(unit.uses_sleep for unit in units):
+        flags.append("#define JBC_SLEEP 1")
     if any(unit.terminal for unit in units):
         flags.append("#define JBC_TERMINAL 1")
     return "\n".join(flags)

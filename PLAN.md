@@ -843,6 +843,14 @@ After indexed GOTO and GOSUB, 14,633 of 17,336 candidates pass strict
 C99 checking. All 14,622 previous passes still pass. Of the 32 units
 blocked at ON, 11 now pass and 21 reach another diagnostic.
 
-- [ ] Implement SLEEP with a numeric duration in seconds, including
+- [x] Implement SLEEP with a numeric duration in seconds, including
   fractions and the default one-second pause. SLEEP is the first blocker
   in 29 units. Test elapsed time and resumption at the following statement.
+
+After numeric SLEEP, 14,645 of 17,336 candidates pass strict C99 checking.
+All 14,633 previous passes still pass. Of the 29 units blocked at SLEEP,
+12 now pass and 17 reach another diagnostic.
+
+- [ ] Implement bare BREAK using the existing loop EXIT behavior. BREAK
+  is the first blocker in 34 units. Test leaving the innermost FOR and
+  LOOP, and the guide's warning when BREAK appears outside a loop.
