@@ -2582,6 +2582,20 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
 }
 
 #ifdef JBC_MATH
+const char *jbc_exp(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n))
+        numeric_error(file, line, column, "EXP requires a numeric operand");
+    long double value = strtold(text, NULL);
+    if (!isfinite(value))
+        numeric_error(file, line, column, "EXP operand out of range");
+    long double result = expl(value);
+    if (!isfinite(result))
+        numeric_error(file, line, column, "EXP result out of range");
+    return format_decimal(result, ROUND_RESULT);
+}
+
 const char *jbc_sqrt(const char *text, const char *file, int line, int column)
 {
     struct decimal n;

@@ -1014,6 +1014,14 @@ units reach a different diagnostic.
 After SQRT, 15,190 of 17,336 candidates still pass strict C99 checking.
 DX.PR.BLACK76 and DX.PR.NORMSDIST.DASH both advance to EXP.
 
-- [ ] Implement EXP(expression), the natural exponential. Check EXP(0),
+- [x] Implement EXP(expression), the natural exponential. Check EXP(0),
   positive and negative arguments, PRECISION, invalid input and overflow.
   Recheck the two pricing routines that reached EXP after SQRT.
+
+After EXP, 15,191 of 17,336 candidates pass strict C99 checking.
+DX.PR.NORMSDIST.DASH now passes and all 15,190 prior passes still pass.
+DX.PR.BLACK76 reaches a call to LN.
+
+- [ ] Implement LN(expression), the natural logarithm. Test LN(1),
+  fractions, PRECISION and diagnostics for inputs outside the positive
+  real domain. Recheck DX.PR.BLACK76.
