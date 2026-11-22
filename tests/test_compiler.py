@@ -598,6 +598,22 @@ RETURN M(2,3)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:11: select list number must be between 0 and 10", run.stderr)
 
+    def test_clearselect(self):
+        run = self.run_native(ROOT / 'tests/io/clearselect.b', options=['--memory-file', 'F'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'default empty\na\n10\nnumbered empty\nb\nnamed empty\n'
+                                     b'a\nzero empty\n11\nsecond\n')
+        self.assertEqual(run.stderr, b'')
+        source = self.work / 'clearselect.b'
+        source.write_text("CLEARSELECT 12\n")
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:13: select list number must be between 0 and 11", run.stderr)
+        source.write_text("Bad = 'not a list'\nCLEARSELECT Bad\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:2:1: CLEARSELECT requires a select list".encode(), run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')

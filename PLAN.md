@@ -459,6 +459,14 @@ blocked at SELECT, 47 now pass. Of the 10 first blocked at a READNEXT
 statement, two now pass. Supporting READNEXT expressions also helped
 units whose first diagnostic was elsewhere.
 
-- [ ] Implement CLEARSELECT, the first blocker in 28 units. Verify that
+- [x] Implement CLEARSELECT, the first blocker in 28 units. Verify that
   clearing the default, a named or a numbered list leaves other cursors
   and the underlying records intact.
+
+After CLEARSELECT, 11,084 of 17,336 candidates pass strict C99 checking,
+including all 11,072 previous passes. Of the 28 units first blocked at
+CLEARSELECT, 12 now pass and 16 reach another diagnostic.
+
+- [ ] Extend SELECT to dynamic arrays. Run the CLEARSELECT guide example
+  with two field-mark-separated inputs and verify that READNEXT preserves
+  field order and that the lists can be cleared independently.

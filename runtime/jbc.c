@@ -1401,7 +1401,7 @@ static struct memory_file *file_for(const char *handle)
 
 /* Each cursor stores its last record serial, so deletion cannot leave it
    pointing at freed storage. last_read speeds up sequential iteration. */
-static jbc_variable select_lists[11];
+static jbc_variable select_lists[12];
 
 static jbc_variable *list_slot(jbc_variable *slot)
 {
@@ -1409,6 +1409,16 @@ static jbc_variable *list_slot(jbc_variable *slot)
     if (s && *s >= '0' && *s <= '9' && !s[1]) return &select_lists[*s - '0'];
     if (s && strcmp(s, "10") == 0) return &select_lists[10];
     return slot;
+}
+
+void jbc_clearselect(jbc_variable *slot, const char *file, int line, int column)
+{
+    /* CLEARSELECT also accepts list 11, unlike SELECT and READNEXT. */
+    if (slot->value && strcmp(slot->value, "11") == 0) slot = &select_lists[11];
+    else slot = list_slot(slot);
+    if (slot->value && *slot->value)
+        numeric_error(file, line, column, "CLEARSELECT requires a select list");
+    assign_value(slot, "");
 }
 
 int jbc_select(const char *handle, jbc_variable *list, jbc_variable *setting)

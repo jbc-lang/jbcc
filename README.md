@@ -423,6 +423,13 @@ For ordinary file keys the optional multi-value position is zero. This
 milestone covers file-backed lists. [SELECT](https://jbc-lang.org/pages/select.html),
 [READNEXT](https://jbc-lang.org/pages/readnext.html).
 
+CLEARSELECT discards one cursor. Bare `CLEARSELECT` clears the default
+list (0). A named list, a list number, or a variable holding the number
+selects the cursor to clear. Other cursors keep their positions, and the
+file retains its records. The guide gives CLEARSELECT a range of 0 through
+11 and SELECT a range of 0 through 10. Clearing an inactive list is safe
+to repeat. [CLEARSELECT](https://jbc-lang.org/pages/clearselect.html).
+
 ## Search a dynamic array
 
 `FIND key IN record, occurrence SETTING field,value,subvalue` searches

@@ -816,17 +816,28 @@ class Compiler:
         if self.word != keyword:
             return "&select_lists[0]"
         self.advance()
+        return self.list_operand(assigning=keyword == 'TO')
+
+    def list_operand(self, assigning=False, maximum=10):
         if self.current.kind == 'number':
-            if self.word not in tuple(map(str, range(11))):
-                self.error("select list number must be between 0 and 10")
-            number = self.word
+            number = self.word.lstrip('0') or '0'
+            if not number.isdigit() or len(number) > 2 or int(number) > maximum:
+                self.error(f"select list number must be between 0 and {maximum}")
             self.advance()
             return f"&select_lists[{number}]"
         target = self.identifier()
         slot = self.variable_slot(target)
-        if keyword == 'TO':
+        if assigning:
             self.assigned.add(target.word)
         return '&' + slot
+
+    def clearselect_statement(self):
+        opening = self.current
+        self.advance()
+        slot = "&select_lists[0]"
+        if self.word and self.word not in OUTPUT_END:
+            slot = self.list_operand(maximum=11)
+        self.emit(f"jbc_clearselect({slot}, {self.location(opening)});")
 
     def select_statement(self):
         opening = self.current
@@ -1413,11 +1424,13 @@ class Compiler:
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
             self.readv_statement()
-        elif (self.word in ('SELECT', 'READNEXT') and self.word not in self.matrices
+        elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
               and self.following.word not in ('=', '+=', '-=', ':=', '[')
               and self.following.kind != 'array_open'):
             if self.word == 'SELECT':
                 self.select_statement()
+            elif self.word == 'CLEARSELECT':
+                self.clearselect_statement()
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
