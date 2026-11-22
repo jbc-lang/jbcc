@@ -760,6 +760,16 @@ contents. Passing an empty value to CREATE gives a source-located error.
 The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
 `READONLY` disable deferred creation. [CREATE](https://jbc-lang.org/pages/create.html).
 
+`SEEK F, offset, origin` positions a regular-file handle in bytes. Origins
+0, 1 and 2 count from the start, current position and end respectively.
+Both numeric operands default to zero, so `SEEK F ELSE STOP` rewinds.
+Seeking past EOF extends the file only when a subsequent write occurs.
+A pending handle takes ELSE and leaves the path absent. Following the
+reference parser, jbcc accepts `SETTING` before the required THEN or ELSE
+arm. Empty operands produce a source-located runtime error. jbcc takes
+ELSE for fractional offsets, invalid origins and positions outside the
+host file-offset range. [SEEK](https://jbc-lang.org/pages/seek.html).
+
 `WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
 the retained prefix includes the line terminator. The next read sees EOF,
 and the next write starts at that same position. WEOFSEQ accepts `SETTING`,

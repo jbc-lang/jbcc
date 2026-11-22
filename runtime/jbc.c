@@ -3365,6 +3365,37 @@ int jbc_createseq(const char *token, const char *source, int line, int column)
     return writable_sequential(file);
 }
 
+int jbc_seek(const char *token, const char *offset, const char *origin,
+             const char *source, int line, int column)
+{
+    if (!*token || !*offset || !*origin)
+        numeric_error(source, line, column, "SEEK requires nonempty handle, offset and origin");
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return 128;
+    struct decimal n;
+    if (!parse_decimal(origin, &n) || n.places || n.sign < 0 || n.digits > 1)
+        return 32768;
+    int relative = n.digits ? *n.whole - '0' : 0;
+    if (relative > 2 || !parse_decimal(offset, &n) || n.places) return 32768;
+    errno = 0;
+    intmax_t delta = strtoimax(offset, NULL, 10);
+    if (errno) return 32768;
+
+    off_t base = 0;
+    if (relative == 1) {
+        base = ftello(file->stream);
+        if (base < 0) return seq_error(errno);
+    } else if (relative == 2) {
+        struct stat st;
+        if (fstat(fileno(file->stream), &st)) return seq_error(errno);
+        base = st.st_size;
+    }
+    if (delta < -(intmax_t)base || delta > INTMAX_MAX - base) return 32768;
+    intmax_t target = base + delta;
+    if ((off_t)target != target) return 32768;
+    return fseeko(file->stream, (off_t)target, SEEK_SET) ? seq_error(errno) : 0;
+}
+
 int jbc_weofseq(const char *token)
 {
     struct sequential_file *file = *sequential_slot(token);

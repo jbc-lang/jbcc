@@ -937,6 +937,16 @@ class Compiler:
             handle = self.expression()
             self.assigned.add(target.word)
             call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'SEEK':
+            handle = self.expression()
+            offset = origin = '"0"'
+            if self.word == ',':
+                self.advance()
+                offset = self.expression()
+                if self.word == ',':
+                    self.advance()
+                    origin = self.expression()
+            call = f'jbc_seek({handle}, {offset}, {origin}, {self.location(opening)})'
         elif op == 'CREATE':
             call = f'jbc_createseq({self.expression()}, {self.location(opening)})'
         elif op == 'WEOFSEQ':
@@ -971,7 +981,7 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        if op == 'CREATE':
+        if op in ('CREATE', 'SEEK'):
             self.conditional_arms(opening, f"!{status}")
         else:
             self.record_read_arms(opening, status, setting)
@@ -1863,7 +1873,7 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ', 'CREATE', 'WEOFSEQ')
+        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.sequential_statement()

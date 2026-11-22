@@ -1084,7 +1084,17 @@ CRP.GENERATE.DATABASE, CRP.GENERATE.TXN.DATABASE and OFS.INITIALISE.SOURCE
 now pass. Native tests cover competing pending handles, truncation after
 a buffered read, subsequent writes and read-only failures.
 
-- [ ] Implement SEEK for regular sequential files. ATM.CONTROL and
+- [x] Implement SEEK for regular sequential files. ATM.CONTROL and
   ATM.CONTROL.USW now reach SEEK with an offset of zero relative to EOF.
   Check offsets relative to the start, current position and end, including
   failed seeks, with native read/write fixtures.
+
+After SEEK, all 15,441 previous strict C99 passes still pass. The two
+ATM.CONTROL variants advance to TIMEOUT on an input pipe. Native fixtures
+verify byte positioning after buffered reads, failed seeks, rewind after
+EOF, and a write beyond EOF that leaves a zero-filled gap.
+
+- [ ] Implement OPENPATH, the first diagnostic in 23 candidates. Check
+  named and default descriptors, relative and absolute paths, and missing
+  files with SETTING. Verify record reads and writes through the opened
+  descriptor using an explicit test backend.

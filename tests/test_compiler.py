@@ -100,6 +100,25 @@ CRT 'done'
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: CREATE requires an OPENSEQ handle'.encode(), result.stderr)
 
+    def test_sequential_seek(self):
+        path = self.work / 'data'
+        path.write_bytes(b'abc\n12345\nlast\n')
+        result = self.run_native(ROOT / 'tests/io/seek.b', cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'345\n45\nlast\n0\nabc\n32768\n12345\n128\n')
+        self.assertEqual(path.read_bytes(), b'aZ\n\n12345\nlast\nend\n\0\0gap\n')
+        self.assertFalse((self.work / 'absent').exists())
+
+    def test_seek_empty_operands(self):
+        (self.work / 'data').touch()
+        source = self.work / 'invalid.b'
+        for args in ['F, 0, ""', 'F, ""', '""']:
+            with self.subTest(args=args):
+                source.write_text(f"OPENSEQ 'data' TO F ELSE STOP\nSEEK {args} ELSE STOP\n")
+                result = self.run_native(source, cwd=self.work)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:2:1: SEEK requires nonempty'.encode(), result.stderr)
+
     def test_sequential_files(self):
         data = b'first\n\n' + b'x' * 1100 + b'\nlast'
         (self.work / 'input').write_bytes(data)
