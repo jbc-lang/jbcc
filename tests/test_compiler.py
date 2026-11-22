@@ -44,6 +44,8 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM\n', ':1:8:'),
                                   ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),
+                                  ('N = 1\nN : = 2\n', ":2:1: unsupported statement 'N'"),
+                                  ('N = 1\nN +\n= 2\n', ":2:1: unsupported statement 'N'"),
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
@@ -522,6 +524,13 @@ CRT UPCASE(''):LOWCASE('')
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: division by zero'.encode(), run.stderr)
+
+    def test_compound_division_by_zero(self):
+        source = self.work / 'division.b'
+        source.write_text('N = 7\nN /   = 0\n')
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:2:3: division by zero'.encode(), run.stderr)
 
     def test_external_subroutine(self):
         directory = ROOT / 'tests/routines'

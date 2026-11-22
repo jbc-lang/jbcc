@@ -12,10 +12,12 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>\+=|-=|:=|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
-PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[+:-]=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
+PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
+ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
+ASSIGNMENT_OR_SUBSTRING = ASSIGNMENTS | {'['}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
@@ -90,9 +92,12 @@ def lex_line(line, n, path):
         word = match[0]
         if match.lastgroup == 'space':
             continue
-        if len(words) == statement_start and word in ('*', '!', 'REM'):
+        if len(words) == statement_start and (word.startswith('*') or word in ('!', 'REM')):
             break
         kind = match.lastgroup
+        if kind == 'arithmetic_assign':
+            word = word[0] + '='
+            kind = 'symbol'
         if kind == 'name' and words and words[-1].word == '@':
             kind = 'system_name'
         if word == 'PROGRAM' and (len(words) == statement_start
@@ -1421,13 +1426,13 @@ class Compiler:
         elif self.word == 'MATPARSE':
             self.matparse_statement()
         elif (self.word in ('MATREAD', 'MATWRITE') and self.word not in self.matrices
-              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.matrix_file_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
         elif self.word == 'CONVERT' or (self.word == 'CHANGE' and self.word not in self.matrices
-                                       and self.following.word not in ('=', '+=', '-=', ':=', '[')
+                                       and self.following.word not in ASSIGNMENT_OR_SUBSTRING
                                        and self.following.kind != 'array_open'):
             self.change_or_convert_statement()
         elif self.word == 'INS':
@@ -1437,7 +1442,7 @@ class Compiler:
         elif self.word == 'REMOVE':
             self.remove_statement()
         elif (self.word in ('FIND', 'FINDSTR') and self.word not in self.matrices
-              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.find_statement()
         elif self.word == 'LOCATE':
@@ -1510,15 +1515,15 @@ class Compiler:
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
         elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
-              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.delete_or_clearfile_statement()
         elif (self.word == 'READV' and self.word not in self.matrices
-              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             self.readv_statement()
         elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
-              and self.following.word not in ('=', '+=', '-=', ':=', '[')
+              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'):
             if self.word == 'SELECT':
                 self.select_statement()
@@ -1555,7 +1560,7 @@ class Compiler:
                 substring = f"{self.bracket_pair()}, {location}"
                 self.expect(']')
             operator = self.current
-            if self.word not in ('=', '+=', '-=', ':='):
+            if self.word not in ASSIGNMENTS:
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
