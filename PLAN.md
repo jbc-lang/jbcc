@@ -834,7 +834,15 @@ C99 checking, including all 14,593 previous passes. Of the 37 units
 blocked at EQU, 27 now pass and 10 reach another diagnostic. Two more
 units with different first diagnostics also pass.
 
-- [ ] Implement indexed `ON expression GOSUB` and `ON expression GOTO`.
+- [x] Implement indexed `ON expression GOSUB` and `ON expression GOTO`.
   These are the first blockers in 28 and 4 units respectively. Test
   one-based label selection, return to the next statement after GOSUB,
   and the guide's emulation-dependent behavior for out-of-range indices.
+
+After indexed GOTO and GOSUB, 14,633 of 17,336 candidates pass strict
+C99 checking. All 14,622 previous passes still pass. Of the 32 units
+blocked at ON, 11 now pass and 21 reach another diagnostic.
+
+- [ ] Implement SLEEP with a numeric duration in seconds, including
+  fractions and the default one-second pause. SLEEP is the first blocker
+  in 29 units. Test elapsed time and resumption at the following statement.

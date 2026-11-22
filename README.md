@@ -415,6 +415,14 @@ callee reads the status field, selects a CASE arm, and updates the output.
   GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through
   labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
+- `ON n GOTO a, b` and `ON n GOSUB a, b` evaluate the integer selector
+  once. Label positions start at 1. A plain RETURN from the selected
+  GOSUB resumes at the next statement. By default an out-of-range selector
+  produces a warning and selects the nearest end of the list. For the
+  guide's generic Pick behavior, compile the generated C with
+  `-DJBCC_ON_FALLTHROUGH` (or pass it in `CC_FLAGS` with `--exe`).
+  Out-of-range selectors then continue at the next statement silently.
+  [ON GOTO and ON GOSUB](https://jbc-lang.org/pages/ongoto.html)
 - `RETURN TO label` unwinds one local GOSUB and resumes at the label in
   its caller. With no outstanding GOSUB it returns from an external
   SUBROUTINE. In the main program it reports a runtime error. The label must

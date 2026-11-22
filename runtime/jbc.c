@@ -174,6 +174,26 @@ static int64_t integer(const char *s, const char *file, int line, int column)
     return (int64_t)n;
 }
 
+int jbc_jump_index(const char *value, int count, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.places)
+        numeric_error(file, line, column, "ON requires an integer selector");
+    if (n.sign > 0) {
+        errno = 0;
+        uintmax_t index = strtoumax(value, NULL, 10);
+        if (!errno && index <= (uintmax_t)count) return (int)index;
+    }
+#ifdef JBCC_ON_FALLTHROUGH
+    return 0;
+#else
+    int position = n.sign > 0 ? count : 1;
+    fprintf(stderr, "%s:%d:%d: warning: ON selector out of range, using label %d\n",
+            file, line, column, position);
+    return position;
+#endif
+}
+
 void jbc_set_precision(const char *value, const char *file, int line, int column)
 {
     struct decimal n;

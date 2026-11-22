@@ -737,12 +737,46 @@ RETURN M(2,3)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(main) + message, run.stderr)
 
+    def test_indexed_jump_selector(self):
+        source = self.work / 'dispatch.b'
+        function = self.work / 'pick.b'
+        function.write_text('FUNCTION PICK(N)\nN += 1\nRETURN N\n')
+        source.write_text('DEFFUN PICK(N)\nN = 1\nON PICK(N) GOSUB first, second\nCRT N\nSTOP\n'
+                          "first: CRT 'first'; RETURN\nsecond: CRT 'second'; RETURN\n")
+        run = self.run_native(source, function)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'second\n2\n')
+        for value in ["'word'", '1.5']:
+            source.write_text(f'ON {value} GOTO target\ntarget: STOP\n')
+            run = self.run_native(source)
+            self.assertNotEqual(run.returncode, 0)
+            self.assertIn(f'{source}:1:1: ON requires an integer selector'.encode(), run.stderr)
+
+    def test_indexed_jump_range(self):
+        source = self.work / 'range.b'
+        source.write_text("ON 0 GOSUB low, high\nON '999999999999999999999' GOTO low, high\n"
+                          "CRT 'fell through'\nSTOP\nlow: CRT 'low'; RETURN\nhigh: CRT 'high'; STOP\n")
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0)
+        self.assertEqual(run.stdout, b'low\nhigh\n')
+        expected = [f'{source}:{line}:1: warning: ON selector out of range, using label {line}'
+                    for line in (1, 2)]
+        self.assertEqual(run.stderr.decode().splitlines(), expected)
+        binary = self.work / 'pick'
+        env = dict(os.environ, CC_FLAGS='-DJBCC_ON_FALLTHROUGH')
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True, env=env)
+        run = subprocess.run([binary], capture_output=True)
+        self.assertEqual(run.returncode, 0)
+        self.assertEqual(run.stdout, b'fell through\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_jump_cannot_bypass_for_header(self):
         source = self.work / 'jump.b'
         for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'),
-                             ('GOSUB', 'middle'), ('GOSUB', 'middle:')]:
+                             ('GOSUB', 'middle'), ('GOSUB', 'middle:'),
+                             ('ON 2 GOTO safe,', 'middle'), ('ON 2 GOSUB safe,', 'middle')]:
             with self.subTest(jump=jump, target=target):
-                source.write_text(f'{jump} {target}\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\n')
+                source.write_text(f'{jump} {target}\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\nsafe: STOP\n')
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:{len(jump) + 2}: jump to 'middle' would bypass a FOR header",
@@ -785,6 +819,9 @@ RETURN M(2,3)
                                  ('GOSUB missing', 'unknown label'),
                                  ('GOSUB missing:', ":1:7: unknown label 'missing'"),
                                  ('GOTO 90:', ":1:6: unknown label '90'"),
+                                 ('ON 1 GOTO ok, missing\nok:', ":1:15: unknown label 'missing'"),
+                                 ('ON 2 GOSUB', ':1:11: expected a label'),
+                                 ('ON 1 PRINT', ':1:6: expected GOTO or GOSUB'),
                                  ('GOTO :', ':1:6: expected a label'),
                                  ('GOTO here::\nhere:', ":1:11: unexpected ':'"),
                                  ('RETURN TO missing', 'unknown label'),

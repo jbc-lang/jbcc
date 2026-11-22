@@ -1358,6 +1358,42 @@ class Compiler:
             self.advance()
         return token
 
+    def emit_jump(self, target, jump):
+        number = self.label_number(target.word)
+        # GOSUB starts a new body invocation with no active FOR headers.
+        self.references.append((target, tuple(self.for_stack) if jump else ()))
+        if jump:
+            self.has_goto = True
+            self.emit("jbc_collect(entry_mark, live);")
+            self.emit(f"goto label_{number};")
+        else:
+            self.gosub_sites[len(self.body)] = (target, tuple(self.for_stack))
+            self.emit(f"body_{self.unit}(frame, {number});")
+            if self.is_function:
+                self.emit("if (frame->result) return 0;")
+
+    def indexed_jump(self):
+        opening = self.current
+        self.advance()
+        index = self.expression()
+        if self.word not in ('GOTO', 'GOSUB'):
+            self.error("expected GOTO or GOSUB")
+        jump = self.word == 'GOTO'
+        self.advance()
+        targets = [self.local_label()]
+        while self.word == ',':
+            self.advance()
+            targets.append(self.local_label())
+        self.emit(f"switch (jbc_jump_index({index}, {len(targets)}, {self.location(opening)})) {{")
+        for position, target in enumerate(targets, 1):
+            self.emit(f"case {position}:")
+            self.depth += 1
+            self.emit_jump(target, jump)
+            if not jump:
+                self.emit("break;")
+            self.depth -= 1
+        self.emit("}")
+
     def dimension_bounds(self):
         self.expect('(')
         bounds = []
@@ -1608,19 +1644,11 @@ class Compiler:
         elif self.word in ('GOSUB', 'GOTO'):
             jump = self.word == 'GOTO'
             self.advance()
-            target = self.local_label()
-            number = self.label_number(target.word)
-            # GOSUB starts a new body invocation with no active FOR headers.
-            self.references.append((target, tuple(self.for_stack) if jump else ()))
-            if jump:
-                self.has_goto = True
-                self.emit("jbc_collect(entry_mark, live);")
-                self.emit(f"goto label_{number};")
-            else:
-                self.gosub_sites[len(self.body)] = (target, tuple(self.for_stack))
-                self.emit(f"body_{self.unit}(frame, {number});")
-                if self.is_function:
-                    self.emit("if (frame->result) return 0;")
+            self.emit_jump(self.local_label(), jump)
+        elif (self.word == 'ON' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
+              and self.following.kind != 'array_open'
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.indexed_jump()
         elif self.word == 'RETURN':
             opening = self.current
             self.advance()
