@@ -1184,7 +1184,7 @@ class Compiler:
                 self.loop_exit_assignments[loop] = self.assigned.copy()
             self.emit(f"goto exit_loop_{loop};")
         else:
-            print(f"{token.path}:{token.line}:{token.column}: warning: EXIT outside a loop ignored",
+            print(f"{token.path}:{token.line}:{token.column}: warning: {token.word} outside a loop ignored",
                   file=sys.stderr)
 
     def end_loop(self):
@@ -1590,7 +1590,7 @@ class Compiler:
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
         return f"({matrix.base})[{index}]"
 
-    def statement(self):
+    def statement(self, stops):
         if self.current.kind == 'program_header':
             self.advance()
         elif self.word == 'PROGRAM' and self.following.word in (';', '\n', ''):
@@ -1673,7 +1673,8 @@ class Compiler:
                     value = self.expression()
                 self.emit(f"frame->result = {value};")
             self.emit("return 0;")
-        elif self.word == 'EXIT':
+        elif self.word == 'EXIT' or (self.word == 'BREAK' and
+                                     (self.following.word in (';', '\n') or self.following.word in stops)):
             self.exit_statement()
         elif self.word == 'STOP':
             self.advance()
@@ -1812,7 +1813,7 @@ class Compiler:
                 self.labels[token.word] = tuple(self.for_stack)
                 self.emit(f"label_{self.label_number(token.word)}: ;")
                 continue
-            self.statement()
+            self.statement(stops)
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
 

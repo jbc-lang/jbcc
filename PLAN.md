@@ -851,6 +851,15 @@ After numeric SLEEP, 14,645 of 17,336 candidates pass strict C99 checking.
 All 14,633 previous passes still pass. Of the 29 units blocked at SLEEP,
 12 now pass and 17 reach another diagnostic.
 
-- [ ] Implement bare BREAK using the existing loop EXIT behavior. BREAK
+- [x] Implement bare BREAK using the existing loop EXIT behavior. BREAK
   is the first blocker in 34 units. Test leaving the innermost FOR and
   LOOP, and the guide's warning when BREAK appears outside a loop.
+
+After bare BREAK, 14,673 of 17,336 candidates pass strict C99 checking.
+All 14,645 previous passes still pass. Of the 34 units blocked at BREAK,
+28 now pass and six reach another diagnostic.
+
+- [ ] Support a trailing UNTIL condition in a FOR body before NEXT. Of
+  the 41 units first blocked at an UNTIL statement, 26 have NEXT on the
+  following non-comment line. Test early exit before the increment and
+  normal iteration when the condition stays false.
