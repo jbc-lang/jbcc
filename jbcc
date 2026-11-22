@@ -379,8 +379,15 @@ class Compiler:
     def postfix(self, value, locate_source=False):
         while self.current.kind == 'array_open' or self.word == '[':
             if self.word == '[':
-                args = self.substring_indices()
-                value = self.temporary(f"jbc_substring({value}, {args}, NULL)")
+                location = self.location(self.current)
+                args = self.bracket_pair()
+                if self.word == ',':
+                    self.advance()
+                    count = self.expression()
+                    value = self.temporary(f"jbc_field({value}, {args}, {count}, {location})")
+                else:
+                    value = self.temporary(f"jbc_substring({value}, {args}, {location}, NULL)")
+                self.expect(']')
             else:
                 if locate_source:
                     break
@@ -388,14 +395,12 @@ class Compiler:
                 value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         return value
 
-    def substring_indices(self):
-        token = self.current
+    def bracket_pair(self):
         self.expect('[')
-        start = self.expression()
+        first = self.expression()
         self.expect(',')
-        length = self.expression()
-        self.expect(']')
-        return f"{start}, {length}, {self.location(token)}"
+        second = self.expression()
+        return f"{first}, {second}"
 
     def index_expressions(self):
         token = self.current
@@ -1024,7 +1029,11 @@ class Compiler:
             matrix = start.word in self.matrices
             var = self.matrix_slot(start) if matrix else None
             indices = self.array_indices() if self.current.kind == 'array_open' else None
-            substring = self.substring_indices() if self.word == '[' else None
+            substring = None
+            if self.word == '[':
+                location = self.location(self.current)
+                substring = f"{self.bracket_pair()}, {location}"
+                self.expect(']')
             operator = self.current
             if self.word not in ('=', '+=', '-=', ':='):
                 self.error(f"unsupported statement '{start.word}'", start)

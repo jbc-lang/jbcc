@@ -226,7 +226,18 @@ After label comments, 8,334 of 17,336 candidates pass strict C99 checking,
 including all 7,666 previous passes. Of the 723 units stopped at the
 asterisk after a label, 668 now pass and 55 reach another diagnostic.
 
-- [ ] Implement three-argument bracket extraction, as in
+- [x] Implement three-argument bracket extraction, as in
   `Text["-",1,1]`. In 467 units the first diagnostic expects a closing
   bracket at a comma. Check the reference parser's
   `spec_substring_extract_gen` and verify field selection in native tests.
+
+The reference generator emits FIELD for three-argument bracket reads.
+After bracket extraction, 8,499 of 17,336 candidates pass strict C99
+checking, including all 8,334 previous passes. Of the 467 units stopped
+at the extra comma, 165 now pass and 302 reach another diagnostic.
+
+- [ ] Implement the MATCH and MATCHES comparison operators. Start with
+  the pattern forms observed in the corpus and check their meanings against
+  the guide. In 550 units the first diagnostic points to one of these
+  operators where the parser expects a conditional arm or a closing
+  parenthesis, or reports an unexpected token.

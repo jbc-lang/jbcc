@@ -209,7 +209,10 @@ These edge cases are provisional pending a reference run.
 [INDEX](https://jbc-lang.org/pages/index.html).
 
 LEN counts bytes in the current byte-oriented runtime. FIELD accepts a
-one-based occurrence and optional field count. FIELD, COUNT and DCOUNT
+one-based occurrence and optional field count. The expression
+`Text[delimiter, occurrence, count]` calls the same FIELD runtime as
+`FIELD(Text, delimiter, occurrence, count)`. For example,
+`"a/b/c/d"["/",2,2]` returns `b/c`. FIELD, COUNT and DCOUNT
 support multi-byte delimiters. COUNT counts nonoverlapping occurrences as
 documented for TAFC R19. DCOUNT returns zero for an empty record. For an
 empty delimiter, this implementation returns byte length for COUNT and
