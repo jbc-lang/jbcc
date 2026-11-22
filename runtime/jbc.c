@@ -756,10 +756,10 @@ void jbc_del(jbc_variable *slot, const char **indices, int count, const char *na
     if (result != text) assign_value(slot, result);
 }
 
-static const char *size_value(size_t n)
+static const char *size_value(uintmax_t n)
 {
     char *out = allocate(3 * sizeof(n));
-    snprintf(out, 3 * sizeof(n) + 1, "%zu", n);
+    snprintf(out, 3 * sizeof(n) + 1, "%" PRIuMAX, n);
     return out;
 }
 
@@ -3433,3 +3433,89 @@ int jbc_closeseq(jbc_variable *slot)
     return status == 0;
 }
 #endif
+
+/* STATUS attributes use their one-based jBC positions. */
+enum { STATUS_ATTRIBUTES = 24 };
+
+#ifdef JBC_SEQUENTIAL
+static int status_timestamp(jbc_variable *attrs, time_t stamp)
+{
+    struct tm t;
+    if (!localtime_r(&stamp, &t) || t.tm_year < 1 - 1900 || t.tm_year > 9999 - 1900)
+        return 32768;
+    attrs[0].value = size_value(t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec);
+    attrs[1].value = internal_date(t.tm_year + 1900, t.tm_yday + 1);
+    return 0;
+}
+
+static int sequential_status(const char *handle, jbc_variable *attrs)
+{
+    struct sequential_file *file = *sequential_slot(handle);
+    if (!file || !file->stream) return 128;
+    struct stat st;
+    if (fstat(fileno(file->stream), &st)) return seq_error(errno);
+    off_t pos = ftello(file->stream);
+    if (pos < 0) return seq_error(errno);
+
+    attrs[1].value = size_value((uintmax_t)pos);
+    attrs[2].value = feof(file->stream) ? "1" : "0";
+    attrs[3].value = ferror(file->stream) ? "1" : "0";
+    attrs[4].value = size_value(pos < st.st_size ? (uintmax_t)(st.st_size - pos) : 0);
+    char *mode = allocate(4);
+    snprintf(mode, 5, "%o", (unsigned)st.st_mode & 07777);
+    attrs[5].value = mode;
+    attrs[6].value = size_value((uintmax_t)st.st_size);
+    attrs[7].value = size_value(st.st_nlink);
+    attrs[8].value = size_value(st.st_uid);
+    attrs[9].value = size_value(st.st_gid);
+    attrs[10].value = size_value(st.st_ino);
+    attrs[11].value = size_value(st.st_dev);
+    attrs[12].value = size_value(st.st_rdev);
+    if (status_timestamp(attrs + 13, st.st_atime) ||
+        status_timestamp(attrs + 15, st.st_mtime) ||
+        status_timestamp(attrs + 17, st.st_ctime)) return 32768;
+    attrs[19].value = "0";
+    attrs[20].value = file->token;
+    if (*file->token != '/') {
+        size_t length = 256;
+        char *cwd;
+        for (;;) {
+            cwd = allocate(length);
+            if (getcwd(cwd, length)) break;
+            if (errno != ERANGE || length > SIZE_MAX / 2) return seq_error(errno);
+            length *= 2;
+        }
+        const char *separator = strcmp(cwd, "/") ? "/" : "";
+        attrs[20].value = jbc_concat(jbc_concat(cwd, separator), file->token);
+    }
+    attrs[21].value = "SEQ";
+    return 0;
+}
+#endif
+
+int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting,
+                    const char *source, int line, int column)
+{
+    if (!*handle) numeric_error(source, line, column, "STATUS requires a nonempty file descriptor");
+    jbc_variable attrs[STATUS_ATTRIBUTES + 1] = {{0}};
+    for (int i = 1; i <= STATUS_ATTRIBUTES; ++i) attrs[i].value = "";
+    struct memory_file *file = file_for(handle);
+    int status = 128;
+    if (file) {
+        size_t bytes = 0;
+        for (struct memory_record *r = file->records; r; r = r->next) bytes += strlen(r->value);
+        attrs[6].value = size_value(bytes);
+        attrs[20].value = file->name;
+        attrs[21].value = "MEMORY";
+        status = 0;
+    }
+#ifdef JBC_SEQUENTIAL
+    else status = sequential_status(handle, attrs);
+#endif
+    const int bounds[] = {STATUS_ATTRIBUTES};
+    const char *value = status ? "" : jbc_matbuild(attrs, 1, bounds, NULL, NULL, "\376", "STATUS",
+                                                   source, line, column);
+    assign_value(out, value);
+    if (setting) assign_value(setting, size_value((size_t)status));
+    return status == 0;
+}

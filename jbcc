@@ -1160,6 +1160,18 @@ class Compiler:
         self.assigned.add(key.word)
         return f"jbc_readnext({source}, &{out}, {mv}, {setting}, {self.location(opening)})"
 
+    def status_statement(self):
+        opening = self.current
+        self.advance()
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        self.expect('FROM')
+        handle = self.expression()
+        setting = self.file_setting()
+        self.assigned.add(target.word)
+        call = f'jbc_file_status({handle}, &{slot}, {setting}, {self.location(opening)})'
+        self.conditional_arms(opening, call)
+
     def open_statement(self):
         opening = self.current
         self.advance()
@@ -1889,6 +1901,9 @@ class Compiler:
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open')):
             self.open_statement()
+        elif (self.word == 'STATUS' and self.following.kind == 'name'
+              and self.word not in self.matrices):
+            self.status_statement()
         elif self.word in ('READ', 'WRITE'):
             self.file_statement()
         elif self.word == 'BEGIN':

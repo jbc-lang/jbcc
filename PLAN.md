@@ -1104,7 +1104,17 @@ All 15,441 previous passes still pass. Ten of the 23 OPENPATH cases now
 pass, six reach the STATUS statement, and three reach CLOSE. Native tests
 exercise explicit and default descriptors against path-named memory files.
 
-- [ ] Implement the STATUS statement (`STATUS result FROM descriptor`),
+- [x] Implement the STATUS statement (`STATUS result FROM descriptor`),
   the first diagnostic in 23 candidates. Check the fields read by T24
   against the guide and reference grammar, and exercise valid and missing
   descriptors through the record backend.
+
+After STATUS, 15,465 of 17,336 candidates pass strict C99 checking.
+Fourteen of the 23 previously blocked units now pass and every previous
+pass still passes. Two of those units now reach CLOSE. Native fixtures
+check the record backend’s size, name and type, and compare sequential
+metadata with the host file before and after reading to EOF.
+
+- [ ] Implement CLOSE for record files, the first diagnostic in 12
+  candidates. Verify default and explicit descriptors, lock release,
+  and reopening a file with its records intact.

@@ -819,6 +819,24 @@ path strings literally. A host file at that path needs its own backend.
 registered file is missing. Omit the descriptor to select the default.
 [OPENPATH](https://jbc-lang.org/pages/openpath.html).
 
+`STATUS info FROM F SETTING S THEN … ELSE …` returns a dynamic array for
+an open descriptor. For memory files, attribute 6 counts the bytes in the
+current record values, attribute 20 contains the registered name or path,
+and attribute 21 contains `MEMORY`, the test backend’s type. The other
+attributes are empty. In particular, hashed-file modulo and separation
+(22 and 23) and the T24-specific lookup at 27 yield empty strings.
+
+For regular sequential files, attributes 1–4 give the current byte offset,
+EOF flag, stream error flag and remaining byte count. Attributes 5–12
+come from the open file’s permissions, size, link count, owner, group,
+inode and device numbers. Attributes 13–18 give access, modification and
+status-change times as local seconds since midnight and jBC dates.
+Attribute 19 is zero, 20 gives the absolute path and 21 is `SEQ`.
+STATUS observes the stream in place. An invalid nonempty descriptor clears
+the output, sets S to 128 and takes ELSE. An empty descriptor raises a
+source-located runtime error. Success sets S to 0. The SETTING clause is
+optional. [STATUS statement](https://jbc-lang.org/pages/status_statement.html).
+
 READ and WRITE accept an explicit descriptor and key, or just a key for
 the default file. For example, after `OPENPATH path ELSE STOP`,
 `WRITE 'Ada' ON '1'` and `READ name FROM '1' ELSE STOP` use the same file.

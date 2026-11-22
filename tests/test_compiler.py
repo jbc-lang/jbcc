@@ -1087,6 +1087,50 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
 
+    def test_record_file_status(self):
+        result = self.run_native(ROOT / 'tests/io/file-status.b', options=['--memory-file', 'data/customers'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'0,7,data/customers,MEMORY,24\n[]\n2\n128:[]\n')
+
+    def test_status_empty_descriptor(self):
+        source = self.work / 'status.b'
+        source.write_text("STATUS INFO FROM '' ELSE STOP\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:1: STATUS requires a nonempty file descriptor'.encode(), result.stderr)
+
+    def test_sequential_file_status(self):
+        path = self.work / 'data'
+        path.write_bytes(b'one\ntwo\n')
+        os.chmod(path, 0o640)
+        source = self.work / 'status.b'
+        source.write_text("""OPENSEQ 'data' READONLY TO F ELSE STOP
+READSEQ V FROM F ELSE STOP
+STATUS X FROM F ELSE STOP
+CRT X<1>:',':X<2>:',':X<3>:',':X<4>:',':X<5>:',':X<6>
+CRT X<7>:',':X<8>:',':X<9>:',':X<10>:',':X<11>:',':X<12>
+CRT X<15>:',':X<16>:',':X<17>:',':X<18>:',':X<19>
+CRT X<20>
+CRT X<21>
+READSEQ V FROM F ELSE STOP
+READSEQ V FROM F THEN STOP ELSE NULL
+STATUS X FROM F ELSE STOP
+CRT X<1>:',':X<2>:',':X<4>
+CLOSESEQ F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        st = path.stat()
+        identity = [st.st_nlink, st.st_uid, st.st_gid, st.st_ino, st.st_dev, st.st_rdev]
+        times = []
+        for seconds in (st.st_mtime_ns // 10**9, st.st_ctime_ns // 10**9):
+            t = datetime.fromtimestamp(seconds)
+            times.extend([t.hour * 3600 + t.minute * 60 + t.second, (t.date() - date(1967, 12, 31)).days])
+        self.assertEqual(result.stdout.splitlines(), [
+            b'4,0,0,4,640,8', ','.join(map(str, identity)).encode(), ','.join(map(str, times + [0])).encode(),
+            os.fsencode(path.resolve()), b'SEQ', b'8,1,0',
+        ])
+
     def test_openpath(self):
         result = self.run_native(ROOT / 'tests/io/openpath.b',
                                  options=['--memory-file', 'data/customers',
