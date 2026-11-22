@@ -1325,6 +1325,14 @@ struct memory_file {
 };
 
 static struct memory_file *files;
+jbc_variable jbc_default_file;
+
+static void free_record(struct memory_record *record)
+{
+    free(record->key);
+    free(record->value);
+    free(record);
+}
 
 static void free_files(void)
 {
@@ -1334,9 +1342,7 @@ static void free_files(void)
         while (file->records) {
             struct memory_record *record = file->records;
             file->records = record->next;
-            free(record->key);
-            free(record->value);
-            free(record);
+            free_record(record);
         }
         free(file);
     }
@@ -1380,17 +1386,31 @@ static struct memory_file *file_for(const char *handle)
     return NULL;
 }
 
-static struct memory_record *find_record(struct memory_file *f, const char *key)
+static struct memory_record **record_link(struct memory_file *f, const char *key)
 {
-    for (struct memory_record *r = f->records; r; r = r->next)
-        if (strcmp(r->key, key) == 0) return r;
-    return NULL;
+    struct memory_record **link = &f->records;
+    while (*link && strcmp((*link)->key, key) != 0) link = &(*link)->next;
+    return link;
+}
+
+int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting)
+{
+    struct memory_file *f = file_for(handle);
+    if (setting) assign_value(setting, f ? "0" : "128");
+    if (!f) return 0;
+    struct memory_record **link = record_link(f, key);
+    if (*link) {
+        struct memory_record *record = *link;
+        *link = record->next;
+        free_record(record);
+    }
+    return 1;
 }
 
 int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
 {
     struct memory_file *f = file_for(handle);
-    struct memory_record *r = f ? find_record(f, key) : NULL;
+    struct memory_record *r = f ? *record_link(f, key) : NULL;
     if (!r) {
         assign_value(out, "");
         return 0;
@@ -1403,7 +1423,7 @@ int jbc_write_record(const char *handle, const char *key, const char *value)
 {
     struct memory_file *f = file_for(handle);
     if (!f) return 0;
-    struct memory_record *r = find_record(f, key);
+    struct memory_record *r = *record_link(f, key);
     if (!r) {
         r = calloc(1, sizeof *r);
         if (!r) fail("out of memory");

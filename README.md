@@ -355,15 +355,21 @@ cc -std=c99 /tmp/records.c -o /tmp/records
 ```
 
 OPEN a name TO a descriptor, READ a variable FROM a descriptor and key,
-and WRITE a value ON or TO a descriptor and key. The supported forms use
+and WRITE a value ON or TO a descriptor and key. READ and WRITE use
 explicit descriptors. OPEN and READ require THEN or ELSE. WRITE can be
 unconditional or use a success or failure branch. In this backend a failed
 open or read clears its destination. An unhandled failed WRITE terminates
 with a source location. Stored records survive reassignment and loop
-temporary cleanup. Default descriptors, disk storage, locking, SETTING and
-ON ERROR remain outside this test backend.
+temporary cleanup.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
 [WRITE](https://jbc-lang.org/pages/write.html).
+
+DELETE removes a record by key. `DELETE F, Key` uses the descriptor F.
+`OPEN Name ELSE ...` sets the default descriptor for `DELETE Key`. A
+missing record counts as success. In this backend, `SETTING Code` receives
+0 on success or 128 for an invalid descriptor. `ON ERROR` runs on failure.
+A failed DELETE with neither clause terminates with the source location.
+[DELETE](https://jbc-lang.org/pages/delete.html).
 
 ## Search a dynamic array
 

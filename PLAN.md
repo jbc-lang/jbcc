@@ -409,6 +409,14 @@ After FINDSTR, 10,745 of 17,336 candidates pass strict C99 checking,
 including all 10,639 previous passes. Of the 133 units previously stopped
 at FINDSTR, 106 now pass and 27 reach another diagnostic.
 
-- [ ] Implement record DELETE for the in-memory file runtime, the first
+- [x] Implement record DELETE for the in-memory file runtime, the first
   blocker in 137 units. Verify deletion through READ, repeated deletion
   of a missing key, and the SETTING and ON ERROR clauses.
+
+After DELETE, 10,844 of 17,336 candidates pass strict C99 checking,
+including all 10,745 previous passes. Of the 137 units previously stopped
+at DELETE, 99 now pass and 38 reach another diagnostic.
+
+- [ ] Implement CLEARFILE in the in-memory backend, the first blocker in
+  116 units. Test explicit and default descriptors, SETTING and ON ERROR,
+  and verify that clearing one file preserves records in a second file.

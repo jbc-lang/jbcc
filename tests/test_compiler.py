@@ -518,6 +518,19 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
 
+    def test_delete_records(self):
+        run = self.run_native(ROOT / 'tests/io/delete.b',
+                              options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\ngone\nkeep\nkeep too\nother\nback\n128\n128\n')
+        self.assertEqual(run.stderr, b'')
+
+        source = self.work / 'delete.b'
+        source.write_text("DELETE 'no default descriptor'\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: DELETE failed'.encode(), run.stderr)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\n')
