@@ -906,6 +906,15 @@ C99 checking. All 14,935 previous passes still pass. Of the four units
 previously blocked at SETTING after a command, one now passes and three
 reach later diagnostics.
 
-- [ ] Investigate and implement `@SYSTEM.RETURN.CODE`, the first blocker
+- [x] Investigate and implement `@SYSTEM.RETURN.CODE`, the first blocker
   in 67 units. Check which command forms update it and what a caller
   reads after consecutive successful and unsuccessful commands.
+
+After native command return-code support, 14,975 of 17,336 candidates
+pass strict C99 checking, including all 14,936 previous passes. Of the
+67 units first blocked at @SYSTEM.RETURN.CODE, 39 now pass and 28 reach
+another diagnostic.
+
+- [ ] Recognize GO and GO TO as GOTO spellings, as in the reference
+  lexer. GO is the first blocker in 13 units. Exercise label resolution,
+  assignment checks after jumps, and jumps across FOR headers.

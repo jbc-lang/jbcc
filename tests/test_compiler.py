@@ -1365,14 +1365,14 @@ CRT O:
         child.write_text("PROMPT ''\nINPUT value\nCRT 'child read ' : value\nEXIT(4)\n")
         subprocess.run([CLI, '--exe', child, '-o', self.work / 'child'], check=True)
         main = self.work / 'main.b'
-        main.write_text("CALL RUN.CHILD()\nCRT 'returned'\n")
+        main.write_text("CALL RUN.CHILD()\nCRT 'returned ' : @SYSTEM.RETURN.CODE\n")
         sub = self.work / 'sub.b'
         sub.write_text("SUBROUTINE RUN.CHILD()\nPERFORM './child'\n")
         binary = self.work / 'main'
         subprocess.run([CLI, '--exe', main, sub, '-o', binary], check=True)
         run = subprocess.run([binary], cwd=self.work, input=b'hello\n', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'child read hello\nreturned\n')
+        self.assertEqual(run.stdout, b'child read hello\nreturned 4\n')
         self.assertEqual(run.stderr, b'')
 
     def test_execute_command_diagnostics(self):

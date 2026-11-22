@@ -126,6 +126,15 @@ runtime diagnostic. Alternate shells and field-mark-separated commands
 remain unsupported.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
+`@SYSTEM.RETURN.CODE` and `SYSTEM(17)` read the exit status of the
+most recent native EXECUTE or PERFORM, including commands run by a
+called routine. The value updates with or without result clauses. It
+starts at zero in jbcc, a provisional choice pending a reference run.
+T24 also inspects this variable after invoking jBASE query commands.
+Their record counts require a query backend.
+[jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/par2_PARAGRAPHS.htm),
+[SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
+
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
 duration in seconds, including fractions such as `SLEEP .25`. Zero
 continues immediately. The native runtime truncates durations to whole

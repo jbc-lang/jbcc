@@ -717,6 +717,13 @@ static const char *size_value(size_t n)
     return out;
 }
 
+static int last_command_code;
+
+const char *jbc_system_return_code(void)
+{
+    return size_value(last_command_code);
+}
+
 static const char *take_field(const char **field, unsigned char delimiter)
 {
     if (!*field) return "";
@@ -2296,6 +2303,11 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #include <sys/wait.h>
 #include <unistd.h>
 
+static int command_exit_code(int status)
+{
+    return WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
+}
+
 static const char *read_command_output(FILE *stream, const char **result, const char *nul_error)
 {
     char *bytes = NULL;
@@ -2332,7 +2344,9 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     if (fflush(stdout) == EOF || fflush(stderr) == EOF)
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
     if (!capture && !returning) {
-        if (system(command) == -1) numeric_error(file, line, column, "cannot execute command");
+        int status = system(command);
+        if (status == -1) numeric_error(file, line, column, "cannot execute command");
+        last_command_code = command_exit_code(status);
         return;
     }
 
@@ -2374,10 +2388,10 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         fclose(errors);
     }
     if (error) numeric_error(file, line, column, error);
+    last_command_code = command_exit_code(status);
     if (capture) assign_value(capture, captured);
     if (returning) {
-        int code = WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
-        const char *value = size_value(code);
+        const char *value = jbc_system_return_code();
         if (*messages) value = jbc_concat(value, jbc_concat("\376", messages));
         assign_value(returning, value);
     }
@@ -2545,7 +2559,8 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
 
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
-    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14) is supported");
+    if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
+    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14) and SYSTEM(17) are supported");
     int bytes = 0;
     fflush(stdout);
     int result;
