@@ -62,6 +62,7 @@ class CompilerTest(unittest.TestCase):
                                   ('PROGRAM one two\n', ':1:13:'),
                                   ('N = 1\nN : = 2\n', ":2:1: unsupported statement 'N'"),
                                   ('N = 1\nN +\n= 2\n', ":2:1: unsupported statement 'N'"),
+                                  ('GO = 1\nIF GO THEN CRT Missing\n', ':2:16: unknown variable'),
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
@@ -787,9 +788,9 @@ RETURN M(2,3)
 
     def test_jump_cannot_bypass_for_header(self):
         source = self.work / 'jump.b'
-        for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'),
+        for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'), ('GO', 'middle'), ('GO TO', 'middle:'),
                              ('GOSUB', 'middle'), ('GOSUB', 'middle:'),
-                             ('ON 2 GOTO safe,', 'middle'), ('ON 2 GOSUB safe,', 'middle')]:
+                             ('ON 2 GO TO safe,', 'middle'), ('ON 2 GOTO safe,', 'middle'), ('ON 2 GOSUB safe,', 'middle')]:
             with self.subTest(jump=jump, target=target):
                 source.write_text(f'{jump} {target}\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\nsafe: STOP\n')
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
@@ -833,6 +834,9 @@ RETURN M(2,3)
                                  ('CALL ! CHECK(X)', ":1:6: expected a routine name immediately after '!'"),
                                  ('GOSUB missing', 'unknown label'),
                                  ('GOSUB missing:', ":1:7: unknown label 'missing'"),
+                                 ('GO missing', ":1:4: unknown label 'missing'"),
+                                 ('GO   TO missing:', ":1:9: unknown label 'missing'"),
+                                 ('GO TO', ':1:6: expected a label'),
                                  ('GOTO 90:', ":1:6: unknown label '90'"),
                                  ('ON 1 GOTO ok, missing\nok:', ":1:15: unknown label 'missing'"),
                                  ('ON 2 GOSUB', ':1:11: expected a label'),

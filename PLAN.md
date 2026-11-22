@@ -915,6 +915,15 @@ pass strict C99 checking, including all 14,936 previous passes. Of the
 67 units first blocked at @SYSTEM.RETURN.CODE, 39 now pass and 28 reach
 another diagnostic.
 
-- [ ] Recognize GO and GO TO as GOTO spellings, as in the reference
+- [x] Recognize GO and GO TO as GOTO spellings, as in the reference
   lexer. GO is the first blocker in 13 units. Exercise label resolution,
   assignment checks after jumps, and jumps across FOR headers.
+
+After GO and GO TO, 14,985 of 17,336 candidates pass strict C99 checking.
+All 14,975 previous passes still pass. Of the 13 units blocked at GO,
+10 now pass and three reach another diagnostic.
+
+- [ ] Implement MATCHFIELD(string, pattern, field) using the existing
+  MATCHES pattern rules. Test extraction from a full match, variable-width
+  components and a pattern that leaves unmatched input. The guide gives
+  executable examples for each of these cases.

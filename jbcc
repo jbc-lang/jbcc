@@ -382,9 +382,15 @@ class Compiler:
             self.names[name] = f"frame->v{len(self.names)}"
         return self.names[name]
 
+    def assignment_error(self, message, token):
+        if not self.possible_go:
+            self.error(message, token)
+        if self.pending_assignment_error is None:
+            self.pending_assignment_error = (message, token)
+
     def read_variable(self, token):
         if token.word not in self.assigned and not self.has_unstructured_jumps:
-            self.error(f"unknown variable or unsupported function '{token.word}'", token)
+            self.assignment_error(f"unknown variable or unsupported function '{token.word}'", token)
         var = self.variable(token.word)
         return self.checked_read(var, token)
 
@@ -701,7 +707,7 @@ class Compiler:
         target = self.identifier()
         slot = self.variable_slot(target)
         if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
-            self.error(f"unassigned variable '{target.word}'", target)
+            self.assignment_error(f"unassigned variable '{target.word}'", target)
         indices = self.array_indices() if self.current.kind == 'array_open' else None
         value = self.checked_read(slot, target)
         if indices:
@@ -753,7 +759,7 @@ class Compiler:
         target = self.identifier()
         slot = self.variable_slot(target)
         if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
-            self.error(f"unassigned variable '{target.word}'", target)
+            self.assignment_error(f"unassigned variable '{target.word}'", target)
         if self.current.kind != 'array_open':
             self.error("expected dynamic-array indices after DEL target")
         indices = self.array_indices()
@@ -766,7 +772,7 @@ class Compiler:
         self.expect('FROM')
         source = self.identifier()
         if source.word not in self.matrices and source.word not in self.assigned and not self.has_unstructured_jumps:
-            self.error(f"unassigned variable '{source.word}'", source)
+            self.assignment_error(f"unassigned variable '{source.word}'", source)
         array = self.variable_slot(source)
         self.expect('SETTING')
         status = self.identifier()
@@ -1381,14 +1387,20 @@ class Compiler:
             if self.is_function:
                 self.emit("if (frame->result) return 0;")
 
+    def jump_operator(self):
+        operator = self.current
+        self.advance()
+        if operator.word == 'GO' and self.word == 'TO' and self.following.word != ':':
+            self.advance()
+        return operator.word != 'GOSUB'
+
     def indexed_jump(self):
         opening = self.current
         self.advance()
         index = self.expression()
-        if self.word not in ('GOTO', 'GOSUB'):
+        if self.word not in ('GO', 'GOTO', 'GOSUB'):
             self.error("expected GOTO or GOSUB")
-        jump = self.word == 'GOTO'
-        self.advance()
+        jump = self.jump_operator()
         targets = [self.local_label()]
         while self.word == ',':
             self.advance()
@@ -1650,9 +1662,10 @@ class Compiler:
             self.expect(')')
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
-        elif self.word in ('GOSUB', 'GOTO'):
-            jump = self.word == 'GOTO'
-            self.advance()
+        elif self.word in ('GOSUB', 'GOTO') or (self.word == 'GO' and
+                self.following.word not in ASSIGNMENT_OR_SUBSTRING and
+                self.following.kind != 'array_open' and self.following.word != '('):
+            jump = self.jump_operator()
             self.emit_jump(self.local_label(), jump)
         elif (self.word == 'ON' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
               and self.following.kind != 'array_open'
@@ -1809,7 +1822,7 @@ class Compiler:
                 text = self.temporary(f"jbc_array({base}, {indices}, NULL)")
             if operator.word != '=':
                 if not matrix and start.word not in self.assigned and not self.has_unstructured_jumps:
-                    self.error(f"unassigned variable '{start.word}'", start)
+                    self.assignment_error(f"unassigned variable '{start.word}'", start)
                 old = text if indices else self.checked_read(var, start)
                 if substring:
                     old = self.temporary(f"jbc_substring({old}, {substring}, NULL)")
@@ -1862,6 +1875,11 @@ class Compiler:
         self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') or
                                           (t.word == 'RETURN' and n + 1 < len(tokens) and tokens[n + 1].word == 'TO')
                                           for n, t in enumerate(tokens))
+        # GO is also a legal identifier. Resolve tentative assignment diagnostics
+        # once we know whether any use actually emitted a jump.
+        self.possible_go = any(t.word == 'GO' and tokens[i + 1].kind in ('name', 'number')
+                               for i, t in enumerate(tokens) if t.kind == 'name')
+        self.pending_assignment_error = None
         self.tokens = iter(tokens)
         self.following = next(self.tokens)
         self.advance()
@@ -1900,6 +1918,8 @@ class Compiler:
                 self.advance()
             if self.word:
                 self.error("unexpected text after final END")
+        if self.pending_assignment_error and not self.has_goto:
+            self.error(*self.pending_assignment_error)
         for name, target in self.return_targets.items():
             if name not in self.labels:
                 self.error(f"unknown label '{name}'", target)

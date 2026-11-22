@@ -453,7 +453,8 @@ callee reads the status field, selects a CASE arm, and updates the output.
 - Define a local label with a trailing colon, including inside IF, CASE,
   LOOP and FOR bodies. The reference grammar also accepts an optional
   colon after a GOTO or GOSUB target, as in `GOTO finish:` or `GOSUB 100:`.
-  GOTO can jump within or leave a FOR. A jump that
+  The reference lexer accepts `GO label` and `GO TO label` as spellings
+  of GOTO, including in indexed ON statements. GOTO can jump within or leave a FOR. A jump that
   would enter a FOR without executing its header gets a source diagnostic.
   GOSUB starts a fresh control-flow invocation and shares
   the routine's variables and supports nested returns. Execution falls through
