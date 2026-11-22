@@ -47,6 +47,8 @@ class CompilerTest(unittest.TestCase):
                                   ('CALL F(1,\n', ':1:9: unfinished comma continuation'),
                                   ('CALL F(1,\n )\n', ':2:2: expected call argument'),
                                   ('CALL F(1\n, 2)\n', ":1:9: expected ')'"),
+                                  ("OPEN '', 'F', 'X' ELSE STOP\n", ':1:13: expected THEN or ELSE'),
+                                  ("OPEN '',, 'X' ELSE STOP\n", ':1:9: expected a variable'),
                                   ('PROGRAM\n', ':1:8:'),
                                   ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),
@@ -738,6 +740,15 @@ RETURN M(2,3)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
+
+    def test_open_sections(self):
+        run = self.run_native(ROOT / 'tests/io/open-sections.b',
+                              options=['--memory-file', 'CUSTOMERS', '--memory-dict', 'CUSTOMERS',
+                                       '--memory-file', 'DATA.ONLY', '--memory-dict', 'DICT.ONLY'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'data\ndefinition\nremoved from dictionary\ndata\n'
+                                     b'missing dictionary\ndescriptor cleared\nmissing data file\n')
+        self.assertEqual(run.stderr, b'')
 
     def test_delete_records(self):
         run = self.run_native(ROOT / 'tests/io/delete.b',

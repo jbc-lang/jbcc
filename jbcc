@@ -959,7 +959,12 @@ class Compiler:
         self.advance()
         op = opening.word
         if op == 'OPEN':
+            section = '""'
             name = self.expression()
+            if self.word == ',':
+                self.advance()
+                section = self.temporary(name)
+                name = self.expression()
             slot = 'jbc_default_file'
             if self.word == 'TO':
                 self.advance()
@@ -967,7 +972,7 @@ class Compiler:
                     target = self.identifier().word
                     slot = self.variable(target)
                     self.assigned.add(target)
-            call = f"jbc_open_file({name}, &{slot})"
+            call = f"jbc_open_file({section}, {name}, &{slot})"
         else:
             if op == 'READ':
                 target = self.identifier().word
@@ -1684,7 +1689,7 @@ class Compiler:
             return "int main(void)"
         return routine_signature(self.routine.word, self.formals.values(), self.is_function)
 
-    def render(self, memory_files=()):
+    def render(self, memory_files=(), memory_dicts=()):
         u = self.unit
         fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
         if self.is_function:
@@ -1742,8 +1747,9 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
-            for name in memory_files:
-                lines.append(f"    jbc_create_memory_file({c_string(name)});")
+            for section, names in (('', memory_files), ('DICT', memory_dicts)):
+                for name in names:
+                    lines.append(f"    jbc_create_memory_file({c_string(section)}, {c_string(name)});")
         if self.routine and self.sets_precision:
             lines.append("    int saved_precision = jbc_precision;")
         lines.append(f"    body_{u}(&frame, 0);")
@@ -1778,7 +1784,7 @@ def compile_unit(path, directories, index=0):
     return unit
 
 
-def compile_program(paths, directories, memory_files=()):
+def compile_program(paths, directories, memory_files=(), memory_dicts=()):
     units = []
     routines = {}
     programs = 0
@@ -1814,7 +1820,7 @@ def compile_program(paths, directories, memory_files=()):
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
     features = runtime_features(units)
-    return "\n".join([features, runtime] + prototypes + [u.render(memory_files) for u in units])
+    return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts) for u in units])
 
 
 def runtime_features(units):
@@ -1852,6 +1858,8 @@ def main():
     cli.add_argument('source', nargs='+', type=Path)
     cli.add_argument('--memory-file', dest='memory_files', action='append', default=[], metavar='NAME',
                      help='provide an empty named file in the in-memory test backend (repeatable)')
+    cli.add_argument('--memory-dict', dest='memory_dicts', action='append', default=[], metavar='NAME',
+                     help='provide an empty dictionary section in the in-memory test backend (repeatable)')
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
     cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
@@ -1859,7 +1867,7 @@ def main():
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source, args.directories, args.memory_files)
+        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts)
         if args.exe:
             build_executable(result, args.o)
             return 0

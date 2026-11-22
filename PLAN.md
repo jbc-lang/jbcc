@@ -703,7 +703,16 @@ After optional jump-target colons, 13,025 of 17,336 candidates pass strict
 C99 checking, including all 12,957 previous passes. Of the 195 units
 blocked at a target colon, 68 now pass and 127 reach another diagnostic.
 
-- [ ] Support the two-expression OPEN form. In 158 units the first
+- [x] Support the two-expression OPEN form. In 158 units the first
   diagnostic points at the comma after the first OPEN operand. Check
   `OPEN '', name` and `OPEN 'DICT', name` against the guide and exercise
   data and dictionary handles separately with the in-memory file backend.
+
+After two-expression OPEN, 13,057 of 17,336 candidates pass strict C99
+checking, including all 13,025 previous passes. Of the 158 units blocked
+at the first OPEN comma, 32 now pass and 126 reach another diagnostic.
+
+- [ ] Handle ELSE on a following line. The reference preprocessor joins
+  the newline before this keyword, including across blank and comment
+  lines. Exercise inline arms, END followed by ELSE, and nested IFs.
+  An unexpected standalone ELSE is the first blocker in 251 units.

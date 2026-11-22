@@ -509,6 +509,13 @@ cc -std=c99 /tmp/records.c -o /tmp/records
 /tmp/records
 ```
 
+`OPEN '', Name` opens the same data file as `OPEN Name`. To exercise
+`OPEN 'DICT', Name`, pass `--memory-dict NAME` at translation time.
+The in-memory backend registers the data and dictionary sections independently.
+For example, `--memory-file CUSTOMERS --memory-dict CUSTOMERS` provides
+both sections, each with its own records. Opening an unregistered section
+takes the failure branch.
+
 OPEN a name TO a descriptor, READ a variable FROM a descriptor and key,
 and WRITE a value ON or TO a descriptor and key. READ and WRITE use
 explicit descriptors. OPEN and READ require THEN or ELSE. WRITE can be

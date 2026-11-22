@@ -1638,6 +1638,7 @@ struct memory_file {
     struct memory_record *records, *last_read;
     size_t serial;
     char list_token;
+    const char *section;
     char name[];
 };
 
@@ -1678,28 +1679,30 @@ static char *record_copy(const char *s)
     return strcpy(copy, s);
 }
 
-void jbc_create_memory_file(const char *name)
+static struct memory_file *find_memory_file(const char *section, const char *name)
 {
     for (struct memory_file *f = files; f; f = f->next)
-        if (strcmp(f->name, name) == 0) return;
+        if (strcmp(f->section, section) == 0 && strcmp(f->name, name) == 0) return f;
+    return NULL;
+}
+
+void jbc_create_memory_file(const char *section, const char *name)
+{
+    if (find_memory_file(section, name)) return;
     if (!files && atexit(free_files) != 0) fail("cannot register file cleanup");
     struct memory_file *f = calloc(1, sizeof *f + strlen(name) + 1);
     if (!f) fail("out of memory");
+    f->section = section;
     strcpy(f->name, name);
     f->next = files;
     files = f;
 }
 
-int jbc_open_file(const char *name, jbc_variable *out)
+int jbc_open_file(const char *section, const char *name, jbc_variable *out)
 {
-    for (struct memory_file *f = files; f; f = f->next) {
-        if (strcmp(f->name, name) == 0) {
-            assign_value(out, f->name);
-            return 1;
-        }
-    }
-    assign_value(out, "");
-    return 0;
+    struct memory_file *f = find_memory_file(section, name);
+    assign_value(out, f ? f->name : "");
+    return f != NULL;
 }
 
 static struct memory_file *file_for(const char *handle)
