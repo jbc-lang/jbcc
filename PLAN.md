@@ -359,6 +359,15 @@ previously stopped at the opening parenthesis of OCONV, 5 now pass and
 253 reach another diagnostic. The scan checks generated C syntax only.
 Mask support is checked separately in native tests.
 
-- [ ] Implement DATE() so T24 expressions such as `OCONV(DATE(),'D-')`
+- [x] Implement DATE() so T24 expressions such as `OCONV(DATE(),'D-')`
   can run. Check the local calendar date against the same 1967 epoch,
   including dates across a timezone boundary.
+
+After DATE(), 10,325 of 17,336 candidates pass strict C99 checking,
+including all 10,267 previous passes. Of the 50 units previously reporting
+an unknown DATE or stopping at its opening parenthesis, 19 now pass and
+31 reach another diagnostic.
+
+- [ ] Implement TIME() and the common OCONV time masks `MT` and `MTS`.
+  Check seconds since local midnight and the guide’s formatted examples,
+  including midnight and the last second of the day.

@@ -64,8 +64,11 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
-OCONV currently formats internal dates, counted in days from 31 December
-1967. `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
+DATE() returns the process’s current local calendar date as the number of
+days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
+today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
+
+OCONV currently formats internal dates. `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
 worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns
 `01/17/2013`. Append `E` for day-first order. The guide’s syntax table

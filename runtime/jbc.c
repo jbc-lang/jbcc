@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 struct jbc_buffer {
     struct jbc_buffer *next;
@@ -961,6 +962,24 @@ static int leap_year(int year)
     return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
 }
 
+/* Zero-based Gregorian ordinal of the jBC epoch, 1967-12-31. */
+enum { JBC_DATE_EPOCH = 718430 };
+
+const char *jbc_date(const char *file, int line, int column)
+{
+    time_t now = time(NULL);
+    const struct tm *today = now == (time_t)-1 ? NULL : localtime(&now);
+    if (!today) numeric_error(file, line, column, "DATE cannot read local date");
+    if (today->tm_year < 1 - 1900 || today->tm_year > 9999 - 1900)
+        numeric_error(file, line, column, "DATE outside years 1 through 9999");
+    int years = today->tm_year + 1899; /* Complete years before the current year. */
+    int days = years * 365 + years / 4 - years / 100 + years / 400
+             + today->tm_yday - JBC_DATE_EPOCH;
+    char *out = allocate(11);
+    snprintf(out, 12, "%d", days);
+    return out;
+}
+
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
     static const char *const months[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
@@ -986,10 +1005,9 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     if (!parse_decimal(value, &n) || n.places)
         numeric_error(file, line, column, "OCONV date requires an integer day count");
     int64_t days = integer(value, file, line, column);
-    /* 0001-01-01 is day -718430 relative to 1967-12-31. */
-    if (days < -718430 || days > 2933628)
+    if (days < -JBC_DATE_EPOCH || days > 2933628)
         numeric_error(file, line, column, "OCONV date outside years 1 through 9999");
-    int ordinal = (int)days + 718430;
+    int ordinal = (int)days + JBC_DATE_EPOCH;
     int weekday = ordinal % 7;
     int year = 1 + 400 * (ordinal / 146097);
     int remaining = ordinal % 146097;

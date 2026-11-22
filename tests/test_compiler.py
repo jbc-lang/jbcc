@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -42,6 +43,7 @@ class CompilerTest(unittest.TestCase):
         for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ('CRT DATE(1)\n', ':1:5:'),
                                   ('FOR I = 1 TO 2\nNEXT J\n', ':2:6:'),
                                   ('LOOP WHILE 0\n', ':1:1:'),
                                   ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
@@ -225,6 +227,25 @@ class CompilerTest(unittest.TestCase):
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
+
+    def test_date_in_local_timezone(self):
+        source = self.work / 'date.b'
+        source.write_text("PRINT DATE()\nPRINT OCONV(DATE(),'D-')\n")
+        binary = self.work / 'date'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        epoch = date(1967, 12, 31)
+        # These fixed offsets span 24 hours, so a UTC-only implementation fails.
+        for zone, offset in [('UTC+10', -10), ('UTC-14', 14)]:
+            with self.subTest(zone=zone):
+                tz = timezone(timedelta(hours=offset))
+                before = datetime.now(tz).date()
+                run = subprocess.run([binary], env=dict(os.environ, TZ=zone),
+                                     capture_output=True, text=True, check=True)
+                after = datetime.now(tz).date()
+                count, formatted = run.stdout.splitlines()
+                self.assertIn(int(count), [(d - epoch).days for d in (before, after)])
+                self.assertIn(formatted, [d.strftime('%m-%d-%Y') for d in (before, after)])
+                self.assertEqual(run.stderr, '')
 
     def test_oconv_date_diagnostics(self):
         source = self.work / 'date.b'
