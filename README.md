@@ -167,6 +167,15 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
+
+`INDEX(text, needle, occurrence)` returns the one-based byte position of
+the requested match, or zero when it is missing. For example,
+`INDEX('ab--ab', 'ab', 2)` returns 5. jbcc currently counts
+nonoverlapping matches, truncates fractional occurrence numbers toward
+zero, and returns zero for an empty needle or a nonpositive occurrence.
+These edge cases are provisional pending a reference run.
+[INDEX](https://jbc-lang.org/pages/index.html).
+
 LEN counts bytes in the current byte-oriented runtime. FIELD accepts a
 one-based occurrence and optional field count. FIELD, COUNT and DCOUNT
 support multi-byte delimiters. COUNT counts nonoverlapping occurrences as

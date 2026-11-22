@@ -112,6 +112,17 @@ class CompilerTest(unittest.TestCase):
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
 
+    def test_index_diagnostics(self):
+        source = self.work / 'index.b'
+        source.write_text("PRINT INDEX('abc', 'b')\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:7: wrong argument count for 'INDEX'", result.stderr)
+        source.write_text("PRINT INDEX('abc', 'b', 'two')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:7: expected a numeric value'.encode(), run.stderr)
+
     def test_division_by_zero(self):
         source = self.work / 'division.b'
         source.write_text('PRINT 7 / 0\n')

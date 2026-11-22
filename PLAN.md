@@ -160,6 +160,15 @@ After nested label support, 6,146 of 17,336 candidate units passed C99
 checking, including all 5,946 previous passes. The scan reported 10,962
 compiler diagnostics and 228 encoding errors.
 
-- [ ] Implement INDEX. In 1,281 units the first diagnostic points to its
+- [x] Implement INDEX. In 1,281 units the first diagnostic points to its
   opening parenthesis. Verify occurrence counting, returned byte positions
   and the missing-substring result in executable tests.
+
+After INDEX, 6,657 of 17,336 candidate units passed C99 checking,
+including all 6,146 previous passes. The scan reported 10,451 compiler
+diagnostics and 228 encoding errors.
+
+- [ ] Support runtime-sized COMMON matrices as used in T24. The first
+  diagnostic in 728 units points to the same record-derived dimension in
+  I_SEAT.COMMON. Verify when bounds are evaluated, how offsets for later
+  members are computed, and how a second routine shares the block.

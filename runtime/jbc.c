@@ -318,7 +318,7 @@ void jbc_matrix_copy(jbc_variable *dest, const jbc_variable *src, size_t count,
     for (size_t i = 0; i < count; ++i) assign_value(&dest[i], src[i].value);
 }
 
-size_t jbc_index(int rank, const int *bounds, const char **indices,
+size_t jbc_matrix_index(int rank, const int *bounds, const char **indices,
                  const char *file, int line, int column)
 {
     size_t offset = 0;
@@ -698,6 +698,20 @@ static int64_t truncated(const char *value, const char *file, int line, int colu
     if (!parse_decimal(value, &n)) numeric_error(file, line, column, "expected a numeric value");
     if (!n.digits) return 0;
     return integer(value, file, line, column);
+}
+
+const char *jbc_index(const char *text, const char *needle, const char *occurrence,
+                      const char *file, int line, int column)
+{
+    int64_t remaining = truncated(occurrence, file, line, column);
+    size_t width = strlen(needle);
+    if (!width || remaining < 1) return "0";
+    const char *cursor = text;
+    while ((cursor = strstr(cursor, needle)) != NULL) {
+        if (--remaining == 0) return size_value((size_t)(cursor - text) + 1);
+        cursor += width;
+    }
+    return "0";
 }
 
 const char *jbc_int(const char *value, const char *file, int line, int column)

@@ -22,7 +22,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update({":": 4, "+": 5, "-": 5, "*": 6, "/": 6})
 
 
-BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {"SPACE": (1,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "INDEX": (3,), "FIELD": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
 
 
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
@@ -321,7 +321,7 @@ class Compiler:
                 self.trig = True
             if word == "SYSTEM":
                 self.terminal = True
-            if word in ("CHAR", "FIELD", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
+            if word in ("CHAR", "FIELD", "INDEX", "SPACE", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             value = self.temporary(f"jbc_{word.lower()}({', '.join(args)})")
             if word == 'NOT':
@@ -836,7 +836,7 @@ class Compiler:
         limits = ", ".join(map(str, bounds))
         index = f"index_{self.temporaries}"
         self.temporaries += 1
-        self.emit(f"size_t {index} = jbc_index({len(bounds)}, (const int[]){{{limits}}}, "
+        self.emit(f"size_t {index} = jbc_matrix_index({len(bounds)}, (const int[]){{{limits}}}, "
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
         return f"({base})[{index}]"
 
