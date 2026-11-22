@@ -43,9 +43,14 @@ just corpus ~/Downloads/t24 > /tmp/jbcc-corpus.json
 
 Use scalar assignment, PRINT and CRT, decimal numeric
 literals, quoted strings (single, double or backslash delimiters),
-parentheses, arithmetic, concatenation, and compound assignments (+= and -=). Addition binds more tightly than
+parentheses, arithmetic, concatenation, and compound assignments (`+=`, `-=`, and `:=`). Addition binds more tightly than
 concatenation. Names are case-sensitive. Variables must be assigned on every path reaching a use. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line.
+
+Concatenating assignment appends the right-hand value as a string.
+For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
+It also works on matrix elements, dynamic-array fields and substrings.
+[String variables](https://jbc-lang.org/pages/string_variables.html).
 
 The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop
 boundaries reclaim temporary values that are no longer in use. Integer addition, subtraction and multiplication check signed 64-bit

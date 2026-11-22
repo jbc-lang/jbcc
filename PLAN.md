@@ -144,5 +144,14 @@ After ASSIGNED and UNASSIGNED, 4,894 candidate units passed strict C99
 checking. All 4,876 previous passes remained. In 854 units the first
 diagnostic now points to the same concatenating assignment in I_DAS.
 
-- [ ] Implement concatenating assignment (`:=`) for scalars and indexed
+- [x] Implement concatenating assignment (`:=`) for scalars and indexed
   targets and verify against the string examples in the guide.
+
+After concatenating assignment, 5,946 of 17,336 candidate units passed C99
+checking, including all 4,894 previous passes. The scan reported 11,162
+compiler diagnostics and 228 encoding errors.
+
+- [ ] Support labels inside structured statements. The routine-scope label
+  restriction is the first blocker in 1,532 units. Test the observed label
+  immediately before REPEAT and labels inside IF arms. Check jump targets
+  and loop temporary lifetimes before enabling jumps across block boundaries.

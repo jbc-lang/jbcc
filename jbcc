@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>\+=|-=|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<symbol>\+=|-=|:=|.)""")
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
@@ -926,22 +926,29 @@ class Compiler:
             indices = self.array_indices() if self.current.kind == 'array_open' else None
             substring = self.substring_indices() if self.word == '[' else None
             operator = self.current
-            if self.word not in ('=', '+=', '-='):
+            if self.word not in ('=', '+=', '-=', ':='):
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()
             value = self.expression()
             var = var or self.variable(start.word)
             base = f'({var}.value ? {var}.value : "")'
-            if substring:
-                if operator.word != '=':
-                    self.error("expected '=' for substring replacement", operator)
-                text = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else base
-                value = self.temporary(f"jbc_substring({text}, {substring}, {value})")
+            if substring and operator.word not in ('=', ':='):
+                self.error("expected '=' or ':=' for substring replacement", operator)
+            text = base
+            if indices and (substring or operator.word != '='):
+                text = self.temporary(f"jbc_array({base}, {indices}, NULL)")
             if operator.word != '=':
                 if not matrix and start.word not in self.assigned and not self.has_gosub:
                     self.error(f"unassigned variable '{start.word}'", start)
-                old = self.temporary(f"jbc_array({base}, {indices}, NULL)") if indices else self.checked_read(var, start)
-                value = self.arithmetic(operator, old, value, operator.word[0])
+                old = text if indices else self.checked_read(var, start)
+                if substring:
+                    old = self.temporary(f"jbc_substring({old}, {substring}, NULL)")
+                if operator.word == ':=':
+                    value = self.temporary(f"jbc_concat({old}, {value})")
+                else:
+                    value = self.arithmetic(operator, old, value, operator.word[0])
+            if substring:
+                value = self.temporary(f"jbc_substring({text}, {substring}, {value})")
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")
             self.emit(f"assign_value(&{var}, {value});")
