@@ -137,6 +137,11 @@ first byte of a mixed internal run. Both choices are provisional pending
 a reference run. [TRIM](https://jbc-lang.org/pages/trim.html),
 [jBASE TRIM manual](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_TRIM.htm).
 
+TRIMF removes leading space bytes and TRIMB removes trailing space bytes.
+Both preserve tabs and interior spaces. They use the same runtime as
+`TRIM(text, " ", "L")` and `TRIM(text, " ", "T")`, respectively.
+[TRIMF](https://jbc-lang.org/pages/trimf.html), [TRIMB](https://jbc-lang.org/pages/trimb.html).
+
 MAXIMUM and MINIMUM compare numeric elements across field, value, and
 subvalue marks. An empty element counts as zero. Nonnumeric elements are
 skipped, and jbcc provisionally returns zero when all elements are

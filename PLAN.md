@@ -626,6 +626,15 @@ After scalar REUSE in SPLICE, 11,932 of 17,336 candidates pass strict C99
 checking, including all 11,916 previous passes. Of the 17 units previously
 blocked at REUSE calls, 15 now pass and two reach another diagnostic.
 
-- [ ] Implement TRIMF and TRIMB, the first blockers in 20 and seven units
+- [x] Implement TRIMF and TRIMB, the first blockers in 20 and seven units
   respectively. Verify the guide’s equivalences to TRIM with a space
   and mode L or T, including tabs and interior spaces.
+
+After TRIMF and TRIMB, 11,957 of 17,336 candidates pass strict C99
+checking, including all 11,932 previous passes. Of the 27 units whose
+first diagnostic pointed to a TRIMF or TRIMB call’s opening parenthesis,
+nine now pass and 18 reach another diagnostic.
+
+- [ ] Implement ALPHA for the byte-oriented runtime. The first diagnostic
+  points at an ALPHA call in 25 units. Check the guide’s letters-only and
+  trailing-digit examples, along with punctuation, empty input and array marks.

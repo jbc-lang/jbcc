@@ -63,6 +63,8 @@ class CompilerTest(unittest.TestCase):
                                   ("CRT MAXIMUM(1, 2)\n", ":1:5: wrong argument count for 'MAXIMUM'"),
                                   ("CRT SUBSTRINGS('x', 1)\n", ":1:5: wrong argument count for 'SUBSTRINGS'"),
                                   ("CRT SPLICE('a', 'b')\n", ":1:5: wrong argument count for 'SPLICE'"),
+                                  ("CRT TRIMF()\n", ":1:5: wrong argument count for 'TRIMF'"),
+                                  ("CRT TRIMB('a', 'b')\n", ":1:5: wrong argument count for 'TRIMB'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT DATE(1)\n', ':1:5:'),

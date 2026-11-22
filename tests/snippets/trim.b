@@ -11,3 +11,8 @@ Mode = 'D'
 PRINT '[' : CONVERT(TRIM(S,'ignored',Mode),Tab,'~') : ']'
 PRINT '[' : CONVERT(TRIM(S),Tab,'~') : ']'
 PRINT TRIM('A' : @VM : 'B',@VM,'A')
+S = '  ' : Tab : ' A  B ' : Tab : '  '
+CRT DQUOTE(TRIMF(S))
+CRT DQUOTE(TRIMB(S))
+CRT DQUOTE(TRIMB(TRIMF('  A  B  ')))
+CRT LEN(TRIMF('')), LEN(TRIMB('')), LEN(TRIMF('   ')), LEN(TRIMB('   '))
