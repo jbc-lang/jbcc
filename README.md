@@ -444,9 +444,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   the invocation. Reading an unassigned output reports a runtime diagnostic.
   [SUBROUTINE](https://jbc-lang.org/pages/subroutine.html)
 - EQU or EQUATE defines token substitutions, including comma-separated
-  definitions. $INSERT and INCLUDE search the including file's directory,
-  followed by each `-I DIR` in order. Included tokens retain their source
-  locations. [EQUATE](https://jbc-lang.org/pages/equate.html)
+  definitions. T24 also uses definitions between semicolon-separated
+  statements. Each definition applies from that point onward, including
+  later statements on the same line. $INSERT and INCLUDE search the
+  including file's directory, followed by each `-I DIR` in order. Included
+  tokens retain their source locations. [EQUATE](https://jbc-lang.org/pages/equate.html)
 - BEGIN CASE evaluates conditions in order, executes the first true arm,
   and resumes after END CASE. Use CASE 1 for a default. The reference
   grammar allows zero arms. When the block is empty or contains only

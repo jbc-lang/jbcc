@@ -46,6 +46,8 @@ class CompilerTest(unittest.TestCase):
                                   ('BEGIN CASE\nCRT 1\nEND CASE\n', ':1:1: expected CASE clause'),
                                   ('BEGIN CASE\nEND IF\n', ":2:5: expected 'CASE'"),
                                   ('BEGIN CASE END CASE\n', ':1:1: expected CASE clause'),
+                                  ('CRT 1; EQU X TO 2,\n', ':1:18: unfinished EQUATE list'),
+                                  ('CRT 1; EQU X TO; CRT 2\n', ':1:12: expected EQUATE name TO expression'),
                                   ('CALL F(1,\n', ':1:9: unfinished comma continuation'),
                                   ('CALL F(1,\n )\n', ':2:2: expected call argument'),
                                   ('CALL F(1\n, 2)\n', ":1:9: expected ')'"),

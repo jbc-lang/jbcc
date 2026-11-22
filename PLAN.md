@@ -825,6 +825,16 @@ After adding `@SENTENCE`, 14,593 of 17,336 candidates pass strict C99
 checking. All previous passes still pass. Of the 23 units previously
 blocked there, CREATE.SC.VAL.COST passes and 22 reach later diagnostics.
 
-- [ ] Recognize EQU and EQUATE after a statement separator. All 37 units
+- [x] Recognize EQU and EQUATE after a statement separator. All 37 units
   currently blocked at EQU use it after a semicolon. Test multiple
   definitions on a line and expansion in subsequent statements.
+
+After inline EQU and EQUATE, 14,622 of 17,336 candidates pass strict
+C99 checking, including all 14,593 previous passes. Of the 37 units
+blocked at EQU, 27 now pass and 10 reach another diagnostic. Two more
+units with different first diagnostics also pass.
+
+- [ ] Implement indexed `ON expression GOSUB` and `ON expression GOTO`.
+  These are the first blockers in 28 and 4 units respectively. Test
+  one-based label selection, return to the next statement after GOSUB,
+  and the guide's emulation-dependent behavior for out-of-range indices.

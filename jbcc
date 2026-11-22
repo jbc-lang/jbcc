@@ -150,6 +150,24 @@ def directive_error(token, message):
     raise Diagnostic(f"{token.path}:{token.line}:{token.column}: {message}")
 
 
+def split_statements(tokens):
+    start = 0
+    separator = None
+    for i, token in enumerate(tokens):
+        if token.word == ';' and token.kind == 'symbol':
+            yield separator, tokens[start:i]
+            separator = token
+            start = i + 1
+    yield separator, tokens[start:]
+
+
+def is_equate(statement):
+    if not statement or statement[0].word not in ('EQU', 'EQUATE'):
+        return False
+    # EQU and EQUATE can also be assignment targets.
+    return len(statement) == 1 or statement[1].word not in ASSIGNMENT_OR_SUBSTRING | {'(', '<'}
+
+
 class Preprocessor:
     def __init__(self, directories):
         self.directories = directories
@@ -183,6 +201,17 @@ class Preprocessor:
             else:
                 yield token
 
+    def expand_line(self, tokens):
+        emitted = False
+        for separator, statement in split_statements(tokens):
+            if is_equate(statement):
+                self.define(statement)
+            elif statement:
+                if emitted:
+                    yield separator
+                yield from self.expand(statement)
+                emitted = True
+
     def read(self, path, parents=()):
         source = path.read_text(encoding='utf-8')
         if '\0' in source:
@@ -211,16 +240,14 @@ class Preprocessor:
             if words and words[-1].word == ',':
                 continue
             tokens = list(angle_tokens(words))
-            if tokens and tokens[0].word in ('EQU', 'EQUATE'):
-                self.define(tokens)
-            else:
-                yield from self.expand(tokens)
+            yield from self.expand_line(tokens)
             if n not in joined:
                 yield newline
             words = []
             parentheses = 0
         if words:
-            message = "unfinished EQUATE list" if words[0].word in ('EQU', 'EQUATE') else "unfinished comma continuation"
+            last = list(split_statements(words))[-1][1]
+            message = "unfinished EQUATE list" if is_equate(last) else "unfinished comma continuation"
             directive_error(words[-1], message)
         if not parents:
             yield newline._replace(word='', kind='eof')
