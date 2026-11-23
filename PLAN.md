@@ -1285,8 +1285,17 @@ checking. All 15,877 previous passes still pass. The 133 additional
 passes include ARCHIVES.FIELD.RUN and ARCHIVES.LIVE.TO.HIST.RUN.
 ARCHIVES.UPDATE.RUN advances to a duplicate declaration.
 
-- [ ] Support message operands on STOP and implement ABORT. Check the
+- [x] Support message operands on STOP and implement ABORT. Check the
   reference grammar and guide, define how standalone executables render
   message arguments, and verify termination and exit status from main
   programs and called routines. STOP operands are the first blocker in
   47 files and ABORT in ten.
+
+After STOP and ABORT, 16,043 of 17,336 candidates pass strict C99
+checking. All 16,010 previous passes still pass. Of the 33 additional
+passes, 26 previously stopped at a STOP operand and seven at ABORT.
+
+- [ ] Add SETTING and ON ERROR to ordinary WRITE. Verify that failures
+  report the file status and enter the error arm, and that existing
+  WRITE forms and lock release still work. WRITE with ON ERROR is
+  the first blocker in 38 files.

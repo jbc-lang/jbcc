@@ -505,6 +505,17 @@ subroutine. jbcc truncates a fractional status toward zero and requires
 the result to fit a C int. This conversion policy is provisional pending
 a reference run. [EXIT](https://jbc-lang.org/pages/exit.html).
 
+STOP and ABORT terminate the standalone process, including from a called
+routine. STOP exits with status 0 and ABORT exits with status 1 in the
+native builds. Both accept optional comma-separated message expressions.
+jbcc renders those arguments directly to standard error. A numeric first
+argument appears as a message identifier, as in `ABORT [201] file` for
+`ABORT 201, "file"`. A text first argument appears as written. Additional
+arguments are separated by spaces. This rendering and the ABORT status
+are provisional standalone behavior. The reference uses a message
+catalogue and distinguishes the statements for calling jCL programs.
+[STOP](https://jbc-lang.org/pages/stop.html), [ABORT](https://jbc-lang.org/pages/abort.html).
+
 ## Dimensioned arrays and shared storage
 
 DIM and DIMENSION accept comma-separated declarations with positive integer

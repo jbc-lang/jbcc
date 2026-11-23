@@ -2782,6 +2782,24 @@ void jbc_exit(const char *value, const char *file, int line, int column)
     exit((int)status);
 }
 
+void jbc_stop(int aborting, const char *const *args, size_t count)
+{
+    if (count) {
+        fflush(stdout);
+        struct decimal message;
+        if (parse_decimal(args[0], &message))
+            fprintf(stderr, "%s [%s]", aborting ? "ABORT" : "STOP", args[0]);
+        else
+            fputs(args[0], stderr);
+        for (size_t i = 1; i < count; ++i) {
+            fputc(' ', stderr);
+            fputs(args[i], stderr);
+        }
+        fputc('\n', stderr);
+    }
+    exit(aborting ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+
 const char *jbc_update_array(const char *source, const char *value, const char **indices,
                              int count, int inserting, const char *file, int line, int column)
 {

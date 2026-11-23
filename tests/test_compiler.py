@@ -399,6 +399,39 @@ RETURN
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{sub}:2:1: expected a numeric value'.encode(), run.stderr)
 
+    def test_stop_and_abort_from_main(self):
+        source = self.work / 'main.b'
+        for statement, status, message in [
+            ("STOP", 0, b""),
+            ("STOP 'cannot read ' : 'file'", 0, b"cannot read file\n"),
+            ("ABORT", 1, b""),
+            ("ABORT 201, 'file', 1 + 2", 1, b"ABORT [201] file 3\n"),
+        ]:
+            with self.subTest(statement=statement):
+                source.write_text("CRT 'before'\n" + statement + "\nCRT 'unreachable'\n")
+                run = self.run_native(source)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (status, b'before\n', message))
+
+    def test_stop_and_abort_from_routine(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'finish.b'
+        main.write_text("CALL FINISH('data')\nPRINT 'unreachable caller'\n")
+        for statement, status, message in [
+            ("IF 1 THEN STOP 201, Name ELSE STOP", 0, b"STOP [201] data\n"),
+            ("IF 0 THEN STOP ELSE ABORT 'missing', Name", 1, b"missing data\n"),
+        ]:
+            with self.subTest(statement=statement):
+                sub.write_text("SUBROUTINE FINISH(Name)\n" + statement + "\nCRT 'unreachable'\n")
+                run = self.run_native(main, sub)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (status, b'', message))
+
+    def test_stop_missing_message_argument(self):
+        source = self.work / 'main.b'
+        source.write_text("STOP 201,, 'file'\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:10: expected a variable", result.stderr)
+
     def test_mismatched_next_counter(self):
         source = ROOT / 'tests/programs/mismatched-next.b'
         binary = self.work / 'program'

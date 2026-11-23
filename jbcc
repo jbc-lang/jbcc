@@ -1587,6 +1587,18 @@ class Compiler:
             print(f"{token.path}:{token.line}:{token.column}: warning: {token.word} outside a loop ignored",
                   file=sys.stderr)
 
+    def termination_statement(self, stops):
+        aborting = int(self.word == 'ABORT')
+        self.advance()
+        if not self.word or self.word in OUTPUT_END or self.word in stops:
+            self.emit(f"jbc_stop({aborting}, NULL, 0);")
+            return
+        args = [self.temporary(self.expression())]
+        while self.word == ',':
+            self.advance()
+            args.append(self.temporary(self.expression()))
+        self.emit(f"jbc_stop({aborting}, (const char *[]){{{', '.join(args)}}}, {len(args)});")
+
     def end_loop(self):
         self.emit("jbc_collect(entry_mark, live);")
         self.depth -= 1
@@ -2078,9 +2090,9 @@ class Compiler:
         elif self.word == 'EXIT' or (self.word == 'BREAK' and
                                      (self.following.word in (';', '\n') or self.following.word in stops)):
             self.exit_statement()
-        elif self.word == 'STOP':
-            self.advance()
-            self.emit("exit(EXIT_SUCCESS);")
+        elif (self.word in ('STOP', 'ABORT') and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.termination_statement(stops)
         elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.delete_or_clearfile_statement()
