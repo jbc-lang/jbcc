@@ -54,20 +54,46 @@ class Token(NamedTuple):
 
 
 def angle_tokens(words):
-    # A tight postfix opening bracket with a matching close denotes extraction.
-    # Classify it before joining comparison operators: REC<1>=X ends in ] =.
-    openings = []
+    # jpp pairs angle brackets within an expression, excluding logical and
+    # statement boundaries. Parenthesized expressions have their own pairs.
+    scopes = [[]]
+    in_locate = False
     for i, token in enumerate(words):
+        word = token.word
         prev = words[i - 1] if i else None
-        if token.word == '<' and prev and prev.column + len(prev.word) == token.column:
-            if prev.kind in ('name', 'system_name', 'number', 'string') or prev.word in (')', '>'):
-                openings.append(i)
-        elif token.word == '>' and openings and prev.word != '<':
-            j = openings.pop()
+        following = words[i + 1] if i + 1 < len(words) else None
+        adjacent = following and token.line == following.line and token.column + 1 == following.column
+        if word in ('(', '['):
+            scopes.append([])
+        elif word in (')', ']'):
+            if len(scopes) > 1:
+                scopes.pop()
+        elif word in ('THEN', 'ELSE', ';'):
+            scopes[-1].clear()
+            in_locate = False
+        elif word == 'LOCATE':
+            in_locate = True
+        elif word in LOGICAL:
+            scopes[-1].clear()
+        elif word == '<' and prev:
+            if prev.kind in ('name', 'system_name', 'number', 'string') or prev.word in (')', ']', '>'):
+                tight = prev.line == token.line and prev.column + len(prev.word) == token.column
+                if not (adjacent and following.word in ('=', '>')):
+                    scopes[-1].append((i, tight))
+        elif word == '>' and scopes[-1] and prev.word != '<':
+            j, tight = scopes[-1].pop()
+            if not tight and following:
+                # Preserve spaced comparison chains such as A < B > C and
+                # A < B >= C. A selector can end before a binary operator.
+                if adjacent and following.word == '=':
+                    continue
+                clause = following.word in ('THEN', 'ELSE') or (
+                    in_locate and following.word in ('IN', 'BY', 'SETTING'))
+                operand = following.kind in ('name', 'system_name', 'string', 'number') or following.word in ('(', '@')
+                if operand and following.word not in PRECEDENCE and not clause:
+                    continue
             words[j] = words[j]._replace(kind='array_open')
             words[i] = token._replace(kind='array_close')
-        elif token.word in (';', 'THEN', 'ELSE') and token.kind != 'argument_separator':
-            openings.clear()
     i = 0
     while i < len(words):
         token = words[i]

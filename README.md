@@ -49,8 +49,13 @@ and `/=`. For example, `R<1> + = 1` increments the first field, a form
 used in T24. An assignment target may have whitespace before the opening
 angle bracket. Both `T.SEQU <-1> = A+1` and `T.SEQU < - 1 > = A + 1`
 append a field. The reference grammar allows one to three indices followed
-by an optional substring selector. In expressions, spaced `<` and `>`
-remain comparison operators. Concatenating assignment uses the single
+by an optional substring selector. Reads also allow whitespace, as in `X = R <FIELD>` and
+`LOCATE X IN R <FIELD> SETTING POS`. The reference preprocessor pairs
+angle brackets within an expression and checks for intervening logical
+operators. jbcc keeps a spaced comparison chain such as `A < B > C`
+when an operand follows the closing bracket. Before a binary operator,
+`R <1> + 3` reads field one and adds three. Use `LT` and `GT` to make
+ambiguous comparisons explicit. Concatenating assignment uses the single
 token `:=`.
 Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO, GOSUB or RETURN TO check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
@@ -564,8 +569,7 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 - Dynamic arrays use one-based field, value and subvalue positions. Use
   `R<2,3,1>` to read or replace a component and `R<-1> = X` to append a
-  field. Tight postfix brackets distinguish extraction from relational
-  operators. Missing components read as empty strings. Sparse assignments
+  field. Missing components read as empty strings. Sparse assignments
   fill intervening positions with marks. The runtime uses single-byte
   `@FM` (also `@AM`), `@VM` and `@SM`. The text mark `@TM` is byte 251
   and can separate text within a subvalue. The reference compiler also defines

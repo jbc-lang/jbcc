@@ -1164,7 +1164,22 @@ After alternate comparisons, 15,596 of 17,336 candidates pass strict C99
 checking. All 15,574 previous passes still pass. The 22 additional passes
 include AC.CP.CHECK.SWEEP.REQD, EB.CALC.EIR and SWAP.PARAMETER.
 
-- [ ] Recognize spaced dynamic-array extraction in expressions. For
+- [x] Recognize spaced dynamic-array extraction in expressions. For
   example, AC.EXP.RECS.EOD reads `R.AC.EXPECTED.RECS <AC.EXP.ACCOUNT.ID>`
   on the right of an assignment. Check the reference’s disambiguation
   rules and exercise spaced selectors alongside chained comparisons.
+
+The native fixture exercises one to three indices, nested selectors, a
+substring, arithmetic, comparison chains and LOCATE. The expected output
+uses the existing tight-selector semantics. Choosing a comparison when
+a plain operand follows a spaced bracket pair is a project rule pending
+a reference execution.
+
+After spaced array reads, 15,727 of 17,336 candidates pass strict C99
+checking. All 15,596 previous passes still pass. The 131 additional
+passes include AC.EXP.RECS.EOD, AA.SIMULATION.PROJECTION and
+CREATE.INAU.RECORDS.
+
+- [ ] Implement HUSH. The guide documents ON, OFF, an expression and a
+  bare toggle. Exercise terminal output suppression and restoration in
+  a native fixture. HUSH is the first blocker in 20 T24 files.
