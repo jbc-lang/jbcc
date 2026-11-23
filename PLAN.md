@@ -1575,7 +1575,17 @@ All 16,283 previous passes still pass. One of the five targeted files
 now passes, and the other four reach `@TIME`. A native test verifies
 that a called routine sees the startup date after local midnight.
 
-- [ ] Implement `@TIME` using the same startup clock snapshot as
+- [x] Implement `@TIME` using the same startup clock snapshot as
   `@DATE`. Check seconds since midnight and compare with TIME() across
   local midnight. Unsupported `@TIME` is the first diagnostic in six
   T24 files.
+
+After `@TIME`, 16,289 of 17,336 candidates pass strict C99 checking.
+All 16,284 previous passes still pass. Five of the six targeted files
+now pass. The native midnight test covers the shared startup clock
+when either variable is used alone and when both are read together.
+
+- [ ] Implement `ASSIGN value TO SYSTEM(key)` syntax. Identify the
+  keys used by T24 and verify which native runtime state can be updated.
+  Report unavailable services at the call site. Unsupported ASSIGN is
+  the first diagnostic in five T24 files.

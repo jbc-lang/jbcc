@@ -785,12 +785,10 @@ time_t test_clock(time_t *out)
         self.assertEqual(run.stdout, "23:59:59 31 DEC 2023\n00:00:00 01 JAN 2024\n")
         self.assertEqual(run.stderr, '')
 
-    def test_startup_date_is_shared_across_midnight(self):
+    def test_startup_clock_is_shared_across_midnight(self):
         main = self.work / 'main.b'
         routine = self.work / 'show.start.b'
-        main.write_text("CRT OCONV(DATE(),'D-')\nCALL SHOW.START()\n")
-        routine.write_text("SUBROUTINE SHOW.START()\nCRT OCONV(@DATE,'D-')\nCRT OCONV(@DATE,'D-')\n")
-        subprocess.run([CLI, main, routine, '-o', self.c], check=True)
+        main.write_text("CRT OCONV(DATE(),'D-'):':':TIME()\nCALL SHOW.START()\n")
         # Start one second before midnight in UTC+1.
         clock = self.work / 'clock.c'
         clock.write_text("""#include <time.h>
@@ -802,13 +800,20 @@ time_t test_clock(time_t *out)
     return now;
 }
 """)
-        binary = self.work / 'startup-date'
-        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
-                        '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)
-        run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+1'), capture_output=True,
-                             text=True, check=True)
-        self.assertEqual(run.stdout, '01-01-2024\n12-31-2023\n12-31-2023\n')
-        self.assertEqual(run.stderr, '')
+        binary = self.work / 'startup-clock'
+        for statements, expected in [
+                ("CRT OCONV(@DATE,'D-'):':':@TIME\nCRT @TIME", '12-31-2023:86399\n86399\n'),
+                ('CRT @TIME', '86399\n'),
+                ("CRT OCONV(@DATE,'D-')", '12-31-2023\n')]:
+            with self.subTest(statements=statements):
+                routine.write_text('SUBROUTINE SHOW.START()\n' + statements + '\n')
+                subprocess.run([CLI, main, routine, '-o', self.c], check=True)
+                subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                                '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)
+                run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+1'), capture_output=True,
+                                     text=True, check=True)
+                self.assertEqual(run.stdout, '01-01-2024:1\n' + expected)
+                self.assertEqual(run.stderr, '')
 
     def test_iconv_diagnostics(self):
         source = self.work / 'date.b'

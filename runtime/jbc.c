@@ -1729,10 +1729,14 @@ static const struct tm *local_clock(const char *file, int line, int column, cons
     return today;
 }
 
+static const char *time_from_clock(const struct tm *now)
+{
+    return size_value(now->tm_hour * 3600 + now->tm_min * 60 + now->tm_sec);
+}
+
 const char *jbc_time(const char *file, int line, int column)
 {
-    const struct tm *now = local_clock(file, line, column, "TIME cannot read local time");
-    return size_value(now->tm_hour * 3600 + now->tm_min * 60 + now->tm_sec);
+    return time_from_clock(local_clock(file, line, column, "TIME cannot read local time"));
 }
 
 static int month_length(int year, int month)
@@ -1767,7 +1771,7 @@ const char *jbc_date(const char *file, int line, int column)
 static struct tm startup_clock;
 static int have_startup_clock;
 
-void jbc_init_startup_date(void)
+void jbc_init_startup_clock(void)
 {
     const struct tm *snapshot = read_local_clock();
     if (snapshot) {
@@ -1779,6 +1783,12 @@ void jbc_init_startup_date(void)
 const char *jbc_startup_date(const char *file, int line, int column)
 {
     return date_from_clock(have_startup_clock ? &startup_clock : NULL, file, line, column);
+}
+
+const char *jbc_startup_time(const char *file, int line, int column)
+{
+    if (!have_startup_clock) numeric_error(file, line, column, "@TIME cannot read startup clock");
+    return time_from_clock(&startup_clock);
 }
 
 const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
