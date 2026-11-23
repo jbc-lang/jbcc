@@ -1146,24 +1146,48 @@ class Compiler:
                 f"{order}, &{slot}, {self.location(opening)})")
         self.conditional_arms(opening, call)
 
-    def delete_or_clearfile_statement(self):
+    def delete_statement(self):
+        opening = self.current
+        self.advance()
+        handle, key = self.file_key()
+        setting = self.file_setting()
+        self.file_error_arm(opening, f"jbc_delete_record({handle}, {key}, {setting})", setting)
+
+    def clearfile_statement(self):
         opening = self.current
         self.advance()
         handle = "jbc_default_file.value"
-        if opening.word == 'DELETE':
-            handle, key = self.file_key()
-            operation = f"jbc_delete_record({handle}, {key}, "
-        else:
-            if self.word not in OUTPUT_END and self.word not in ('', 'SETTING', 'ON'):
-                target = self.identifier()
-                if target.word in self.matrices:
-                    handle = self.checked_read(self.matrix_slot(target), target)
-                else:
-                    handle = self.read_variable(target)
-            operation = f"jbc_clear_file({handle}, "
+        if self.word not in OUTPUT_END and self.word not in ('', 'SETTING', 'ON', 'LOCKED'):
+            target = self.identifier()
+            if target.word in self.matrices:
+                handle = self.checked_read(self.matrix_slot(target), target)
+            else:
+                handle = self.read_variable(target)
         setting = self.file_setting()
-        call = f"{operation}{setting})"
-        self.file_error_arm(opening, call, setting)
+        before = self.assigned.copy()
+        self.emit(f"switch (jbc_clear_file({handle}, {setting})) {{")
+        self.emit("case 0: break;")
+        self.emit("default: {")
+        if self.word == 'ON':
+            self.advance()
+            self.expect('ERROR')
+            self.clause(opening, {'LOCKED', 'ELSE', '\n'})
+            self.assigned = before.copy()
+        elif setting == "NULL":
+            self.emit(f'    numeric_error({self.location(opening)}, "CLEARFILE failed");')
+        self.emit("    break;")
+        self.emit("}")
+        if self.word == 'LOCKED':
+            self.advance()
+            self.emit("case JBC_LOCKED: {")
+            self.emit("    file_result(JBC_LOCKED);")
+            if setting != "NULL":
+                self.emit(f'    assign_value({setting}, "-2");')
+            self.clause(opening)
+            self.emit("    break;")
+            self.emit("}")
+            self.assigned = before
+        self.emit("}")
 
     def file_error_arm(self, opening, call, setting):
         if self.word == 'ON':
@@ -2458,7 +2482,10 @@ class Compiler:
             self.termination_statement(stops)
         elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
-            self.delete_or_clearfile_statement()
+            if self.word == 'DELETE':
+                self.delete_statement()
+            else:
+                self.clearfile_statement()
         elif (self.word == 'RELEASE' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.advance()

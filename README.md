@@ -1528,7 +1528,12 @@ descriptors stay open for subsequent reads and writes. Use `CLEARFILE F`
 for an explicit descriptor or bare `CLEARFILE` for the default file.
 jbcc sets the optional `SETTING` variable to the empty string on success,
 consistent with the guide’s example, or to 128 for an invalid descriptor.
-`ON ERROR` handles failure in the same way as for DELETE.
+`ON ERROR` handles failure in the same way as for DELETE. The reference
+parser also allows `LOCKED` after the optional error arm. A simulated
+foreign record lock takes this arm and leaves all records and locks in
+place. jbcc reports `-2` through `STATUS()` and `SETTING` in that arm.
+Without a `LOCKED` arm, contention follows the existing error path with
+status `32768`.
 [CLEARFILE](https://jbc-lang.org/pages/clearfile.html).
 
 READV reads one field from a record. `READV R FROM F, Key, 2 ELSE STOP`

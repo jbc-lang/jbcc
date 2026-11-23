@@ -2663,6 +2663,31 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
 
+    def test_clearfile_locked_dispatch_preserves_records(self):
+        source = self.work / 'clearfile.b'
+        source.write_text("""OPEN 'Busy' TO F ELSE ABORT
+OPEN 'Busy' ELSE ABORT
+WRITE 'retained' TO F, 'record'
+CLEARFILE F SETTING Code ON ERROR ABORT LOCKED
+    CRT Code:':':STATUS()
+END
+CLEARFILE LOCKED CRT STATUS()
+READ R FROM F, 'record' THEN CRT R ELSE ABORT
+CRT RECORDLOCKED(F, 'held')
+CLEARFILE F SETTING Code ON ERROR CRT Code:':':STATUS()
+Bad = ''
+CLEARFILE Bad SETTING Code ON ERROR CRT Code:':':STATUS() LOCKED ABORT
+OPEN 'Free' TO F ELSE ABORT
+WRITE 'temporary' TO F, 'record'
+CLEARFILE F SETTING Code ON ERROR ABORT LOCKED ABORT
+CRT '[':Code:'] ':STATUS()
+READ R FROM F, 'record' THEN ABORT ELSE CRT 'cleared'
+""")
+        result = self.run_native(source, options=['--memory-file', 'Busy', '--memory-file', 'Free',
+                                                  '--memory-lock', 'Busy', 'held'])
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'-2:-2\n-2\nretained\n-2\n32768:32768\n128:128\n[] 0\ncleared\n', b''))
+
     def test_readu(self):
         run = self.run_native(ROOT / 'tests/io/readu.b', ROOT / 'tests/io/reopen.b',
                               options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])

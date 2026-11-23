@@ -2072,7 +2072,14 @@ After spaced concatenating assignment, 16,412 of 17,336 candidates
 pass strict C99 checking. Sixteen new units pass, including
 EB.GET.RECORD.XML, and all previous passes still pass.
 
-- [ ] Investigate the LOCKED clause on CLEARFILE. The reference parser
-  accepts it, and two T24 units stop there. Check how the existing
-  in-memory backend handles contention and verify that locked files
-  retain their records.
+- [x] Implement the LOCKED clause on CLEARFILE. The reference parser
+  accepts it after ON ERROR. Native tests verify contention and record
+  preservation, the previous error path, and a successful clear.
+
+After CLEARFILE LOCKED, 16,414 of 17,336 candidates pass strict C99
+checking. Both units blocked at LOCKED now pass, and all previous
+passes still pass.
+
+- [ ] Implement DISPLAY as a CRT alias following the reference lexer.
+  Verify terminal output and formatting through the alias. One T24
+  unit stops at DISPLAY.

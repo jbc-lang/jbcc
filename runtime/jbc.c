@@ -3581,16 +3581,18 @@ int jbc_clear_file(const char *handle, jbc_variable *setting)
 {
     struct memory_file *file = file_for(handle);
     if (setting) assign_value(setting, file ? "" : "128");
-    if (!file) return file_succeeded(128);
+    if (!file) return file_result(128);
     for (struct record_lock *lock = file->locks; lock; lock = lock->next) {
         if (lock->foreign) {
+            /* Keep the original error status unless a LOCKED arm handles it. */
             if (setting) assign_value(setting, "32768");
-            return file_succeeded(32768);
+            file_result(32768);
+            return JBC_LOCKED;
         }
     }
     clear_records(file);
     release_locks(file, NULL, 0);
-    return file_succeeded(0);
+    return file_result(0);
 }
 
 int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting)
