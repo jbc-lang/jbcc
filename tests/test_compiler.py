@@ -565,6 +565,8 @@ NEXT I
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
+                                  ("CRT REUSE(2) + 3\n", ':1:5: REUSE requires a direct multiplication operand'),
+                                  ("CRT 2 * REUSE(3) ^ 4\n", ':1:9: REUSE requires a direct multiplication operand'),
                                   ("CRT SDIV(1)\n", ":1:5: wrong argument count for 'SDIV'"),
                                   ("CRT SDIV(1, 2, 3, 4)\n", ":1:5: wrong argument count for 'SDIV'"),
                                   ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
@@ -1239,6 +1241,14 @@ CRT 'after'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + diagnostic).encode(), run.stderr)
+
+    def test_infix_reuse_requires_scalar(self):
+        source = self.work / 'reuse.b'
+        source.write_text("CRT 2 * REUSE(3:@VM:4)\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:9: REUSE in multiplication requires a scalar'.encode(),
+                      result.stderr)
 
     def test_muls_diagnostics(self):
         source = self.work / 'muls.b'

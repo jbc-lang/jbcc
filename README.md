@@ -1022,6 +1022,12 @@ gives an empty result. MULS uses the same array alignment and scalar
 operand as one empty element. Products follow the PRECISION and overflow
 rules of scalar multiplication. [MULS](https://jbc-lang.org/pages/muls.html).
 
+`array * REUSE(scalar)` and `REUSE(scalar) * array` use the same
+element-wise multiplication as MULS. jbcc accepts REUSE as a direct
+operand and evaluates the wrapped scalar once. This follows the
+infix form seen in T24's LI.SECURED.ONLINE.
+[MULS](https://jbc-lang.org/pages/muls.html).
+
 `DIVS(left, right)` divides corresponding fields, values and subvalues
 with the same PRECISION rules as scalar division. A missing divisor
 preserves the dividend and a missing dividend gives zero. An empty

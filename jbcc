@@ -603,17 +603,8 @@ class Compiler:
                         # A bare file variable can be unassigned when probed.
                         slot = self.variable(self.identifier().word)
                         args.append(self.temporary(f"{slot}.value"))
-                    elif (index in reuse_positions
-                            and self.word == 'REUSE'
-                            and self.following.word == '(' and 'REUSE' not in self.functions
-                            and 'REUSE' not in self.matrices):
-                        wrapper = self.current
-                        self.advance()
-                        self.expect('(')
-                        scalar = self.expression()
-                        self.expect(')')
-                        message = c_string(f"REUSE in {word} requires a scalar")
-                        args.append(self.temporary(f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})"))
+                    elif index in reuse_positions and self.is_reuse_call():
+                        args.append(self.reuse_scalar(word))
                         reuse[index] = 1
                     else:
                         args.append(self.expression())
@@ -754,8 +745,29 @@ class Compiler:
         indices = self.index_expressions()
         return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
+    def is_reuse_call(self):
+        return (self.word == 'REUSE' and self.following.word == '('
+                and 'REUSE' not in self.functions and 'REUSE' not in self.matrices)
+
+    def reuse_scalar(self, context):
+        wrapper = self.current
+        self.advance()
+        self.expect('(')
+        scalar = self.expression()
+        self.expect(')')
+        message = c_string(f"REUSE in {context} requires a scalar")
+        return self.temporary(f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})")
+
     def expression(self, minimum=1, colon_stops=(), locate_source=False):
-        return self.expression_tail(self.primary(locate_source), minimum, colon_stops, locate_source)
+        reuse_left = self.is_reuse_call()
+        if reuse_left:
+            wrapper = self.current
+            left = self.reuse_scalar("multiplication")
+            if self.word != '*' or minimum > PRECEDENCE['*']:
+                self.error("REUSE requires a direct multiplication operand", wrapper)
+        else:
+            left = self.primary(locate_source)
+        return self.expression_tail(left, minimum, colon_stops, locate_source, reuse_left)
 
     def is_format_mask(self):
         if self.current.kind in ('string', 'number'):
@@ -766,7 +778,7 @@ class Compiler:
             return self.word in self.matrices
         return self.word in self.names
 
-    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False):
+    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False, reuse_left=False):
         while self.current.kind not in ('array_open', 'array_close'):
             operator = self.word
             token = self.current
@@ -783,7 +795,19 @@ class Compiler:
             if operator in LOGICAL:
                 left = self.logical_expression(left, operator, colon_stops, locate_source)
                 continue
-            right = self.expression(precedence + 1, colon_stops, locate_source)
+            reuse_right = operator == '*' and self.is_reuse_call()
+            if reuse_right:
+                wrapper = self.current
+                right = self.reuse_scalar("multiplication")
+                if PRECEDENCE.get(self.word, 0) > precedence:
+                    self.error("REUSE requires a direct multiplication operand", wrapper)
+            else:
+                right = self.expression(precedence + 1, colon_stops, locate_source)
+            if reuse_left or reuse_right:
+                left = self.temporary(f"jbc_muls({left}, {right}, {int(reuse_left)}, "
+                                      f"{int(reuse_right)}, {self.location(token)})")
+                reuse_left = False
+                continue
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator in ('MATCH', 'MATCHES'):

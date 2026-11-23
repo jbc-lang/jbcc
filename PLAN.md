@@ -1802,6 +1802,15 @@ checking. LI.SECURED.ONLINE now reaches REUSE as an infix multiplication
 operand. Native tests cover date and time masks, chained conversion,
 and preservation of invalid elements and array marks.
 
-- [ ] Investigate infix multiplication with REUSE. Check the reference
+- [x] Investigate infix multiplication with REUSE. Check the reference
   grammar and runtime generator, and test scalar reuse across the marks
   of a dynamic array before rerunning LI.SECURED.ONLINE.
+
+After infix multiplication with REUSE, 16,341 of 17,336 candidates
+pass strict C99 checking. All 16,339 previous passes still pass.
+LI.SECURED.ONLINE and MG.PERFORM.ACCRUALS now pass.
+Native tests cover scalar reuse on either side, expression precedence,
+mixed array marks and an invalid array inside REUSE.
+
+- [ ] Investigate the @USER.NO spelling in T24 and its relationship to
+  @USERNO and SYSTEM(18). Three T24 files first stop at @USER.NO.
