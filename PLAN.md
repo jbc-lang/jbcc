@@ -1719,6 +1719,15 @@ All 16,316 previous passes still pass. Three targeted files now pass,
 and the remaining two reach WRITET. Native tests check scalar and matrix
 destinations, channel selection, and no-media status.
 
-- [ ] Implement WRITET for tape records. Check the guide's ON and TO forms
+- [x] Implement WRITET for tape records. Check the guide's ON and TO forms
   and the reference grammar's UNIT and FROM forms. Verify the no-media
   status and conditional arms. Four T24 files first stop at WRITET.
+
+After WRITET, 16,321 of 17,336 candidates pass strict C99 checking.
+All 16,319 previous passes still pass. Two targeted files now pass,
+and the other two reach WEOF. Native tests cover the channel forms,
+no-media status and source-located errors.
+
+- [ ] Implement WEOF for tape end-of-file marks. Check the reference
+  grammar's conditional arms and unit and channel forms. Verify the
+  no-media path and rerun the three T24 files that first stop at WEOF.

@@ -1092,6 +1092,13 @@ clears the destination based on UniVerse's documented failed-read behavior.
 [jBASE READT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_READT.htm),
 [IBM UniVerse READT](https://www.ibm.com/docs/en/iis/11.3.0?topic=functions-readt-statement).
 
+`WRITET [UNIT(channel)] record [ON channel]` evaluates the record
+expression and requires a THEN or ELSE arm. It accepts TO from the guide
+and FROM from the reference grammar as alternatives to ON. UNIT takes
+precedence over a trailing channel. With no attached media, jbcc sets
+`SYSTEM(0)` to 1 and takes ELSE when present.
+[WRITET](https://jbc-lang.org/pages/writet.html).
+
 `WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
 the retained prefix includes the line terminator. The next read sees EOF,
 and the next write starts at that same position. WEOFSEQ accepts `SETTING`,

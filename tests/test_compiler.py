@@ -447,6 +447,7 @@ NEXT I
                                   ("OPEN '',, 'X' ELSE STOP\n", ':1:9: expected a variable'),
                                   ('REWIND ON 2\n', ':1:12: expected THEN or ELSE'),
                                   ('READT X\n', ':1:8: expected THEN or ELSE'),
+                                  ("WRITET 'x'\n", ':1:11: expected THEN or ELSE'),
                                   ("IF 1 THEN CRT 1\n  ELSE CRT Missing\n", ":2:12: unknown variable"),
                                   ("CRT 'done'\nELSE CRT 1\n", ":2:1: unexpected 'ELSE'"),
                                   ("DIM A(2)\nMATREAD A FROM 'id'\n LOCKED STOP ELSE STOP\n",
@@ -1050,6 +1051,19 @@ time_t test_clock(time_t *out)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn(f'{source}:1:1: READT channel must be an integer from 0 to 9'.encode(),
                               result.stderr)
+
+    def test_writet_diagnostics(self):
+        source = self.work / 'writet.b'
+        for statement, diagnostic in [
+                ("WRITET 'data' TO 10", ":1:1: WRITET channel must be an integer from 0 to 9"),
+                ("WRITET UNIT(-1) 'data'", ":1:1: WRITET channel must be an integer from 0 to 9"),
+                ("WRITET 1 / 0", ":1:10: division by zero")]:
+            with self.subTest(statement=statement):
+                source.write_text(f"{statement} ELSE CRT 'unexpected branch'\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b'')
+                self.assertIn((str(source) + diagnostic).encode(), result.stderr)
 
     def test_smul_diagnostics(self):
         source = self.work / 'smul.b'

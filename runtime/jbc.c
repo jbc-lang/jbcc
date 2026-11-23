@@ -1039,6 +1039,13 @@ int jbc_readt(jbc_variable *out, const char *channel, const char *file, int line
     return 0;
 }
 
+int jbc_writet(const char *record, const char *channel, const char *file, int line, int column)
+{
+    (void)record;
+    tape_no_media(channel, "WRITET", file, line, column);
+    return 0;
+}
+
 static int last_command_code;
 
 const char *jbc_system_return_code(void)
