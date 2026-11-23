@@ -82,6 +82,65 @@ CRT 'done'
             finally:
                 proc.kill()
 
+    def test_footing_reserves_rows_and_closes_printer_page(self):
+        source = self.work / 'footing.b'
+        source.write_text("""HEADING 'Start ^'
+FOOTING "End ^'L'Last"
+FOR I = 1 TO 22
+    PRINT I
+NEXT I
+PAGE 9
+FOOTING ''
+PRINTER ON
+FOOTING ON 2 'Job ^^'
+PRINT ON 2 'body'
+CRT 'screen'
+PRINTER CLOSE ON 2
+""")
+        run = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=str(self.work)))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        first_page = b'Start 1\n' + b''.join(f'{i}\n'.encode() for i in range(1, 22))
+        self.assertEqual(run.stdout, first_page + b'End 1\nLast\n\fStart 2\n22\n' +
+                         b'\n' * 20 + b'End 2\nLast\n\fStart 9\nscreen\n')
+        job, = self.work.glob('unit-2-*')
+        self.assertEqual(job.read_bytes(), b'body\n' + b'\n' * 22 + b'Job    1\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_footing_terminal_pause_and_no_pause(self):
+        source = self.work / 'footing.b'
+        source.write_text("""FOOTING 'End ^'
+PRINT 'first'
+PAGE
+FOOTING "End ^'N'"
+PRINT 'second'
+PAGE
+PRINT 'third':
+""")
+        binary = self.work / 'footing'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        with subprocess.Popen([binary], stdin=slave, stdout=slave) as proc:
+            try:
+                first = bytearray()
+                while not first.endswith(b'End 1\r\n'):
+                    self.assertTrue(select.select([master], [], [], 5)[0], first)
+                    first.extend(os.read(master, 1024))
+                self.assertEqual(first, b'first\r\n' + b'\r\n' * 22 + b'End 1\r\n')
+                self.assertFalse(select.select([master], [], [], 0.1)[0])
+                os.write(master, b'\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+                rest = bytearray()
+                while not rest.endswith(b'End 3\r\n'):
+                    self.assertTrue(select.select([master], [], [], 5)[0], rest)
+                    rest.extend(os.read(master, 1024))
+                self.assertIn(b'\fsecond\r\n' + b'\r\n' * 22 + b'End 2\r\n', rest)
+                self.assertTrue(rest.endswith(b'\fthird\r\n' + b'\r\n' * 22 + b'End 3\r\n'))
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
     def test_sequential_block_io(self):
         (self.work / 'input').write_bytes(b'a\r\n\xfeend')
         (self.work / 'binary').write_bytes(b'x\0yz')

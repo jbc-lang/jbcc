@@ -533,8 +533,15 @@ and `]` also work. Centering and backslash options produce diagnostics.
 
 The native runtime counts output lines against the terminal height and
 waits for Enter at page breaks when both input and output are terminals,
-unless the heading specifies `N`. For redirected output the provisional
+unless the heading or footing specifies `N`. For redirected output the provisional
 layout is 24 lines per page, with a form feed between pages.
+
+`FOOTING expression` reserves lines at the bottom of each page and
+uses the same template options as HEADING. It prints with the outgoing
+page number before a break or terminal pause. jbcc provisionally pads a
+short page to the footer position at a break, at printer close or at
+normal program exit. `FOOTING ''` clears the footer. `FOOTING ON n`
+sets it for the selected print unit. [FOOTING](https://jbc-lang.org/pages/footing.html).
 
 `PRINTER ON` switches PRINT to the printer. `PRINTER OFF` switches back
 to the terminal and leaves the job open. `PRINTER CLOSE` closes the job.

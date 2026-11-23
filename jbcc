@@ -1590,6 +1590,8 @@ class Compiler:
         if opening.word == 'PAGE':
             number = 'NULL' if not self.word or self.word in OUTPUT_END else self.expression()
             self.emit(f"jbc_page({unit}, {number}, {location});")
+        elif opening.word == 'FOOTING':
+            self.emit(f"jbc_footing({unit}, {self.expression()}, {location});")
         else:
             heading = self.expression()
             self.emit(f"jbc_heading({unit}, {heading}, {int(opening.word == 'HEADINGN')}, {location});")
@@ -2369,7 +2371,7 @@ class Compiler:
                     self.emit(call + ";")
                 else:
                     self.conditional_arms(opening, call)
-        elif (self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'PAGE') and self.word not in self.matrices
+        elif (self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'FOOTING', 'PAGE') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.report_statement()
         elif self.word == 'PRINTER' and self.following.word in ('ON', 'OFF', 'CLOSE', 'RESET'):

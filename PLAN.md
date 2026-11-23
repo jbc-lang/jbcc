@@ -1636,6 +1636,16 @@ All 16,305 previous passes still pass, and EDIT.CMD.LINE now passes.
 Native tests cover both spellings, complete and partial terminal
 type-ahead, queued DATA, and stdin from a pipe.
 
-- [ ] Implement FOOTING using the existing report pagination and
+- [x] Implement FOOTING using the existing report pagination and
   heading options. Check page breaks, printer output and terminal
   pauses. Unsupported FOOTING is the first diagnostic in two T24 files.
+
+After FOOTING, 16,308 of 17,336 candidates pass strict C99 checking.
+All 16,306 previous passes still pass. ENQUIRY.HARDCOPY and FILE.UTILITY
+now pass as well. Native tests cover footer
+line reservation, outgoing page numbers, printer close, normal exit,
+and terminal pauses with and without the N option.
+
+- [ ] Implement FOLD for width-limited wrapping into attribute-marked
+  text. Check word boundaries, long words, whitespace and invalid widths.
+  Two T24 files first stop on a line containing FOLD.

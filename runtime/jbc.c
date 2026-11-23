@@ -54,6 +54,9 @@ static char *allocate(size_t length)
 }
 
 static void free_storages(void);
+#ifdef JBC_REPORT
+static void finish_reports(void);
+#endif
 #ifdef JBC_SEQUENTIAL
 static int release_sequential(const char *token);
 #endif
@@ -86,6 +89,9 @@ void jbc_data(const char *text)
 
 void jbc_finish(void)
 {
+#ifdef JBC_REPORT
+    finish_reports();
+#endif
     while (input_data) drop_input_chunk();
     free_storages();
     while (buffers) {
@@ -3223,11 +3229,17 @@ void jbc_exit(const char *value, const char *file, int line, int column)
     int64_t status = truncated(value, file, line, column);
     if (status < INT_MIN || status > INT_MAX)
         numeric_error(file, line, column, "EXIT status out of range");
+#ifdef JBC_REPORT
+    finish_reports();
+#endif
     exit((int)status);
 }
 
 void jbc_stop(int aborting, const char *const *args, size_t count)
 {
+#ifdef JBC_REPORT
+    if (!aborting) finish_reports();
+#endif
     if (count) {
         fflush(stdout);
         struct decimal message;
@@ -3885,14 +3897,18 @@ const char *jbc_cursor(const char *col, const char *row, const char *file, int l
 
 
 #define JBC_SCREEN (-1)
-struct report {
-    FILE *out;
-    char *heading;
-    int64_t page;
-    unsigned rows, lines;
-    int no_pause;
+struct report_banner {
+    char *text;
     const char *file;
     int line, column;
+};
+
+struct report {
+    FILE *out;
+    struct report_banner heading, footing;
+    int64_t page;
+    unsigned rows, lines, footing_lines;
+    int heading_no_pause, footing_no_pause, partial_line;
 };
 
 static struct report screen, printers[128];
@@ -3915,13 +3931,22 @@ int jbc_report_channel(const char *unit, const char *file, int line, int column)
     return n == 0 ? jbc_print_channel : n;
 }
 
+static unsigned report_rows(const struct report *r)
+{
+    struct winsize size;
+    return r->out == stdout && !ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) && size.ws_row
+        ? size.ws_row : 24;
+}
+
 static struct report *open_report(int channel, const char *file, int line, int column)
 {
     struct report *r = channel == JBC_SCREEN ? &screen : &printers[channel];
     if (r->out) return r;
     r->page = 1;
+    r->rows = 24;
     if (channel == JBC_SCREEN) {
         r->out = stdout;
+        r->rows = report_rows(r);
         return r;
     }
     const char *dir = getenv("JBCC_PRINT_DIR");
@@ -3947,6 +3972,8 @@ static struct report *open_report(int channel, const char *file, int line, int c
 
 enum printer_mode { JBC_PRINTER_ON, JBC_PRINTER_OFF, JBC_PRINTER_CLOSE, JBC_PRINTER_RESET };
 
+static void report_footer(struct report *r);
+
 void jbc_printer(enum printer_mode mode, const char *unit, const char *file, int line, int column)
 {
     int n = unit ? printer_number(unit, file, line, column) :
@@ -3960,28 +3987,31 @@ void jbc_printer(enum printer_mode mode, const char *unit, const char *file, int
     } else {
         if (mode == JBC_PRINTER_CLOSE) {
             if (n == jbc_print_channel) jbc_print_channel = JBC_SCREEN;
+            if (r->out) report_footer(r);
             if (r->out && fclose(r->out)) numeric_error(file, line, column, "cannot close print job");
             r->out = NULL;
         }
-        free(r->heading);
+        free(r->heading.text);
+        free(r->footing.text);
         FILE *out = r->out;
-        *r = (struct report){.out = out, .page = 1};
+        *r = (struct report){.out = out, .page = 1, .rows = 24};
     }
 }
 
 static void report_char(struct report *r, int ch)
 {
-    fputc(ch, r->out);
+    if (r->out) fputc(ch, r->out);
+    r->partial_line = ch != '\n';
     if (ch == '\n' && r->lines < UINT_MAX) ++r->lines;
 }
 
-static void report_title(struct report *r)
+static int render_banner(struct report *r, const struct report_banner *banner, const char *kind)
 {
-    const char *p = r->heading;
-    if (!p) return;
+    const char *p = banner->text;
+    if (!p) return 0;
     if ((unsigned char)*p == 254) ++p;
     int pending_line = 0;
-    r->no_pause = 0;
+    int no_pause = 0;
     while (*p) {
         if (*p == '\'' || *p == '"') {
             char quote = *p++;
@@ -3992,52 +4022,99 @@ static void report_title(struct report *r)
             }
             while (*p && *p != quote) {
                 switch (*p++) {
-                case 'N': r->no_pause = 1; break;
+                case 'N': no_pause = 1; break;
                 case 'L': report_char(r, '\n'); pending_line = 0; break;
                 case 'P': {
                     int padded = *p == 'P';
                     if (padded) ++p;
-                    fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
+                    if (r->out) fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
                     pending_line = 1;
                     break;
                 }
                 case 'D': {
-                    const char *date = jbc_date(r->file, r->line, r->column);
-                    fputs(jbc_oconv(date, "D", r->file, r->line, r->column), r->out);
+                    if (r->out) {
+                        const char *date = jbc_date(banner->file, banner->line, banner->column);
+                        fputs(jbc_oconv(date, "D", banner->file, banner->line, banner->column), r->out);
+                    }
                     pending_line = 1;
                     break;
                 }
                 case 'T':
-                    fputs(jbc_timedate(r->file, r->line, r->column), r->out);
+                    if (r->out) fputs(jbc_timedate(banner->file, banner->line, banner->column), r->out);
                     pending_line = 1;
                     break;
                 default:
-                    numeric_error(r->file, r->line, r->column, "unsupported HEADING option");
+                    goto invalid_option;
                 }
             }
-            if (!*p) numeric_error(r->file, r->line, r->column, "unterminated HEADING option");
+            if (!*p)
+                numeric_error(banner->file, banner->line, banner->column,
+                              jbc_concat("unterminated ", jbc_concat(kind, " option")));
             ++p;
         } else if (*p == '^') {
             int padded = *++p == '^';
             if (padded) ++p;
-            fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
+            if (r->out) fprintf(r->out, "%*" PRId64, padded ? 4 : 1, r->page);
             pending_line = 1;
         } else {
             int ch = (unsigned char)*p++;
             if (ch == ']') ch = '\n';
-            if (ch == '\\') numeric_error(r->file, r->line, r->column, "unsupported HEADING option");
+            if (ch == '\\') goto invalid_option;
             report_char(r, ch);
             pending_line = ch != '\n';
         }
     }
     if (pending_line) report_char(r, '\n');
-    /* Leave room for one body line even if the title fills the screen. */
-    if (r->lines >= r->rows) r->lines = r->rows - 1;
+    return no_pause;
+
+invalid_option:
+    numeric_error(banner->file, banner->line, banner->column,
+                  jbc_concat("unsupported ", jbc_concat(kind, " option")));
+    return 0;
 }
 
-static void report_break(struct report *r)
+static unsigned report_body_limit(const struct report *r)
 {
-    if (r->out == stdout && r->heading && !r->no_pause && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
+    return r->rows > r->footing_lines ? r->rows - r->footing_lines : 1;
+}
+
+static void report_title(struct report *r)
+{
+    if (!r->heading.text) return;
+    r->heading_no_pause = render_banner(r, &r->heading, "HEADING");
+    /* Leave room for one body line even if the title fills the screen. */
+    unsigned limit = report_body_limit(r);
+    if (r->lines >= limit) r->lines = limit - 1;
+}
+
+static void report_footer(struct report *r)
+{
+    if (!r->footing_lines || (!r->lines && !r->partial_line)) return;
+    if (r->partial_line) report_char(r, '\n');
+    unsigned limit = report_body_limit(r);
+    while (r->lines < limit) report_char(r, '\n');
+    render_banner(r, &r->footing, "FOOTING");
+    if (ferror(r->out))
+        numeric_error(r->footing.file, r->footing.line, r->footing.column, "report write failed");
+}
+
+static void finish_reports(void)
+{
+    if (screen.out) report_footer(&screen);
+    free(screen.heading.text);
+    free(screen.footing.text);
+    for (size_t i = 0; i < sizeof printers / sizeof printers[0]; ++i) {
+        if (printers[i].out) report_footer(&printers[i]);
+        free(printers[i].heading.text);
+        free(printers[i].footing.text);
+    }
+}
+
+static void report_break(struct report *r, int64_t next_page)
+{
+    report_footer(r);
+    if (r->out == stdout && (r->heading.text || r->footing.text) &&
+        !r->heading_no_pause && !r->footing_no_pause && isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
         fflush(stdout);
         char ch;
         for (;;) {
@@ -4048,60 +4125,71 @@ static void report_break(struct report *r)
     }
     fputc('\f', r->out);
     r->lines = 0;
+    r->partial_line = 0;
+    r->page = next_page;
     report_title(r);
 }
 
-static void next_report_page(struct report *r)
+static int64_t next_report_page(const struct report *r)
 {
     if (r->page == INT64_MAX) fail("page number overflow");
-    ++r->page;
+    return r->page + 1;
 }
 
 void jbc_page(const char *unit, const char *number, const char *file, int line, int column)
 {
     struct report *r = open_report(jbc_report_channel(unit, file, line, column), file, line, column);
+    int64_t next_page;
     if (number) {
         struct decimal value;
         if (!parse_decimal(number, &value) || value.places)
             numeric_error(file, line, column, "PAGE requires an integer page number");
-        r->page = integer(number, file, line, column);
-    } else next_report_page(r);
-    report_break(r);
+        next_page = integer(number, file, line, column);
+    } else next_page = next_report_page(r);
+    report_break(r, next_page);
     if (ferror(r->out)) numeric_error(file, line, column, "report write failed");
 }
 
 void jbc_heading(const char *unit, const char *heading, int no_eject, const char *file, int line, int column)
 {
     struct report *r = open_report(jbc_report_channel(unit, file, line, column), file, line, column);
-    int first = !r->heading;
+    int first = !r->heading.text;
     char *copy = record_copy(heading);
-    free(r->heading);
-    r->heading = copy;
-    r->file = file;
-    r->line = line;
-    r->column = column;
-    struct winsize size;
-    r->rows = r->out == stdout && ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_row ? size.ws_row : 24;
+    free(r->heading.text);
+    r->heading = (struct report_banner){copy, file, line, column};
+    r->rows = report_rows(r);
+    if (first && !r->footing.text) {
+        r->lines = 0;
+        r->partial_line = 0;
+    }
     if ((unsigned char)*heading == 254) return;
     if (first) report_title(r);
-    else if (!no_eject) {
-        next_report_page(r);
-        report_break(r);
-    }
+    else if (!no_eject) report_break(r, next_report_page(r));
     if (ferror(r->out)) numeric_error(file, line, column, "report write failed");
+}
+
+void jbc_footing(const char *unit, const char *footing, const char *file, int line, int column)
+{
+    struct report *r = open_report(jbc_report_channel(unit, file, line, column), file, line, column);
+    char *copy = *footing ? record_copy(footing) : NULL;
+    free(r->footing.text);
+    r->footing = (struct report_banner){copy, file, line, column};
+    r->rows = report_rows(r);
+    /* Count template lines without writing or evaluating date and time options. */
+    struct report measure = {0};
+    r->footing_no_pause = render_banner(&measure, &r->footing, "FOOTING");
+    r->footing_lines = measure.lines;
 }
 
 void jbc_output(int channel, const char *text, const char *file, int line, int column)
 {
     struct report *r = open_report(channel, file, line, column);
-    if (!r->heading) {
+    if (channel == JBC_SCREEN && jbc_print_channel != JBC_SCREEN) {
         fputs(text, r->out);
     } else {
         while (*text) {
-            if (r->lines >= r->rows) {
-                next_report_page(r);
-                report_break(r);
-            }
+            if ((r->heading.text || r->footing.text) && r->lines >= report_body_limit(r))
+                report_break(r, next_report_page(r));
             report_char(r, (unsigned char)*text++);
         }
     }
