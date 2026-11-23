@@ -1270,6 +1270,18 @@ static int sum_digit(struct decimal n, size_t whole, size_t index)
     return place < n.places ? n.fraction[place] - '0' : 0;
 }
 
+static uintmax_t string_math_places(const char *precision, unsigned default_places,
+                                    const char *diagnostic, const char *file, int line, int column)
+{
+    if (!precision) return default_places;
+    struct decimal requested;
+    if (!parse_decimal(precision, &requested) || requested.places)
+        numeric_error(file, line, column, diagnostic);
+    int64_t value = integer(precision, file, line, column);
+    if (value < -1) numeric_error(file, line, column, diagnostic);
+    return value < 0 ? default_places : (uintmax_t)value;
+}
+
 const char *jbc_smul(const char *left, const char *right, const char *precision,
                      const char *file, int line, int column)
 {
@@ -1277,16 +1289,8 @@ const char *jbc_smul(const char *left, const char *right, const char *precision,
     if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
         numeric_error(file, line, column, "SMUL requires numeric operands");
 
-    int64_t places = 16;
-    if (precision) {
-        struct decimal requested;
-        if (!parse_decimal(precision, &requested) || requested.places)
-            numeric_error(file, line, column, "SMUL precision requires -1 or a nonnegative integer");
-        int64_t value = integer(precision, file, line, column);
-        if (value < -1)
-            numeric_error(file, line, column, "SMUL precision requires -1 or a nonnegative integer");
-        if (value >= 0) places = value;
-    }
+    uintmax_t places = string_math_places(precision, 16,
+        "SMUL precision requires -1 or a nonnegative integer", file, line, column);
     if (!a.sign || !b.sign) return "0";
 
     size_t left_width = a.digits + a.places, right_width = b.digits + b.places;
@@ -1316,7 +1320,7 @@ const char *jbc_smul(const char *left, const char *right, const char *precision,
         ++result.whole;
         --result.digits;
     }
-    if ((uintmax_t)places < result.places) result.places = (size_t)places;
+    if (places < result.places) result.places = (size_t)places;
     while (result.places && result.fraction[result.places - 1] == '0') --result.places;
     return fmt_decimal(result, result.places);
 }
@@ -1374,7 +1378,7 @@ static const char *add_sum_item(const char *total, const char *item, struct deci
    leading zero for the borrow when subtracting a shifted divisor. */
 static char *scaled_digits(struct decimal n, size_t scale)
 {
-    if (scale >= SIZE_MAX - n.digits) fail("MOD operand too large");
+    if (scale >= SIZE_MAX - n.digits) fail("decimal operand too large");
     size_t length = 1 + n.digits + scale;
     char *digits = allocate(length);
     digits[0] = '0';
@@ -1383,6 +1387,77 @@ static char *scaled_digits(struct decimal n, size_t scale)
     memset(digits + 1 + n.digits + n.places, '0', scale - n.places);
     digits[length] = '\0';
     return digits;
+}
+
+/* Divide one shifted window in place, with a leading digit for borrows. */
+static char decimal_division_digit(char *start, const char *divisor, size_t width)
+{
+    char digit = '0';
+    while (start[-1] != '0' || memcmp(start, divisor, width) >= 0) {
+        int borrow = 0;
+        for (size_t i = width; i > 0; --i) {
+            int d = start[i - 1] - divisor[i - 1] - borrow;
+            borrow = d < 0;
+            start[i - 1] = (char)('0' + d + 10 * borrow);
+        }
+        start[-1] -= borrow;
+        ++digit;
+    }
+    return digit;
+}
+
+const char *jbc_sdiv(const char *left, const char *right, const char *precision,
+                     const char *file, int line, int column)
+{
+    struct decimal a, b;
+    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
+        numeric_error(file, line, column, "SDIV requires numeric operands");
+    uintmax_t places = string_math_places(precision, 14,
+        "SDIV precision requires -1 or a nonnegative integer", file, line, column);
+    if (!b.sign) numeric_error(file, line, column, "SDIV division by zero");
+    if (!a.sign) return "0";
+
+    size_t scale = a.places > b.places ? a.places : b.places;
+    char *digits = scaled_digits(a, scale);
+    const char *divisor = scaled_digits(b, scale);
+    divisor += strspn(divisor, "0");
+    size_t width = strlen(divisor);
+    size_t length = a.digits + scale;
+    char *whole = allocate(length);
+    memset(whole, '0', length);
+    for (size_t end = width; end <= length; ++end) {
+        char *start = digits + 1 + (end - width);
+        whole[end - 1] = decimal_division_digit(start, divisor, width);
+    }
+
+    /* Feed zeros into the remainder to produce digits after the point. */
+    char *remainder = allocate(width + 1);
+    memset(remainder, '0', width + 1);
+    remainder[width + 1] = '\0';
+    size_t tail = length < width ? length : width;
+    memcpy(remainder + 1 + (width - tail), digits + 1 + (length - tail), tail);
+
+    char *fraction = NULL;
+    size_t used = 0, capacity = 0;
+    size_t limit = places < SIZE_MAX ? (size_t)places : SIZE_MAX;
+    while (used < limit && strspn(remainder + 1, "0") < width) {
+        if (used == capacity) {
+            size_t increase = capacity ? capacity : 32;
+            if (increase > limit - capacity) increase = limit - capacity;
+            char *expanded = allocate(capacity + increase);
+            if (used) memcpy(expanded, fraction, used);
+            fraction = expanded;
+            capacity += increase;
+        }
+        memmove(remainder, remainder + 1, width);
+        remainder[width] = '0';
+        fraction[used++] = decimal_division_digit(remainder + 1, divisor, width);
+    }
+
+    while (length && *whole == '0') { ++whole; --length; }
+    while (used && fraction[used - 1] == '0') --used;
+    struct decimal result = {whole, fraction, length, used, a.sign * b.sign};
+    return fmt_decimal(result, used);
 }
 
 const char *jbc_rnd(const char *value, const char *file, int line, int column)
@@ -1434,15 +1509,7 @@ const char *jbc_mod(const char *left, const char *right, const char *operand_err
     size_t length = a.digits + scale;
     for (size_t end = width; end <= length; ++end) {
         char *start = digits + 1 + (end - width);
-        while (start[-1] != '0' || memcmp(start, divisor, width) >= 0) {
-            int borrow = 0;
-            for (size_t i = width; i > 0; --i) {
-                int d = start[i - 1] - divisor[i - 1] - borrow;
-                borrow = d < 0;
-                start[i - 1] = (char)('0' + d + 10 * borrow);
-            }
-            start[-1] -= borrow;
-        }
+        decimal_division_digit(start, divisor, width);
     }
     a.whole = digits + 1;
     a.fraction = a.whole + a.digits;

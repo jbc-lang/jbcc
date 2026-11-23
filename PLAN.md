@@ -1691,7 +1691,16 @@ After SMUL, all 16,314 previous strict C99 passes still pass out of
 Native tests reproduce both guide examples and check signs, optional
 precision and source-located diagnostics.
 
-- [ ] Implement SDIV for decimal-string division. Check the guide's
+- [x] Implement SDIV for decimal-string division. Check the guide's
   14-place examples, its rounding description, the reference grammar's
   optional precision argument, and division by zero. Rerun the two T24
   files that now reach SDIV.
+
+After SDIV, 16,316 of 17,336 candidates pass strict C99 checking.
+All 16,314 previous passes still pass, and both targeted files now
+pass. Native tests reproduce the guide examples and check explicit
+precision, large operands and source-located diagnostics.
+
+- [ ] Implement REWIND for tape channels. Check the guide and the
+  grammar's optional unit and channel forms, and exercise the documented
+  no-media status and ELSE branch. Four T24 files first stop at REWIND.

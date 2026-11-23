@@ -104,6 +104,16 @@ grammar accepts a third argument. jbcc treats it as a nonnegative
 fractional limit and accepts `-1` for the default.
 [jBASE SMUL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SMUL.htm).
 
+`SDIV(dividend, divisor[, places])` divides decimal strings without
+native floating-point conversion. It ignores the active PRECISION.
+The guide describes rounding to 14 fractional places. Its `SDIV(2, 3)`
+example gives `0.66666666666666`. jbcc follows that example and
+provisionally truncates toward zero at the selected limit.
+The optional nonnegative integer sets that limit, and omitting it or
+passing `-1` selects 14. Trailing fractional zeros are removed. A zero
+divisor reports an error at the call.
+[SDIV](https://jbc-lang.org/pages/sdiv.html).
+
 ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
 Digits, punctuation and array marks return 0. jbcc provisionally returns
 0 for an empty string pending a reference run. The guide describes Unicode

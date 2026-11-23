@@ -466,6 +466,8 @@ NEXT I
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
+                                  ("CRT SDIV(1)\n", ":1:5: wrong argument count for 'SDIV'"),
+                                  ("CRT SDIV(1, 2, 3, 4)\n", ":1:5: wrong argument count for 'SDIV'"),
                                   ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT COMPARE('x')\n", ":1:5: wrong argument count for 'COMPARE'"),
@@ -1034,6 +1036,20 @@ time_t test_clock(time_t *out)
                 ("1, 2, 1.5", "SMUL precision requires -1 or a nonnegative integer")]:
             with self.subTest(args=args):
                 source.write_text(f'CRT SMUL({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+
+    def test_sdiv_diagnostics(self):
+        source = self.work / 'sdiv.b'
+        for args, diagnostic in [
+                ("'', 2", "SDIV requires numeric operands"),
+                ("1, 'text'", "SDIV requires numeric operands"),
+                ("0, '-0.00'", "SDIV division by zero"),
+                ("1, 2, -2", "SDIV precision requires -1 or a nonnegative integer"),
+                ("1, 2, 1.5", "SDIV precision requires -1 or a nonnegative integer")]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT SDIV({args})\n')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
