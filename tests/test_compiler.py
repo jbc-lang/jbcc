@@ -1823,7 +1823,7 @@ PRINT Part
 """)
         sub.write_text("""SUBROUTINE TAKE(Arg, Out)
 COMMON /R/ Shared
-REMOVE Out FROM Arg SETTING D
+Out = REMOVE(Arg,D)
 IF D EQ 0 THEN
   Shared = Shared
   REMOVE Out FROM Arg SETTING D
@@ -1832,6 +1832,18 @@ END
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'first\nlast\t0\nfirst\n')
+
+    def test_remove_expression_diagnostics(self):
+        source = self.work / 'bad.b'
+        for statement, message in [
+            ('CRT REMOVE(Missing,D)', ":1:12: unassigned variable 'Missing'"),
+            ("CRT REMOVE('a',1)", ':1:16: expected a name'),
+        ]:
+            with self.subTest(statement=statement):
+                source.write_text(statement + '\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(str(source) + message, result.stderr)
 
     def test_matrix_assignment_diagnostics(self):
         source = self.work / 'main.b'

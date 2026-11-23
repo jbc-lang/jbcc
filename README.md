@@ -1217,6 +1217,13 @@ For `record = 'a' : @FM : 'b'`, successive calls return `a` with mark 2,
 then `b` with mark 0. Further calls return mark 0 and leave `item`
 unchanged. Bytes 255 through 249 give delimiter codes 1 through 7.
 
+`REMOVE(record, mark)` returns the next delimited string as an expression
+and assigns the same delimiter code. jbcc uses the same cursor for both
+forms on a bare variable or matrix element. An exhausted function call
+returns an empty string and code 0. Following the reference grammar,
+the first argument may also be a computed value. jbcc treats that value
+as a fresh array for the call.
+
 The cursor belongs to the variable. Assigning `record = record` rewinds it,
 and copying the value to another variable starts an independent traversal.
 COMMON variables, matrix elements and by-reference arguments preserve their

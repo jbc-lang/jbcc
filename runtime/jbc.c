@@ -894,11 +894,11 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
     if (setting) assign_value(setting, size_value(assigned));
 }
 
-void jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
+const char *jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
                 const char *name, const char *file, int line, int column)
 {
     const char *text = jbc_read(source->value, name, file, line, column);
-    const char *code = "0";
+    const char *code = "0", *result = "";
     if (source->remove_offset != SIZE_MAX) {
         const char *start = text + source->remove_offset;
         const char *end = start;
@@ -910,9 +910,11 @@ void jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
         unsigned char mark = (unsigned char)*end;
         source->remove_offset = mark ? (size_t)(end - text) + 1 : SIZE_MAX;
         if (mark) code = size_value(256u - mark);
-        assign_value(out, part);
+        if (out) assign_value(out, part);
+        result = part;
     }
     assign_value(setting, code);
+    return result;
 }
 
 /* Compare as if the shorter item were padded on the left with spaces. */

@@ -446,7 +446,7 @@ class Compiler:
     def checked_read(self, var, token):
         read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
         # Capture the value before a later call can overwrite this slot.
-        return self.temporary(read) if self.functions or self.has_getenv else read
+        return self.temporary(read) if self.functions or self.has_output_arguments else read
 
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
@@ -524,6 +524,8 @@ class Compiler:
                 for truth in (True, False):
                     self.assignment_facts[value, truth] = {target.word}
             return self.postfix(value, locate_source)
+        elif word == 'REMOVE' and self.following.word == '(':
+            return self.postfix(self.remove_expression(), locate_source)
         elif word == 'READNEXT' and self.following.kind == 'name':
             call = self.readnext_call()
             return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
@@ -917,15 +919,42 @@ class Compiler:
         indices = self.array_indices()
         self.emit(f"jbc_del(&{slot}, {indices}, {c_string(target.word)}, {self.location(target)});")
 
+    def remove_source_slot(self, source):
+        if source.word not in self.matrices and source.word not in self.assigned and not self.has_unstructured_jumps:
+            self.assignment_error(f"unassigned variable '{source.word}'", source)
+        return self.variable_slot(source)
+
+    def remove_expression(self):
+        self.advance()
+        self.expect('(')
+        token = self.current
+        if self.word in self.matrices:
+            slot = self.matrix_slot(self.identifier())
+            if self.word == ',':
+                source = '&' + slot
+            else:
+                value = self.expression_tail(self.postfix(self.checked_read(slot, token)))
+                source = self.value_argument(value)
+        elif token.kind == 'name' and self.following.word == ',':
+            source = '&' + self.remove_source_slot(self.identifier())
+        else:
+            source = self.value_argument(self.expression())
+        self.expect(',')
+        status = self.identifier()
+        setting = self.variable_slot(status)
+        self.expect(')')
+        if status.word not in self.matrices:
+            self.assigned.add(status.word)
+        return self.temporary(f"jbc_remove(NULL, {source}, &{setting}, "
+                              f"{c_string(token.word)}, {self.location(token)})")
+
     def remove_statement(self):
         self.advance()
         target = self.identifier()
         out = self.variable_slot(target)
         self.expect('FROM')
         source = self.identifier()
-        if source.word not in self.matrices and source.word not in self.assigned and not self.has_unstructured_jumps:
-            self.assignment_error(f"unassigned variable '{source.word}'", source)
-        array = self.variable_slot(source)
+        array = self.remove_source_slot(source)
         self.expect('SETTING')
         status = self.identifier()
         setting = self.variable_slot(status)
@@ -2313,7 +2342,10 @@ class Compiler:
         return self.identifier(), is_matrix
 
     def parse(self, tokens):
-        self.has_getenv = any(t.word == 'GETENV' for t in tokens)
+        self.has_output_arguments = any(
+            t.word in ('GETENV', 'REMOVE') and tokens[i + 1].word == '('
+            for i, t in enumerate(tokens) if t.kind == 'name'
+        )
         self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') or
                                           (t.word == 'RETURN' and n + 1 < len(tokens) and tokens[n + 1].word == 'TO')
                                           for n, t in enumerate(tokens))

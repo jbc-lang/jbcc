@@ -1365,9 +1365,20 @@ All 16,133 previous passes still pass. All five files blocked on NEGS
 now pass. Native fixtures preserve empty elements per the jBASE reference
 and test precision, delimiters and warnings for nonnumeric elements.
 
-- [ ] Implement the REMOVE function in expressions. The reference
+- [x] Implement the REMOVE function in expressions. The reference
   grammar accepts `REMOVE(array, delimiterCode)`, and T24 uses it in
   assignments and loop headers. Check whether the expression and
   statement forms share a cursor, and verify exhaustion and resetting
   the cursor by reassigning the source. Thirteen files first stop on
   a line containing a REMOVE call.
+
+After the REMOVE function, 16,148 of 17,336 candidates pass strict C99
+checking. All 16,138 previous passes still pass. Ten of the thirteen
+files that first stopped on a REMOVE call now pass. Native tests check
+shared cursors, copy and reassignment behavior, delimiter codes, and
+exhaustion.
+
+- [ ] Implement INMAT with and without a matrix argument. Verify the
+  element capacity for dimensioned arrays and the result of the most
+  recent MATREAD or MATPARSE, including overflow. Nine files first
+  stop on a line containing INMAT.
