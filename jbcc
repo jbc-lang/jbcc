@@ -526,6 +526,15 @@ class Compiler:
             return self.postfix(value, locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
             return self.postfix(self.remove_expression(), locate_source)
+        elif word == 'INMAT' and self.following.word == '(':
+            self.advance()
+            self.expect('(')
+            args = "0, NULL"
+            if self.word != ')':
+                matrix = self.checked_matrix(self.matrix_name())
+                args = f"{matrix.rank}, {matrix.limits}"
+            self.expect(')')
+            return self.postfix(self.temporary(f"jbc_inmat({args})"), locate_source)
         elif word == 'READNEXT' and self.following.kind == 'name':
             call = self.readnext_call()
             return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)

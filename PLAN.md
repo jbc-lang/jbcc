@@ -1378,7 +1378,16 @@ files that first stopped on a REMOVE call now pass. Native tests check
 shared cursors, copy and reassignment behavior, delimiter codes, and
 exhaustion.
 
-- [ ] Implement INMAT with and without a matrix argument. Verify the
+- [x] Implement INMAT with and without a matrix argument. Verify the
   element capacity for dimensioned arrays and the result of the most
   recent MATREAD or MATPARSE, including overflow. Nine files first
   stop on a line containing INMAT.
+
+After INMAT, 16,155 of 17,336 candidates pass strict C99 checking.
+All 16,148 previous passes still pass. Seven of the nine files blocked
+on INMAT now pass. Native tests cover the dimension vector, counts
+after MATREAD, MATREADU and MATPARSE, and overflow.
+
+- [ ] Implement DIV for scalar division. Reuse the existing arithmetic
+  runtime and test fractional quotients, PRECISION, empty operands,
+  and zero divisors. Nine files first stop on a line containing DIV.

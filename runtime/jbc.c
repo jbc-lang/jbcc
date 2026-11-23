@@ -827,6 +827,20 @@ static const char *size_value(uintmax_t n)
     return out;
 }
 
+static size_t last_matrix_load;
+
+const char *jbc_inmat(int rank, const int *bounds)
+{
+    if (!rank) return size_value(last_matrix_load);
+    const size_t width = 3 * sizeof(int) + 1;
+    char *out = allocate((size_t)rank * width), *write = out;
+    for (int i = 0; i < rank; ++i) {
+        if (i) *write++ = (char)253;
+        write += snprintf(write, width, "%d", bounds[i]);
+    }
+    return out;
+}
+
 enum { JBC_LOCKED = -2 };
 
 static int last_file_status;
@@ -891,6 +905,7 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
         /* The unparsed suffix can point inside a temporary collected after this statement. */
         assign_value(&dest[0], field && *field ? strcpy(allocate(strlen(field)), field) : "");
     }
+    last_matrix_load = field ? 0 : assigned;
     if (setting) assign_value(setting, size_value(assigned));
 }
 
@@ -2747,6 +2762,7 @@ int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variab
 int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
                 const int *bounds, size_t storage_count, jbc_variable *setting, int update)
 {
+    last_matrix_load = 0;
     struct memory_file *f = file_for(handle);
     if (update) {
         int status = lock_for_update(f, key, setting);
@@ -2765,7 +2781,9 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
         const char *value = take_field(&field, i + 1 == total ? 0 : 254);
         assign_value(&dest[matrix_element_offset(i, rank, bounds)], value);
     }
-    if (setting) assign_value(setting, jbc_dcount(record->value, "\376"));
+    size_t fields = *record->value ? 1 + occurrences(record->value, "\376") : 0;
+    last_matrix_load = fields <= total ? fields : 0;
+    if (setting) assign_value(setting, size_value(fields));
     return file_result(0);
 }
 

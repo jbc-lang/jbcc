@@ -585,6 +585,18 @@ input as zero fields. An empty delimiter treats nonempty input as one
 field. These edge cases are provisional pending a reference run.
 [MATPARSE](https://jbc-lang.org/pages/matparse.html).
 
+`INMAT(A)` reports the bounds of dimensioned array `A`, using one value
+mark between dimensions, as in the guide's two-dimensional example.
+For instance, after `DIM A(2,4)`, it returns `2:@VM:4`. This also works
+with a matrix passed by reference.
+
+`INMAT()` returns the element count from the most recent MATREAD, MATREADU,
+or MATPARSE in the process. It returns zero initially and when the input
+exceeds the available slots. For a ranged MATPARSE, jbcc uses the selected
+range to determine overflow. A failed or locked MATREAD also sets the
+count to zero in jbcc. SETTING continues to report the count specified by the individual
+statement. [INMAT](https://jbc-lang.org/pages/inmat.html).
+
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
 program. Repeating a scalar in the same block reuses its original slot,

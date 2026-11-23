@@ -1472,6 +1472,21 @@ CLOSESEQ F
                 self.assertIn(f'{source}:1:1: {op} requires a positive integer field number'.encode(),
                               result.stderr)
 
+    def test_inmat_dimensions_and_latest_load(self):
+        result = self.run_native(ROOT / 'tests/io/inmat.b', ROOT / 'tests/io/inmat-shape.b',
+                                 options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'0\t3\t2x4\n3\t0\n0\t4\tc|d\n3\t2\n0\n0\n'
+                                        b'2\t2\n0\t2\tz\n2\t2\n2x4\n1\n')
+
+    def test_inmat_requires_a_matrix_argument(self):
+        source = self.work / 'inmat.b'
+        source.write_text("X = 1\nCRT INMAT(X)\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:2:11: expected a dimensioned array 'X'", result.stderr)
+
     def test_matread(self):
         run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)
