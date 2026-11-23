@@ -2125,6 +2125,14 @@ Native tests verify that successful statements count even when there
 are no records to remove. Invalid descriptors and foreign locks leave
 the counters unchanged, and a blocked clear preserves the records.
 
-- [ ] Add the EXECUTE and INPUT counters to @USERSTATS. Check which
+- [x] Add the EXECUTE and INPUT counters to @USERSTATS. Check which
   execution aliases share a counter and define how child exit status,
   input timeout and end of input affect the totals.
+
+The same 16,417 of 17,336 candidates pass strict C99 checking.
+Native tests cover command execution with and without captured streams,
+nonzero child exits, queued input, a timeout and end of input.
+
+- [ ] Investigate CALLJ syntax from the reference grammar and the seven
+  blocked T24 units. Verify a source-located runtime diagnostic for
+  calls that require a JVM backend and recheck corpus translation.

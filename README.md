@@ -331,6 +331,11 @@ Fields 21 and 22 count successful in-memory DELETE and CLEARFILE
 statements. Deleting a missing key or clearing an empty file still counts
 as one operation because the backend reports success. Invalid descriptors
 and lock conflicts leave both counters unchanged.
+Field 23 counts completed EXECUTE, EXEC and PERFORM statements,
+including commands that exit with a nonzero status. Field 24 counts
+INPUTs that complete with a value, including data from the DATA queue
+and the empty value returned at end of input. An INPUT timeout leaves
+the counter unchanged.
 Fields 41–43 hold the native invocation and the line and path where the
 snapshot was taken. Other fields are empty.
 [@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).

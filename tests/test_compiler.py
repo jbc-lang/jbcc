@@ -4125,6 +4125,45 @@ CRT @USERSTATS<21>:':':@USERSTATS<22>
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'0:0\n1:1\n2:2\nkeep\n2:2\n', b''))
 
+    def test_userstats_execute_and_input_counters(self):
+        source = self.work / 'terminal-stats.b'
+        binary = self.work / 'terminal-stats'
+        source.write_text("""Start = @USERSTATS
+EXECUTE ':'
+EXEC 'exit 7' RETURNING Code
+DATA 'command input'
+PERFORM 'cat' CAPTURING Captured
+CRT Start<23>:':':Start<24>
+CRT @USERSTATS<23>:':':Code<1>:':':Captured<1>
+PROMPT ''
+DATA 'queued'
+INPUT Value
+INPUT Waited FOR 0 THEN ABORT ELSE CRT Value:':':@USERSTATS<24>
+INPUT Ended
+CRT '[':Ended:'] ':@USERSTATS<24>
+""")
+        env = dict(os.environ, JBCPORTNO='1')
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        with subprocess.Popen([binary], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            try:
+                expected = b'0:0\n3:7:command input\nqueued:1\n'
+                received = bytearray()
+                while len(received) < len(expected):
+                    self.assertTrue(select.select([proc.stdout], [], [], 5)[0], received)
+                    chunk = os.read(proc.stdout.fileno(), len(expected) - len(received))
+                    self.assertTrue(chunk, received)
+                    received.extend(chunk)
+                self.assertEqual(received, expected)
+                proc.stdin.close()
+                proc.stdin = None
+                output, errors = proc.communicate(timeout=5)
+                self.assertEqual((proc.returncode, output, errors), (0, b'[] 2\n', b''))
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
     def test_userstats_reports_invalid_port_at_reference(self):
         source = self.work / 'stats.b'
         source.write_text('CRT @USERSTATS<1>\n')

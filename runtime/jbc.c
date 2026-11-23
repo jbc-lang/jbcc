@@ -1022,6 +1022,7 @@ static const char *account_override;
 static time_t session_started;
 static size_t record_open_count, record_read_count, record_write_count;
 static size_t record_delete_count, record_clear_count;
+static size_t command_count, input_count;
 #endif
 
 static const char *session_environment(const char *name)
@@ -1115,6 +1116,8 @@ const char *jbc_userstats(const char *file, int line, int column)
     attrs[20].value = size_value(record_write_count);
     attrs[21].value = size_value(record_delete_count);
     attrs[22].value = size_value(record_clear_count);
+    attrs[23].value = size_value(command_count);
+    attrs[24].value = size_value(input_count);
     attrs[41].value = jbc_command_line;
     attrs[42].value = size_value((size_t)line);
     attrs[43].value = file;
@@ -4294,6 +4297,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         int status = system(command);
         if (status == -1) numeric_error(file, line, column, "cannot execute command");
         last_command_code = command_exit_code(status);
+        count_userstat(&command_count);
         return;
     }
 
@@ -4351,6 +4355,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         if (*messages) value = jbc_concat(value, jbc_concat("\376", messages));
         assign_value(returning, value);
     }
+    count_userstat(&command_count);
 }
 #endif
 
@@ -4565,6 +4570,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
     value[length] = '\0';
     free(text);
     assign_value(out, value);
+    if (!timed_out) count_userstat(&input_count);
     return !timed_out;
 }
 
