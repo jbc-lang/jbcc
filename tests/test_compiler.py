@@ -2894,6 +2894,20 @@ CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
                 self.assertEqual(run.stdout, (':'.join(['1'] + [port] * 4) + '\n').encode())
                 self.assertEqual(run.stderr, b'')
 
+    def test_pid_uses_native_process_id_with_port_override(self):
+        source = self.work / 'pid.b'
+        source.write_text("CRT @PID\nCRT @USERNO\n")
+        binary = self.work / 'pid'
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        self.c, '-o', binary], check=True)
+        with subprocess.Popen([binary], env=dict(os.environ, JBCPORTNO='0'),
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            stdout, stderr = proc.communicate(timeout=5)
+            self.assertEqual(proc.returncode, 0, stderr)
+            self.assertEqual(stdout, f'{proc.pid}\n0\n'.encode())
+            self.assertEqual(stderr, b'')
+
     def test_port_number_defaults_to_process_id(self):
         source = self.work / 'port.b'
         source.write_text('CRT @USERNO\n')

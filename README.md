@@ -273,6 +273,10 @@ produce a diagnostic when the program requests the port number.
 [JBCPORTNO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/env2_JBCPORTNO.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`@PID` returns the native process ID. `JBCPORTNO` can set the value of
+`@USERNO` independently.
+[@PID](https://jbc-lang.org/pages/@pid.html).
+
 `@TTY` returns the POSIX device name for the terminal on standard
 input, such as `/dev/pts/2`. If standard input has no terminal device
 name, jbcc provisionally returns `phantom`, following the check used

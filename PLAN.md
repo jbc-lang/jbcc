@@ -1746,6 +1746,15 @@ After @TTY, 16,328 of 17,336 candidates pass strict C99 checking.
 All 16,324 previous passes still pass, and all four targeted files
 now pass. A native test checks a pseudoterminal and redirected input.
 
-- [ ] Implement @PID for the current process ID. Check that it matches
+- [x] Implement @PID for the current process ID. Check that it matches
   the native process ID when JBCPORTNO overrides @USERNO. Two T24 files
   first stop at @PID.
+
+After @PID, 16,329 of 17,336 candidates pass strict C99 checking.
+All 16,328 previous passes still pass. JF.INITIALISE.CONNECTION now
+passes, and tSS reaches DEBUG. A native test compares the value with
+the launched process ID while JBCPORTNO supplies a separate port.
+
+- [ ] Implement DEBUG statement parsing and define the native behavior
+  when no jBC debugger is available. Verify conditional execution
+  and source-located diagnostics. Six T24 files first stop at DEBUG.

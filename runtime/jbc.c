@@ -958,6 +958,11 @@ const char *jbc_account_name(void)
     return account_override ? account_override : jbc_login_name();
 }
 
+const char *jbc_process_id(void)
+{
+    return size_value((uintmax_t)getpid());
+}
+
 const char *jbc_terminal_name(void)
 {
     const char *terminal = ttyname(STDIN_FILENO);

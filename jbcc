@@ -508,6 +508,10 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_terminal_name()"), locate_source)
+            if self.word == 'PID':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_process_id()"), locate_source)
             if self.word in ('USERNO', 'USER_NO', 'UDTNO'):
                 self.uses_session = True
                 self.advance()
