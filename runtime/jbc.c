@@ -338,6 +338,13 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     return format_decimal(result, TRUNCATE_RESULT);
 }
 
+const char *jbc_div(const char *dividend, const char *divisor,
+                    const char *file, int line, int column)
+{
+    if (!*dividend || !*divisor) return "";
+    return jbc_arithmetic('/', dividend, divisor, file, line, column);
+}
+
 static const char *add_sum_item(const char *total, const char *item, struct decimal b,
                                 const char *file, int line, int column);
 

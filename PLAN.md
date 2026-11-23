@@ -1388,6 +1388,16 @@ All 16,148 previous passes still pass. Seven of the nine files blocked
 on INMAT now pass. Native tests cover the dimension vector, counts
 after MATREAD, MATREADU and MATPARSE, and overflow.
 
-- [ ] Implement DIV for scalar division. Reuse the existing arithmetic
+- [x] Implement DIV for scalar division. Reuse the existing arithmetic
   runtime and test fractional quotients, PRECISION, empty operands,
   and zero divisors. Nine files first stop on a line containing DIV.
+
+After DIV, 16,164 of 17,336 candidates pass strict C99 checking.
+All 16,155 previous passes still pass, and all nine files first blocked
+on a line containing DIV now pass. Native tests cover quotients, explicit
+PRECISION, empty operands, and source-located errors.
+
+- [ ] Implement EXTRACT with two to four arguments using the same
+  dynamic-array access as angle brackets. Six T24 files first stop on
+  a line containing EXTRACT. Test field, value and subvalue selection,
+  missing components and source-located diagnostics for invalid indices.

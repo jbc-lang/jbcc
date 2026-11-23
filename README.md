@@ -82,6 +82,12 @@ boundaries reclaim temporary values that are no longer in use. Integer addition,
 overflow. Division and fractional arithmetic use native long double,
 rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
 
+`DIV(dividend, divisor)` returns the fractional quotient with the same
+PRECISION rules as `/`. The guide specifies an empty result if either
+operand is empty. jbcc applies that rule before numeric validation and
+reports a zero divisor at the DIV call for nonempty operands.
+[DIV](https://jbc-lang.org/pages/div.html).
+
 ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
 Digits, punctuation and array marks return 0. jbcc provisionally returns
 0 for an empty string pending a reference run. The guide describes Unicode
