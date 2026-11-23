@@ -2577,5 +2577,21 @@ All three affected T24 units now pass strict C99 checking in byte mode.
 The total is 17,072 of 17,336 candidates, including all 17,069
 previous passes.
 
-- [ ] Investigate LENDP in OFS.STORE.RETURN.DATA. Compare display width
+- [x] Investigate LENDP in OFS.STORE.RETURN.DATA. Compare display width
   with LEN and BYTELEN for controls, array marks, and multibyte text.
+
+The reference compiler emits LENDP_IB, distinct from LENC_IB for LEN.
+The jBASE manual describes Unicode display positions under International
+Mode. UniVerse explicitly uses LEN semantics when NLS is disabled.
+jbcc uses its existing byte count and tests controls, array marks,
+trailing spaces, UTF-8 strings and arity errors.
+[jBASE LENDP](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_LENDP.htm), [IBM BASIC Reference Guide](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
+
+OFS.STORE.RETURN.DATA now passes strict C99 checking in byte mode.
+The total is 17,073 of 17,336 candidates, including all 17,072
+previous passes.
+
+- [ ] Investigate READ with SETTING in CONV.LD.TRANCHE.DET,
+  CONV.LOAN.SCHEDULES, UI.CREATE.CONTRACT.SCRIPT and UI.CREATE.SCRIPTS.RUN.
+  Compare status assignment and error branches with the existing
+  READU and MATREAD implementations.

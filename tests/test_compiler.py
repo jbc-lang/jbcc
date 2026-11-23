@@ -1083,6 +1083,8 @@ NEXT I
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ("CRT BYTELEN()\n", ":1:5: wrong argument count for 'BYTELEN'"),
+                                  ("CRT LENDP()\n", ":1:5: wrong argument count for 'LENDP'"),
+                                  ("CRT LENDP('a', 'b')\n", ":1:5: wrong argument count for 'LENDP'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
@@ -1599,6 +1601,21 @@ CRT FIELD('whole', '', 1):':':COL1():':':COL2()
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'0:0\nDEF:4:8\nDEF/QWE:4:12\nQWE/XYZ:8:16\ncd:4:7\ny:4:7\n'
                              b':2:3\n:5:6\n:0:0\nwhole:0:6\nwhole:0:0\n', b''))
+
+    def test_lendp_uses_byte_length_without_international_mode(self):
+        source = self.work / 'length.b'
+        source.write_text("""CRT LENDP(''), LENDP('abc '), LENDP(-12.5)
+Controls = CHAR(9):CHAR(10):CHAR(127)
+Marks = @FM:@VM:@SM:@TM
+Text = 'é漢'
+CRT LENDP(Controls), LEN(Controls), BYTELEN(Controls)
+CRT LENDP(Marks), LEN(Marks), BYTELEN(Marks)
+CRT LENDP(Text), LEN(Text), BYTELEN(Text)
+IF LENDP(Text[1,2]) > 0 THEN CRT 'present' ELSE ABORT
+""", encoding='utf-8')
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0\t4\t5\n3\t3\t3\n4\t4\t4\n5\t5\t5\npresent\n', b''))
 
     def test_counts_preserves_marks_and_counts_each_element(self):
         source = self.work / 'counts.b'

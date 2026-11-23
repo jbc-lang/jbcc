@@ -1251,6 +1251,12 @@ mark. For example, `BYTELEN('é')` is 2 for a UTF-8 literal. It uses the
 same byte-count operation as LEN in the current runtime.
 [BYTELEN](https://jbc-lang.org/pages/bytelen.html).
 
+`LENDP(value)` uses the same byte count as LEN and BYTELEN in jbcc's
+current mode. Trailing spaces, control bytes and array marks each count
+as one byte. For example, `LENDP('é漢')` returns 5 for a UTF-8 literal.
+The jBASE guide describes Unicode display positions under International
+Mode. [jBASE LENDP](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_LENDP.htm).
+
 `FOLD(text, width)` wraps text into fields separated by attribute
 marks. It prefers spaces as break points, trims spaces at line edges,
 and splits words longer than the width. A zero width folds at one byte,
