@@ -514,6 +514,10 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_terminal_name()"), locate_source)
+            if self.word == 'LPTRHIGH':
+                self.uses_report = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_lptrhigh()"), locate_source)
             if self.word == 'PATH':
                 self.uses_session = True
                 self.advance()

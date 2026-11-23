@@ -1862,6 +1862,15 @@ All 16,356 previous passes still pass. MWT.DUMP.FILE now passes.
 The native test checks a working directory longer than the starting
 buffer size and supplies unrelated HOME and PWD values.
 
-- [ ] Implement @LPTRHIGH using the current output device's line count.
+- [x] Implement @LPTRHIGH using the current output device's line count.
   Check terminal and printer behavior against the guide and the report
   runtime. One T24 file first stops at @LPTRHIGH.
+
+After @LPTRHIGH, 16,358 of 17,336 candidates pass strict C99 checking.
+All 16,357 previous passes still pass, and ENQ.PRE.PROCESS now passes.
+Native verification checks terminal geometry, the redirected-output
+fallback and the selected printer unit.
+
+- [ ] Investigate @TERM.TYPE, @TERM_TYPE and @TERMTYPE. Compare the
+  guide, reference compiler and T24 spelling, and verify the native
+  result with TERM set and unset. One T24 file first stops at @TERM.TYPE.

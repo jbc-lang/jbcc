@@ -631,6 +631,13 @@ parenthesized expression or a sum or difference for the PRINT unit.
 [PRINT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_PRINT.htm)
 and [PRINTER](https://jbc-lang.org/pages/printer.html).
 
+`@LPTRHIGH` reports the line count for the current PRINT destination.
+It queries the terminal attached to standard output when printing to
+the screen. When terminal dimensions are unavailable, jbcc uses 24
+lines, the same default as report pagination. When a printer unit is
+selected, it returns that unit's page height.
+[@LPTRHIGH](https://jbc-lang.org/pages/@lptrhigh.html).
+
 To capture printer output locally, set `JBCC_PRINT_DIR` to an existing
 directory when running the executable. Each new job creates a unique
 `unit-<number>-*` file. This file backend uses a provisional 24-line

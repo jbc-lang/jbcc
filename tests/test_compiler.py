@@ -6,6 +6,7 @@ import select
 import os
 import pwd
 import shlex
+import struct
 import subprocess
 import sys
 import tempfile
@@ -81,6 +82,41 @@ CRT 'done'
                 self.assertIn(b'\fSecond\r\n\fSecond\r\ndone\r\n', output)
             finally:
                 proc.kill()
+
+    def test_lptrhigh_tracks_current_print_destination(self):
+        source = self.work / 'height.b'
+        source.write_text("""CRT @LPTRHIGH
+PRINTER ON ON 7
+CRT @LPTRHIGH
+PRINT @LPTRHIGH
+PRINTER OFF
+CRT @LPTRHIGH
+""")
+        binary = self.work / 'height'
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        self.c, '-o', binary], check=True)
+        env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
+
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 42, 80, 0, 0))
+        mode = termios.tcgetattr(slave)
+        mode[1] &= ~termios.OPOST
+        termios.tcsetattr(slave, termios.TCSANOW, mode)
+        run = subprocess.run([binary], env=env, stdout=slave, stderr=subprocess.PIPE, timeout=5)
+        self.assertEqual((run.returncode, run.stderr), (0, b''))
+        expected = b'42\n24\n42\n'
+        output = bytearray()
+        while len(output) < len(expected):
+            self.assertTrue(select.select([master], [], [], 5)[0], output)
+            output.extend(os.read(master, 1024))
+        self.assertEqual(output, expected)
+
+        run = subprocess.run([binary], env=env, capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'24\n24\n24\n', b''))
+        self.assertEqual([job.read_bytes() for job in self.work.glob('unit-7-*')], [b'24\n'] * 2)
 
     def test_footing_reserves_rows_and_closes_printer_page(self):
         source = self.work / 'footing.b'

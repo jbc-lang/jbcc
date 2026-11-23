@@ -4513,11 +4513,18 @@ int jbc_report_channel(const char *unit, const char *file, int line, int column)
     return n == 0 ? jbc_print_channel : n;
 }
 
-static unsigned report_rows(const struct report *r)
+static unsigned report_rows(FILE *out)
 {
     struct winsize size;
-    return r->out == stdout && !ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) && size.ws_row
+    return out == stdout && !ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) && size.ws_row
         ? size.ws_row : 24;
+}
+
+const char *jbc_lptrhigh(void)
+{
+    unsigned rows = jbc_print_channel == JBC_SCREEN
+        ? report_rows(stdout) : printers[jbc_print_channel].rows;
+    return size_value(rows);
 }
 
 static struct report *open_report(int channel, const char *file, int line, int column)
@@ -4528,7 +4535,7 @@ static struct report *open_report(int channel, const char *file, int line, int c
     r->rows = 24;
     if (channel == JBC_SCREEN) {
         r->out = stdout;
-        r->rows = report_rows(r);
+        r->rows = report_rows(r->out);
         return r;
     }
     const char *dir = getenv("JBCC_PRINT_DIR");
@@ -4739,7 +4746,7 @@ void jbc_heading(const char *unit, const char *heading, int no_eject, const char
     char *copy = record_copy(heading);
     free(r->heading.text);
     r->heading = (struct report_banner){copy, file, line, column};
-    r->rows = report_rows(r);
+    r->rows = report_rows(r->out);
     if (first && !r->footing.text) {
         r->lines = 0;
         r->partial_line = 0;
@@ -4756,7 +4763,7 @@ void jbc_footing(const char *unit, const char *footing, const char *file, int li
     char *copy = *footing ? record_copy(footing) : NULL;
     free(r->footing.text);
     r->footing = (struct report_banner){copy, file, line, column};
-    r->rows = report_rows(r);
+    r->rows = report_rows(r->out);
     /* Count template lines without writing or evaluating date and time options. */
     struct report measure = {0};
     r->footing_no_pause = render_banner(&measure, &r->footing, "FOOTING");
