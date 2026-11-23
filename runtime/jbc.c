@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -2301,6 +2301,13 @@ int jbc_select(const char *source, jbc_variable *list, jbc_variable *setting)
     return success;
 }
 
+static struct memory_file *selected_file(const char *token)
+{
+    for (struct memory_file *f = files; f; f = f->next)
+        if (&f->list_token == token) return f;
+    return NULL;
+}
+
 int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_variable *setting,
                  const char *file, int line, int column)
 {
@@ -2318,8 +2325,7 @@ int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_va
         if (setting) assign_value(setting, "");
         return found;
     }
-    struct memory_file *f = files;
-    while (f && &f->list_token != list->value) f = f->next;
+    struct memory_file *f = selected_file(list->value);
     if (!f && list->value && *list->value)
         numeric_error(file, line, column, "READNEXT requires a select list");
     struct memory_record *r = NULL;
@@ -2335,6 +2341,140 @@ int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_va
     if (setting) assign_value(setting, "");
     return r != NULL;
 }
+
+#if defined(JBC_SAVED_LISTS) || defined(JBC_SEQUENTIAL)
+static int file_error(int error)
+{
+    if (error == ENOENT || error == ENOTDIR) return 128;
+    if (error == EACCES || error == EPERM || error == EROFS) return 24576;
+    return 32768;
+}
+#endif
+
+#ifdef JBC_SAVED_LISTS
+#include <unistd.h>
+
+/* Copy the remaining keys when a file-backed cursor crosses the list boundary. */
+static const char *list_snapshot(const char *value, size_t offset, size_t *count)
+{
+    *count = 0;
+    if (offset == SIZE_MAX) return "";
+    struct memory_file *f = selected_file(value);
+    if (f) {
+        struct memory_record *first = f->records;
+        while (first && first->serial <= offset) first = first->next;
+        size_t length = 0;
+        for (struct memory_record *r = first; r; r = r->next) {
+            size_t bytes = strlen(r->key);
+            if (bytes >= SIZE_MAX - length) fail("select list too large");
+            length += bytes + 1;
+            ++*count;
+        }
+        char *out = allocate(length), *end = out;
+        for (struct memory_record *r = first; r; r = r->next) {
+            if (r != first) *end++ = (char)254;
+            size_t bytes = strlen(r->key);
+            memcpy(end, r->key, bytes);
+            end += bytes;
+        }
+        *end = '\0';
+        return out;
+    }
+    const char *tail = value + offset;
+    *count = *value ? 1 + occurrences(tail, "\376") : 0;
+    return offset ? strcpy(allocate(strlen(tail)), tail) : tail;
+}
+
+static void set_saved_list(jbc_variable *slot, const char *value, size_t count)
+{
+    assign_value(slot, value);
+    slot->array_list = 1;
+    if (!count) slot->remove_offset = SIZE_MAX;
+}
+
+/* List names are arbitrary bytes. Encode every byte in one path component. */
+static const char *saved_list_path(const char *directory, const char *name)
+{
+    static const char hex[] = "0123456789abcdef";
+    size_t length = strlen(name);
+    if (length > SIZE_MAX / 2) fail("list name too long");
+    char *encoded = allocate(2 * length);
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)name[i];
+        encoded[2 * i] = hex[c >> 4];
+        encoded[2 * i + 1] = hex[c & 15];
+    }
+    encoded[2 * length] = '\0';
+    return jbc_concat(jbc_concat(directory, "/list-"), encoded);
+}
+
+int jbc_writelist(const char *source, const char *name, jbc_variable *setting)
+{
+    size_t count;
+    const char *value = list_snapshot(source, 0, &count);
+    int status = 0;
+    if (!*name) {
+        set_saved_list(&select_lists[0], value, count);
+    } else {
+        const char *directory = getenv("JBCC_LIST_DIR");
+        if (!directory || !*directory) status = 128;
+        else {
+            const char *path = saved_list_path(directory, name);
+            char *temp = record_copy(jbc_concat(directory, "/.list-XXXXXX"));
+            int fd = mkstemp(temp);
+            if (fd < 0) status = file_error(errno);
+            else {
+                FILE *out = fdopen(fd, "wb");
+                if (!out) {
+                    status = file_error(errno);
+                    close(fd);
+                } else {
+                    if (fputs(value, out) == EOF) status = file_error(errno);
+                    if (fclose(out) && !status) status = file_error(errno);
+                }
+                if (!status && rename(temp, path)) status = file_error(errno);
+                if (status) unlink(temp);
+            }
+            free(temp);
+        }
+    }
+    if (setting) assign_value(setting, size_value((size_t)status));
+    return !status;
+}
+
+int jbc_readlist(const char *name, jbc_variable *out, jbc_variable *setting)
+{
+    size_t count = 0;
+    const char *value = "";
+    int found = 0;
+    if (!*name) {
+        jbc_variable *active = &select_lists[0];
+        found = active->array_list || selected_file(active->value);
+        if (found) {
+            value = list_snapshot(active->value, active->remove_offset, &count);
+            assign_value(active, NULL);
+        }
+    } else {
+        const char *directory = getenv("JBCC_LIST_DIR");
+        FILE *in = directory && *directory ? fopen(saved_list_path(directory, name), "rb") : NULL;
+        if (in) {
+            char *bytes = NULL;
+            size_t capacity = 0;
+            ssize_t n = getdelim(&bytes, &capacity, '\0', in);
+            found = feof(in) && !ferror(in);
+            if (fclose(in)) found = 0;
+            if (found && n > 0) {
+                value = strcpy(allocate((size_t)n), bytes);
+                count = 1 + occurrences(value, "\376");
+            }
+            free(bytes);
+        }
+    }
+    set_saved_list(out, value, count);
+    if (setting) assign_value(setting, size_value(count));
+    return found;
+}
+#endif
 
 static struct memory_record **record_link(struct memory_file *f, const char *key)
 {
@@ -3372,13 +3512,6 @@ void jbc_leave_sequential(const char ***roots)
     --seq_depth;
 }
 
-static int seq_error(int error)
-{
-    if (error == ENOENT || error == ENOTDIR) return 128;
-    if (error == EACCES || error == EPERM || error == EROFS) return 24576;
-    return 32768;
-}
-
 void jbc_seq_setting(jbc_variable *out, int status)
 {
     assign_value(out, status == JBC_LOCKED ? "-2" : size_value((size_t)status));
@@ -3389,14 +3522,14 @@ static int open_sequential(const char *path, int readonly, int create, int appen
     int flags = readonly ? O_RDONLY : O_RDWR;
     if (create) flags |= O_CREAT | O_EXCL;
     int fd = open(path, flags | O_NONBLOCK | O_NOCTTY | O_CLOEXEC, 0666);
-    if (fd < 0) return seq_error(errno);
+    if (fd < 0) return file_error(errno);
     struct stat st;
     int status = 0;
     if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) status = 32768;
     else if (flock(fd, (readonly ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
-        status = errno == EWOULDBLOCK ? JBC_LOCKED : seq_error(errno);
-    else if (append && lseek(fd, 0, SEEK_END) < 0) status = seq_error(errno);
-    else if (!(*out = fdopen(fd, readonly ? "rb" : "r+b"))) status = seq_error(errno);
+        status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
+    else if (append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
+    else if (!(*out = fdopen(fd, readonly ? "rb" : "r+b"))) status = file_error(errno);
     if (status) close(fd);
     return status;
 }
@@ -3477,16 +3610,16 @@ int jbc_seek(const char *token, const char *offset, const char *origin,
     off_t base = 0;
     if (relative == 1) {
         base = ftello(file->stream);
-        if (base < 0) return seq_error(errno);
+        if (base < 0) return file_error(errno);
     } else if (relative == 2) {
         struct stat st;
-        if (fstat(fileno(file->stream), &st)) return seq_error(errno);
+        if (fstat(fileno(file->stream), &st)) return file_error(errno);
         base = st.st_size;
     }
     if (delta < -(intmax_t)base || delta > INTMAX_MAX - base) return 32768;
     intmax_t target = base + delta;
     if ((off_t)target != target) return 32768;
-    return fseeko(file->stream, (off_t)target, SEEK_SET) ? seq_error(errno) : 0;
+    return fseeko(file->stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0;
 }
 
 int jbc_weofseq(const char *token)
@@ -3498,7 +3631,7 @@ int jbc_weofseq(const char *token)
     /* Discard prefetched input so a later READSEQ sees the new EOF. */
     off_t position = ftello(out);
     if (position < 0 || fflush(out) || ftruncate(fileno(out), position) ||
-        fseeko(out, position, SEEK_SET)) return seq_error(errno);
+        fseeko(out, position, SEEK_SET)) return file_error(errno);
     return 0;
 }
 
@@ -3511,8 +3644,8 @@ int jbc_writeseq(const char *token, const char *value, int append, int flush)
     /* Positioning synchronizes stdio after a buffered read. */
     if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||
         fputs(value, out) == EOF || fputc('\n', out) == EOF || fflush(out))
-        return seq_error(errno);
-    if (flush && fsync(fileno(out))) return seq_error(errno);
+        return file_error(errno);
+    if (flush && fsync(fileno(out))) return file_error(errno);
     return 0;
 }
 
@@ -3544,9 +3677,9 @@ static int sequential_status(const char *handle, jbc_variable *attrs)
     struct sequential_file *file = *sequential_slot(handle);
     if (!file || !file->stream) return 128;
     struct stat st;
-    if (fstat(fileno(file->stream), &st)) return seq_error(errno);
+    if (fstat(fileno(file->stream), &st)) return file_error(errno);
     off_t pos = ftello(file->stream);
-    if (pos < 0) return seq_error(errno);
+    if (pos < 0) return file_error(errno);
 
     attrs[1].value = size_value((uintmax_t)pos);
     attrs[2].value = feof(file->stream) ? "1" : "0";
@@ -3573,7 +3706,7 @@ static int sequential_status(const char *handle, jbc_variable *attrs)
         for (;;) {
             cwd = allocate(length);
             if (getcwd(cwd, length)) break;
-            if (errno != ERANGE || length > SIZE_MAX / 2) return seq_error(errno);
+            if (errno != ERANGE || length > SIZE_MAX / 2) return file_error(errno);
             length *= 2;
         }
         const char *separator = strcmp(cwd, "/") ? "/" : "";

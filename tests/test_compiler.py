@@ -160,6 +160,24 @@ RETURN
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'hello\n')
 
+    def test_saved_lists_across_executables(self):
+        directory = self.work / 'lists'
+        directory.mkdir()
+        env = dict(os.environ, JBCC_LIST_DIR=str(directory))
+        written = self.run_native(ROOT / 'tests/io/write-lists.b', options=['--memory-file', 'F'], env=env)
+        self.assertEqual((written.returncode, written.stdout, written.stderr), (0, b'0\nremaining 1,b\n', b''))
+        self.assertFalse((self.work / 'order').exists())
+        read = self.run_native(ROOT / 'tests/io/read-lists.b', env=env)
+        self.assertEqual((read.returncode, read.stderr), (0, b''))
+        self.assertEqual(read.stdout, b'4\n[first]\n[]\n[last]\n[]\nempty 0\nmissing 0\n7\nkeys 2\na\nb\n')
+
+    def test_saved_list_write_failure(self):
+        source = self.work / 'failed.b'
+        source.write_text("WRITELIST 'item' TO 'name' SETTING S ON ERROR CRT S\n")
+        env = dict(os.environ, JBCC_LIST_DIR=str(self.work / 'missing'))
+        result = self.run_native(source, env=env)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'128\n', b''))
+
     def test_print_units(self):
         env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
         result = self.run_native(ROOT / 'tests/io/print-units.b', env=env)

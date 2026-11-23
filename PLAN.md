@@ -1188,8 +1188,17 @@ After HUSH, 15,741 of 17,336 candidates pass strict C99 checking. All
 15,727 previous passes still pass. Of the 20 files that stopped at HUSH,
 14 now pass and six reach later diagnostics.
 
-- [ ] Support saved lists with WRITELIST and READLIST. Verify that one
+- [x] Support saved lists with WRITELIST and READLIST. Verify that one
   executable can save a named list and another can retrieve it, check
   its element count and iterate it with READNEXT. Cover a missing list
   and a failed write. READLIST is the first blocker in 20 files and
   WRITELIST in 16.
+
+After saved lists, 15,765 of 17,336 candidates pass strict C99 checking.
+All 15,741 previous passes still pass. Of the 24 new passes, 11 previously
+stopped at READLIST and 13 at WRITELIST. Two native executables share a
+list directory to check replacement, retrieval, element counts and iteration.
+
+- [ ] Implement GETLIST and DELETELIST against the saved-list store.
+  Exercise the guide’s write, retrieve and delete sequence across processes.
+  GETLIST is the first blocker in five files and DELETELIST in two.

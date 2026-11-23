@@ -989,6 +989,25 @@ fields available to READNEXT. A standalone `//` line, as used in the
 guide’s CLEARSELECT example, is accepted as a separator. [SELECT](https://jbc-lang.org/pages/select.html),
 [READNEXT](https://jbc-lang.org/pages/readnext.html).
 
+For named saved lists, set `JBCC_LIST_DIR` to an existing directory shared
+by the executables. `WRITELIST Items TO Name` (also `ON Name`) atomically
+replaces the named list. jbcc stores field-mark-separated bytes and encodes
+the list name as a single filename. This directory format is specific to
+jbcc. `SETTING Status` reports zero on success, 128 for a missing directory,
+24576 for permission errors and 32768 for other write errors. A failed write
+runs the optional `ON ERROR` arm.
+
+`READLIST L FROM Name SETTING N THEN ... ELSE ...` assigns the list and
+its element count. Use `READNEXT` to iterate it. An empty saved list takes
+THEN with count zero. A missing list takes ELSE and clears both outputs
+(the count becomes zero). The reference grammar also permits omitting
+FROM. In jbcc, omitted FROM, an empty name or literal `FROM 0` transfers
+the remaining entries of the default select list and clears that cursor.
+This transfer behavior is provisional. `FROM '0'` reads a named list.
+Writing to an empty name sets the default list for the current process.
+[READLIST](https://jbc-lang.org/pages/readlist.html),
+[WRITELIST](https://jbc-lang.org/pages/writelist.html).
+
 CLEARSELECT discards one cursor. Bare `CLEARSELECT` clears the default
 list (0). A named list, a list number, or a variable holding the number
 selects the cursor to clear. Other cursors keep their positions, and the

@@ -380,6 +380,7 @@ class Compiler:
         self.uses_math = False
         self.terminal = False
         self.uses_sequential = False
+        self.uses_saved_lists = False
         self.uses_report = False
         self.uses_hush = False
         self.uses_sleep = False
@@ -954,6 +955,9 @@ class Compiler:
             operation = f"jbc_clear_file({handle}, "
         setting = self.file_setting()
         call = f"{operation}{setting})"
+        self.write_error_arm(opening, call, setting)
+
+    def write_error_arm(self, opening, call, setting):
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
@@ -1201,6 +1205,32 @@ class Compiler:
         if self.word and self.word not in OUTPUT_END:
             slot = self.list_operand(maximum=11)
         self.emit(f"jbc_clearselect({slot}, {self.location(opening)});")
+
+    def saved_list_statement(self):
+        opening = self.current
+        self.advance()
+        self.uses_saved_lists = True
+        if opening.word == 'WRITELIST':
+            value = self.temporary(self.expression())
+            if self.word not in ('ON', 'TO'):
+                self.error("expected ON or TO after WRITELIST value")
+            self.advance()
+            name = self.expression()
+            setting = self.file_setting()
+            self.write_error_arm(opening, f"jbc_writelist({value}, {name}, {setting})", setting)
+            return
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        name = '""'
+        if self.word == 'FROM':
+            self.advance()
+            if self.word == '0' and self.following.word in ('THEN', 'ELSE', 'SETTING'):
+                self.advance()
+            else:
+                name = self.expression()
+        setting = self.file_setting()
+        self.assigned.add(target.word)
+        self.conditional_arms(opening, f"jbc_readlist({name}, &{slot}, {setting})")
 
     def select_statement(self):
         opening = self.current
@@ -1973,6 +2003,9 @@ class Compiler:
         elif (self.word == 'READV' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readv_statement()
+        elif (self.word in ('READLIST', 'WRITELIST') and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.saved_list_statement()
         elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             if self.word == 'SELECT':
@@ -2431,6 +2464,8 @@ def runtime_features(units):
         flags.append("#define JBC_SLEEP 1")
     if any(unit.uses_sequential for unit in units):
         flags.append("#define JBC_SEQUENTIAL 1")
+    if any(unit.uses_saved_lists for unit in units):
+        flags.append("#define JBC_SAVED_LISTS 1")
     if any(unit.uses_report for unit in units):
         flags.append("#define JBC_REPORT 1")
     if any(unit.terminal for unit in units):
