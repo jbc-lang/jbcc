@@ -4061,8 +4061,36 @@ CRT After<43>
             self.assertLessEqual(start, int(lines[2]))
             self.assertLessEqual(int(lines[2]), int(time.time()))
             self.assertEqual(lines[3:], [
-                b'stats-user:stats-user:stats-terminal:phantom', b'[]:[]',
+                b'stats-user:stats-user:stats-terminal:phantom', b'[]:[0]',
                 f'{binary} two words'.encode(), b'2', str(routine).encode()])
+
+    def test_userstats_open_and_read_counters(self):
+        source = self.work / 'read-stats.b'
+        source.write_text("""Before = @USERSTATS
+OPEN 'F' TO F ELSE ABORT
+OPENPATH 'F' ELSE ABORT
+OPEN 'missing' TO Missing THEN ABORT
+WRITE 'value' TO F,'key'
+READ R FROM F,'key' ELSE ABORT
+READV R FROM 'key',1 ELSE ABORT
+READV R FROM 'key',2 THEN CRT '[':R:']' ELSE ABORT
+READU R FROM 'key' ELSE ABORT
+READVU R FROM 'key',1 ELSE ABORT
+DIM A(1)
+MATREAD A FROM 'key' ELSE ABORT
+MATREADU A FROM 'key' ELSE ABORT
+READ R FROM 'missing' THEN ABORT
+READU R FROM 'held' LOCKED NULL THEN ABORT ELSE ABORT
+READVU R FROM 'held',1 LOCKED NULL THEN ABORT ELSE ABORT
+MATREADU A FROM 'held' LOCKED NULL THEN ABORT ELSE ABORT
+After = @USERSTATS
+CRT Before<18>:':':Before<19>:':':Before<20>
+CRT (After<18>-Before<18>):':':(After<19>-Before<19>):':':(After<20>-Before<20>)
+""")
+        result = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'held'],
+                                 env=dict(os.environ, JBCPORTNO='1'))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'[]\n0:0:0\n2:7:1\n', b''))
 
     def test_userstats_reports_invalid_port_at_reference(self):
         source = self.work / 'stats.b'

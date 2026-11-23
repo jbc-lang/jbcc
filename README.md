@@ -322,8 +322,11 @@ the account path. A failure to resolve it reports the source location.
 `@USERSTATS` returns a snapshot with attribute numbers from `JBC.h`.
 The native runtime fills fields 1–6 with the port, active program count
 of one, startup time in Unix seconds, PID, account, and login. Fields 8
-and 10 hold the OS terminal type and device. Field 20 counts successful
-in-memory record writes, including WRITEV, WRITEU, WRITEVU, and MATWRITE.
+and 10 hold the OS terminal type and device. Fields 18–20 count successful
+in-memory opens, record reads and record writes respectively. The read
+count includes READU, READV, READVU, MATREAD and MATREADU, and a field read
+of an existing record counts even when the field is empty. The write count
+includes WRITEV, WRITEU, WRITEVU and MATWRITE.
 Fields 41–43 hold the native invocation and the line and path where the
 snapshot was taken. Other fields are empty.
 [@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).

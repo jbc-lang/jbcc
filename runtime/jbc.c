@@ -1020,7 +1020,7 @@ static const char *account_override;
 
 #ifdef JBC_USERSTATS
 static time_t session_started;
-static size_t record_write_count;
+static size_t record_open_count, record_read_count, record_write_count;
 #endif
 
 static const char *session_environment(const char *name)
@@ -1109,6 +1109,8 @@ const char *jbc_userstats(const char *file, int line, int column)
     attrs[6].value = jbc_login_name();
     attrs[8].value = jbc_terminal_type();
     attrs[10].value = jbc_terminal_name();
+    attrs[18].value = size_value(record_open_count);
+    attrs[19].value = size_value(record_read_count);
     attrs[20].value = size_value(record_write_count);
     attrs[41].value = jbc_command_line;
     attrs[42].value = size_value((size_t)line);
@@ -1117,6 +1119,15 @@ const char *jbc_userstats(const char *file, int line, int column)
     return jbc_matbuild(attrs, 1, bounds, NULL, NULL, "\376", "@USERSTATS", file, line, column);
 }
 #endif
+#endif
+
+#ifdef JBC_USERSTATS
+static void count_userstat(size_t *counter)
+{
+    if (*counter < SIZE_MAX) ++*counter;
+}
+#else
+#define count_userstat(counter) ((void)0)
 #endif
 
 static size_t last_matrix_load;
@@ -3326,6 +3337,7 @@ int jbc_open_file(const char *section, const char *name, jbc_variable *out, cons
 {
     struct memory_file *f = find_memory_file(section, name);
     if (f && scope) remember_open(scope, out, f);
+    if (f) count_userstat(&record_open_count);
     assign_value(out, f ? f->name : "");
     if (setting) assign_value(setting, f ? "0" : "128");
     return file_result(f ? 0 : 128);
@@ -3676,6 +3688,7 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
         return file_succeeded(128);
     }
     assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
+    count_userstat(&record_read_count);
     return file_succeeded(0);
 }
 
@@ -3756,6 +3769,7 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
     size_t fields = *record->value ? 1 + occurrences(record->value, "\376") : 0;
     last_matrix_load = fields <= total ? fields : 0;
     if (setting) assign_value(setting, size_value(fields));
+    count_userstat(&record_read_count);
     return file_result(0);
 }
 
@@ -3785,6 +3799,7 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     }
     assign_value(out, value);
     if (setting) assign_value(setting, record ? "" : "128");
+    if (record) count_userstat(&record_read_count);
     return file_result(record ? 0 : 128);
 }
 
@@ -3813,9 +3828,7 @@ static int write_record_status(const char *handle, const char *key, const char *
     free(r->value);
     r->value = copy;
     if (lock && !keep_lock) release_locks(f, key, 0);
-#ifdef JBC_USERSTATS
-    if (record_write_count < SIZE_MAX) ++record_write_count;
-#endif
+    count_userstat(&record_write_count);
     return 0;
 }
 

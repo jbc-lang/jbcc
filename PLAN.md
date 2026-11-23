@@ -2107,6 +2107,15 @@ BATCH.JOB.CONTROL now passes and all previous passes still pass.
 Native tests compare process data with the launched executable and
 verify the write counter across successful writes and a lock conflict.
 
-- [ ] Add the OPEN and READ counters to @USERSTATS. Check which record
+- [x] Add the OPEN and READ counters to @USERSTATS. Check which record
   operations contribute, verify the guide's snapshot-and-difference
   pattern on the in-memory backend, and cover lock and missing cases.
+
+The same 16,417 of 17,336 candidates pass strict C99 checking.
+Native tests compare snapshots around successful opens and reads.
+They cover each supported read variant, empty fields, missing records
+and foreign locks.
+
+- [ ] Add the DELETE and CLEARFILE counters to @USERSTATS. Check the
+  cases of a missing record and an already empty file, and verify
+  counter deltas around successful operations and lock conflicts.
