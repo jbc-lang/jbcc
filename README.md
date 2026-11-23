@@ -828,6 +828,13 @@ that result position empty. A scalar occupies the first position.
 A direct `REUSE(scalar)` in either argument repeats it at every position.
 [EQS](https://jbc-lang.org/pages/eqs.html), [NES](https://jbc-lang.org/pages/nes.html).
 
+`ADDS(left, right)` adds corresponding fields, values and subvalues
+using the same arithmetic and PRECISION as `+`. It copies an unmatched
+element unchanged and leaves a paired position empty if either element
+is empty. jbcc provisionally treats a wholly empty operand as one empty
+element. A direct `REUSE(scalar)` in either argument repeats that scalar
+at every position and evaluates it once. [ADDS](https://jbc-lang.org/pages/adds.html).
+
 CATS concatenates corresponding fields, values and subvalues. An unmatched
 element is copied through, and a wholly empty operand returns the other
 array. jbcc treats an empty element within an array as contributing zero

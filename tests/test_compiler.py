@@ -274,6 +274,7 @@ RETURN
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
+                                  ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
@@ -761,6 +762,18 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_adds_diagnostics(self):
+        source = self.work / 'adds.b'
+        for args, diagnostic in [
+                ("1:@VM:'bad', REUSE(2)", ':1:5: arithmetic requires numeric operands'),
+                ("9223372036854775807, 1", ':1:5: integer addition overflow'),
+                ("REUSE(1:@VM:2), 3", ':1:10: REUSE in ADDS requires a scalar')]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT ADDS({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + diagnostic).encode(), run.stderr)
 
     def test_ln_diagnostics(self):
         source = self.work / 'ln.b'

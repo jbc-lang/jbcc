@@ -1407,7 +1407,18 @@ All 16,164 previous passes still pass, and all six files first blocked
 on a line containing EXTRACT now pass. Native tests cover component
 selection, trailing zero indices, missing components and diagnostics.
 
-- [ ] Implement ADDS for element-wise addition. Reuse the runtime's
+- [x] Implement ADDS for element-wise addition. Reuse the runtime's
   array cursor and arithmetic. Check mark alignment, missing versus
   empty elements, PRECISION and scalar REUSE. Six T24 files first stop
   on a line containing ADDS.
+
+After ADDS, 16,174 of 17,336 candidates pass strict C99 checking.
+All 16,170 previous passes still pass. Four of the six files with ADDS
+on their original failing line now pass. The other two stop at MULS.
+Native tests cover mixed marks, empty and unmatched positions, decimal
+precision, scalar REUSE and call-site diagnostics.
+
+- [ ] Implement MULS for element-wise multiplication. Reuse the ADDS
+  traversal, return zero for an unmatched element and propagate paired
+  empty elements as in the guide. Check PRECISION and scalar REUSE.
+  Eight T24 files first stop on a line containing MULS.

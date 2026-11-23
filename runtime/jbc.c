@@ -2150,6 +2150,50 @@ static char *split_array_items(const char *array, size_t *marks)
     return copy;
 }
 
+const char *jbc_adds(const char *left, const char *right, int reuse_left, int reuse_right,
+                     const char *file, int line, int column)
+{
+    struct array_cursor lhs = array_cursor(left, reuse_left, 1);
+    struct array_cursor rhs = array_cursor(right, reuse_right, 1);
+    char *left_items = split_array_items(left, NULL);
+    char *right_items = split_array_items(right, NULL);
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    size_t capacity = strlen(left), right_length = strlen(right), used = 0;
+    if (capacity < right_length) capacity = right_length;
+    char *out = allocate(capacity);
+    for (;;) {
+        const char *a = left_items + (lhs.item - left);
+        const char *b = right_items + (rhs.item - right);
+        const char *item = "";
+        if (!lhs.present) item = b;
+        else if (!rhs.present) item = a;
+        else if (*a && *b) item = jbc_arithmetic('+', a, b, file, line, column);
+
+        size_t bytes = strlen(item);
+        unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
+        size_t separator = mark != 256;
+        if (bytes > limit - used || separator > limit - used - bytes)
+            numeric_error(file, line, column, "ADDS result too large");
+        size_t required = used + bytes + separator;
+        if (required > capacity) {
+            capacity = required <= limit / 2 ? 2 * required : required;
+            char *larger = allocate(capacity);
+            memcpy(larger, out, used);
+            out = larger;
+        }
+        memcpy(out + used, item, bytes);
+        used += bytes;
+        if (mark == 256) break;
+        out[used++] = (char)mark;
+        advance_array_item(&lhs, mark);
+        advance_array_item(&rhs, mark);
+    }
+    out[used] = '\0';
+    free(left_items);
+    free(right_items);
+    return out;
+}
+
 const char *jbc_negs(const char *source, const char *file, int line, int column)
 {
     if (!*source) return "";
