@@ -4284,6 +4284,32 @@ static struct termios input_saved;
 static volatile sig_atomic_t input_modified;
 static int input_echo = -1;
 
+static struct sigaction saved_interrupt;
+static int break_key_disabled;
+
+static void ignore_interrupt(int signal_number)
+{
+    (void)signal_number;
+}
+
+void jbc_break_key(int enabled, const char *file, int line, int column)
+{
+    if (enabled == !break_key_disabled) return;
+    if (enabled) {
+        if (sigaction(SIGINT, &saved_interrupt, NULL) < 0)
+            numeric_error(file, line, column, "BREAK ON cannot restore the interrupt handler");
+    } else {
+        /* A caught signal resets on exec, so children keep their own SIGINT handling. */
+        struct sigaction action = {0};
+        action.sa_handler = ignore_interrupt;
+        action.sa_flags = SA_RESTART;
+        sigemptyset(&action.sa_mask);
+        if (sigaction(SIGINT, &action, &saved_interrupt) < 0)
+            numeric_error(file, line, column, "BREAK OFF cannot set the interrupt handler");
+    }
+    break_key_disabled = !enabled;
+}
+
 void jbc_echo(int enabled)
 {
     input_echo = enabled;

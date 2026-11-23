@@ -1988,6 +1988,14 @@ The T24 callers also request control characters, carrier and newline
 flags, delay fill and signal flushing. Those fields still need a
 runtime mapping before those calls can succeed.
 
-- [ ] Investigate BREAK ON and BREAK OFF. Check the reference behavior
-  for terminal interrupts and how it fits the existing input runtime.
-  Verify it independently of loop BREAK, which uses the same keyword.
+- [x] Implement BREAK ON and BREAK OFF for terminal interrupts.
+  A pseudo-terminal test sends the actual interrupt character in
+  both modes and verifies bare loop BREAK in the same program.
+
+After BREAK ON/OFF, the same 16,366 of 17,336 candidates pass strict
+C99 checking. The targeted unit now reaches a substring assignment.
+
+- [ ] Investigate single-index substring assignment. Check the
+  reference grammar and code generator for `value[length] = text`,
+  and verify how it replaces bytes at the end of a string. One T24
+  unit reaches this form after BREAK OFF.

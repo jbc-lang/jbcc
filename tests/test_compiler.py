@@ -3,6 +3,7 @@ import json
 import math
 import re
 import select
+import signal
 import os
 import pwd
 import shlex
@@ -3368,6 +3369,60 @@ CRT O:
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: HUSH requires a numeric operand'.encode(), result.stderr)
+
+    def test_break_key_controls_terminal_interrupts(self):
+        source = self.work / 'break-key.b'
+        source.write_text("""BREAK OFF
+BREAK OFF
+ECHO OFF
+PROMPT 'off>'
+INPUT Text, 8
+LOOP
+    CRT Text
+    BREAK
+REPEAT
+BREAK ON
+PROMPT 'on>'
+INPUT Text, 8
+ABORT
+""")
+        binary = self.work / 'break-key'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        mode = termios.tcgetattr(slave)
+        mode[3] |= termios.ICANON | termios.ISIG
+        mode[6][termios.VINTR] = b'\x03'
+        termios.tcsetattr(slave, termios.TCSANOW, mode)
+
+        # Attach the slave as the child's controlling terminal so VINTR sends SIGINT.
+        launch = ('import fcntl, os, sys, termios\n'
+                  'fcntl.ioctl(0, termios.TIOCSCTTY, 0)\n'
+                  'os.execv(sys.argv[1], sys.argv[1:])')
+        with subprocess.Popen([sys.executable, '-c', launch, str(binary)], stdin=slave,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              start_new_session=True) as proc:
+            def expect_output(expected):
+                received = bytearray()
+                while len(received) < len(expected):
+                    self.assertTrue(select.select([proc.stdout], [], [], 5)[0], received)
+                    chunk = os.read(proc.stdout.fileno(), len(expected) - len(received))
+                    self.assertTrue(chunk, received)
+                    received.extend(chunk)
+                self.assertEqual(received, expected)
+
+            try:
+                expect_output(b'off>')
+                os.write(master, b'\x03ok\n')
+                expect_output(b'ok\non>')
+                os.write(master, b'\x03')
+                self.assertEqual(proc.wait(timeout=5), -signal.SIGINT)
+                self.assertEqual(proc.stderr.read(), b'')
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
 
     def test_echo_controls_terminal_input_and_system24(self):
         source = self.work / 'echo.b'
