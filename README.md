@@ -1043,6 +1043,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
   or MAT parameters at runtime.
   For example, `Name = 'GET.STATUS'; CALL @Name(Rec, Answer)` can update
   Answer just like a direct call.
+  With a declared matrix, `CALL @Names(I)(Rec, Answer)` reads the name
+  from the first parenthesized group and passes arguments from the
+  second. The argument group is optional. The name is captured before
+  evaluating any arguments. The reference compiler accepts a
+  one-dimensional subscript with a positive literal or a variable. jbcc
+  uses its usual matrix subscript rules, including expressions and
+  multiple dimensions.
   A comma at the end of a line continues the argument list on the next
   line. The reference preprocessor applies this rule before parsing, so
   it also works in routine headers and expressions. A trailing semicolon

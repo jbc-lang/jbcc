@@ -2382,6 +2382,21 @@ All six affected units now pass strict C99 checking in byte mode.
 The total is 17,056 of 17,336 candidates, including all 17,050
 previous passes.
 
-- [ ] Investigate indirect calls through a matrix element. Start with
+- [x] Investigate indirect calls through a matrix element. Start with
   `CALL @ROUTINES(FLDNO) (...)` in TAKEOVER.MAPPING.RUN and trace how
   the reference compiler distinguishes subscripts from call arguments.
+
+The reference name reader checks the declaration of the indirect target.
+For a matrix it takes a subscript before the ordinary argument list.
+Reference probes confirmed a literal or variable subscript and EQUATE
+expansion. jbcc uses its regular matrix subscripts and captures the
+selected routine name before argument evaluation. Native tests cover
+those rules, omitted arguments and matrix diagnostics.
+
+TAKEOVER.MAPPING.RUN now passes strict C99 checking in byte mode.
+The total is 17,057 of 17,336 candidates, including all 17,056
+previous passes.
+
+- [ ] Investigate the CAT spelling of concatenation in LD.OVER.RIDE.
+  Trace the reference lexer's CAT token and check its precedence and
+  interaction with omitted operands and output newline suppression.

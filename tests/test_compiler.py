@@ -2614,6 +2614,50 @@ CRT N
                 self.assertEqual(run.stdout, b'')
                 self.assertIn(f"{main}:3:6: {message} '{name}'".encode(), run.stderr)
 
+    def test_indirect_call_through_matrix_element(self):
+        main = self.work / 'main.b'
+        add = self.work / 'add.b'
+        report = self.work / 'report.b'
+        change = self.work / 'change.b'
+        main.write_text("""DEFFUN CHANGE.TARGET(Slot, Index)
+DIM Names(2), Grid(1,1)
+Names(1) = 'ADD'
+Names(2) = 'REPORT'
+Grid(1,0) = 'REPORT'
+X = 2
+I = 1
+EQU Target TO Names(I)
+CALL @Target(X, CHANGE.TARGET(Names(1), I))
+CRT X
+CRT I
+CALL @Names(1)()
+CALL @Names(2)
+CALL @Grid(1, I - 2)
+""")
+        add.write_text('SUBROUTINE ADD(Value, Amount)\nValue += Amount\n')
+        report.write_text("SUBROUTINE REPORT()\nCRT 'called'\n")
+        change.write_text("""FUNCTION CHANGE.TARGET(Slot, Index)
+Slot = 'REPORT'
+Index += 1
+RETURN 5
+""")
+        result = self.run_native(main, add, report, change)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'7\n2\ncalled\ncalled\ncalled\n', b''))
+
+    def test_indirect_matrix_call_uses_normal_matrix_diagnostics(self):
+        source = self.work / 'main.b'
+        for index, message in (
+            (1, "unassigned variable 'Names'"),
+            (3, 'matrix subscript out of bounds'),
+        ):
+            with self.subTest(index=index):
+                source.write_text(f'DIM Names(2)\nCALL @Names({index})\n')
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, f'{source}:2:7: {message}\n'.encode())
+
     def test_multiline_call(self):
         caller = self.work / 'caller.b'
         callee = self.work / 'callee.b'

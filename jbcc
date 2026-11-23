@@ -2327,7 +2327,11 @@ class Compiler:
             if target.kind not in ('name', 'system_name'):
                 self.error("expected a variable after CALL @")
             self.advance()
-            name = self.temporary(self.read_variable(target))
+            if target.word in self.matrices:
+                value = self.checked_read(self.matrix_slot(target), target)
+            else:
+                value = self.read_variable(target)
+            name = self.temporary(value)
             args, kinds = self.call_arguments()
             values = [f"{{.{field} = {arg}}}" for field, arg in zip(argument_fields(kinds), args)]
             packed = "(jbc_argument[]){" + ", ".join(values) + "}" if values else "NULL"
