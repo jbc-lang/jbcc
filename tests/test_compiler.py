@@ -1779,6 +1779,41 @@ CRT O:
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
 
+    def test_hush_nonnumeric_operand(self):
+        source = self.work / 'invalid.b'
+        source.write_text("HUSH 'bad'\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:1: HUSH requires a numeric operand'.encode(), result.stderr)
+
+    def test_hush_terminal_input_and_printer(self):
+        source = self.work / 'hush.b'
+        source.write_text("HUSH ON\nPRINT ON 1 'job'\nINPUT X\nHUSH OFF\nCRT LEN(X)\nINPUT Y\nCRT Y\n")
+        binary = self.work / 'hush'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
+        with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave, env=env) as proc:
+            try:
+                deadline = time.monotonic() + 5
+                while termios.tcgetattr(slave)[3] & termios.ECHO:
+                    self.assertLess(time.monotonic(), deadline, 'INPUT did not disable echo')
+                    time.sleep(0.01)
+                os.write(master, b'secret\n')
+                output = bytearray()
+                while not output.endswith(b'?'):
+                    self.assertTrue(select.select([master], [], [], 5)[0], output)
+                    output.extend(os.read(master, 1024))
+                self.assertEqual(output, b'6\r\n?')
+                self.assertTrue(termios.tcgetattr(slave)[3] & termios.ECHO)
+                os.write(master, b'ok\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+            finally:
+                proc.kill()
+        self.assertEqual([p.read_bytes() for p in self.work.glob('unit-1-*')], [b'job\n'])
+
     def test_input_terminal_echo(self):
         source = self.work / 'input.b'
         source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n"

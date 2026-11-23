@@ -300,6 +300,14 @@ SUMMATION add decimal digits directly. Each addition rounds to at most
 15 fractional places by default or truncates to an explicit PRECISION.
 Integer additions retain the signed 64-bit overflow check. [SUM](https://jbc-lang.org/pages/sum.html).
 
+`HUSH ON` suppresses screen output, runtime messages and the prompt and
+echo during `INPUT`. `HUSH OFF` restores output. Bare `HUSH` toggles
+the state. A nonzero numeric expression enables suppression and zero
+restores output. The reference grammar converts the operand to a number.
+jbcc provisionally diagnoses nonnumeric operands. Output suppression spans
+routine calls. Printer jobs and `EXECUTE ... CAPTURING` still receive
+their output. [HUSH](https://jbc-lang.org/pages/hush.html).
+
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
 `?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps

@@ -381,6 +381,7 @@ class Compiler:
         self.terminal = False
         self.uses_sequential = False
         self.uses_report = False
+        self.uses_hush = False
         self.uses_sleep = False
         self.uses_execute = False
         self.uses_putenv = False
@@ -2026,6 +2027,19 @@ class Compiler:
             self.assigned.update(assigned)
             self.emit(f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
                       f"{outputs.get('RETURNING', 'NULL')}, {self.location(opening)});")
+        elif (self.word == 'HUSH' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            opening = self.current
+            self.advance()
+            self.uses_hush = True
+            if self.word in ('ON', 'OFF'):
+                state = '"1"' if self.word == 'ON' else '"0"'
+                self.advance()
+            elif not self.word or self.word in OUTPUT_END or self.word in stops:
+                state = 'NULL'
+            else:
+                state = self.expression()
+            self.emit(f"jbc_hush({state}, {self.location(opening)});")
         elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current
@@ -2411,6 +2425,8 @@ def runtime_features(units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_putenv for unit in units):
         flags.append("#define JBC_PUTENV 1")
+    if any(unit.uses_hush for unit in units):
+        flags.append("#define JBC_HUSH 1")
     if any(unit.uses_sleep for unit in units):
         flags.append("#define JBC_SLEEP 1")
     if any(unit.uses_sequential for unit in units):

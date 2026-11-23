@@ -1180,6 +1180,16 @@ checking. All 15,596 previous passes still pass. The 131 additional
 passes include AC.EXP.RECS.EOD, AA.SIMULATION.PROJECTION and
 CREATE.INAU.RECORDS.
 
-- [ ] Implement HUSH. The guide documents ON, OFF, an expression and a
+- [x] Implement HUSH. The guide documents ON, OFF, an expression and a
   bare toggle. Exercise terminal output suppression and restoration in
   a native fixture. HUSH is the first blocker in 20 T24 files.
+
+After HUSH, 15,741 of 17,336 candidates pass strict C99 checking. All
+15,727 previous passes still pass. Of the 20 files that stopped at HUSH,
+14 now pass and six reach later diagnostics.
+
+- [ ] Support saved lists with WRITELIST and READLIST. Verify that one
+  executable can save a named list and another can retrieve it, check
+  its element count and iterate it with READNEXT. Cover a missing list
+  and a failed write. READLIST is the first blocker in 20 files and
+  WRITELIST in 16.

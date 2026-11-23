@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -173,6 +173,45 @@ static void numeric_error(const char *file, int line, int column, const char *me
     fprintf(stderr, "%s:%d:%d: %s\n", file, line, column, message);
     exit(EXIT_FAILURE);
 }
+
+#ifdef JBC_HUSH
+#include <fcntl.h>
+#include <unistd.h>
+
+static int jbc_hushed;
+
+static void jbc_hush(const char *value, const char *file, int line, int column)
+{
+    static int saved_out, saved_err;
+    int enabled = !jbc_hushed;
+    if (value) {
+        struct decimal n;
+        if (!parse_decimal(value, &n))
+            numeric_error(file, line, column, "HUSH requires a numeric operand");
+        enabled = n.sign != 0;
+    }
+    if (enabled == jbc_hushed) return;
+    if (fflush(stdout) || fflush(stderr))
+        numeric_error(file, line, column, "cannot flush output for HUSH");
+    if (enabled) {
+        saved_out = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 3);
+        saved_err = fcntl(STDERR_FILENO, F_DUPFD_CLOEXEC, 3);
+        int sink = open("/dev/null", O_WRONLY);
+        if (saved_out < 0 || saved_err < 0 || sink < 0 ||
+            dup2(sink, STDOUT_FILENO) < 0 || dup2(sink, STDERR_FILENO) < 0)
+            numeric_error(file, line, column, "cannot suppress terminal output");
+        close(sink);
+    } else {
+        if (dup2(saved_err, STDERR_FILENO) < 0 || dup2(saved_out, STDOUT_FILENO) < 0)
+            numeric_error(file, line, column, "cannot restore terminal output");
+        close(saved_err);
+        close(saved_out);
+    }
+    jbc_hushed = enabled;
+}
+#else
+#define jbc_hushed 0
+#endif
 
 static int64_t integer(const char *s, const char *file, int line, int column)
 {
@@ -2914,12 +2953,12 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     struct timespec interval = {(time_t)(ticks / 10), (long)(ticks % 10) * 100000000L};
     if (interval.tv_sec != ticks / 10) numeric_error(file, line, column, "INPUT timeout too large");
     int echo_chars = 0, ended_line = 0, timed_out = 0;
-    if ((suppress_newline || limit_text || timeout_text) && isatty(STDIN_FILENO)) {
+    if ((jbc_hushed || suppress_newline || limit_text || timeout_text) && isatty(STDIN_FILENO)) {
         if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
             numeric_error(file, line, column, "cannot read input terminal settings");
         if (limit_text || timeout_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
-            echo_chars = (input_saved.c_lflag & ECHO) != 0;
-            if (echo_chars || (!suppress_newline && (input_saved.c_lflag & ECHONL))) {
+            echo_chars = !jbc_hushed && (input_saved.c_lflag & ECHO) != 0;
+            if (echo_chars || (!jbc_hushed && !suppress_newline && (input_saved.c_lflag & ECHONL))) {
                 const char *tty = ttyname(STDIN_FILENO);
                 if (!tty || (echo_fd = open(tty, O_WRONLY | O_NOCTTY)) < 0)
                     numeric_error(file, line, column, "cannot echo terminal input");
