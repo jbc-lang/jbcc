@@ -3996,6 +3996,23 @@ END
                     self.assertEqual(run.returncode, 0, run.stderr)
                     self.assertEqual(run.stdout, (sentence + b'\n') * (1 + direct_read) + first + b'\n')
 
+    def test_command_system_variable_uses_the_invocation_in_a_subroutine(self):
+        source = self.work / 'caller.b'
+        routine = self.work / 'command.b'
+        binary = self.work / 'invocation'
+        source.write_text("COMMAND = 'SHOW.COMMAND'\nCALL @COMMAND\n")
+        routine.write_text("""SUBROUTINE SHOW.COMMAND()
+CRT @COMMAND
+CRT '[':@COMMAND[' ',2,99]:']'
+""")
+        subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
+        for args, tail in (([], b''), (['first', 'two words', '', 'last'], b'first two words  last')):
+            with self.subTest(args=args):
+                run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True, timeout=5)
+                sentence = b'./invocation' + (b' ' + tail if args else b'')
+                self.assertEqual((run.returncode, run.stdout, run.stderr),
+                                 (0, sentence + b'\n[' + tail + b']\n', b''))
+
     def test_get_argument_preserves_argv_and_shares_cursor_across_routines(self):
         source = self.work / 'args.b'
         routine = self.work / 'next.b'

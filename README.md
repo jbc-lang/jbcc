@@ -625,6 +625,12 @@ joins all arguments with one space. Embedded spaces and empty arguments
 are preserved, and shell quoting is already removed by the time the
 program starts. [SENTENCE](https://jbc-lang.org/pages/sentence.html).
 
+jbcc provisionally gives `@COMMAND` the same invocation string. The
+reference compiler recognizes it as a system variable, and T24's
+JGLOBUS.DATABASE.COPY.JBASE extracts arguments from its second
+space-delimited field onward. In `CALL @COMMAND`, COMMAND is an
+ordinary variable that holds the target routine name.
+
 `GET (ARG.) Value` reads the next native command-line argument.
 `GET (ARG., n) Value` reads argument `n`, counting from 1 after the
 program name. Zero also reads the next argument. A successful read

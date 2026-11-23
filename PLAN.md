@@ -2465,6 +2465,21 @@ Both affected units now pass strict C99 checking in byte mode. The
 total is 17,063 of 17,336 candidates, including all 17,061 previous
 passes.
 
-- [ ] Investigate @COMMAND in JGLOBUS.DATABASE.COPY.JBASE. Check the
+- [x] Investigate @COMMAND in JGLOBUS.DATABASE.COPY.JBASE. Check the
   reference spelling and compare the program name and argument handling
   with @SENTENCE before adding it.
+
+The reference compiler recognizes COMMAND in its system-variable table
+and emits ATFUNC_BI(12). T24 extracts arguments from field two onward.
+jbcc provisionally uses the native @SENTENCE invocation for @COMMAND.
+The native test verifies startup initialization when only a subroutine
+reads it, the program name, empty and spaced arguments, and an ordinary
+variable named COMMAND used for an indirect call.
+
+JGLOBUS.DATABASE.COPY.JBASE now passes strict C99 checking in byte mode.
+The total is 17,064 of 17,336 candidates, including all 17,063 previous
+passes.
+
+- [ ] Implement SENTENCE() and SENTENCE(position). EB.CREATE.FILE
+  and EB.DELETE.FILE use the no-argument form. Verify program-name and
+  argument lookup against the guide and jbcc's command-line handling.

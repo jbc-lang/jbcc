@@ -693,7 +693,7 @@ class Compiler:
                 self.advance()
                 value = self.temporary(f"jbc_port_number({self.location(target)})")
                 return self.postfix(value, locate_source)
-            if self.word == 'SENTENCE':
+            if self.word in ('SENTENCE', 'COMMAND'):
                 self.needs_arguments = True
                 self.advance()
                 return self.postfix("jbc_command_line", locate_source)
