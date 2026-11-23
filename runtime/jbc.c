@@ -2286,17 +2286,27 @@ void jbc_clearselect(jbc_variable *slot, const char *file, int line, int column)
     assign_value(slot, "");
 }
 
+static void set_array_list(jbc_variable *slot, const char *value, int has_entries)
+{
+    assign_value(slot, value);
+    slot->array_list = 1;
+    if (!has_entries) slot->remove_offset = SIZE_MAX;
+}
+
+void jbc_formlist(const char *source, jbc_variable *list, jbc_variable *setting)
+{
+    set_array_list(list_slot(list), source, *source != '\0');
+    if (setting) assign_value(setting, jbc_dcount(source, "\376"));
+}
+
 int jbc_select(const char *source, jbc_variable *list, jbc_variable *setting)
 {
     int use_default = source == NULL;
     struct memory_file *f = file_for(use_default ? jbc_default_file.value : source);
     int success = f || !use_default;
     list = list_slot(list);
-    assign_value(list, f ? &f->list_token : (use_default ? "" : source));
-    if (!f && !use_default) {
-        list->array_list = 1;
-        if (!*source) list->remove_offset = SIZE_MAX;
-    }
+    if (!f && !use_default) set_array_list(list, source, *source != '\0');
+    else assign_value(list, f ? &f->list_token : "");
     if (setting) assign_value(setting, success ? "" : "128");
     return success;
 }
@@ -2385,13 +2395,6 @@ static const char *list_snapshot(const char *value, size_t offset, size_t *count
     return offset ? strcpy(allocate(strlen(tail)), tail) : tail;
 }
 
-static void set_saved_list(jbc_variable *slot, const char *value, size_t count)
-{
-    assign_value(slot, value);
-    slot->array_list = 1;
-    if (!count) slot->remove_offset = SIZE_MAX;
-}
-
 /* List names are arbitrary bytes. Encode every byte in one path component. */
 static const char *saved_list_path(const char *directory, const char *name)
 {
@@ -2414,7 +2417,7 @@ int jbc_writelist(const char *source, const char *name, jbc_variable *setting)
     const char *value = list_snapshot(source, 0, &count);
     int status = 0;
     if (!*name) {
-        set_saved_list(&select_lists[0], value, count);
+        set_array_list(&select_lists[0], value, count != 0);
     } else {
         const char *directory = getenv("JBCC_LIST_DIR");
         if (!directory || !*directory) status = 128;
@@ -2470,7 +2473,7 @@ int jbc_readlist(const char *name, jbc_variable *out, jbc_variable *setting)
             free(bytes);
         }
     }
-    if (found) set_saved_list(out, value, count);
+    if (found) set_array_list(out, value, count != 0);
     else assign_value(out, "");
     if (setting) assign_value(setting, size_value(count));
     return found;

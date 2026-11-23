@@ -1208,7 +1208,16 @@ checking. All 15,765 previous passes still pass. Four of the seven files
 blocked by these statements now pass, and three reach later diagnostics.
 All five GETLIST cases used the reference grammar’s omitted TO clause.
 
-- [ ] Implement FORMLIST to build a default, named or numbered select
+- [x] Implement FORMLIST to build a default, named or numbered select
   list from a dynamic array. Check the reference grammar’s optional
   SETTING clause and verify element order with READNEXT. FORMLIST is
   the first blocker in three files.
+
+After FORMLIST, 15,772 of 17,336 candidates pass strict C99 checking.
+All 15,769 previous passes still pass. E.CRYS.PORT.VAL, E.GET.SC.PERF.VB
+and E.GET.SC.VAL.VB now pass with the default-list form.
+
+- [ ] Implement SSELECT for open files. Verify that READNEXT visits
+  record IDs in ascending order when insertion order differs, and cover
+  the default file, explicit destinations and ON ERROR. File SSELECT
+  is the first blocker in 11 T24 units.

@@ -2015,6 +2015,13 @@ class Compiler:
         elif (self.word in ('READLIST', 'WRITELIST', 'GETLIST', 'DELETELIST') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.saved_list_statement()
+        elif (self.word == 'FORMLIST' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.advance()
+            source = self.temporary(self.expression())
+            dest = self.select_list('TO')
+            setting = self.file_setting()
+            self.emit(f"jbc_formlist({source}, {dest}, {setting});")
         elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             if self.word == 'SELECT':

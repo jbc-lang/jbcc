@@ -989,6 +989,13 @@ fields available to READNEXT. A standalone `//` line, as used in the
 guide’s CLEARSELECT example, is accepted as a separator. [SELECT](https://jbc-lang.org/pages/select.html),
 [READNEXT](https://jbc-lang.org/pages/readnext.html).
 
+`FORMLIST Keys TO L` starts a fresh cursor over the field-mark-separated
+entries in `Keys`. Omitting `TO` selects the default list. A number from
+0 through 10 selects a numbered list. The reference grammar also accepts
+`SETTING N`. Its runtime result is undocumented in the guide, so jbcc
+provisionally sets `N` to the entry count, including empty fields. An
+empty array has zero entries. [FORMLIST](https://jbc-lang.org/pages/formlist.html).
+
 For named saved lists, set `JBCC_LIST_DIR` to an existing directory shared
 by the executables. `WRITELIST Items TO Name` (also `ON Name`) atomically
 replaces the named list. jbcc stores field-mark-separated bytes and encodes
