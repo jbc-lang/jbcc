@@ -2591,7 +2591,25 @@ OFS.STORE.RETURN.DATA now passes strict C99 checking in byte mode.
 The total is 17,073 of 17,336 candidates, including all 17,072
 previous passes.
 
-- [ ] Investigate READ with SETTING in CONV.LD.TRANCHE.DET,
+- [x] Investigate READ with SETTING in CONV.LD.TRANCHE.DET,
   CONV.LOAN.SCHEDULES, UI.CREATE.CONTRACT.SCRIPT and UI.CREATE.SCRIPTS.RUN.
   Compare status assignment and error branches with the existing
   READU and MATREAD implementations.
+
+The reference compiler passes the setting variable to NEWREAD_IIBBBB
+and generates separate cases for success, absence and I/O errors.
+jbcc shares READU's record lookup and optional setting, and uses the
+existing file-read branch handling. The memory backend provisionally
+assigns an empty setting on success and 128 for an absent record or
+invalid descriptor. Native tests cover the default and explicit files,
+the record destination, status assignment before branching and
+diagnostics for an invalid setting target or a missing conditional arm.
+[jBASE READ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_READ.htm).
+
+All four affected units now pass strict C99 checking in byte mode.
+The total is 17,077 of 17,336 candidates, including all 17,073
+previous passes.
+
+- [ ] Investigate IOCTL command 100 in PATCH.RELEASE.RUN. Check the
+  reference signature, parameter assignment, and what the in-memory
+  backend can report for a record descriptor.

@@ -1771,18 +1771,20 @@ class Compiler:
             handle, key, field = key, field, self.expression()
         return handle, key, field
 
-    def readu_statement(self):
+    def read_record_statement(self):
         opening = self.current
         self.advance()
         target, out = self.record_read_destination()
         self.expect('FROM')
         handle, key = self.file_key()
         setting = self.file_setting()
-        if self.word == 'WAIT':
+        update = opening.word == 'READU'
+        if update and self.word == 'WAIT':
             self.error("READU WAIT requires a backend with timed locks")
-        status = f"readu_status_{self.temporaries}"
+        status = f"read_status_{self.temporaries}"
         self.temporaries += 1
-        self.emit(f"int {status} = jbc_readu({handle}, {key}, &{out}, {setting});")
+        function = 'jbc_readu' if update else 'jbc_read_record'
+        self.emit(f"int {status} = {function}({handle}, {key}, &{out}, {setting});")
         if target is not None:
             self.assigned.add(target)
         self.record_read_arms(opening, status)
@@ -1994,18 +1996,14 @@ class Compiler:
         self.emit(f'int {status} = jbc_open_file({section}, {name}, &{slot}, {scope}, {setting});')
         self.record_read_arms(opening, status)
 
-    def file_statement(self):
+    def write_statement(self):
         opening = self.current
         self.advance()
         op = opening.word
-        if op == 'READ':
-            target, out = self.record_read_destination()
-            self.expect('FROM')
-        else:
-            value = self.expression()
-            if self.word not in ('ON', 'TO'):
-                self.error(f"expected ON or TO after {op} value")
-            self.advance()
+        value = self.expression()
+        if self.word not in ('ON', 'TO'):
+            self.error(f"expected ON or TO after {op} value")
+        self.advance()
         if op in ('WRITEV', 'WRITEVU'):
             handle, key, field = self.field_file_key()
             setting = self.file_setting()
@@ -2015,19 +2013,13 @@ class Compiler:
             self.file_error_arm(opening, call, setting)
             return
         handle, key = self.file_key()
-        if op == 'READ':
-            call = f"jbc_read_record({handle}, {key}, &{out})"
-            if target is not None:
-                self.assigned.add(target)
+        setting = self.file_setting()
+        keep_lock = int(op == 'WRITEU')
+        call = f"jbc_write_record({handle}, {key}, {value}, {setting}, {keep_lock})"
+        if op == 'WRITE' and self.word in ('THEN', 'ELSE'):
             self.conditional_arms(opening, call)
         else:
-            setting = self.file_setting()
-            keep_lock = int(op == 'WRITEU')
-            call = f"jbc_write_record({handle}, {key}, {value}, {setting}, {keep_lock})"
-            if op == 'WRITE' and self.word in ('THEN', 'ELSE'):
-                self.conditional_arms(opening, call)
-            else:
-                self.file_error_arm(opening, call, setting)
+            self.file_error_arm(opening, call, setting)
 
     def case_statement(self):
         opening = self.current
@@ -2838,9 +2830,9 @@ class Compiler:
             self.temporaries += 1
             self.emit(f"int {status} = jbc_recordlocku({handle}, {key}, {setting});")
             self.record_read_arms(opening, status, setting)
-        elif (self.word == 'READU' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
-            self.readu_statement()
+        elif (self.word == 'READ' or (self.word == 'READU' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES)):
+            self.read_record_statement()
         elif (self.word in ('READV', 'READVU') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readv_statement()
@@ -2881,9 +2873,9 @@ class Compiler:
         elif (self.word == 'STATUS' and self.following.kind == 'name'
               and self.word not in self.matrices):
             self.status_statement()
-        elif (self.word in ('READ', 'WRITE') or (self.word in ('WRITEU', 'WRITEV', 'WRITEVU')
+        elif (self.word == 'WRITE' or (self.word in ('WRITEU', 'WRITEV', 'WRITEVU')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES)):
-            self.file_statement()
+            self.write_statement()
         elif self.word == 'BEGIN':
             self.case_statement()
         elif self.word == 'CALL':

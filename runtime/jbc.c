@@ -3814,17 +3814,14 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
     return file_succeeded(0);
 }
 
-int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
+int jbc_read_record(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
 {
     struct memory_file *f = file_for(handle);
     struct memory_record *r = f ? *record_link(f, key) : NULL;
-    if (!r) {
-        assign_value(out, "");
-        return file_succeeded(128);
-    }
-    assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
-    count_userstat(&record_read_count);
-    return file_succeeded(0);
+    assign_value(out, r ? strcpy(allocate(strlen(r->value)), r->value) : "");
+    if (setting) assign_value(setting, r ? "" : "128");
+    if (r) count_userstat(&record_read_count);
+    return file_result(r ? 0 : 128);
 }
 
 const char *jbc_recordlocked(const char *handle, const char *key)
@@ -3869,9 +3866,7 @@ int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variab
     if (!f) assign_value(out, "");
     int status = lock_for_update(f, key, setting);
     if (status) return file_result(status);
-    int found = jbc_read_record(handle, key, out);
-    if (setting) assign_value(setting, found ? "" : "128");
-    return file_result(found ? 0 : 128);
+    return jbc_read_record(handle, key, out, setting);
 }
 
 int jbc_recordlocku(const char *handle, const char *key, jbc_variable *setting)

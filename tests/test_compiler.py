@@ -3244,6 +3244,43 @@ READ R FROM F, 'record' THEN ABORT ELSE CRT 'cleared'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'-2:-2\n-2\nretained\n-2\n32768:32768\n128:128\n[] 0\ncleared\n', b''))
 
+    def test_read_setting_uses_record_status_and_branch_order(self):
+        source = self.work / 'read-setting.b'
+        source.write_text("""OPEN 'Sample' TO F ELSE ABORT
+OPEN 'Sample' ELSE ABORT
+WRITE 'value' ON 'key'
+Code = 'old'
+READ R FROM F, 'key' SETTING Code ON ERROR ABORT THEN
+    CRT R, '[':Code:']', STATUS(), RECORDLOCKED(F, 'key')
+END ELSE ABORT
+READ @RECORD FROM 'key' SETTING Code ELSE ABORT
+CRT @RECORD, '[':Code:']', STATUS()
+READ R FROM 'missing' SETTING Code ON ERROR ABORT THEN ABORT ELSE
+    CRT '[':R:']', Code, STATUS()
+END
+Invalid = ''
+READ R FROM Invalid, 'key' SETTING Code ON ERROR ABORT THEN ABORT ELSE
+    CRT '[':R:']', Code, STATUS()
+END
+READ R FROM 'key' ON ERROR ABORT THEN CRT R, STATUS()
+""")
+        result = self.run_native(source, options=['--memory-file', 'Sample'])
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'value\t[]\t0\t0\nvalue\t[]\t0\n[]\t128\t128\n'
+                             b'[]\t128\t128\nvalue\t0\n', b''))
+
+    def test_read_setting_requires_destination_and_conditional_arm(self):
+        source = self.work / 'read-setting.b'
+        for statement, diagnostic in (
+            ("READ R FROM 'key' SETTING 'x' ELSE ABORT", ":1:27: expected a name"),
+            ("READ R FROM 'key' SETTING Code", ':1:31: expected THEN or ELSE'),
+        ):
+            with self.subTest(statement=statement):
+                source.write_text(statement + '\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}{diagnostic}', result.stderr)
+
     def test_readu(self):
         run = self.run_native(ROOT / 'tests/io/readu.b', ROOT / 'tests/io/reopen.b',
                               options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])

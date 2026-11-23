@@ -1655,12 +1655,18 @@ outside this implementation. [STATUS function](https://jbc-lang.org/pages/status
 READ and WRITE accept an explicit descriptor and key, or just a key for
 the default file. For example, after `OPENPATH path ELSE STOP`,
 `WRITE 'Ada' ON '1'` and `READ name FROM '1' ELSE STOP` use the same file.
-OPEN and READ require THEN or ELSE. WRITE accepts SETTING and ON ERROR
-as well as its existing THEN and ELSE forms. In the in-memory backend,
-a failed OPEN or READ clears its destination. WRITE sets its optional
-status to 128 for an invalid descriptor or 32768 for a simulated foreign
-lock. On success it releases an owned update lock and sets the status to
-the empty string, the same provisional success status as WRITEU.
+OPEN and READ require THEN or ELSE. READ accepts optional SETTING
+and ON ERROR. The memory backend provisionally sets the READ status
+to the empty string on success. A missing record or invalid descriptor
+clears the record destination, sets the status to 128 and takes ELSE.
+Other incremental file errors are routed to ON ERROR when supplied.
+A failed OPEN also clears its destination.
+
+WRITE accepts SETTING and ON ERROR as well as THEN and ELSE. It sets
+its optional status to 128 for an invalid descriptor or 32768 for a
+simulated foreign lock. On success it releases an owned update lock
+and sets the status to the empty string, the same provisional success
+status as WRITEU.
 A failed WRITE with no status or branch terminates at the source location.
 Stored records survive reassignment and loop temporary cleanup.
 [OPEN](https://jbc-lang.org/pages/open.html), [READ](https://jbc-lang.org/pages/read.html),
