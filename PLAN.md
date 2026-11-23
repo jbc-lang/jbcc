@@ -2006,6 +2006,15 @@ passes still pass. Native tests cover replacement and concatenation on
 scalars, matrix elements and dynamic-array fields, including empty and
 oversized selections. The reference generator treats the index as a length.
 
-- [ ] Implement BITXOR. Check operand coercion, empty values and the
+- [x] Implement BITXOR. Check operand coercion, empty values and the
   integer width against the guide, then verify a native bitwise
   calculation. The targeted unit reaches BITXOR after the assignment.
+
+After BITXOR, 16,378 of 17,336 candidates pass strict C99 checking.
+DE.SWIFT.LINE.HANDLER now passes and all previous passes still pass.
+Native tests cover the guide example, fractional and empty operands,
+signed 32-bit results, wrapping and diagnostics.
+
+- [ ] Implement COL1() and COL2() for FIELD positions. Verify the guide
+  examples and check how positions reset on a missing field. Two T24
+  units use COL2() inside substring assignment.

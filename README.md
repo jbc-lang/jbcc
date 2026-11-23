@@ -173,6 +173,13 @@ rejection sampling for bounds that do not evenly divide the sample range.
 The guide leaves the zero case unspecified. jbcc provisionally reports a
 runtime error at the call to `RND(0)`. [RND](https://jbc-lang.org/pages/rnd.html).
 
+`BITXOR(left, right)` truncates numeric operands toward zero and returns
+an empty value if either operand is empty. The guide specifies a 32-bit
+two's-complement operation. jbcc takes the low 32 bits of each truncated
+operand and returns the result as a signed integer on every target.
+Nonempty, nonnumeric operands produce a source-located error.
+[BITXOR](https://jbc-lang.org/pages/bitxor.html).
+
 ABS returns the magnitude of a numeric expression. For example,
 `ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
 preserving their significant digits, and truncates the result when an

@@ -1914,6 +1914,37 @@ CRT 'after'
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: RND {diagnostic}'.encode(), run.stderr)
 
+    def test_bitxor_uses_signed_32_bit_words(self):
+        source = self.work / 'bitxor.b'
+        source.write_text("""CRT BITXOR(6, 12)
+CRT BITXOR('6.9', 12.9)
+CRT BITXOR(-1.9, 5)
+CRT BITXOR(2147483647, -1)
+CRT BITXOR(2147483648, 1)
+CRT BITXOR(4294967296, 7)
+CRT BITXOR('18446744073709551617', 3)
+CRT BITXOR(-4294967297, 0)
+CRT '[':BITXOR('', 5):'] [':BITXOR('other', ''):']'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'10\n10\n-6\n-2147483648\n-2147483647\n7\n2\n-1\n[] []\n', b''))
+
+    def test_bitxor_diagnostics(self):
+        source = self.work / 'bitxor.b'
+        for operands in ("'bad', 1", "1, 'bad'"):
+            with self.subTest(operands=operands):
+                source.write_text(f"CRT BITXOR({operands})\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:5: BITXOR requires numeric operands'.encode(),
+                              result.stderr)
+
+        source.write_text('CRT BITXOR(1)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
+
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'
         for name, args in [('MOD', "'x', 0"), ('MOD', "1, 'x'"), ('REM', "1, 'x'")]:

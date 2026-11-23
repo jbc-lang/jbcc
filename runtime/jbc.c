@@ -3896,6 +3896,28 @@ const char *jbc_int(const char *value, const char *file, int line, int column)
     return out;
 }
 
+static uint32_t bitxor_operand(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n))
+        numeric_error(file, line, column, "BITXOR requires numeric operands");
+    uint32_t bits = 0;
+    for (size_t i = 0; i < n.digits; ++i)
+        bits = (uint32_t)(UINT64_C(10) * bits + (unsigned)(n.whole[i] - '0'));
+    return n.sign < 0 ? (uint32_t)(0u - bits) : bits;
+}
+
+const char *jbc_bitxor(const char *left, const char *right, const char *file, int line, int column)
+{
+    if (!*left || !*right) return "";
+    uint32_t bits = bitxor_operand(left, file, line, column) ^
+                    bitxor_operand(right, file, line, column);
+    int64_t result = bits <= INT32_MAX ? (int64_t)bits : (int64_t)bits - (INT64_C(1) << 32);
+    char *out = allocate(11);
+    snprintf(out, 12, "%" PRId64, result);
+    return out;
+}
+
 const char *jbc_str(const char *text, const char *count, const char *file, int line, int column)
 {
     int64_t repetitions = truncated(count, file, line, column);
