@@ -1190,6 +1190,15 @@ unhandled failure without `SETTING` produces a runtime diagnostic.
 expression. On exhaustion jbcc clears the destination and returns false.
 For ordinary keys the optional multi-value position is zero.
 
+`@ID` holds the current record ID and is shared across routines.
+`@ID = Key` sets it explicitly, as in the guide's ITYPE example.
+`READNEXT @ID` writes the next key in either statement or expression
+form. A regular READNEXT destination leaves the context unchanged.
+jbcc starts `@ID` as an empty string and clears it when a
+`READNEXT @ID` reaches the end of its list. These two empty-value rules
+are provisional pending a reference run. [ITYPE](https://jbc-lang.org/pages/itype.html),
+[jBASE SSELECT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SSELECT.htm).
+
 With an explicit string or dynamic array, SELECT makes a list of its fields
 in source order. Value and subvalue marks stay inside their fields. Leading,
 interior and trailing empty fields are entries. jbcc treats a completely

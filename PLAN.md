@@ -1494,7 +1494,17 @@ now pass and three reach later diagnostics. Native tests use WRITELIST
 to populate the default external list and check count persistence
 through list traversal, clearing and subroutine calls.
 
-- [ ] Implement `@ID` as a record-context variable. The reference
+- [x] Implement `@ID` as a record-context variable. The reference
   compiler accepts assignment to it. Check its initial value and
   which statements can write to it, including `READNEXT @ID`.
   Unsupported `@ID` is the first diagnostic in eight T24 files.
+
+After `@ID`, 16,248 of 17,336 candidates pass strict C99 checking.
+All 16,240 previous passes still pass, and all eight targeted files
+now pass. Native tests cover explicit assignment, READNEXT in statements
+and expressions, list exhaustion and sharing across routine calls.
+
+- [ ] Implement COMPARE with default, left and right justification.
+  Check string ordering, differing lengths, and the guide's TAFC/TAFJ
+  discrepancy for right justification. Seven T24 files first stop on
+  a line containing COMPARE.

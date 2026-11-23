@@ -223,6 +223,20 @@ WRITELIST 'other' ON 'named'
         self.assertEqual(run.stdout, b'1:2\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_record_id_survives_loop_collection_and_return(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'select.id.b'
+        main.write_text('CALL SELECT.ID()\nCRT @ID\n')
+        routine.write_text("""SUBROUTINE SELECT.ID()
+FOR I = 1 TO 4
+    @ID = 'key-':I
+NEXT I
+""")
+        run = self.run_native(main, routine)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'key-4\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_deletelist_requires_named_store(self):
         source = self.work / 'delete.b'
         source.write_text("DELETELIST 'batch'\n")
@@ -291,6 +305,8 @@ WRITELIST 'other' ON 'named'
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ('@ID += 1\n', ":1:5: expected '='"),
+                                  ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),

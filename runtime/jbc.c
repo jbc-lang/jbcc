@@ -428,6 +428,7 @@ typedef struct {
 } jbc_variable;
 
 static jbc_variable select_lists[12];
+static jbc_variable jbc_record_id = {"", 0, 0};
 
 typedef struct {
     jbc_variable *values;
@@ -554,6 +555,7 @@ static void free_storages(void)
 
 static int held_in_storage(const char *value)
 {
+    if (jbc_record_id.value == value) return 1;
     for (size_t i = 0; i < sizeof select_lists / sizeof select_lists[0]; ++i)
         if (select_lists[i].value == value) return 1;
     for (struct jbc_slots *s = storages; s; s = s->next)

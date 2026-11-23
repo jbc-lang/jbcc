@@ -486,6 +486,9 @@ class Compiler:
             if self.word == 'SELECTED':
                 self.advance()
                 return self.postfix(self.temporary("jbc_selected()"), locate_source)
+            if self.word == 'ID':
+                self.advance()
+                return self.postfix(self.temporary("jbc_record_id.value"), locate_source)
             if self.word == 'WHO':
                 self.uses_session = True
                 self.advance()
@@ -552,7 +555,7 @@ class Compiler:
                 args = f"{matrix.rank}, {matrix.limits}"
             self.expect(')')
             return self.postfix(self.temporary(f"jbc_inmat({args})"), locate_source)
-        elif word == 'READNEXT' and self.following.kind == 'name':
+        elif word == 'READNEXT' and (self.following.kind == 'name' or self.following.word == '@'):
             call = self.readnext_call()
             return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
         elif word in ('ASSIGNED', 'UNASSIGNED') and self.following.word == '(':
@@ -1393,8 +1396,14 @@ class Compiler:
     def readnext_call(self):
         opening = self.current
         self.advance()
-        key = self.identifier()
-        out = self.variable_slot(key)
+        key = None
+        if self.word == '@':
+            self.advance()
+            self.expect('ID')
+            out = 'jbc_record_id'
+        else:
+            key = self.identifier()
+            out = self.variable_slot(key)
         mv = 'NULL'
         if self.word == ',':
             self.advance()
@@ -1403,7 +1412,8 @@ class Compiler:
             self.assigned.add(target.word)
         source = self.select_list('FROM')
         setting = self.file_setting()
-        self.assigned.add(key.word)
+        if key:
+            self.assigned.add(key.word)
         return f"jbc_readnext({source}, &{out}, {mv}, {setting}, {self.location(opening)})"
 
     def close_statement(self):
@@ -2290,6 +2300,11 @@ class Compiler:
             self.printer_statement()
         elif self.word in ('CRT', 'PRINT'):
             self.print_statement()
+        elif self.word == '@' and self.following.word == 'ID':
+            self.advance()
+            self.advance()
+            self.expect('=')
+            self.emit(f"assign_value(&jbc_record_id, {self.expression()});")
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
