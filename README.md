@@ -400,6 +400,14 @@ matches jbcc provisionally uses the first matching alternative and the
 shortest possible final component, applying the same rule to the prefix.
 [MATCHFIELD](https://jbc-lang.org/pages/matchfield.html).
 
+The reference grammar also accepts a format mask after its value, as in
+`Total "10R"` or `Total Masks<2>`. This syntax uses the same masks as
+`FMT(value, mask)`. Its precedence is below arithmetic and above
+concatenation, so `"sum=":2 + 3 "R%3"` produces `sum=005`. jbcc resolves
+bare mask names through known variables and matrix elements. Clause
+keywords remain delimiters in this position. Use explicit FMT when a
+mask variable shares a clause keyword.
+
 The initial `FMT(value, mask)` implementation supports byte-width masks
 such as `35L` and `3'0'R`, including a single fill byte in single or
 double quotes. Overlong input wraps into padded blocks separated by

@@ -1276,6 +1276,17 @@ index, and COLLATERAL.PARAMETER, which uses a conditional in concatenation.
 The three ARCHIVES files blocked in I_GOSUB.MSK now reach its format mask
 expression on line 307.
 
-- [ ] Support the reference grammar's implicit format expression, as in
+- [x] Support the reference grammar's implicit format expression, as in
   `Value "10R"` and `Value Mask<2>`. Reuse FMT and test precedence,
   keyword boundaries, and literal and variable masks.
+
+After implicit formatting, 16,010 of 17,336 candidates pass strict C99
+checking. All 15,877 previous passes still pass. The 133 additional
+passes include ARCHIVES.FIELD.RUN and ARCHIVES.LIVE.TO.HIST.RUN.
+ARCHIVES.UPDATE.RUN advances to a duplicate declaration.
+
+- [ ] Support message operands on STOP and implement ABORT. Check the
+  reference grammar and guide, define how standalone executables render
+  message arguments, and verify termination and exit status from main
+  programs and called routines. STOP operands are the first blocker in
+  47 files and ABORT in ten.

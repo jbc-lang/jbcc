@@ -25,7 +25,8 @@ COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
-PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 6, "-": 6, "*": 7, "/": 7, "^": 8, "**": 8})
+PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9})
+FORMAT_PRECEDENCE = 6  # Identifier precedence in the reference grammar.
 
 
 BUILTINS = {"PUTENV": (1,), "LN": (1,), "EXP": (1,), "SQRT": (1,), "PWR": (2,), "RND": (1,), "CATS": (2,), "NES": (2,), "EQS": (2,), "SORT": (1,), "MATCHFIELD": (3,), "RECORDLOCKED": (2,), "ALPHA": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "DELETE": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ICONV": (2,), "OCONV": (2,), "TRIM": (1, 2, 3), "TRIMS": (1,), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "NEG": (1,), "MOD": (2,), "REM": (2,), "SUM": (1,), "SUMMATION": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "CHAR": (1,), "LEN": (1,), "LEFT": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "COUNT": (2,), "DCOUNT": (2,), "NOT": (1,)}
@@ -44,6 +45,11 @@ SYSTEM_CONSTANTS = {
 
 LOOP_BOUNDARIES = {'WHILE', 'UNTIL', 'REPEAT'}
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
+FORMAT_BOUNDARIES = OUTPUT_END | {
+    "APPEND", "BEFORE", "BY", "CAPTURING", "CASE", "DO", "END", "ERROR", "FOR", "FROM",
+    "GO", "GOSUB", "GOTO", "IN", "LOCKED", "ON", "READONLY", "RETURNING", "SETTING",
+    "STEP", "THEN", "TO", "USING", "WAIT", "WITH",
+}
 
 
 class Token(NamedTuple):
@@ -691,17 +697,33 @@ class Compiler:
     def expression(self, minimum=1, colon_stops=(), locate_source=False):
         return self.expression_tail(self.primary(locate_source), minimum, colon_stops, locate_source)
 
+    def is_format_mask(self):
+        if self.current.kind in ('string', 'number'):
+            return True
+        if self.current.kind != 'name' or self.word in FORMAT_BOUNDARIES:
+            return False
+        if self.following.word == '(':
+            return self.word in self.matrices
+        return self.word in self.names
+
     def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False):
-        while self.current.kind not in ('array_open', 'array_close') and PRECEDENCE.get(self.word, 0) >= minimum:
-            if self.word == ':' and self.following.word in colon_stops:
-                break
+        while self.current.kind not in ('array_open', 'array_close'):
             operator = self.word
             token = self.current
+            precedence = PRECEDENCE.get(operator)
+            if precedence is None:
+                if minimum > FORMAT_PRECEDENCE or not self.is_format_mask():
+                    break
+                mask = self.primary()
+                left = self.temporary(f"jbc_fmt({left}, {mask}, {self.location(token)})")
+                continue
+            if precedence < minimum or (operator == ':' and self.following.word in colon_stops):
+                break
             self.advance()
             if operator in LOGICAL:
                 left = self.logical_expression(left, operator, colon_stops, locate_source)
                 continue
-            right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source)
+            right = self.expression(precedence + 1, colon_stops, locate_source)
             if operator in COMPARISONS:
                 call = f'(jbc_compare({left}, {right}, jbc_precision) {COMPARISONS[operator]} 0 ? "1" : "0")'
             elif operator in ('MATCH', 'MATCHES'):
