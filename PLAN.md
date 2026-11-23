@@ -2063,7 +2063,16 @@ candidates pass strict C99 checking. Native tests cover prefix and postfix
 results, left-to-right operand evaluation, short-circuiting and matrix
 elements used as call arguments.
 
-- [ ] Investigate spaced concatenating assignment (`: =`). The
+- [x] Accept spaced concatenating assignment (`: =`). The
   reference lexer spells this operator `:=`, while EB.GET.RECORD.XML
-  uses the spaced form. Check how to recognize it without changing
-  expression concatenation and comparison.
+  uses the spaced form. Native tests cover spaces and tabs, scalar and
+  indexed targets, labels, and ordinary concatenation and comparison.
+
+After spaced concatenating assignment, 16,412 of 17,336 candidates
+pass strict C99 checking. Sixteen new units pass, including
+EB.GET.RECORD.XML, and all previous passes still pass.
+
+- [ ] Investigate the LOCKED clause on CLEARFILE. The reference parser
+  accepts it, and two T24 units stop there. Check how the existing
+  in-memory backend handles contention and verify that locked files
+  retain their records.

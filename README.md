@@ -55,8 +55,9 @@ angle brackets within an expression and checks for intervening logical
 operators. jbcc keeps a spaced comparison chain such as `A < B > C`
 when an operand follows the closing bracket. Before a binary operator,
 `R <1> + 3` reads field one and adds three. Use `LT` and `GT` to make
-ambiguous comparisons explicit. Concatenating assignment uses the single
-token `:=`.
+ambiguous comparisons explicit. The reference lexer spells concatenating
+assignment `:=`. jbcc also accepts spaces or tabs before the equals sign
+in this operator, following usage in T24.
 Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO, GOSUB or RETURN TO check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line. These markers

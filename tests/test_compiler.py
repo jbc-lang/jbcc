@@ -1030,7 +1030,7 @@ NEXT I
                                   ('PROGRAM\n', ':1:8:'),
                                   ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
                                   ('PROGRAM one two\n', ':1:13:'),
-                                  ('N = 1\nN : = 2\n', ":2:1: unsupported statement 'N'"),
+                                  ('N = 1\nN :\n= 2\n', ":2:1: unsupported statement 'N'"),
                                   ('N = 1\nN +\n= 2\n', ":2:1: unsupported statement 'N'"),
                                   ('GO = 1\nIF GO THEN CRT Missing\n', ':2:16: unknown variable'),
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
@@ -2203,6 +2203,31 @@ CRT Old:':':New:':':Current
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:6: integer addition overflow'.encode(), result.stderr)
+
+    def test_spaced_concatenating_assignment(self):
+        source = self.work / 'append.b'
+        source.write_text("""Text = 'a'
+add: Text : = 'b'
+IF Text = 'ab' THEN Text :\t= 'c' ELSE ABORT
+PROGRAM = 'p'
+PROGRAM : = 'q'
+R = 'first':@FM:'second'
+R<2> : = '!'
+DIM A(1)
+A(1) = 'left'
+A(1)[1] : = '+'
+CRT Text:':':PROGRAM:':':R<2>:':':A(1)
+CRT ('a' : 'b') = 'ab'
+CRT ': ='
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'abc:pq:second!:left+\n1\n: =\n', b''))
+
+        source.write_text("Text : = 'b'\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:1: unassigned variable 'Text'", result.stderr)
 
     def test_compound_division_by_zero(self):
         source = self.work / 'division.b'
