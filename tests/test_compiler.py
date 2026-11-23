@@ -297,6 +297,8 @@ RETURN
                                   ("CRT RIGHT('x',1,2)\n", ":1:5: wrong argument count for 'RIGHT'"),
                                   ("CRT DELETE('a')\n", ":1:5: wrong argument count for 'DELETE'"),
                                   ("CRT DELETE('a',1,2,3,4)\n", ":1:5: wrong argument count for 'DELETE'"),
+                                  ("CRT EXTRACT('a')\n", ":1:5: wrong argument count for 'EXTRACT'"),
+                                  ("CRT EXTRACT('a',1,2,3,4)\n", ":1:5: wrong argument count for 'EXTRACT'"),
                                   ("CRT MINIMUM()\n", ":1:5: wrong argument count for 'MINIMUM'"),
                                   ("CRT MAXIMUM(1, 2)\n", ":1:5: wrong argument count for 'MAXIMUM'"),
                                   ("CRT SUBSTRINGS('x', 1)\n", ":1:5: wrong argument count for 'SUBSTRINGS'"),
@@ -395,6 +397,13 @@ RETURN
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: DELETE requires numeric indices'.encode(), run.stderr)
+
+    def test_extract_rejects_nonnumeric_index(self):
+        source = self.work / 'extract.b'
+        source.write_text("CRT EXTRACT('a', 99, 'bad', 0)\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: EXTRACT requires numeric indices'.encode(), run.stderr)
 
     def test_del_diagnostics(self):
         source = self.work / 'del.b'

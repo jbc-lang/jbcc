@@ -1397,7 +1397,17 @@ All 16,155 previous passes still pass, and all nine files first blocked
 on a line containing DIV now pass. Native tests cover quotients, explicit
 PRECISION, empty operands, and source-located errors.
 
-- [ ] Implement EXTRACT with two to four arguments using the same
+- [x] Implement EXTRACT with two to four arguments using the same
   dynamic-array access as angle brackets. Six T24 files first stop on
   a line containing EXTRACT. Test field, value and subvalue selection,
   missing components and source-located diagnostics for invalid indices.
+
+After EXTRACT, 16,170 of 17,336 candidates pass strict C99 checking.
+All 16,164 previous passes still pass, and all six files first blocked
+on a line containing EXTRACT now pass. Native tests cover component
+selection, trailing zero indices, missing components and diagnostics.
+
+- [ ] Implement ADDS for element-wise addition. Reuse the runtime's
+  array cursor and arithmetic. Check mark alignment, missing versus
+  empty elements, PRECISION and scalar REUSE. Six T24 files first stop
+  on a line containing ADDS.

@@ -645,6 +645,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
   and can separate text within a subvalue. The reference compiler also defines
   `@SVM` as an alias for `@SM` (byte 252) and `@IM` and `@RM` as names for
   byte 255. [Dynamic arrays](https://jbc-lang.org/pages/dynamic_arrays.html)
+- `EXTRACT(R, field[, value[, subvalue]])` reads a component using the
+  same field, value and subvalue marks as angle brackets. The guide
+  specifies numeric indices and an empty result for a negative field.
+  Following T24 usage, trailing zero value and subvalue indices omit
+  those levels. jbcc provisionally truncates fractions toward zero and
+  returns an empty string for other nonpositive or missing positions.
+  [EXTRACT](https://jbc-lang.org/pages/extract.html)
 - `INS X BEFORE R<field[,value[,subvalue]]>` inserts X at the selected
   level, shifting later siblings and padding missing positions with empty
   components. The first negative index appends at its level and subsequent

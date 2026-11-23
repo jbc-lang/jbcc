@@ -764,6 +764,23 @@ const char *jbc_array(const char *s, const char **indices, int count, const char
     return array_part(s, strlen(s), index, count, 0, replacement, 0);
 }
 
+const char *jbc_extract(const char *text, const char **indices, int count,
+                        const char *file, int line, int column)
+{
+    int depth = 1;
+    int64_t index[3];
+    for (int i = 0; i < count; ++i) {
+        struct decimal number;
+        if (!parse_decimal(indices[i], &number))
+            numeric_error(file, line, column, "EXTRACT requires numeric indices");
+        if (number.sign) depth = i + 1;
+        /* Oversized positions select a component past the end of the array. */
+        uintmax_t position = number.sign > 0 ? strtoumax(number.whole, NULL, 10) : 0;
+        index[i] = position > INT64_MAX ? INT64_MAX : (int64_t)position;
+    }
+    return array_part(text, strlen(text), index, depth, 0, NULL, 0);
+}
+
 const char *jbc_read(const char *value, const char *name, const char *file, int line, int column)
 {
     if (!value) {
