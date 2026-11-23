@@ -2421,6 +2421,10 @@ class Compiler:
             key = self.expression()
             self.expect(')')
             self.emit(f"jbc_assign_system({value}, {key}, {self.location(opening)});")
+        elif (self.word == 'CLEARDATA' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.advance()
+            self.emit("jbc_cleardata();")
         elif (self.word == 'DATA' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.advance()

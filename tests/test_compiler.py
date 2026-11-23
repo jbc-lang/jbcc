@@ -506,6 +506,27 @@ WRITELIST 'other' ON 'named'
         self.assertEqual(run.stdout, b'1:2\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_cleardata_discards_the_queue_and_preserves_standard_input(self):
+        source = self.work / 'cleardata.b'
+        source.write_text("""PROMPT ''
+CLEARDATA
+DATA 'first':@FM:'discard this', 'discard this too'
+INPUT First
+IF First = 'first' THEN CLEARDATA
+INPUT FromPipe
+DATA 'fresh'
+INPUT FromData
+CLEARDATA = 'variable'
+CRT First:':':FromPipe:':':FromData:':':CLEARDATA
+""")
+        binary = self.work / 'cleardata'
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        self.c, '-o', binary], check=True)
+        result = subprocess.run([binary], input=b'pipe\n', capture_output=True, timeout=5)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'first:pipe:fresh:variable\n', b''))
+
     def test_record_id_survives_loop_collection_and_return(self):
         main = self.work / 'main.b'
         routine = self.work / 'select.id.b'

@@ -222,6 +222,9 @@ PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html)
 split an expression into separate lines, including empty fields.
 INPUT uses the terminal or stdin when the queue is exhausted. A length
 limit can leave queued bytes for the next INPUT.
+`CLEARDATA` discards all remaining queued bytes, including a partially
+consumed DATA entry. Later INPUT can still read standard input or
+newly queued data. [CLEARDATA](https://jbc-lang.org/pages/cleardata.html).
 
 With queued DATA, EXECUTE and PERFORM give the child those lines as its
 stdin. The child sees EOF after the queued lines and the parent resumes

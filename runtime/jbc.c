@@ -77,6 +77,11 @@ static void drop_input_chunk(void)
     free(chunk);
 }
 
+void jbc_cleardata(void)
+{
+    while (input_data) drop_input_chunk();
+}
+
 void jbc_data(const char *text)
 {
     size_t length = strlen(text);
@@ -101,7 +106,7 @@ void jbc_finish(void)
 #ifdef JBC_REPORT
     finish_reports();
 #endif
-    while (input_data) drop_input_chunk();
+    jbc_cleardata();
     free_storages();
     while (buffers) {
         struct jbc_buffer *next = buffers->next;
@@ -4210,7 +4215,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     }
     if (input) {
         fclose(input);
-        while (input_data) drop_input_chunk();
+        jbc_cleardata();
     }
 
     const char *captured = "", *messages = "", *error = NULL;
