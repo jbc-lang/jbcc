@@ -2237,6 +2237,14 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
+        elif (self.word == 'DATA' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.advance()
+            while True:
+                self.emit(f"jbc_data({self.expression()});")
+                if self.word != ',':
+                    break
+                self.advance()
         elif (self.word in ('EXECUTE', 'PERFORM') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current

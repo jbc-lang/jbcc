@@ -26,6 +26,15 @@ static struct jbc_buffer *buffers;
 static const char *jbc_command_line = "";
 static const char *jbc_input_prompt = "?";
 
+struct input_chunk {
+    struct input_chunk *next;
+    size_t offset, length;
+    unsigned char bytes[];
+};
+
+static struct input_chunk *input_data;
+static struct input_chunk **input_data_tail = &input_data;
+
 static void fail(const char *message)
 {
     fprintf(stderr, "jbcc runtime: %s\n", message);
@@ -49,8 +58,35 @@ static void free_storages(void);
 static int release_sequential(const char *token);
 #endif
 
+static void drop_input_chunk(void)
+{
+    struct input_chunk *chunk = input_data;
+    input_data = chunk->next;
+    if (!input_data) input_data_tail = &input_data;
+    free(chunk);
+}
+
+void jbc_data(const char *text)
+{
+    size_t length = strlen(text);
+    if (length >= SIZE_MAX - sizeof(struct input_chunk)) fail("DATA input is too large");
+    struct input_chunk *chunk = malloc(sizeof *chunk + length + 1);
+    if (!chunk) fail("out of memory");
+    chunk->next = NULL;
+    chunk->offset = 0;
+    chunk->length = length + 1;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        chunk->bytes[i] = c == 254 ? '\n' : c;
+    }
+    chunk->bytes[length] = '\n';
+    *input_data_tail = chunk;
+    input_data_tail = &chunk->next;
+}
+
 void jbc_finish(void)
 {
+    while (input_data) drop_input_chunk();
     free_storages();
     while (buffers) {
         struct jbc_buffer *next = buffers->next;
@@ -3453,6 +3489,22 @@ static void redirect_command_fd(int fd, int target)
     }
 }
 
+static FILE *command_input(void)
+{
+    FILE *stream = tmpfile();
+    if (!stream) return NULL;
+    for (const struct input_chunk *chunk = input_data; chunk; chunk = chunk->next) {
+        size_t length = chunk->length - chunk->offset;
+        if (fwrite(chunk->bytes + chunk->offset, 1, length, stream) != length) {
+            fclose(stream);
+            return NULL;
+        }
+    }
+    if (!fseek(stream, 0, SEEK_SET)) return stream;
+    fclose(stream);
+    return NULL;
+}
+
 void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *returning,
                  const char *file, int line, int column)
 {
@@ -3465,13 +3517,17 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         numeric_error(file, line, column, "field-mark-separated EXECUTE commands are unsupported");
     if (fflush(stdout) == EOF || fflush(stderr) == EOF)
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
-    if (!capture && !returning) {
+    if (!capture && !returning && !input_data) {
         int status = system(command);
         if (status == -1) numeric_error(file, line, column, "cannot execute command");
         last_command_code = command_exit_code(status);
         return;
     }
 
+    /* Spool stdin to let a child read any amount or exit without reading. */
+    FILE *input = input_data ? command_input() : NULL;
+    if (input_data && !input) numeric_error(file, line, column, "cannot prepare queued command input");
+    int input_fd = input ? fileno(input) : -1;
     int output_pipe[2];
     FILE *output = NULL;
     if (capture) {
@@ -3485,6 +3541,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     pid_t child = fork();
     if (child == -1) numeric_error(file, line, column, "cannot start command");
     if (!child) {
+        if (input_fd != -1) redirect_command_fd(input_fd, STDIN_FILENO);
         if (capture) {
             close(output_pipe[0]);
             redirect_command_fd(output_pipe[1], STDOUT_FILENO);
@@ -3492,6 +3549,10 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         if (returning) redirect_command_fd(error_fd, STDERR_FILENO);
         execl("/bin/sh", "sh", "-c", command, (char *)NULL);
         _exit(127);
+    }
+    if (input) {
+        fclose(input);
+        while (input_data) drop_input_chunk();
     }
 
     const char *captured = "", *messages = "", *error = NULL;
@@ -3584,7 +3645,8 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     struct timespec interval = {(time_t)(ticks / 10), (long)(ticks % 10) * 100000000L};
     if (interval.tv_sec != ticks / 10) numeric_error(file, line, column, "INPUT timeout too large");
     int echo_chars = 0, ended_line = 0, timed_out = 0;
-    if ((jbc_hushed || suppress_newline || limit_text || timeout_text) && isatty(STDIN_FILENO)) {
+    if (!input_data && (jbc_hushed || suppress_newline || limit_text || timeout_text) &&
+        isatty(STDIN_FILENO)) {
         if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
             numeric_error(file, line, column, "cannot read input terminal settings");
         if (limit_text || timeout_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
@@ -3618,7 +3680,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
         error = "cannot write input prompt";
     while (!error && (!limit_text || length < (uint64_t)limit)) {
-        if (timeout_text) {
+        if (!input_data && timeout_text) {
             fd_set readable;
             FD_ZERO(&readable);
             FD_SET(STDIN_FILENO, &readable);
@@ -3628,7 +3690,13 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
             if (!ready) { timed_out = 1; break; }
         }
         unsigned char c;
-        ssize_t count = read(STDIN_FILENO, &c, 1);
+        ssize_t count = 1;
+        if (input_data) {
+            c = input_data->bytes[input_data->offset++];
+            if (input_data->offset == input_data->length) drop_input_chunk();
+        } else {
+            count = read(STDIN_FILENO, &c, 1);
+        }
         if (count < 0 && errno == EINTR) continue;
         if (count < 0) { error = "cannot read input"; break; }
         if (!count || (edit && c != _POSIX_VDISABLE && c == input_saved.c_cc[VEOF])) break;

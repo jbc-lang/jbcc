@@ -190,9 +190,19 @@ Success returns 1. An empty name, a missing `=`, or a host failure
 returns 0. Subsequent GETENV calls and children launched by EXECUTE or
 PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html).
 
+`DATA first, second` queues lines for INPUT in FIFO order. Field marks
+split an expression into separate lines, including empty fields.
+INPUT uses the terminal or stdin when the queue is exhausted. A length
+limit can leave queued bytes for the next INPUT.
+
+With queued DATA, EXECUTE and PERFORM give the child those lines as its
+stdin. The child sees EOF after the queued lines and the parent resumes
+with its original stdin. This one-shot handoff is jbcc's native convention.
+[DATA](https://jbc-lang.org/pages/data.html).
+
 `EXECUTE expression` and `PERFORM expression` run the resulting command
-in the native host's default Bourne shell on POSIX. The child inherits
-standard input, output and error. The caller waits for it and continues
+in the native host's default Bourne shell on POSIX. The default streams
+are inherited from the parent. The caller waits for the child and continues
 even if the command exits with a nonzero status. For example,
 `PERFORM './report today'` can invoke another jbcc-built executable.
 The native runtime also accepts the explicit `CHAR(255) : 's'` shell

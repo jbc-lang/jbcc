@@ -151,6 +151,36 @@ CLOSESEQ F
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)
 
+    def test_data_queues_input_and_hands_it_to_commands(self):
+        source = self.work / 'data.b'
+        source.write_text("""PROMPT ''
+FOR I = 1 TO 2
+    DATA 'item-':I
+NEXT I
+DATA 'abc':@FM:'', 'next'
+INPUT A
+INPUT B
+INPUT Prefix, 2
+INPUT Suffix
+INPUT EmptyLine
+INPUT Last
+CRT A:':':B:':':Prefix:':':Suffix:'[':EmptyLine:']:':Last
+DATA 'child-1':@FM:'child-2', ''
+EXECUTE 'cat' CAPTURING Captured RETURNING Result
+CRT CONVERT(Captured, @FM, '|'):':':Result
+DATA 'direct'
+PERFORM 'cat'
+DATA STR('x', 100000)
+EXECUTE 'true'
+INPUT FromStdin
+CRT FromStdin
+""")
+        binary = self.work / 'data'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        result = subprocess.run([binary], input=b'fallback\n', capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'item-1:item-2:ab:c[]:next\nchild-1|child-2||:0\ndirect\nfallback\n')
+        self.assertEqual(result.stderr, b'')
     def test_sequential_seek(self):
         path = self.work / 'data'
         path.write_bytes(b'abc\n12345\nlast\n')

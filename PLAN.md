@@ -1544,7 +1544,18 @@ All 16,264 previous passes still pass, and all seven targeted files
 now pass. Native tests cover an external reader before CLOSESEQ,
 pending and empty handles, and status reporting.
 
-- [ ] Implement DATA for queued terminal input. Check FIFO order,
+- [x] Implement DATA for queued terminal input. Check FIFO order,
   field-mark separation, fallback to terminal input, and how queued
   input passes through EXECUTE. Unsupported DATA is the first
   diagnostic in seven T24 files.
+
+After DATA, 16,278 of 17,336 candidates pass strict C99 checking.
+All 16,271 previous passes still pass, and all seven targeted files
+now pass. Native tests cover FIFO order, field marks, limited INPUT,
+stdin fallback and command handoff. A child receiving queued input
+sees EOF after those lines.
+
+- [ ] Implement FILEINFO for the selectors used by T24. Verify file
+  handle validity and the documented meaning of key 2 before choosing
+  a native representation. Five T24 files first stop on a line
+  containing FILEINFO.
