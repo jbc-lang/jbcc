@@ -1156,6 +1156,15 @@ assignment targets. The remaining three T.SEQU cases now reach later
 diagnostics. Native fixtures exercise both append spellings, compound and
 substring assignments, nested indices, matrix elements and comparisons.
 
-- [ ] Support the alternate comparison spellings `=<` and `=>`. The
+- [x] Support the alternate comparison spellings `=<` and `=>`. The
   reference preprocessor maps them to LE and GE. Check both against
   ordinary comparisons and dynamic-array selectors in native fixtures.
+
+After alternate comparisons, 15,596 of 17,336 candidates pass strict C99
+checking. All 15,574 previous passes still pass. The 22 additional passes
+include AC.CP.CHECK.SWEEP.REQD, EB.CALC.EIR and SWAP.PARAMETER.
+
+- [ ] Recognize spaced dynamic-array extraction in expressions. For
+  example, AC.EXP.RECS.EOD reads `R.AC.EXPECTED.RECS <AC.EXP.ACCOUNT.ID>`
+  on the right of an assignment. Check the reference’s disambiguation
+  rules and exercise spaced selectors alongside chained comparisons.

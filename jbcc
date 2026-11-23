@@ -13,15 +13,15 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|\*\*|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|=<|=>|\*\*|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | {'[', '<'}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
-               "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
-               ">": ">", ">=": ">=", "GE": ">="}
+               "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
+               ">": ">", ">=": ">=", "=>": ">=", "GE": ">="}
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))

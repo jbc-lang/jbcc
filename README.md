@@ -336,7 +336,9 @@ on the next line. The reference preprocessor joins a line beginning with
 THEN, ELSE or LOCKED to the preceding statement, including across blank
 lines and full-line `*` or `!` comments.
 The system constants `@TRUE` and `@FALSE` evaluate to 1 and 0.
-Comparisons return the same values. Two decimal strings compare numerically;
+Comparisons return the same values. The reference preprocessor accepts
+`=<` for `LE` and `=>` for `GE`. For example, `balance => required` also
+succeeds when the two amounts are equal. Two decimal strings compare numerically;
 other pairs compare in byte order. Numeric zero and the empty string are
 false. Decimal comparisons are exact until an explicit PRECISION executes.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
