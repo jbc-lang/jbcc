@@ -1003,6 +1003,15 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: FOLD width must be a nonnegative integer'.encode(), run.stderr)
 
+    def test_fmts_invalid_mask(self):
+        source = self.work / 'fmts.b'
+        for args, mask in [("1:@FM:2, ''", ''), ("'', 'R?'", 'R?')]:
+            with self.subTest(mask=mask):
+                source.write_text(f"CRT FMTS({args})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f"{source}:1:5: unsupported FMT mask '{mask}'".encode(), run.stderr)
+
     def test_dround_diagnostics(self):
         source = self.work / 'dround.b'
         for args, diagnostic in [

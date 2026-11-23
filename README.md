@@ -516,6 +516,13 @@ aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 
+`FMTS(array, mask)` applies the supported FMT masks to each field,
+value and subvalue, preserving delimiters and empty elements. An empty
+array gives an empty result with a valid mask. An empty or unsupported
+mask reports a source-located formatting error, including the
+width-prefixed `T` word-wrap masks used by T24.
+[jBASE FMTS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_FMTS.htm).
+
 CRT writes to standard output. PRINT uses the current output device, initially
 standard output. Commas separate items with tabs.
 A final colon suppresses the newline. A bare PRINT or CRT emits a newline.

@@ -1655,6 +1655,15 @@ All 16,308 previous passes still pass, and both targeted files now
 pass. Native tests cover word boundaries, long words, zero width,
 spaces and existing field marks.
 
-- [ ] Implement FMTS by applying FMT to each dynamic-array element.
+- [x] Implement FMTS by applying FMT to each dynamic-array element.
   Check mixed marks, empty elements, expanding output and malformed
   masks. Two T24 files first stop on a line containing FMTS.
+
+After FMTS, 16,312 of 17,336 candidates pass strict C99 checking.
+All 16,310 previous passes still pass, and both targeted files now
+pass. Native tests cover existing FMT masks, mixed marks, empty
+elements and diagnostics. Both newly translated units use a `T` mask.
+
+- [ ] Implement width-prefixed `T` masks for FMT and FMTS. Check
+  word boundaries, padding and text-mark separation against the
+  guide, then run a native example like the T24 narrative calls.

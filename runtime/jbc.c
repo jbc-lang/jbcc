@@ -2391,6 +2391,37 @@ static char *split_array_items(const char *array, size_t *marks)
     return copy;
 }
 
+const char *jbc_fmts(const char *source, const char *mask, const char *file, int line, int column)
+{
+    if (!*source) return jbc_fmt(source, mask, file, line, column);
+    char *items = split_array_items(source, NULL);
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    size_t capacity = strlen(source), used = 0;
+    char *out = allocate(capacity);
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        const char *formatted = jbc_fmt(item, mask, file, line, column);
+        size_t bytes = strlen(formatted), separator = mark != '\0';
+        if (bytes > limit - used || separator > limit - used - bytes)
+            numeric_error(file, line, column, "FMTS result too large");
+        size_t required = used + bytes + separator;
+        if (required > capacity) {
+            capacity = required <= limit / 2 ? 2 * required : required;
+            char *larger = allocate(capacity);
+            memcpy(larger, out, used);
+            out = larger;
+        }
+        memcpy(out + used, formatted, bytes);
+        used += bytes;
+        out[used++] = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
 static const char *array_arithmetic(char op, const char *left, const char *right,
                                      int reuse_left, int reuse_right,
                                      const char *file, int line, int column)
