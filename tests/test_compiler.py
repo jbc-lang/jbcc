@@ -2395,3 +2395,38 @@ CRT Changed:':':@WHO:':':SYSTEM(19)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, expected + b'\n')
         self.assertEqual(run.stderr, b'')
+
+    def test_account_aliases_use_startup_account_name(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'show.account.b'
+        main.write_text('CALL SHOW.ACCOUNT()\n')
+        routine.write_text("""SUBROUTINE SHOW.ACCOUNT()
+Changed = PUTENV('JBCLOGNAME=changed') + PUTENV('LOGNAME=changed')
+CRT Changed:':':@LOGNAME:':':@ACCOUNT:':':@WHO
+""")
+        for override, unix_name, account, login in [
+                ('Pseudo', 'Unix', 'Pseudo', 'Pseudo'),
+                ('', 'Unix', 'Unix', 'GuideLogin'),
+                ('', '', 'GuideLogin', 'GuideLogin')]:
+            with self.subTest(override=override, unix_name=unix_name):
+                env = dict(os.environ, JBCLOGNAME=override, LOGNAME=unix_name,
+                           JBASICLOGNAME='GuideLogin')
+                run = self.run_native(main, routine, env=env)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, f'2:{account}:{account}:{login}\n'.encode())
+                self.assertEqual(run.stderr, b'')
+
+    def test_account_defaults_to_posix_user_name(self):
+        source = self.work / 'account.b'
+        source.write_text('CRT @LOGNAME\nCRT @ACCOUNT\n')
+        env = dict(os.environ)
+        for name in ('JBCLOGNAME', 'LOGNAME', 'JBASICLOGNAME'):
+            env.pop(name, None)
+        try:
+            expected = os.fsencode(pwd.getpwuid(os.getuid()).pw_name)
+        except KeyError:
+            expected = b''
+        run = self.run_native(source, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, (expected + b'\n') * 2)
+        self.assertEqual(run.stderr, b'')

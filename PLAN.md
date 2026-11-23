@@ -1472,7 +1472,18 @@ All 16,209 previous passes still pass. Of the 18 files blocked on
 check `SYSTEM(19)`, override precedence, startup capture and the
 POSIX user database fallback.
 
-- [ ] Implement `@LOGNAME` and `@ACCOUNT`. The reference compiler maps
+- [x] Implement `@LOGNAME` and `@ACCOUNT`. The reference compiler maps
   both to the same account lookup. Cross-check jBC account naming and
   test the native fallback. These names are the first diagnostic in
   16 T24 files.
+
+After account-name support, 16,234 of 17,336 candidates pass strict C99
+checking. All 16,223 previous passes still pass. Of the 16 targeted
+files, 11 now pass and five reach later diagnostics. Native tests cover
+both aliases, startup override precedence, and the `@WHO` fallback.
+
+- [ ] Implement `@SELECTED` for the number of elements in the most
+  recent select list. Verify which operations update it, including
+  selection into named lists, and test its interaction with READNEXT
+  and CLEARSELECT. Unsupported `@SELECTED` is the first diagnostic
+  in nine T24 files.

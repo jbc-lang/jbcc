@@ -229,6 +229,13 @@ database and return an empty string if the name is unavailable.
 [jBASE SYSTEM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SYSTEM.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`@LOGNAME` and `@ACCOUNT` are aliases for the current account in the
+reference compiler. jbcc takes the first nonempty startup value of
+`JBCLOGNAME` or `LOGNAME`, the variables used by jBASE for pseudo accounts
+and Unix accounts respectively. Without either value, jbcc provisionally
+uses the login name returned by `@WHO`.
+[jBASE LOGTO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/acc2_logto.htm).
+
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
 duration in seconds, including fractions such as `SLEEP .25`. Zero
 continues immediately. The native runtime truncates durations to whole

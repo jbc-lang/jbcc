@@ -868,12 +868,20 @@ static const char *size_value(uintmax_t n)
 static uintmax_t port_number;
 static int invalid_port_number;
 static const char *login_override;
+static const char *account_override;
+
+static const char *session_environment(const char *name)
+{
+    const char *value = getenv(name);
+    return value && *value ? strcpy(allocate(strlen(value)), value) : NULL;
+}
 
 void jbc_init_session(void)
 {
-    const char *login = getenv("JBCLOGNAME");
-    if (!login || !*login) login = getenv("JBASICLOGNAME");
-    if (login && *login) login_override = strcpy(allocate(strlen(login)), login);
+    login_override = session_environment("JBCLOGNAME");
+    account_override = login_override;
+    if (!login_override) login_override = session_environment("JBASICLOGNAME");
+    if (!account_override) account_override = session_environment("LOGNAME");
 
     const char *value = getenv("JBCPORTNO");
     if (!value || !*value) {
@@ -899,6 +907,11 @@ const char *jbc_login_name(void)
     const struct passwd *user = getpwuid(getuid());
     if (!user || !user->pw_name) return "";
     return strcpy(allocate(strlen(user->pw_name)), user->pw_name);
+}
+
+const char *jbc_account_name(void)
+{
+    return account_override ? account_override : jbc_login_name();
 }
 #endif
 
