@@ -1146,6 +1146,17 @@ following the reference grammar. Without an arm or SETTING, a failure
 produces a source-located runtime error.
 [NOBUF](https://jbc-lang.org/pages/nobuf.html).
 
+`OSREAD value FROM path` reads a regular file into a scalar or
+record context variable. It keeps internal line endings, strips one final
+LF, and replaces each NUL byte with byte 128. A bare name that is missing
+from the working directory is searched for in the colon-separated
+`JEDIFILEPATH`. The reference grammar accepts `SETTING` and `ON ERROR`
+with a required THEN or ELSE arm. jbcc uses sequential file status codes
+and clears the destination on failure. A missing file takes ELSE with
+status 128. Other I/O errors take ON ERROR when present or report the
+statement location.
+[OSREAD](https://jbc-lang.org/pages/osread.html).
+
 `TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
 decimal seconds. A pending or closed handle and an invalid duration
 report an error at the statement. The regular-file backend completes

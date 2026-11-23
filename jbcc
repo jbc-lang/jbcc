@@ -1255,6 +1255,13 @@ class Compiler:
                 call = f'jbc_readblk({handle}, {size}, &{slot}, {self.location(opening)})'
             else:
                 call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'OSREAD':
+            target, slot = self.record_read_destination()
+            self.expect('FROM')
+            path = self.expression()
+            if target is not None:
+                self.assigned.add(target)
+            call = f'jbc_osread({path}, &{slot})'
         elif op == 'TIMEOUT':
             handle = self.temporary(self.expression())
             self.expect(',')
@@ -1428,6 +1435,8 @@ class Compiler:
             self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
+        elif opening.word == 'OSREAD':
+            self.emit(f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");')
         if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ', 'RECORDLOCKU'):
             if self.word == 'LOCKED':
                 self.advance()
@@ -2383,7 +2392,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

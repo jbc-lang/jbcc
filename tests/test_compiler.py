@@ -239,6 +239,35 @@ CLOSESEQ F
         self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
         self.assertEqual(result.stderr, b'')
 
+    def test_osread_regular_file_and_error_arms(self):
+        directory = self.work / 'search'
+        directory.mkdir()
+        (directory / 'payload').write_bytes(b'a' * 5000 + b'\n\0z\n\n')
+        (self.work / 'empty').touch()
+        os.mkfifo(self.work / 'fifo')
+        source = self.work / 'osread.b'
+        source.write_text("""OSREAD @RECORD FROM 'payload' SETTING S THEN
+    CRT LEN(@RECORD):':':SEQ(@RECORD[5001,1]):':':SEQ(@RECORD[5002,1]):':':SEQ(RIGHT(@RECORD,1)):':':S
+END ELSE ABORT
+OSREAD Value FROM 'empty' THEN CRT '[':Value:']' ELSE ABORT
+OSREAD Value FROM 'missing' SETTING S THEN ABORT ELSE CRT '[':Value:'] ':S:':':STATUS()
+OSREAD Value FROM 'fifo' SETTING S ON ERROR
+    CRT '[':Value:'] ':S:':':STATUS()
+END THEN ABORT ELSE ABORT
+""")
+        env = dict(os.environ, JEDIFILEPATH=f'missing-first:{directory}')
+        result = self.run_native(source, cwd=self.work, env=env)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'5004:10:128:10:0\n[]\n[] 128:128\n[] 32768:32768\n', b''))
+
+    def test_osread_fatal_error_requires_handler(self):
+        source = self.work / 'osread.b'
+        source.write_text("OSREAD Value FROM '.' ELSE CRT 'unexpected branch'\n")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'')
+        self.assertIn(f'{source}:1:1: OSREAD failed'.encode(), result.stderr)
+
     def test_nobuf_uses_unbuffered_sequential_io(self):
         data = self.work / 'data'
         data.write_bytes(b'first\nold\n')

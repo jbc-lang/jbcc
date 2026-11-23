@@ -4908,6 +4908,82 @@ int jbc_openseq(const char *path, const char *name, int existing, int append, in
     return file_result(status);
 }
 
+static int open_os_input(const char *path)
+{
+    const int flags = O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC;
+    int fd = open(path, flags);
+    if (fd >= 0) return fd;
+    int error = errno;
+    if (file_error(error) != 128 || strchr(path, '/') || !*path) return -1;
+
+    const char *directories = getenv("JEDIFILEPATH");
+    while (directories && *directories) {
+        const char *dir = take_field(&directories, ':');
+        if (!*dir) continue;
+        fd = open(jbc_concat(jbc_concat(dir, "/"), path), flags);
+        if (fd >= 0) return fd;
+        error = errno;
+        if (file_error(error) != 128) break;
+    }
+    errno = error;
+    return -1;
+}
+
+int jbc_osread(const char *path, jbc_variable *out)
+{
+    assign_value(out, "");
+    int fd = open_os_input(path);
+    if (fd < 0) return file_result(file_error(errno));
+
+    struct stat st;
+    int status = 0;
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    size_t length = 0, capacity = 0;
+    char *contents = NULL;
+    if (fstat(fd, &st) < 0) status = file_error(errno);
+    else if (!S_ISREG(st.st_mode)) status = 32768;
+    while (!status) {
+        char block[4096];
+        ssize_t count = read(fd, block, sizeof block);
+        if (count < 0 && errno == EINTR) continue;
+        if (count < 0) {
+            status = file_error(errno);
+            break;
+        }
+        if (!count) break;
+        size_t added = (size_t)count;
+        if (added > limit - length) {
+            status = 32768;
+            break;
+        }
+        size_t needed = length + added;
+        if (needed > capacity) {
+            size_t grown = needed <= limit / 2 ? 2 * needed : needed;
+            char *larger = realloc(contents, grown);
+            if (!larger) {
+                status = 32768;
+                break;
+            }
+            contents = larger;
+            capacity = grown;
+        }
+        memcpy(contents + length, block, added);
+        length = needed;
+    }
+    if (close(fd) && !status) status = file_error(errno);
+
+    if (!status && length) {
+        if (contents[length - 1] == '\n') --length;
+        char *value = allocate(length);
+        for (size_t i = 0; i < length; ++i)
+            value[i] = contents[i] ? contents[i] : (char)128;
+        value[length] = '\0';
+        assign_value(out, value);
+    }
+    free(contents);
+    return file_result(status);
+}
+
 int jbc_readseq(const char *token, jbc_variable *out)
 {
     struct sequential_file *file = *sequential_slot(token);

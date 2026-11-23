@@ -1904,5 +1904,13 @@ After the SYSTEM(14) change, the same 16,361 of 17,336 candidates pass
 strict C99 checking. Native tests check remaining queued bytes, line
 endings, and pending standard input before and after CLEARDATA.
 
-- [ ] Implement OSREAD for regular files. Check result and error arms
+- [x] Implement OSREAD for regular files. Check result and error arms
   against the guide, and rerun UPDATE.UPLOAD.SERVICE.
+
+After OSREAD, 16,362 of 17,336 candidates pass strict C99 checking.
+All 16,361 previous passes still pass, and UPDATE.UPLOAD.SERVICE now
+passes. Native tests cover path search, reading across a buffer
+boundary, NUL replacement, the final LF, and failure arms.
+
+- [ ] Investigate OSOPEN for regular files and its relationship to
+  OSBREAD, OSBWRITE, and OSCLOSE. Two T24 files first stop at OSOPEN.
