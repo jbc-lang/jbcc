@@ -2231,6 +2231,21 @@ backend at the statement and the shell command never starts.
 Both blocked units now pass strict C99 checking, bringing the total to
 16,533 of 17,336 candidates. All 16,531 previous passes still pass.
 
-- [ ] Investigate jumps into FOR bodies in the reference generator and
+- [x] Investigate jumps into FOR bodies in the reference generator and
   the T24 corpus. Start with BL.BILL.CROSSVAL and check which counter,
   bounds and step are available when the jump bypasses the header.
+
+The reference compiler emits a direct jump to the body and delegates
+incrementing to NEXT_V. BL.BILL.CROSSVAL assigns the counter before
+jumping and can set the bound before NEXT. jbcc provisionally allows
+entry with the default step and uses the current counter and bound.
+When a skipped header contains an explicit STEP, NEXT reports the
+missing step at runtime. Native tests cover GOTO, GOSUB, indexed jumps,
+RETURN TO and the treatment of a step saved during an earlier iteration.
+
+All 11 affected units now pass strict C99 checking, bringing the total to
+16,544 of 17,336 candidates. All 16,533 previous passes still pass.
+
+- [ ] Investigate three-operand bracket assignments in the reference
+  grammar and T24. The generator emits ASSIGN_FORMAT for this form.
+  Verify the delimiter and replacement rules before implementing them.

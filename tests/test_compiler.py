@@ -2526,17 +2526,38 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'fell through\n')
         self.assertEqual(run.stderr, b'')
 
-    def test_jump_cannot_bypass_for_header(self):
+    def test_jump_can_bypass_for_header_with_default_step(self):
         source = self.work / 'jump.b'
         for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'), ('GO', 'middle'), ('GO TO', 'middle:'),
                              ('GOSUB', 'middle'), ('GOSUB', 'middle:'),
                              ('ON 2 GO TO safe,', 'middle'), ('ON 2 GOTO safe,', 'middle'), ('ON 2 GOSUB safe,', 'middle')]:
             with self.subTest(jump=jump, target=target):
-                source.write_text(f'{jump} {target}\nFOR I = 1 TO 2 STEP 1 + 1\nmiddle: PRINT I\nNEXT I\nsafe: STOP\n')
-                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:{len(jump) + 2}: jump to 'middle' would bypass a FOR header",
-                              result.stderr)
+                source.write_text(f"I = 0\nLimit = 0\n{jump} {target}\n"
+                                  "FOR I = 99 TO Limit\nmiddle: PRINT I\nLimit = 2\n"
+                                  "NEXT I\nsafe: STOP\n")
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\n1\n2\n', b''))
+
+    def test_jump_discards_step_when_reentering_a_completed_for(self):
+        source = self.work / 'jump.b'
+        source.write_text("""FOR I = 1 TO 1 STEP 2
+    GOTO middle
+middle: CRT I
+NEXT I
+GOTO middle
+""")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, b'1\n3\n')
+        self.assertEqual(result.stderr, f'{source}:4:1: NEXT requires the STEP expression from the FOR header\n'.encode())
+
+    def test_next_after_jump_requires_assigned_counter(self):
+        source = self.work / 'jump.b'
+        source.write_text("GOTO middle\nFOR I = 1 TO 3\nmiddle: CRT 'body'\nNEXT I\n")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, b'body\n')
+        self.assertEqual(result.stderr, f"{source}:2:5: unassigned variable 'I'\n".encode())
 
     def test_return_to_unwinds_subroutine(self):
         main = self.work / 'main.b'
@@ -2558,11 +2579,15 @@ RETURN M(2,3)
 
     def test_return_to_bypasses_for_header(self):
         main = self.work / 'main.b'
-        main.write_text('GOSUB redirect\nFOR I = 1 TO 2\nmiddle: CRT I\nNEXT I\n'
-                        'redirect: RETURN TO middle\n')
-        run = self.run_native(main)
-        self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{main}:1:7: RETURN TO would bypass a FOR header".encode(), run.stderr)
+        for step, expected in (
+            ('', (0, b'0\n1\n2\n', b'')),
+            (' STEP 2', (1, b'0\n', f'{main}:5:1: NEXT requires the STEP expression from the FOR header\n'.encode())),
+        ):
+            with self.subTest(step=step):
+                main.write_text(f'I = 0\nGOSUB redirect\nFOR I = 99 TO 2{step}\nmiddle: CRT I\nNEXT I\n'
+                                'STOP\nredirect: RETURN TO middle\n')
+                run = self.run_native(main)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
     def test_bad_routine_references(self):
         main = self.work / 'main.b'

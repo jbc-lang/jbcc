@@ -969,11 +969,18 @@ callee reads the status field, selects a CASE arm, and updates the output.
   LOOP and FOR bodies. The reference grammar also accepts an optional
   colon after a GOTO or GOSUB target, as in `GOTO finish:` or `GOSUB 100:`.
   The reference lexer accepts `GO label` and `GO TO label` as spellings
-  of GOTO, including in indexed ON statements. GOTO can jump within or leave a FOR. A jump that
-  would enter a FOR without executing its header gets a source diagnostic.
-  GOSUB starts a fresh control-flow invocation and shares
-  the routine's variables and supports nested returns. Execution falls through
+  of GOTO, including in indexed ON statements. GOSUB starts a fresh
+  control-flow invocation, shares the routine's variables, and supports
+  nested returns. Execution falls through
   labels encountered sequentially. STOP terminates the program. [GOSUB](https://jbc-lang.org/pages/gosub.html)
+- A jump can enter a FOR body. With the default step, NEXT increments
+  the current counter and the loop then checks its current bound. The
+  caller must assign the counter before reaching NEXT. For a loop with
+  an explicit STEP, NEXT reports a source diagnostic if the jump skipped
+  the step expression. This policy is provisional. T24's
+  BL.BILL.CROSSVAL assigns the counter before jumping and can set the
+  bound before NEXT. The reference generator emits a direct jump and
+  delegates NEXT to its runtime macro. [FOR](https://jbc-lang.org/pages/for.html)
 - `ON n GOTO a, b` and `ON n GOSUB a, b` evaluate the integer selector
   once. Label positions start at 1. A plain RETURN from the selected
   GOSUB resumes at the next statement. By default an out-of-range selector

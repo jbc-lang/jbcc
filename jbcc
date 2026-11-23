@@ -374,11 +374,12 @@ class Compiler:
         self.uses_callonexit = False
         self.opens_local_files = False
         self.references = []
+        self.goto_sites = {}
         self.return_targets = {}
         self.gosub_sites = {}
         self.has_unstructured_jumps = False
         self.for_stack = []
-        self.saved_steps = []
+        self.saved_steps = {}
         self.names = {}
         self.matrices = {}
         self.local_arrays = {}
@@ -2039,7 +2040,7 @@ class Compiler:
             self.advance()
             # Capture even a plain variable before the loop body can change it.
             step = f"step_{self.loops}"
-            self.saved_steps.append(step)
+            self.saved_steps[self.loops] = step
             self.emit(f"{step} = {self.expression()};")
         location = self.location(opening)
         self.emit(f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;")
@@ -2049,6 +2050,8 @@ class Compiler:
         if self.word not in (';', '\n'):
             self.error("expected statement separator after FOR")
         self.guarded_body(opening, 'NEXT')
+        terminator = self.current
+        self.advance()
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
             if self.word != counter.word:
                 name = self.current
@@ -2056,7 +2059,11 @@ class Compiler:
                       f"closes FOR {counter.word}", file=sys.stderr)
             self.advance()
         self.end_loop_body()
-        increment = self.arithmetic(opening, symbol + ".value", step, '+')
+        if self.for_stack[-1] in self.saved_steps:
+            self.emit(f'if (!{step}) numeric_error({self.location(terminator)}, '
+                      '"NEXT requires the STEP expression from the FOR header");')
+        value = self.checked_read(symbol, counter)
+        increment = self.arithmetic(opening, value, step, '+')
         self.emit(f"assign_value(&{symbol}, {increment});")
         self.for_stack.pop()
         self.end_loop()
@@ -2067,7 +2074,6 @@ class Compiler:
         while True:
             self.sequence({'WHILE', 'UNTIL', terminator}, opening)
             if self.word == terminator:
-                self.advance()
                 return exits
             exit_assigned = self.guard()
             exits = exit_assigned if exits is None else exits & exit_assigned
@@ -2079,6 +2085,7 @@ class Compiler:
         self.advance()
         self.begin_loop()
         exits = self.guarded_body(opening, 'REPEAT')
+        self.advance()
         self.end_loop_body()
         bare_exits = self.end_loop()
         if bare_exits is not None:
@@ -2176,14 +2183,14 @@ class Compiler:
 
     def emit_jump(self, target, jump):
         number = self.label_number(target.word)
-        # GOSUB starts a new body invocation with no active FOR headers.
-        self.references.append((target, tuple(self.for_stack) if jump else ()))
+        self.references.append(target)
         if jump:
             self.has_goto = True
             self.emit("jbc_collect(entry_mark, live);")
+            self.goto_sites[len(self.body)] = (target.word, tuple(self.for_stack))
             self.emit(f"goto label_{number};")
         else:
-            self.gosub_sites[len(self.body)] = (target, tuple(self.for_stack))
+            self.gosub_sites[len(self.body)] = tuple(self.for_stack)
             self.emit(f"body_{self.unit}(frame, {number});")
             if self.is_function:
                 self.emit("if (frame->result) return 0;")
@@ -2940,12 +2947,16 @@ class Compiler:
         for name, target in self.return_targets.items():
             if name not in self.labels:
                 self.error(f"unknown label '{name}'", target)
-        for target, active_fors in self.references:
+        for target in self.references:
             if target.word not in self.labels:
                 self.error(f"unknown label '{target.word}'", target)
-            required = self.labels[target.word]
-            if active_fors[:len(required)] != required:
-                self.error(f"jump to '{target.word}' would bypass a FOR header", target)
+
+    def reset_skipped_steps(self, target, active_fors):
+        # A jump can enter a loop that ran before. Discard its stale STEP.
+        entered = self.labels[target]
+        return "".join(f"{self.saved_steps[loop]} = NULL; "
+                       for depth, loop in enumerate(entered, 1)
+                       if loop in self.saved_steps and entered[:depth] != active_fors[:depth])
 
     def signature(self):
         if not self.routine:
@@ -2966,10 +2977,10 @@ class Compiler:
         lines += ["    (void)frame;", "    (void)entry;"]
         if self.loops or self.has_goto or (self.return_targets and self.gosub_sites):
             lines.append("    struct jbc_buffer *entry_mark = buffers;")
-            for step in self.saved_steps:
+            for step in self.saved_steps.values():
                 lines.append(f"    const char *{step} = NULL;")
             roots = ["&" + var + ".value" for var in self.names.values()]
-            roots.extend("&" + step for step in self.saved_steps)
+            roots.extend("&" + step for step in self.saved_steps.values())
             roots.append("NULL")
             lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
         if self.labels:
@@ -2986,18 +2997,18 @@ class Compiler:
                 lines.append(indent + "    if (resume) {")
                 lines.append(indent + "        jbc_collect(entry_mark, live);")
                 lines.append(indent + "        switch (resume) {")
-                call, active_fors = self.gosub_sites[i]
+                active_fors = self.gosub_sites[i]
                 for name in self.return_targets:
                     n = self.targets[name]
-                    required = self.labels[name]
-                    if active_fors[:len(required)] == required:
-                        action = f"goto label_{n};"
-                    else:
-                        action = (f'numeric_error({self.location(call)}, '
-                                  f'"RETURN TO would bypass a FOR header"); break;')
-                    lines.append(indent + f"        case {n}: {action}")
+                    resets = self.reset_skipped_steps(name, active_fors)
+                    lines.append(indent + f"        case {n}: {resets}goto label_{n};")
                 lines.extend([indent + "        }", indent + "    }", indent + "}"])
             else:
+                if i in self.goto_sites:
+                    resets = self.reset_skipped_steps(*self.goto_sites[i])
+                    if resets:
+                        indent = " " * (len(line) - len(line.lstrip()))
+                        line = indent + resets + line.lstrip()
                 lines.append("    " + line)
         lines.append("    return 0;")
         lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
