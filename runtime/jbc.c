@@ -2001,6 +2001,14 @@ const char *jbc_alpha(const char *text)
     return "1";
 }
 
+const char *jbc_isdigit(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (!ascii_digit((unsigned char)*text)) return "0";
+    return "1";
+}
+
 static int pattern_byte(unsigned char c, char kind)
 {
     switch (kind) {

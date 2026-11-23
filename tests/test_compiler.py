@@ -1108,6 +1108,8 @@ NEXT I
                                   ("CRT TRIMB('a', 'b')\n", ":1:5: wrong argument count for 'TRIMB'"),
                                   ("CRT ALPHA()\n", ":1:5: wrong argument count for 'ALPHA'"),
                                   ("CRT ALPHA('a', 'b')\n", ":1:5: wrong argument count for 'ALPHA'"),
+                                  ("CRT ISALPHA()\n", ":1:5: wrong argument count for 'ISALPHA'"),
+                                  ("CRT ISDIGIT(1, 2)\n", ":1:5: wrong argument count for 'ISDIGIT'"),
                                   ("CRT NEG()\n", ":1:5: wrong argument count for 'NEG'"),
                                   ("CRT NEG(1, 2)\n", ":1:5: wrong argument count for 'NEG'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
@@ -2398,6 +2400,21 @@ CRT XTD(DTX(-23)) + 1
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {name} requires numeric operands'.encode(), run.stderr)
+
+    def test_character_class_predicates(self):
+        source = self.work / 'classes.b'
+        source.write_text("""Letters = 'Az'
+CRT ALPHA(Letters), ISALPHA(Letters), ISALPHA(''), ISALPHA('Az1'), ISALPHA('a-b')
+CRT ISALPHA('a':@FM:'b'), ISALPHA(CHAR(233)), ISALPHA('a b')
+CRT ISDIGIT('009'), ISDIGIT(0), ISDIGIT(-9), ISDIGIT(9.5), ISDIGIT('+9'), ISDIGIT('9 ')
+CRT ISDIGIT(''), ISDIGIT('7':@VM:'9'), ISDIGIT(CHAR(178))
+CRT NUM(-9), NUM(9.5), NUM(''), NUM('+9')
+IF ISDIGIT('123') AND ISALPHA('xY') THEN CRT 'accepted' ELSE ABORT
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'1\t1\t0\t0\t0\n0\t0\t0\n1\t1\t0\t0\t0\t0\n'
+                             b'0\t0\t0\n1\t1\t1\t1\naccepted\n', b''))
 
     def test_case_conversion_bytes(self):
         source = self.work / 'case.b'

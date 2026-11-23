@@ -2561,6 +2561,21 @@ LD.SCHEDULES.CROSSVAL now passes strict C99 checking in byte mode.
 The total is 17,069 of 17,336 candidates, including all 17,068
 previous passes.
 
-- [ ] Investigate ISALPHA and ISDIGIT in UI.CREATE.SCRIPTS.VALIDATE
+- [x] Investigate ISALPHA and ISDIGIT in UI.CREATE.SCRIPTS.VALIDATE
   and SY.PRODUCT.DEFINITION.VALIDATE. Compare them with ALPHA and NUM
   and check empty values, signs, punctuation and character classes.
+
+The reference compiler emits separate ISALPHA_IB and ISDIGIT_IB
+operations. The guide describes ISALPHA as equivalent to ALPHA and
+illustrates ISDIGIT rejecting signed and fractional numbers. jbcc
+reuses ALPHA and applies its ASCII digit classifier to all bytes in an
+ISDIGIT operand. Empty strings provisionally return zero. Native tests
+cover numeric strings, signs, punctuation, high bytes and array marks.
+[ISALPHA](https://jbc-lang.org/pages/isalpha.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
+
+All three affected T24 units now pass strict C99 checking in byte mode.
+The total is 17,072 of 17,336 candidates, including all 17,069
+previous passes.
+
+- [ ] Investigate LENDP in OFS.STORE.RETURN.DATA. Compare display width
+  with LEN and BYTELEN for controls, array marks, and multibyte text.

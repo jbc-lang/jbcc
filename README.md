@@ -159,10 +159,13 @@ passing `-1` selects 14. Trailing fractional zeros are removed. A zero
 divisor reports an error at the call.
 [SDIV](https://jbc-lang.org/pages/sdiv.html).
 
-ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
-Digits, punctuation and array marks return 0. jbcc provisionally returns
-0 for an empty string pending a reference run. The guide describes Unicode
-classification separately under International Mode. [ALPHA](https://jbc-lang.org/pages/alpha.html).
+`ALPHA` and `ISALPHA` return 1 when every byte in a nonempty value is an
+ASCII letter. `ISDIGIT` returns 1 for nonempty values made entirely of
+ASCII digits. Signs, decimal points, spaces and array marks return 0
+from `ISDIGIT`. jbcc provisionally returns 0 for an empty string with
+these character tests. The guide describes Unicode classification
+separately under International Mode.
+[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
 
 NUM tests whether an expression has numeric text and returns 1 or 0.
 It follows the guide’s prime-emulation examples. Signed decimals and leading
