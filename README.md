@@ -1224,6 +1224,14 @@ Writing to an empty name sets the default list for the current process.
 [READLIST](https://jbc-lang.org/pages/readlist.html),
 [WRITELIST](https://jbc-lang.org/pages/writelist.html).
 
+`@SELECTED` reports the count from the last default external selection.
+The guide distinguishes this from BASIC SELECT and selections into
+other lists. In jbcc, `WRITELIST Items ON ''` supplies the count, including
+empty fields. The count starts at zero and is shared across routines.
+jbcc provisionally keeps the recorded count through READNEXT,
+CLEARSELECT and list retrieval. jQL commands require a query backend to
+supply the count. [@SELECTED](https://jbc-lang.org/pages/@selected.html).
+
 `GETLIST Name TO L SETTING N THEN ... ELSE ...` retrieves the same saved
 list and element count as READLIST. The reference grammar permits omitting
 `TO L` to restore the default cursor, as in `GETLIST Name ELSE STOP`

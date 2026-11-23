@@ -206,6 +206,23 @@ RETURN
         after = self.run_native(check, env=env)
         self.assertEqual((after.returncode, after.stdout, after.stderr), (0, b'gone\n0\n', b''))
 
+    def test_selected_tracks_default_external_list_across_calls(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'replace.list.b'
+        main.write_text("""WRITELIST 'one' ON ''
+CALL REPLACE.LIST()
+GETLIST 'named' TO L SETTING N THEN CRT N:':':@SELECTED ELSE STOP
+""")
+        routine.write_text("""SUBROUTINE REPLACE.LIST()
+WRITELIST 'two':@FM:'three' ON ''
+WRITELIST 'other' ON 'named'
+""")
+        env = dict(os.environ, JBCC_LIST_DIR=str(self.work))
+        run = self.run_native(main, routine, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'1:2\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_deletelist_requires_named_store(self):
         source = self.work / 'delete.b'
         source.write_text("DELETELIST 'batch'\n")

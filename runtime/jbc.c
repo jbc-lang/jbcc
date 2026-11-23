@@ -2580,6 +2580,13 @@ static jbc_variable *list_slot(jbc_variable *slot)
     return slot;
 }
 
+static size_t last_external_selection;
+
+const char *jbc_selected(void)
+{
+    return size_value(last_external_selection);
+}
+
 void jbc_clearselect(jbc_variable *slot, const char *file, int line, int column)
 {
     /* CLEARSELECT also accepts list 11, unlike SELECT and READNEXT. */
@@ -2749,6 +2756,7 @@ int jbc_writelist(const char *source, const char *name, jbc_variable *setting)
     int status = 0;
     if (!*name) {
         set_array_list(&select_lists[0], value, count != 0);
+        last_external_selection = count;
     } else {
         const char *directory = getenv("JBCC_LIST_DIR");
         if (!directory || !*directory) status = 128;

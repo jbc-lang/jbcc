@@ -483,6 +483,9 @@ class Compiler:
             if self.word == 'SYSTEM.RETURN.CODE':
                 self.advance()
                 return self.postfix(self.temporary("jbc_system_return_code()"), locate_source)
+            if self.word == 'SELECTED':
+                self.advance()
+                return self.postfix(self.temporary("jbc_selected()"), locate_source)
             if self.word == 'WHO':
                 self.uses_session = True
                 self.advance()

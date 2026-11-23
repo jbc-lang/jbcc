@@ -1482,8 +1482,19 @@ checking. All 16,223 previous passes still pass. Of the 16 targeted
 files, 11 now pass and five reach later diagnostics. Native tests cover
 both aliases, startup override precedence, and the `@WHO` fallback.
 
-- [ ] Implement `@SELECTED` for the number of elements in the most
-  recent select list. Verify which operations update it, including
-  selection into named lists, and test its interaction with READNEXT
-  and CLEARSELECT. Unsupported `@SELECTED` is the first diagnostic
-  in nine T24 files.
+- [x] Implement `@SELECTED` for the number of elements in the most
+  recent default external select list. Verify which operations update
+  it, including selection into named lists, and test its interaction
+  with READNEXT and CLEARSELECT. Unsupported `@SELECTED` is the first
+  diagnostic in nine T24 files.
+
+After `@SELECTED`, 16,240 of 17,336 candidates pass strict C99 checking.
+All 16,234 previous passes still pass. Six of the nine targeted files
+now pass and three reach later diagnostics. Native tests use WRITELIST
+to populate the default external list and check count persistence
+through list traversal, clearing and subroutine calls.
+
+- [ ] Implement `@ID` as a record-context variable. The reference
+  compiler accepts assignment to it. Check its initial value and
+  which statements can write to it, including `READNEXT @ID`.
+  Unsupported `@ID` is the first diagnostic in eight T24 files.
