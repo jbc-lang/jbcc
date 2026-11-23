@@ -502,6 +502,17 @@ typedef struct {
     int array_list;
 } jbc_variable;
 
+int jbc_callj(const char *class_name, const char *method, const char *argument,
+              jbc_variable *result, const char *file, int line, int column)
+{
+    (void)class_name;
+    (void)method;
+    (void)argument;
+    (void)result;
+    numeric_error(file, line, column, "CALLJ requires a JVM backend");
+    return 0;
+}
+
 static jbc_variable select_lists[12];
 static jbc_variable jbc_record_id = {"", 0, 0};
 static jbc_variable jbc_record = {"", 0, 0};

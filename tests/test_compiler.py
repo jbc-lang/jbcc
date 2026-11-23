@@ -1798,6 +1798,30 @@ CRT 'after'
         self.assertEqual(result.stdout, b'before\n')
         self.assertEqual(result.stderr, f'{source}:4:11: DEBUG requires a jBC debugger\n'.encode())
 
+    def test_callj_reports_missing_backend_only_when_reached(self):
+        source = self.work / 'java.b'
+        source.write_text("""CALLJ = 'hello'
+IF 0 THEN
+    CALLJ 'example.Tools', '$format', CALLJ SETTING Response ON ERROR
+        ABORT
+    END
+END
+CRT CALLJ
+CALLJ 'example.Tools', 'format', CALLJ:'!' SETTING Response ON ERROR CRT 'handler'
+CRT Response
+""")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, b'hello\n')
+        self.assertEqual(result.stderr, f'{source}:8:1: CALLJ requires a JVM backend\n'.encode())
+
+    def test_callj_requires_setting(self):
+        source = self.work / 'java.b'
+        source.write_text("CALLJ 'example.Tools', 'format', ''\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{source}:1:36: expected 'SETTING'\n")
+
     def test_weof_invalid_channel(self):
         source = self.work / 'weof.b'
         for operand in ('ON 10', 'UNIT(-1)', "FROM 'text'"):

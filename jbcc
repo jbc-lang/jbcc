@@ -1225,6 +1225,21 @@ class Compiler:
             self.assigned.add(target.word)
         return setting
 
+    def callj_statement(self):
+        opening = self.current
+        self.advance()
+        class_name = self.temporary(self.expression())
+        self.expect(',')
+        method = self.temporary(self.expression())
+        self.expect(',')
+        argument = self.temporary(self.expression())
+        self.expect('SETTING')
+        target = self.identifier()
+        result = '&' + self.variable_slot(target)
+        self.assigned.add(target.word)
+        call = f"jbc_callj({class_name}, {method}, {argument}, {result}, {self.location(opening)})"
+        self.file_error_arm(opening, call, result)
+
     def tape_unit(self):
         if self.word != 'UNIT':
             return None
@@ -2521,6 +2536,9 @@ class Compiler:
             opening = self.current
             self.advance()
             self.emit(f'numeric_error({self.location(opening)}, "DEBUG requires a jBC debugger");')
+        elif (self.word == 'CALLJ' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.callj_statement()
         elif (self.word in ('STOP', 'ABORT') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.termination_statement(stops)

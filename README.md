@@ -310,6 +310,12 @@ debugger. When a native jbcc program reaches it, the runtime reports the
 source location and exits with an error because a jBC debugger is unavailable.
 [DEBUG](https://jbc-lang.org/pages/debug.html).
 
+`CALLJ class, method, argument SETTING result` accepts an optional
+inline or multiline `ON ERROR` arm. Native jbcc reports the source
+location and exits if execution reaches the call, even when an error
+arm is present. Java invocation requires a JVM backend.
+[jBASE CALLJ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CALLJ.htm).
+
 `@PATH` is the current account pathname in the jBASE guide. Native
 jbcc provisionally uses the process's absolute working directory as
 the account path. A failure to resolve it reports the source location.
