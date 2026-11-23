@@ -1525,6 +1525,16 @@ All 16,255 previous passes still pass, and all six targeted files
 now pass. Native tests cover default and explicit precision, midpoint
 ties, carry, and values with more than 15 fractional digits.
 
-- [ ] Implement BYTELEN using the existing byte length operation.
+- [x] Implement BYTELEN using the existing byte length operation.
   Check empty strings, multibyte text and dynamic-array marks. Five
   T24 files first stop on a line containing BYTELEN.
+
+After BYTELEN, 16,264 of 17,336 candidates pass strict C99 checking.
+All 16,261 previous passes still pass. Three of the five targeted files
+now pass, and the other two reach FLUSH and DATA. Native tests cover
+empty input, UTF-8, and single-byte array marks.
+
+- [ ] Implement FLUSH for sequential files. Verify visibility of writes
+  before closing the handle, THEN and ELSE branches, and the behavior
+  before a file has been created. Unsupported FLUSH is the first
+  diagnostic in seven T24 files.

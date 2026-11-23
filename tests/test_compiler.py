@@ -322,6 +322,7 @@ NEXT I
                                   ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
+                                  ("CRT BYTELEN()\n", ":1:5: wrong argument count for 'BYTELEN'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),

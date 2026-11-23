@@ -849,6 +849,11 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+`BYTELEN(value)` counts bytes, including each field, value and subvalue
+mark. For example, `BYTELEN('é')` is 2 for a UTF-8 literal. It uses the
+same byte-count operation as LEN in the current runtime.
+[BYTELEN](https://jbc-lang.org/pages/bytelen.html).
+
 `COMPARE(left, right[, justification])` returns -1, 0 or 1 using
 bytewise string ordering. The default `L` compares from the left.
 For `R`, jbcc provisionally compares as if the shorter string had leading
