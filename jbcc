@@ -13,6 +13,9 @@ import sys
 import tempfile
 
 
+SOURCE_ENCODINGS = {'utf-8': 'utf-8', 'bytes': 'latin-1'}
+
+
 TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|\*\*|\+\+|--|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
@@ -215,8 +218,9 @@ def is_equate(statement):
 
 
 class Preprocessor:
-    def __init__(self, directories):
+    def __init__(self, directories, encoding='utf-8'):
         self.directories = directories
+        self.encoding = encoding
         self.equates = {}
 
     def define(self, words):
@@ -259,7 +263,15 @@ class Preprocessor:
                 emitted = True
 
     def read(self, path, parents=()):
-        source = path.read_text(encoding='utf-8')
+        try:
+            source = path.read_text(encoding=self.encoding)
+        except UnicodeDecodeError as error:
+            prefix = error.object[:error.start].decode(self.encoding)
+            lines = prefix.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+            byte = error.object[error.start]
+            raise SourceEncodingError(
+                f"{path}:{len(lines)}:{len(lines[-1]) + 1}: invalid UTF-8 at byte 0x{byte:02x}"
+            ) from error
         if '\0' in source:
             raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
         words = []
@@ -271,6 +283,8 @@ class Preprocessor:
             include = INCLUDE.fullmatch(line)
             if include and not words:
                 name = next(group for group in include.groups() if group is not None)
+                if self.encoding == 'latin-1':
+                    name = os.fsdecode(name.encode(self.encoding))
                 for directory in (path.parent, *self.directories):
                     child = directory / name
                     if child.is_file():
@@ -303,11 +317,15 @@ class Diagnostic(Exception):
     pass
 
 
-def c_string(value):
+class SourceEncodingError(UnicodeError):
+    pass
+
+
+def c_string(value, encoding='utf-8'):
     # Octal escapes have a fixed upper bound of three digits in C. Escaping
     # question marks also prevents trigraph substitution on C99 compilers.
     return '"' + ''.join(chr(b) if 32 <= b < 127 and b not in b'"\\?'
-                         else '\\%03o' % b for b in value.encode('utf-8')) + '"'
+                         else '\\%03o' % b for b in value.encode(encoding, errors='surrogateescape')) + '"'
 
 
 class CommonBlock:
@@ -361,9 +379,10 @@ def compatible_dimensions(a, b):
 
 
 class Compiler:
-    def __init__(self, path, unit=0):
+    def __init__(self, path, unit=0, encoding='utf-8'):
         self.path = path
         self.unit = unit
+        self.encoding = encoding
         self.routine = None
         self.is_function = False
         self.functions = {}
@@ -725,7 +744,7 @@ class Compiler:
             fraction = fraction.rstrip('0')
             value = c_string((whole.lstrip('0') or '0') + (dot + fraction if fraction else ''))
         elif self.current.kind == 'string':
-            value = c_string(word[1:-1])
+            value = c_string(word[1:-1], self.encoding)
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
         self.advance()
@@ -3161,13 +3180,14 @@ def render_exit_callbacks(units):
     return "\n".join(lines)
 
 
-def compile_unit(path, directories, index=0):
-    unit = Compiler(path, index)
-    unit.parse(list(Preprocessor(directories).read(path)))
+def compile_unit(path, directories, index=0, *, source_encoding='utf-8'):
+    encoding = SOURCE_ENCODINGS[source_encoding]
+    unit = Compiler(path, index, encoding)
+    unit.parse(list(Preprocessor(directories, encoding).read(path)))
     return unit
 
 
-def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=()):
+def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=(), *, source_encoding='utf-8'):
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -3175,7 +3195,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     routines = {}
     programs = []
     for i, path in enumerate(paths):
-        unit = compile_unit(path, directories, i)
+        unit = compile_unit(path, directories, i, source_encoding=source_encoding)
         units.append(unit)
         if unit.routine:
             name = unit.routine.word
@@ -3274,13 +3294,16 @@ def main():
     cli.add_argument('--memory-lock', dest='memory_locks', action='append', nargs=2, default=[],
                      metavar=('FILE', 'KEY'), help='simulate a foreign update lock on a registered memory file')
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
+    cli.add_argument('--source-encoding', choices=SOURCE_ENCODINGS, default='utf-8',
+                     help='decode source as UTF-8 or preserve literal source bytes (default: utf-8)')
     cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
     args = cli.parse_args()
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts, args.memory_locks)
+        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts,
+                                 args.memory_locks, source_encoding=args.source_encoding)
         if args.exe:
             build_executable(result, args.o)
             return 0

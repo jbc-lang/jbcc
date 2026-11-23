@@ -20,6 +20,13 @@ Native builds default to `cc -std=c99`. Set `CC` to select the compiler and
 Both variables accept shell-style quoting. The compiler is invoked directly
 with the resulting arguments.
 
+Source files and their includes are read as strict UTF-8 by default.
+Use `./jbcc --source-encoding bytes legacy.b -o /tmp/legacy.c` for
+legacy input. This mode preserves the original bytes in string literals,
+including single-byte jBC delimiters, and accepts legacy punctuation in
+comments. It applies to every source and include in the invocation.
+A UTF-8 decoding diagnostic identifies the failing file and position.
+
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
 
@@ -1884,11 +1891,15 @@ compiler can check the complete generated unit with C99 warnings as errors.
 For indirect calls and exit callbacks it checks the dispatch code using the
 current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
+The checker accepts the same source encoding option as the compiler.
+For legacy sources, run
+`python3 tools/check_corpus.py ~/Downloads/t24 -j 8 --source-encoding bytes`.
 
 The JSON report records a status per relative path, diagnostic locations,
 and counts by first blocker. A translated unit passed C syntax checking.
 Linking its external dependencies and verifying its behavior require separate
-tests. UTF-8 decoding failures are counted separately.
+tests. UTF-8 decoding failures are counted separately and identify the
+source or include that could not be decoded.
 
 ## Test corpus
 

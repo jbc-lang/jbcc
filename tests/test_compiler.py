@@ -3156,6 +3156,39 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(data['first_blockers'], {"expected a dimensioned array 'A'": 1})
         self.assertIn('bad:1:5:', data['files']['bad']['diagnostic'])
 
+    def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
+        source = self.work / 'main.b'
+        routine = self.work / 'show.b'
+        include = self.work / 'I_CAFÉ'
+        source.write_text('$INSERT "I_CAFÉ"\nCRT MARK = @VM\nCALL SHOW()\n', encoding='utf-8')
+        include.write_bytes(b"* typography \x91\x96\r\nEQU MARK TO '\xfd'\r\n")
+        routine.write_bytes("SUBROUTINE SHOW()\nCRT 'é':".encode() + b"'\x80':@FM:'\xfc'\n")
+        result = self.run_native(source, routine, options=('--source-encoding', 'bytes'))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'1\n\xc3\xa9\x80\xfe\xfc\n', b''))
+
+    def test_default_source_encoding_reports_invalid_utf8_in_an_include(self):
+        source = self.work / 'main.b'
+        include = self.work / 'I_SHARED'
+        source.write_text('$INSERT I_SHARED\nCRT Value\n')
+        prefix = "* étoile "
+        include.write_bytes(b"Value = 1\r\n" + prefix.encode() + b"\x96\r\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{include}:2:{len(prefix) + 1}: invalid UTF-8 at byte 0x96\n')
+        self.assertFalse(self.c.exists())
+
+    def test_corpus_report_can_preserve_source_bytes(self):
+        (self.work / 'main.b').write_text('$INSERT I_SHARED\nCRT Value\n')
+        (self.work / 'I_SHARED').write_bytes(b"Value = '\xfd'\n")
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['counts'], {'encoding': 1, 'include fragment': 1})
+        self.assertEqual(report['files']['main.b'],
+                         {'status': 'encoding', 'diagnostic': 'I_SHARED:1:10: invalid UTF-8 at byte 0xfd'})
+        report = json.loads(subprocess.check_output(command + ['--source-encoding', 'bytes'], text=True))
+        self.assertEqual(report['counts'], {'translated': 1, 'include fragment': 1})
+
     def test_corpus_matrix_signatures(self):
         (self.work / 'forward').write_text('SUBROUTINE F(MAT A)\nCALL EXT(MAT A)\n'
                                           'IF 0 THEN CALL F(MAT A)\n')

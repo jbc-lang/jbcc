@@ -26,12 +26,12 @@ def group(message):
     return message
 
 
-def check(relative, root, directories):
+def check(relative, root, directories, source_encoding='utf-8'):
     path = root / relative
     if path.name.startswith("I_"):
         return relative, "include fragment", ""
     try:
-        unit = COMPILER["compile_unit"](path, directories)
+        unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding)
         externals = {}
         for target, kinds, is_function in unit.calls:
             if unit.routine and unit.routine.word == target.word:
@@ -56,8 +56,8 @@ def check(relative, root, directories):
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
         return relative, "rejected", detail
-    except UnicodeDecodeError as error:
-        return relative, "encoding", str(error)
+    except COMPILER["SourceEncodingError"] as error:
+        return relative, "encoding", str(error).replace(str(root) + os.sep, "")
     except OSError as error:
         return relative, "I/O error", str(error)
 
@@ -67,6 +67,8 @@ def main():
     parser.add_argument("directory", type=Path)
     parser.add_argument("-I", dest="includes", action="append", type=Path, default=[])
     parser.add_argument("-j", type=int, default=1, metavar="JOBS")
+    parser.add_argument("--source-encoding", choices=COMPILER["SOURCE_ENCODINGS"], default="utf-8",
+                        help="decode source as UTF-8 or preserve literal source bytes (default: utf-8)")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
@@ -74,7 +76,7 @@ def main():
     if not shutil.which("cc"):
         parser.error("cc is required to check generated C")
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
-    scan = partial(check, root=root, directories=[root, *options.includes])
+    scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding)
     counts = Counter()
     blockers = Counter()
     files = {}

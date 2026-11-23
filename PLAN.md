@@ -2289,7 +2289,25 @@ a skipped query has no effect.
 BUILD.DICTS.INDICES now passes strict C99 checking, bringing the total
 to 16,555 of 17,336 candidates. All 16,554 previous passes still pass.
 
-- [ ] Trace the 228 UTF-8 decoding failures to their source files or
+- [x] Trace the 228 UTF-8 decoding failures to their source files or
   includes. Compare Windows-1252 punctuation with single-byte jBC marks
   before adding an explicit legacy source-encoding option. Keep
   strict UTF-8 as the default.
+
+Of the 228 first decoding failures, 206 are in top-level comments or
+ignored text, 14 are in includes, and eight are in top-level literals.
+I_DX.PRICE.COMMON accounts for 12 include failures. The literal bytes
+include 0xFC and 0xFD, which are jBC array marks. The compiler and corpus
+checker now accept an explicit bytes mode that preserves source literal
+bytes. The UTF-8 diagnostic identifies the actual file, line and column.
+
+Strict UTF-8 preserves all previous statuses and 16,555 strict C99
+passes. In bytes mode, 198 of the 228 decoding failures turn into C99
+passes and 30 reach compiler diagnostics. The resulting total is
+16,753 of 17,336 candidates, with all 16,555 previous passes preserved.
+
+- [ ] Investigate forward references to dimensioned arrays. DPC.FILES
+  first blocks 14 T24 units, where its DIM appears after its first textual
+  use. The reference compiler's check_dimmed records assumed arrays and
+  validates their declarations later. Distinguish source order from
+  execution order, including for MAT arguments and runtime-sized arrays.
