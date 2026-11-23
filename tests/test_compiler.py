@@ -3149,17 +3149,30 @@ CRT SYSTEM(24)
 
     def test_system14_input_queue(self):
         source = self.work / 'pending.b'
-        source.write_text('PRINT SYSTEM(14)\nPRINT SYSTEM(14)\n')
+        source.write_text("""PROMPT ''
+CRT SYSTEM(14)
+DATA '123', '456'
+CRT SYSTEM(14)
+CRT SYSTEM(14)
+INPUT First, 2
+CRT First:':':SYSTEM(14)
+CLEARDATA
+CRT SYSTEM(14)
+""")
         binary = self.work / 'pending'
-        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        self.c, '-o', binary], check=True)
         with open(os.devnull, 'rb') as empty:
-            self.assertEqual(subprocess.check_output([binary], stdin=empty), b'0\n0\n')
+            result = subprocess.run([binary], stdin=empty, capture_output=True, timeout=5)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\n8\n8\n12:6\n0\n', b''))
         # Preload the pipe before starting the program. Polling leaves its bytes queued.
         read_fd, write_fd = os.pipe()
         with os.fdopen(write_fd, 'wb') as writer:
             writer.write(b'abc')
         with os.fdopen(read_fd, 'rb') as reader:
-            self.assertEqual(subprocess.check_output([binary], stdin=reader), b'3\n3\n')
+            result = subprocess.run([binary], stdin=reader, capture_output=True, timeout=5)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'3\n11\n11\n12:9\n3\n', b''))
 
     def test_account_path_uses_working_directory(self):
         source = self.work / 'path.b'

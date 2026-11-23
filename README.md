@@ -1696,8 +1696,12 @@ The guide’s SCREENCODE table defines `@(-1)` to clear the screen and home
 the cursor, `@(-2)` to home the cursor, `@(-3)` to clear from the cursor to
 the end of the screen, and `@(-4)` to clear to the end of the current line.
 Each returns an ANSI sequence that takes effect when printed.
-`SYSTEM(14)` checks pending
-input using the POSIX input device's line discipline. Native mode links the math library for programs
+`SYSTEM(14)` counts unread DATA bytes, including line endings. Native
+jbcc adds the bytes reported by the POSIX input device to the DATA count
+when both sources have pending input. Querying the count leaves the
+bytes available for later reads. [CLEARDATA](https://jbc-lang.org/pages/cleardata.html).
+
+Native mode links the math library for programs
 that use SIN, COS, PWR, SQRT, EXP or LN, including infix powers. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).

@@ -4456,11 +4456,15 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     } while (result < 0 && errno == EINTR);
     if (result < 0) {
         /* Devices such as /dev/null have no input queue to inspect. */
-        if (errno == ENODEV || errno == ENOTTY || errno == EOPNOTSUPP)
-            return "0";
-        numeric_error(file, line, column, "cannot query pending input bytes");
+        if (errno != ENODEV && errno != ENOTTY && errno != EOPNOTSUPP)
+            numeric_error(file, line, column, "cannot query pending input bytes");
+        bytes = 0;
     }
-    return bytes > 0 ? size_value((size_t)bytes) : "0";
+
+    uintmax_t pending = bytes > 0 ? (unsigned)bytes : 0;
+    for (const struct input_chunk *chunk = input_data; chunk; chunk = chunk->next)
+        pending += chunk->length - chunk->offset;
+    return pending ? size_value(pending) : "0";
 }
 #endif
 

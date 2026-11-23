@@ -1897,5 +1897,12 @@ All 16,360 previous passes still pass, and ENQ.PH.INIT now passes.
 A native test checks clearing a partially consumed entry, the remaining
 queue, and later reads from standard input and fresh DATA.
 
-- [ ] Count queued DATA in SYSTEM(14). Check the guide's CLEARDATA
+- [x] Count queued DATA in SYSTEM(14). Check the guide's CLEARDATA
   example, partial INPUT reads, and existing counts for piped input.
+
+After the SYSTEM(14) change, the same 16,361 of 17,336 candidates pass
+strict C99 checking. Native tests check remaining queued bytes, line
+endings, and pending standard input before and after CLEARDATA.
+
+- [ ] Implement OSREAD for regular files. Check result and error arms
+  against the guide, and rerun UPDATE.UPLOAD.SERVICE.
