@@ -607,6 +607,8 @@ class Compiler:
                 for truth in (True, False):
                     if (args[0], truth) in self.assignment_facts:
                         self.assignment_facts[value, not truth] = self.assignment_facts[args[0], truth]
+        elif word == 'IF' and word not in self.assigned:
+            return self.postfix(self.conditional_expression(), locate_source)
         elif self.current.kind == 'name':
             value = self.read_variable(self.current)
         elif self.current.kind == 'number':
@@ -668,7 +670,8 @@ class Compiler:
             # terminator before parsing the indices with expression precedence.
             depth = 0
             for i, token in enumerate(self.tokens):
-                if token.word in ('\n', '', 'THEN', 'ELSE') or (token.word == ';' and token.kind == 'symbol'):
+                if (token.word in ('\n', '') or (depth == 0 and token.word in ('THEN', 'ELSE'))
+                        or (token.word == ';' and token.kind == 'symbol')):
                     self.error("expected closing '>' for dynamic-array assignment")
                 if token.kind == 'array_open' or token.word in ('(', '['):
                     depth += 1
@@ -732,6 +735,38 @@ class Compiler:
         self.emit(f'{result} = jbc_truth({right}) ? "1" : "0";')
         self.depth -= 1
         self.emit("}")
+        return result
+
+    def conditional_expression(self):
+        self.advance()
+        condition = self.expression()
+        self.expect('THEN')
+        result = self.temporary("NULL")
+        before = self.assigned.copy()
+        self.emit(f"if (jbc_truth({condition})) {{")
+        self.depth += 1
+        self.assigned.update(self.assignment_facts.get((condition, True), ()))
+        yes = self.expression()
+        self.expect('ELSE')
+        self.emit(f"{result} = {yes};")
+        yes_assigned = self.assigned
+        self.depth -= 1
+        self.emit("} else {")
+        self.depth += 1
+        self.assigned = before.union(self.assignment_facts.get((condition, False), ()))
+        # The reference grammar gives ELSE the left-associative precedence of ^.
+        no = self.expression(PRECEDENCE['^'] + 1)
+        self.emit(f"{result} = {no};")
+        self.depth -= 1
+        self.emit("}")
+        no_assigned = self.assigned
+        self.assigned = yes_assigned & no_assigned
+        for truth in (True, False):
+            yes_facts = yes_assigned.union(self.assignment_facts.get((yes, truth), ()))
+            no_facts = no_assigned.union(self.assignment_facts.get((no, truth), ()))
+            facts = (yes_facts & no_facts) - self.assigned
+            if facts:
+                self.assignment_facts[result, truth] = facts
         return result
 
     def temporary(self, call):

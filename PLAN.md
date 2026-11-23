@@ -1263,8 +1263,19 @@ After WRITEV and WRITEVU, 15,810 of 17,336 candidates pass strict C99
 checking. All 15,804 previous passes still pass. All six WRITEV blockers
 now pass.
 
-- [ ] Implement `IF condition THEN value ELSE value` in expressions.
+- [x] Implement `IF condition THEN value ELSE value` in expressions.
   Check the reference grammar's resultant production and verify that
   only the selected arm runs, including when the values are nested
   in function arguments, array indices, or concatenations. The shared
   I_GOSUB.MSK include uses this form in a concatenation.
+
+After conditional expressions, 15,877 of 17,336 candidates pass strict
+C99 checking. All 15,810 previous passes still pass. The 67 additional
+passes include COLLATERAL.ALLOCATION, which uses a conditional array
+index, and COLLATERAL.PARAMETER, which uses a conditional in concatenation.
+The three ARCHIVES files blocked in I_GOSUB.MSK now reach its format mask
+expression on line 307.
+
+- [ ] Support the reference grammar's implicit format expression, as in
+  `Value "10R"` and `Value Mask<2>`. Reuse FMT and test precedence,
+  keyword boundaries, and literal and variable masks.

@@ -463,6 +463,29 @@ RETURN
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:3:7: unknown variable', run.stderr)
 
+    def test_conditional_expression_calls(self):
+        main = self.work / 'main.b'
+        function = self.work / 'BUMP'
+        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN(N)\n')
+        main.write_text("DEFFUN BUMP()\nN = 0\n"
+                        "CRT IF 0 THEN BUMP(N) ELSE 7, N\n"
+                        "CRT IF 1 THEN BUMP(N) ELSE BUMP(N), N\n"
+                        "CRT N + (IF N THEN BUMP(N) ELSE 0), N\n")
+        run = self.run_native(main, function)
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'7\t0\n1\t1\n3\t2\n', b''))
+
+        main.write_text("DEFFUN BUMP()\nValue = IF 0 THEN BUMP(X) ELSE 7\nCRT X\n")
+        run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{main}:3:5: unknown variable', run.stderr)
+
+    def test_conditional_expression_requires_else(self):
+        source = self.work / 'bad.b'
+        source.write_text("Value = IF 1 THEN 2\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:20: expected 'ELSE'", result.stderr)
+
     def test_precision_call_scope(self):
         main = self.work / 'main.b'
         function = self.work / 'LOCAL'

@@ -458,6 +458,14 @@ mkdir -p /tmp/jbcc-reports
 JBCC_PRINT_DIR=/tmp/jbcc-reports just run tests/io/print-units.b
 ```
 
+The reference parser also allows `IF condition THEN value ELSE value`
+in an expression. Only the selected value is evaluated. In the reference
+grammar, ELSE has the same left-associative precedence as exponentiation,
+so `IF C THEN 2 ELSE 3 + 10` adds 10 to the selected value. Write
+`IF C THEN 2 ELSE (3 + 10)` to put the addition inside the ELSE arm.
+Use parentheses inside an angle-bracket selector, as in
+`R<(IF C THEN 1 ELSE 2)>`.
+
 FOR supports inclusive bounds, a default step of one, optional STEP,
 and an optional variable name after NEXT. Following the reference parser,
 jbcc warns if that name differs from the innermost FOR counter. The NEXT
