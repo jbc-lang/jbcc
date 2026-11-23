@@ -1,0 +1,3 @@
+SUBROUTINE PROBE(F)
+READV V FROM F,'missing',1 ELSE CRT 'routine', STATUS()
+RETURN

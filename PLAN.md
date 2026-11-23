@@ -1314,6 +1314,15 @@ checking. All 16,077 previous passes still pass. Eight of the nine
 block I/O blockers now pass. TK.TELEKURS.1 advances to STATUS() in
 its READBLK error arm.
 
-- [ ] Implement STATUS() for the result of the latest supported file I/O.
+- [x] Implement STATUS() for the result of the latest supported file I/O.
   Distinguish the function from the STATUS statement and verify its value
   inside success and failure arms, including when SETTING is omitted.
+
+After STATUS(), 16,125 of 17,336 candidates pass strict C99 checking.
+All 16,085 previous passes still pass. The 40 additional passes formerly
+stopped on a line containing STATUS(). Native tests exercise file I/O
+results. STATUS() for conversions still needs coverage.
+
+- [ ] Implement SEQ for first-byte values and investigate the SEQX
+  spelling used by T24. Verify ASCII, high bytes, and extraction from a
+  READBLK buffer. TK.TELEKURS.1 now reaches SEQX while decoding a length.

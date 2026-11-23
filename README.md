@@ -918,6 +918,20 @@ the output, sets S to 128 and takes ELSE. An empty descriptor raises a
 source-located runtime error. Success sets S to 0. The SETTING clause is
 optional. [STATUS statement](https://jbc-lang.org/pages/status_statement.html).
 
+`STATUS()` reports the last record or sequential file operation's
+result, including inside its success, failure, or LOCKED arm. The
+initial result is 0, and a called routine's file operation updates
+the same process-wide value. The STATUS statement still returns file
+attributes and updates the operation result. `STATUS()` can differ
+from `SETTING`. For example, a successful MATREAD sets the field count
+but `STATUS()` returns 0.
+
+jbcc provisionally reports its backend's status codes, including
+128 for missing records or files and -2 for a simulated foreign lock.
+The function currently tracks record and sequential file operations.
+Conversion status and reference-specific OS error numbers remain
+outside this implementation. [STATUS function](https://jbc-lang.org/pages/status.html).
+
 READ and WRITE accept an explicit descriptor and key, or just a key for
 the default file. For example, after `OPENPATH path ELSE STOP`,
 `WRITE 'Ada' ON '1'` and `READ name FROM '1' ELSE STOP` use the same file.

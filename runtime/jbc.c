@@ -827,6 +827,31 @@ static const char *size_value(uintmax_t n)
     return out;
 }
 
+enum { JBC_LOCKED = -2 };
+
+static int last_file_status;
+
+static int file_result(int status)
+{
+    last_file_status = status;
+    return status;
+}
+
+static int file_succeeded(int status)
+{
+    return file_result(status) == 0;
+}
+
+static const char *file_status_value(int status)
+{
+    return status == JBC_LOCKED ? "-2" : size_value((size_t)status);
+}
+
+const char *jbc_status(void)
+{
+    return file_status_value(last_file_status);
+}
+
 static int last_command_code;
 
 const char *jbc_system_return_code(void)
@@ -2241,7 +2266,7 @@ int jbc_open_file(const char *section, const char *name, jbc_variable *out, cons
     if (f && scope) remember_open(scope, out, f);
     assign_value(out, f ? f->name : "");
     if (setting) assign_value(setting, f ? "0" : "128");
-    return f ? 0 : 128;
+    return file_result(f ? 0 : 128);
 }
 
 static struct memory_file *file_for(const char *handle)
@@ -2254,7 +2279,7 @@ static struct memory_file *file_for(const char *handle)
 int jbc_close_file(jbc_variable *slot)
 {
     struct memory_file *f = file_for(slot->value);
-    if (!f) return 0;
+    if (!f) return file_succeeded(128);
     struct opened_file **link = &local_opens;
     while (*link) {
         struct opened_file *p = *link;
@@ -2267,7 +2292,7 @@ int jbc_close_file(jbc_variable *slot)
     }
     release_locks(f, NULL, 0);
     assign_value(slot, NULL);
-    return 1;
+    return file_succeeded(0);
 }
 
 /* Each cursor stores its last record serial, so deletion cannot leave it
@@ -2537,27 +2562,27 @@ int jbc_clear_file(const char *handle, jbc_variable *setting)
 {
     struct memory_file *file = file_for(handle);
     if (setting) assign_value(setting, file ? "" : "128");
-    if (!file) return 0;
+    if (!file) return file_succeeded(128);
     for (struct record_lock *lock = file->locks; lock; lock = lock->next) {
         if (lock->foreign) {
             if (setting) assign_value(setting, "32768");
-            return 0;
+            return file_succeeded(32768);
         }
     }
     clear_records(file);
     release_locks(file, NULL, 0);
-    return 1;
+    return file_succeeded(0);
 }
 
 int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting)
 {
     struct memory_file *f = file_for(handle);
     if (setting) assign_value(setting, f ? "0" : "128");
-    if (!f) return 0;
+    if (!f) return file_succeeded(128);
     struct record_lock *lock = find_lock(f, key);
     if (lock && lock->foreign) {
         if (setting) assign_value(setting, "32768");
-        return 0;
+        return file_succeeded(32768);
     }
     release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
@@ -2567,7 +2592,7 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
         if (f->last_read == record) f->last_read = NULL;
         free_record(record);
     }
-    return 1;
+    return file_succeeded(0);
 }
 
 int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
@@ -2576,10 +2601,10 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out)
     struct memory_record *r = f ? *record_link(f, key) : NULL;
     if (!r) {
         assign_value(out, "");
-        return 0;
+        return file_succeeded(128);
     }
     assign_value(out, strcpy(allocate(strlen(r->value)), r->value));
-    return 1;
+    return file_succeeded(0);
 }
 
 const char *jbc_recordlocked(const char *handle, const char *key)
@@ -2599,8 +2624,6 @@ void jbc_release_lock(const char *handle, const char *key)
             release_locks(f, NULL, 0);
     }
 }
-
-enum { JBC_LOCKED = -2 };
 
 static int lock_for_update(struct memory_file *f, const char *key, jbc_variable *setting)
 {
@@ -2622,10 +2645,10 @@ int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variab
     struct memory_file *f = file_for(handle);
     if (!f) assign_value(out, "");
     int status = lock_for_update(f, key, setting);
-    if (status) return status;
+    if (status) return file_result(status);
     int found = jbc_read_record(handle, key, out);
     if (setting) assign_value(setting, found ? "" : "128");
-    return found ? 0 : 128;
+    return file_result(found ? 0 : 128);
 }
 
 int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
@@ -2634,12 +2657,12 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
     struct memory_file *f = file_for(handle);
     if (update) {
         int status = lock_for_update(f, key, setting);
-        if (status) return status;
+        if (status) return file_result(status);
     }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
     if (!record) {
         if (setting) assign_value(setting, "128");
-        return 128;
+        return file_result(128);
     }
 
     size_t total = matrix_elements(rank, bounds);
@@ -2650,7 +2673,7 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
         assign_value(&dest[matrix_element_offset(i, rank, bounds)], value);
     }
     if (setting) assign_value(setting, jbc_dcount(record->value, "\376"));
-    return 0;
+    return file_result(0);
 }
 
 int jbc_read_field(const char *handle, const char *key, const char *field, jbc_variable *out,
@@ -2664,7 +2687,7 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     if (update) {
         if (!f) assign_value(out, "");
         int status = lock_for_update(f, key, setting);
-        if (status) return status;
+        if (status) return file_result(status);
     }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
     const char *value = "";
@@ -2679,7 +2702,7 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     }
     assign_value(out, value);
     if (setting) assign_value(setting, record ? "" : "128");
-    return record ? 0 : 128;
+    return file_result(record ? 0 : 128);
 }
 
 static int write_record_status(const char *handle, const char *key, const char *value,
@@ -2715,7 +2738,7 @@ int jbc_write_record(const char *handle, const char *key, const char *value,
 {
     int status = write_record_status(handle, key, value, 0, keep_lock);
     if (setting) assign_value(setting, status ? size_value((size_t)status) : "");
-    return status == 0;
+    return file_succeeded(status);
 }
 
 int jbc_write_field(const char *handle, const char *key, const char *field, const char *value,
@@ -2728,7 +2751,7 @@ int jbc_write_field(const char *handle, const char *key, const char *field, cons
     int64_t position = integer(field, file, line, column);
     int status = write_record_status(handle, key, value, position, keep_lock);
     if (setting) assign_value(setting, status ? size_value((size_t)status) : "");
-    return status == 0;
+    return file_succeeded(status);
 }
 
 int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, int rank,
@@ -2741,7 +2764,7 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
         const char *result = status == 128 ? "128" : "32768";
         assign_value(setting, status ? result : jbc_dcount(record, "\376"));
     }
-    return status;
+    return file_result(status);
 }
 
 const char *jbc_char(const char *value, const char *file, int line, int column)
@@ -3610,7 +3633,7 @@ void jbc_leave_sequential(const char ***roots)
 
 void jbc_seq_setting(jbc_variable *out, int status)
 {
-    assign_value(out, status == JBC_LOCKED ? "-2" : size_value((size_t)status));
+    assign_value(out, file_status_value(status));
 }
 
 static int open_sequential(const char *path, int readonly, int create, int append, FILE **out)
@@ -3637,7 +3660,7 @@ int jbc_openseq(const char *path, const char *name, int existing, int append, in
     FILE *stream = NULL;
     int status = open_sequential(path, readonly, 0, append, &stream);
     assign_value(out, "");
-    if (status && (status != 128 || existing || readonly)) return status;
+    if (status && (status != 128 || existing || readonly)) return file_result(status);
     struct sequential_file *file = malloc(sizeof *file);
     if (!file) fail("out of memory");
     file->token = strcpy(allocate(strlen(path)), path);
@@ -3647,14 +3670,14 @@ int jbc_openseq(const char *path, const char *name, int existing, int append, in
     file->next = sequential_files;
     sequential_files = file;
     assign_value(out, file->token);
-    return status;
+    return file_result(status);
 }
 
 int jbc_readseq(const char *token, jbc_variable *out)
 {
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
-    if (!file || !file->stream) return 128;
+    if (!file || !file->stream) return file_result(128);
     char record[1024];
     size_t length = 0;
     int ch, binary = 0;
@@ -3662,13 +3685,13 @@ int jbc_readseq(const char *token, jbc_variable *out)
         if (ch == 0) binary = 1;
         if (length < sizeof record) record[length++] = (char)ch;
     }
-    if (ferror(file->stream) || binary) return 32768;
-    if (ch == EOF && !length) return 128;
+    if (ferror(file->stream) || binary) return file_result(32768);
+    if (ch == EOF && !length) return file_result(128);
     char *value = allocate(length);
     memcpy(value, record, length);
     value[length] = '\0';
     assign_value(out, value);
-    return 0;
+    return file_result(0);
 }
 
 int jbc_readblk(const char *token, const char *size, jbc_variable *out,
@@ -3686,23 +3709,23 @@ int jbc_readblk(const char *token, const char *size, jbc_variable *out,
 
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
-    if (!file || !file->stream) return 128;
+    if (!file || !file->stream) return file_result(128);
     FILE *in = file->stream;
     off_t position = ftello(in);
     struct stat info;
-    if (position < 0 || fstat(fileno(in), &info)) return file_error(errno);
-    if (position >= info.st_size) return 128;
+    if (position < 0 || fstat(fileno(in), &info)) return file_result(file_error(errno));
+    if (position >= info.st_size) return file_result(128);
     /* Bound allocation by the bytes left in an open regular file. */
     uintmax_t remaining = (uintmax_t)(info.st_size - position);
     size_t amount = (size_t)(remaining < requested ? remaining : requested);
     char *value = allocate(amount);
     size_t length = fread(value, 1, amount, in);
-    if (ferror(in)) return file_error(errno);
-    if (length != requested) return 128;
-    if (memchr(value, '\0', length)) return 32768;
+    if (ferror(in)) return file_result(file_error(errno));
+    if (length != requested) return file_result(128);
+    if (memchr(value, '\0', length)) return file_result(32768);
     value[length] = '\0';
     assign_value(out, value);
-    return 0;
+    return file_result(0);
 }
 
 static int writable_sequential(struct sequential_file *file)
@@ -3717,8 +3740,8 @@ int jbc_createseq(const char *token, const char *source, int line, int column)
 {
     if (!*token) numeric_error(source, line, column, "CREATE requires an OPENSEQ handle");
     struct sequential_file *file = *sequential_slot(token);
-    if (file && file->stream) return 32768;
-    return writable_sequential(file);
+    if (file && file->stream) return file_result(32768);
+    return file_result(writable_sequential(file));
 }
 
 int jbc_seek(const char *token, const char *offset, const char *origin,
@@ -3727,42 +3750,42 @@ int jbc_seek(const char *token, const char *offset, const char *origin,
     if (!*token || !*offset || !*origin)
         numeric_error(source, line, column, "SEEK requires nonempty handle, offset and origin");
     struct sequential_file *file = *sequential_slot(token);
-    if (!file || !file->stream) return 128;
+    if (!file || !file->stream) return file_result(128);
     struct decimal n;
     if (!parse_decimal(origin, &n) || n.places || n.sign < 0 || n.digits > 1)
-        return 32768;
+        return file_result(32768);
     int relative = n.digits ? *n.whole - '0' : 0;
-    if (relative > 2 || !parse_decimal(offset, &n) || n.places) return 32768;
+    if (relative > 2 || !parse_decimal(offset, &n) || n.places) return file_result(32768);
     errno = 0;
     intmax_t delta = strtoimax(offset, NULL, 10);
-    if (errno) return 32768;
+    if (errno) return file_result(32768);
 
     off_t base = 0;
     if (relative == 1) {
         base = ftello(file->stream);
-        if (base < 0) return file_error(errno);
+        if (base < 0) return file_result(file_error(errno));
     } else if (relative == 2) {
         struct stat st;
-        if (fstat(fileno(file->stream), &st)) return file_error(errno);
+        if (fstat(fileno(file->stream), &st)) return file_result(file_error(errno));
         base = st.st_size;
     }
-    if (delta < -(intmax_t)base || delta > INTMAX_MAX - base) return 32768;
+    if (delta < -(intmax_t)base || delta > INTMAX_MAX - base) return file_result(32768);
     intmax_t target = base + delta;
-    if ((off_t)target != target) return 32768;
-    return fseeko(file->stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0;
+    if ((off_t)target != target) return file_result(32768);
+    return file_result(fseeko(file->stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0);
 }
 
 int jbc_weofseq(const char *token)
 {
     struct sequential_file *file = *sequential_slot(token);
     int status = writable_sequential(file);
-    if (status) return status;
+    if (status) return file_result(status);
     FILE *out = file->stream;
     /* Discard prefetched input so a later READSEQ sees the new EOF. */
     off_t position = ftello(out);
     if (position < 0 || fflush(out) || ftruncate(fileno(out), position) ||
-        fseeko(out, position, SEEK_SET)) return file_error(errno);
-    return 0;
+        fseeko(out, position, SEEK_SET)) return file_result(file_error(errno));
+    return file_result(0);
 }
 
 static int write_sequential(const char *token, const char *value, int append, int flush, int newline)
@@ -3782,22 +3805,22 @@ static int write_sequential(const char *token, const char *value, int append, in
 
 int jbc_writeseq(const char *token, const char *value, int append, int flush)
 {
-    return write_sequential(token, value, append, flush, 1);
+    return file_result(write_sequential(token, value, append, flush, 1));
 }
 
 int jbc_writeblk(const char *token, const char *value, const char *source, int line, int column)
 {
     if (!*token || !*value)
         numeric_error(source, line, column, "WRITEBLK requires nonempty handle and data");
-    return write_sequential(token, value, 0, 0, 0);
+    return file_result(write_sequential(token, value, 0, 0, 0));
 }
 
 int jbc_closeseq(jbc_variable *slot)
 {
-    if (!*sequential_slot(slot->value)) return 0;
+    if (!*sequential_slot(slot->value)) return file_succeeded(128);
     int status = release_sequential(slot->value);
     assign_value(slot, "");
-    return status == 0;
+    return file_succeeded(status ? 32768 : 0);
 }
 #endif
 
@@ -3884,5 +3907,5 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
                                                    source, line, column);
     assign_value(out, value);
     if (setting) assign_value(setting, size_value((size_t)status));
-    return status == 0;
+    return file_succeeded(status);
 }

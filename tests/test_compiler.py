@@ -1208,6 +1208,24 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
                                      b'record2\nempty=0\nrecord2\n')
 
+    def test_last_file_status(self):
+        (self.work / 'input').write_bytes(b'abc')
+        result = self.run_native(ROOT / 'tests/io/last-file-status.b', ROOT / 'tests/io/file-status-probe.b',
+                                 options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'], cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'0\nopen\t128\nopened\t0\nread\t128\nlocked\t-2\n'
+                                        b'write\t32768\nwrote\t0\t0\nfields\t0\t1\nroutine\t128\n'
+                                        b'after call\t128\nMEMORY\t0\nclose\t128\nseq open\t0\nab\t0\n'
+                                        b'short\t128\nreadonly\t24576\nseq close\t0\n')
+
+    def test_status_wrong_argument_count(self):
+        source = self.work / 'status.b'
+        source.write_text('CRT STATUS(1)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'STATUS'", result.stderr)
+
     def test_record_file_status(self):
         result = self.run_native(ROOT / 'tests/io/file-status.b', options=['--memory-file', 'data/customers'])
         self.assertEqual(result.returncode, 0, result.stderr)
