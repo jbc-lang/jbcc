@@ -2246,6 +2246,21 @@ RETURN TO and the treatment of a step saved during an earlier iteration.
 All 11 affected units now pass strict C99 checking, bringing the total to
 16,544 of 17,336 candidates. All 16,533 previous passes still pass.
 
-- [ ] Investigate three-operand bracket assignments in the reference
+- [x] Investigate three-operand bracket assignments in the reference
   grammar and T24. The generator emits ASSIGN_FORMAT for this form.
   Verify the delimiter and replacement rules before implementing them.
+
+The reference compiler emits COMPSTORX for replacement and COMPSTORC
+for concatenating assignment, with delimiter, first field and field
+count operands. EB.IN2.CALL pairs a bracket read with a write to the
+same field. jbcc uses the same delimited span for reads and writes.
+Native tests cover embedded delimiters, nested targets, concatenation,
+and diagnostics. Padding missing fields and the empty-delimiter behavior
+are provisional pending a runtime comparison.
+
+All nine affected units now pass strict C99 checking, bringing the total
+to 16,553 of 17,336 candidates. All 16,544 previous passes still pass.
+
+- [ ] Investigate the element-wise comparison functions related to
+  EQS and NES, starting with LES in AZ.GEN.CC.AMT. Check ordering,
+  missing elements and REUSE against the guide and reference generator.

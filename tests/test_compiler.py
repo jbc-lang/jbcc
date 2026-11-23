@@ -1607,6 +1607,50 @@ CRT FIELD('whole', '', 1):':':COL1():':':COL2()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
 
+    def test_delimited_bracket_assignment(self):
+        source = self.work / 'fields.b'
+        source.write_text("""Text = 'a--b--c--d'
+CRT Text['--',2,2]
+Text['--',2,2] = 'new'
+CRT Text
+Text['--',2,1] := '!'
+CRT Text
+Text['--',2,1] = ''
+CRT Text
+Text['--',5,1] = 'end'
+CRT Text
+Empty['.',3,1] = 'x'
+CRT Empty
+Empty['.',2,9] = 'rest'
+CRT Empty
+DIM Rows(2)
+Rows(1) = 'left/right':@FM:'keep'
+Rows(1)<1>['/',2,1] = 'changed'
+CRT Rows(1)
+CRT COL1():':':COL2()
+Text['',1,1] = 'whole'
+CRT Text
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'b--c\na--new--d\na--new!--d\na----d\na----d----end\n'
+                             b'..x\n.rest\nleft/changed\xfekeep\n3:8\nwhole\n', b''))
+
+    def test_delimited_bracket_assignment_diagnostics(self):
+        source = self.work / 'fields.b'
+        for args, message in (
+            ("'/',0,1", 'FIELD positions and counts start at one'),
+            ("'/',1,'bad'", 'FIELD requires positive integer positions and counts'),
+            ("'',2,1", 'cannot extend fields with an empty delimiter'),
+            ("'---',9223372036854775807,1", 'field replacement is too large'),
+        ):
+            with self.subTest(args=args):
+                source.write_text(f"Text = 'a/b'\nText[{args}] = 'x'\n")
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
+
     def test_single_index_substring_assignment(self):
         source = self.work / 'suffix.b'
         source.write_text("""Text = 'abcde'

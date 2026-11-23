@@ -2777,6 +2777,40 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     return field;
 }
 
+const char *jbc_field_replace(const char *s, const char *separator, const char *start,
+                              const char *count, const char *file, int line, int column,
+                              const char *replacement, int append)
+{
+    int64_t first = field_index(start, file, line, column);
+    int64_t length = field_index(count, file, line, column);
+    size_t width = strlen(separator), size = strlen(s), take;
+    const char *selected = field_range(s, separator, width, first, length, &take);
+    size_t prefix = selected ? (size_t)(selected - s) : size;
+    size_t padding = 0;
+    if (!selected) {
+        if (!width)
+            numeric_error(file, line, column, "cannot extend fields with an empty delimiter");
+        uintmax_t missing = (uintmax_t)(first - 1) - occurrences(s, separator);
+        if (missing > SIZE_MAX / width)
+            numeric_error(file, line, column, "field replacement is too large");
+        padding = (size_t)missing * width;
+    }
+    if (append) {
+        prefix += take;
+        take = 0;
+    }
+    size_t kept = size - take, added = strlen(replacement);
+    if (padding > SIZE_MAX - kept || added > SIZE_MAX - kept - padding)
+        numeric_error(file, line, column, "field replacement is too large");
+    char *out = allocate(kept + padding + added);
+    memcpy(out, s, prefix);
+    for (size_t offset = 0; offset < padding; offset += width)
+        memcpy(out + prefix + offset, separator, width);
+    memcpy(out + prefix + padding, replacement, added);
+    memcpy(out + prefix + padding + added, s + prefix + take, size - prefix - take + 1);
+    return out;
+}
+
 const char *jbc_reuse_scalar(const char *value, const char *message, const char *file, int line, int column)
 {
     if (strpbrk(value, "\376\375\374"))

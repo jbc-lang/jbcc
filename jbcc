@@ -2813,11 +2813,14 @@ class Compiler:
             var = self.matrix_slot(start) if matrix else None
             indices = self.assignment_indices()
             substring = None
+            delimited = False
             if self.word == '[':
                 location = self.location(self.current)
-                bounds = self.bracket_arguments(1, 2)
-                start_pos, length = bounds if len(bounds) == 2 else ('NULL', bounds[0])
-                substring = f"{start_pos}, {length}, {location}"
+                bounds = self.bracket_arguments(1, 3)
+                delimited = len(bounds) == 3
+                if len(bounds) == 1:
+                    bounds.insert(0, 'NULL')
+                substring = f"{', '.join(bounds)}, {location}"
             operator = self.current
             if self.word in STEP_OPERATORS:
                 if indices or substring:
@@ -2840,13 +2843,19 @@ class Compiler:
                 if not matrix and start.word not in self.assigned and not self.has_unstructured_jumps:
                     self.assignment_error(f"unassigned variable '{start.word}'", start)
                 old = text if indices else self.checked_read(var, start)
-                if substring:
-                    old = self.temporary(f"jbc_substring({old}, {substring}, NULL)")
-                if operator.word == ':=':
-                    value = self.temporary(f"jbc_concat({old}, {value})")
+                if delimited:
+                    text = old
                 else:
-                    value = self.arithmetic(operator, old, value, operator.word[0])
-            if substring:
+                    if substring:
+                        old = self.temporary(f"jbc_substring({old}, {substring}, NULL)")
+                    if operator.word == ':=':
+                        value = self.temporary(f"jbc_concat({old}, {value})")
+                    else:
+                        value = self.arithmetic(operator, old, value, operator.word[0])
+            if delimited:
+                append = int(operator.word == ':=')
+                value = self.temporary(f"jbc_field_replace({text}, {substring}, {value}, {append})")
+            elif substring:
                 value = self.temporary(f"jbc_substring({text}, {substring}, {value})")
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")

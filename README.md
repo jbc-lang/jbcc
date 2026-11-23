@@ -1119,6 +1119,16 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+`Text[delimiter, occurrence, count] = replacement` replaces the byte
+span selected by the bracket expression. Delimiters outside that span
+are preserved. With `:=`, the new text is appended to the selected span.
+The same syntax works on matrix elements and dynamic-array components.
+This follows the reference generator's three-operand assignment form.
+For an occurrence beyond the end, jbcc provisionally inserts enough
+delimiters to reach it. An empty delimiter permits replacing the whole
+value at occurrence one. Assignment leaves the saved FIELD positions
+unchanged. These edge cases await a jBASE runtime comparison.
+
 `COL1()` and `COL2()` report the one-based byte positions immediately
 before and after the last scalar FIELD selection, including the bracket
 form. `COL1()` returns 0 at the start of the string, and `COL2()` can
