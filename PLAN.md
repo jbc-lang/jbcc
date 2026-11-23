@@ -1238,6 +1238,15 @@ checking. All 15,780 previous passes still pass. Of the 15 additional
 passes, eight previously stopped at WHILE, including
 EOD.GROUP.ACCRUAL.POST and RE.UPDT.STAT.LINE.CONT.
 
-- [ ] Implement READVU by combining field extraction with a record lock.
+- [x] Implement READVU by combining field extraction with a record lock.
   Verify explicit and default files, field zero, successful and missing
   reads, LOCKED and ON ERROR. READVU is the first blocker in nine files.
+
+After READVU, 15,800 of 17,336 candidates pass strict C99 checking.
+All 15,795 previous passes still pass. Five of the nine READVU blockers
+now pass. Three reach a diagnostic in I_GOSUB.MSK and one reaches WRITEU.
+
+- [ ] Implement WRITEU to update a record while preserving its lock.
+  Verify that updating a locked record retains the lock, that WRITE
+  or RELEASE can release it, and that SETTING and ON ERROR handle
+  failures. WRITEU is the first blocker in four files.

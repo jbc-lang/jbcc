@@ -948,6 +948,13 @@ Status is empty on success. READV reserves ON ERROR for incremental file
 errors other than 128. [READV](https://jbc-lang.org/pages/readv.html),
 [jBASE emulation settings](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup12_EMULATION.htm).
 
+READVU reads the same fields as READV and acquires an update lock like
+READU. A missing record takes ELSE with status 128 and keeps the lock.
+A simulated foreign lock takes LOCKED with status -2 and preserves the
+destination. An invalid descriptor clears the destination and takes
+ON ERROR with status 32768 in the in-memory backend. WRITE or RELEASE
+can release the owned lock. [READVU](https://jbc-lang.org/pages/readvu.html).
+
 MATREAD fills a dimensioned array from a record in the selected in-memory
 file. For example, `MATREAD A FROM F, Key SETTING N ELSE STOP` splits the
 record on field marks, varying the last matrix subscript fastest. The final

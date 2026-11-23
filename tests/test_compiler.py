@@ -1277,6 +1277,24 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: READV requires a numeric field number'.encode(), run.stderr)
 
+    def test_readvu(self):
+        run = self.run_native(ROOT / 'tests/io/readvu.b',
+                              options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'second|value\t0\t2\nkey\n0\t2\n0\n128\t0\t2\n0\n'
+                                     b'-2\tkept\nfirst\t0\n32768\t0\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_readvu_diagnostics(self):
+        source = self.work / 'readvu.b'
+        for field, diagnostic in [("'bad'", 'requires a numeric field number'),
+                                  ('1', 'cannot wait for a simulated foreign lock')]:
+            with self.subTest(field=field):
+                source.write_text(f"OPEN 'F' ELSE STOP\nREADVU R FROM 'busy',{field} ELSE STOP\n")
+                run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:2:1: READVU {diagnostic}'.encode(), run.stderr)
+
     def test_matread(self):
         run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)

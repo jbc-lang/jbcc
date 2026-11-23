@@ -2654,12 +2654,18 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
 }
 
 int jbc_read_field(const char *handle, const char *key, const char *field, jbc_variable *out,
-                   jbc_variable *setting, const char *file, int line, int column)
+                   jbc_variable *setting, int update, const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(field, &n))
-        numeric_error(file, line, column, "READV requires a numeric field number");
+        numeric_error(file, line, column, update ? "READVU requires a numeric field number"
+                                                 : "READV requires a numeric field number");
     struct memory_file *f = file_for(handle);
+    if (update) {
+        if (!f) assign_value(out, "");
+        int status = lock_for_update(f, key, setting);
+        if (status) return status;
+    }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
     const char *value = "";
     if (record && n.sign == 0) value = key;

@@ -1082,8 +1082,9 @@ class Compiler:
         setting = self.file_setting()
         status = f"readv_status_{self.temporaries}"
         self.temporaries += 1
+        update = int(opening.word == 'READVU')
         self.emit(f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
-                  f"{setting}, {self.location(opening)});")
+                  f"{setting}, {update}, {self.location(opening)});")
         self.assigned.add(target.word)
         self.record_read_arms(opening, status)
 
@@ -1161,7 +1162,7 @@ class Compiler:
             self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
-        if opening.word in ('READU', 'MATREADU', 'OPENSEQ'):
+        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -2018,7 +2019,7 @@ class Compiler:
         elif (self.word == 'READU' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readu_statement()
-        elif (self.word == 'READV' and self.word not in self.matrices
+        elif (self.word in ('READV', 'READVU') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readv_statement()
         elif (self.word in ('READLIST', 'WRITELIST', 'GETLIST', 'DELETELIST') and self.word not in self.matrices
