@@ -1020,6 +1020,15 @@ status 128 and stays absent. An empty handle produces a source-located
 error. Native writes already flush the stdio stream, and WRITESEQF also
 synchronizes the file to disk. [FLUSH](https://jbc-lang.org/pages/flush.html).
 
+`FILEINFO(handle, 0)` returns 1 for a valid open handle or 0 for an
+unassigned variable, a failed open, or a pending sequential file.
+`FILEINFO(handle, 2)` follows the UniVerse pathname convention used by
+T24, provisionally returning an absolute path for a sequential handle,
+the logical name for an in-memory file, or an empty string for an
+invalid handle. Other keys produce a source-located diagnostic.
+[jBC FILEINFO](https://jbc-lang.org/pages/fileinfo.html),
+[UniVerse BASIC Reference](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
+
 ## In-memory file tests
 
 The test backend starts with empty files explicitly named at translation

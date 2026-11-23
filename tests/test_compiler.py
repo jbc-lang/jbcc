@@ -151,6 +151,46 @@ CLOSESEQ F
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)
 
+    def test_fileinfo_memory_handle(self):
+        source = self.work / 'fileinfo.b'
+        source.write_text("""CRT FILEINFO(F, 0)
+OPEN 'missing' TO F THEN STOP
+CRT FILEINFO(F, 0)
+OPEN 'customers' TO F ELSE STOP
+Path = FILEINFO(F, 2)
+CRT FILEINFO(F, 0):':':Path:':':FILEINFO(Path, 0)
+CLOSE F
+CRT FILEINFO(F, 0):'[':FILEINFO(F, 2):']'
+""")
+        run = self.run_native(source, options=['--memory-file', 'customers'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\n0\n1:customers:0\n0[]\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_fileinfo_sequential_handle(self):
+        source = self.work / 'fileinfo.b'
+        source.write_text("""OPENSEQ 'report' TO F THEN STOP
+CRT FILEINFO(F, 0)
+WRITESEQ 'row' TO F ELSE STOP
+CRT FILEINFO(F, 0)
+CRT FILEINFO(F, 2)
+Alias = F
+CLOSESEQ F
+CRT FILEINFO(Alias, 0):'[':FILEINFO(Alias, 2):']'
+""")
+        run = self.run_native(source, cwd=self.work)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        path = os.fsencode(self.work.resolve() / 'report')
+        self.assertEqual(run.stdout, b'0\n1\n' + path + b'\n0[]\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_fileinfo_unsupported_key(self):
+        source = self.work / 'fileinfo.b'
+        source.write_text("CRT FILEINFO(F, 1)\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: FILEINFO supports keys 0 and 2'.encode(), run.stderr)
+
     def test_data_queues_input_and_hands_it_to_commands(self):
         source = self.work / 'data.b'
         source.write_text("""PROMPT ''

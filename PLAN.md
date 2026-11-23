@@ -1555,7 +1555,17 @@ now pass. Native tests cover FIFO order, field marks, limited INPUT,
 stdin fallback and command handoff. A child receiving queued input
 sees EOF after those lines.
 
-- [ ] Implement FILEINFO for the selectors used by T24. Verify file
+- [x] Implement FILEINFO for the selectors used by T24. Verify file
   handle validity and the documented meaning of key 2 before choosing
   a native representation. Five T24 files first stop on a line
   containing FILEINFO.
+
+After FILEINFO, 16,283 of 17,336 candidates pass strict C99 checking.
+All 16,278 previous passes still pass, and all five targeted files
+now pass. Native tests cover valid, pending, failed and closed handles,
+the pathname selector, and diagnostics for unsupported keys.
+
+- [ ] Implement `@DATE` using the guide's startup date semantics.
+  Share the internal date conversion with DATE() and verify
+  that routines see the startup date. Unsupported `@DATE` is the first
+  diagnostic in five T24 files.

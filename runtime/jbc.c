@@ -4291,6 +4291,21 @@ static int status_timestamp(jbc_variable *attrs, time_t stamp)
     return 0;
 }
 
+static const char *sequential_path(const char *path)
+{
+    if (*path == '/') return path;
+    size_t length = 256;
+    char *cwd;
+    for (;;) {
+        cwd = allocate(length);
+        if (getcwd(cwd, length)) break;
+        if (errno != ERANGE || length > SIZE_MAX / 2) return NULL;
+        length *= 2;
+    }
+    const char *separator = strcmp(cwd, "/") ? "/" : "";
+    return jbc_concat(jbc_concat(cwd, separator), path);
+}
+
 static int sequential_status(const char *handle, jbc_variable *attrs)
 {
     struct sequential_file *file = *sequential_slot(handle);
@@ -4318,19 +4333,8 @@ static int sequential_status(const char *handle, jbc_variable *attrs)
         status_timestamp(attrs + 15, st.st_mtime) ||
         status_timestamp(attrs + 17, st.st_ctime)) return 32768;
     attrs[19].value = "0";
-    attrs[20].value = file->token;
-    if (*file->token != '/') {
-        size_t length = 256;
-        char *cwd;
-        for (;;) {
-            cwd = allocate(length);
-            if (getcwd(cwd, length)) break;
-            if (errno != ERANGE || length > SIZE_MAX / 2) return file_error(errno);
-            length *= 2;
-        }
-        const char *separator = strcmp(cwd, "/") ? "/" : "";
-        attrs[20].value = jbc_concat(jbc_concat(cwd, separator), file->token);
-    }
+    attrs[20].value = sequential_path(file->token);
+    if (!attrs[20].value) return file_error(errno);
     attrs[21].value = "SEQ";
     return 0;
 }
@@ -4361,4 +4365,25 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
     assign_value(out, value);
     if (setting) assign_value(setting, size_value((size_t)status));
     return file_succeeded(status);
+}
+
+const char *jbc_fileinfo(const char *handle, const char *key, const char *source, int line, int column)
+{
+    int validity = !jbc_compare(key, "0", -1);
+    if (!validity && jbc_compare(key, "2", -1))
+        numeric_error(source, line, column, "FILEINFO supports keys 0 and 2");
+    struct memory_file *memory = file_for(handle);
+    const char *path = memory ? memory->name : NULL;
+#ifdef JBC_SEQUENTIAL
+    struct sequential_file *sequential = *sequential_slot(handle);
+    if (validity) return memory || (sequential && sequential->stream) ? "1" : "0";
+    if (sequential && sequential->stream) {
+        path = sequential_path(sequential->token);
+        if (!path) numeric_error(source, line, column, "cannot resolve FILEINFO path");
+    }
+#else
+    if (validity) return memory ? "1" : "0";
+#endif
+    /* An exposed path is text and must have a different identity from the handle. */
+    return path ? strcpy(allocate(strlen(path)), path) : "";
 }
