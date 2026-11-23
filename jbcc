@@ -779,7 +779,7 @@ class Compiler:
         message = c_string(f"REUSE in {context} requires a scalar")
         return self.temporary(f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})")
 
-    def expression(self, minimum=1, colon_stops=(), locate_source=False):
+    def expression(self, minimum=1, colon_stops=(), locate_source=False, format_stops=()):
         reuse_left = self.is_reuse_call()
         if reuse_left:
             wrapper = self.current
@@ -788,7 +788,7 @@ class Compiler:
                 self.error("REUSE requires a direct multiplication operand", wrapper)
         else:
             left = self.primary(locate_source)
-        return self.expression_tail(left, minimum, colon_stops, locate_source, reuse_left)
+        return self.expression_tail(left, minimum, colon_stops, locate_source, reuse_left, format_stops)
 
     def is_format_mask(self):
         if self.current.kind in ('string', 'number'):
@@ -799,13 +799,14 @@ class Compiler:
             return self.word in self.matrices
         return self.word in self.names
 
-    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False, reuse_left=False):
+    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False,
+                        reuse_left=False, format_stops=()):
         while self.current.kind not in ('array_open', 'array_close'):
             operator = self.word
             token = self.current
             precedence = PRECEDENCE.get(operator)
             if precedence is None:
-                if minimum > FORMAT_PRECEDENCE or not self.is_format_mask():
+                if minimum > FORMAT_PRECEDENCE or operator in format_stops or not self.is_format_mask():
                     break
                 mask = self.primary()
                 left = self.temporary(f"jbc_fmt({left}, {mask}, {self.location(token)})")
@@ -814,7 +815,7 @@ class Compiler:
                 break
             self.advance()
             if operator in LOGICAL:
-                left = self.logical_expression(left, operator, colon_stops, locate_source)
+                left = self.logical_expression(left, operator, colon_stops, locate_source, format_stops)
                 continue
             reuse_right = operator == '*' and self.is_reuse_call()
             if reuse_right:
@@ -823,7 +824,7 @@ class Compiler:
                 if PRECEDENCE.get(self.word, 0) > precedence:
                     self.error("REUSE requires a direct multiplication operand", wrapper)
             else:
-                right = self.expression(precedence + 1, colon_stops, locate_source)
+                right = self.expression(precedence + 1, colon_stops, locate_source, format_stops)
             if reuse_left or reuse_right:
                 left = self.temporary(f"jbc_muls({left}, {right}, {int(reuse_left)}, "
                                       f"{int(reuse_right)}, {self.location(token)})")
@@ -844,7 +845,7 @@ class Compiler:
             left = self.temporary(call)
         return left
 
-    def logical_expression(self, left, operator, colon_stops, locate_source):
+    def logical_expression(self, left, operator, colon_stops, locate_source, format_stops):
         result = self.temporary(f'jbc_truth({left}) ? "1" : "0"')
         evaluate_at = '0' if operator in ('OR', '!') else '1'
         self.emit(f"if (*{result} == '{evaluate_at}') {{")
@@ -854,7 +855,7 @@ class Compiler:
         both = evaluate_at == '1'  # AND needs both true, OR needs both false.
         left_facts = self.assignment_facts.get((left, both), set())
         self.assigned.update(left_facts)
-        right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source)
+        right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source, format_stops)
         facts = left_facts | self.assignment_facts.get((right, both), set())
         if facts:
             self.assignment_facts[result, both] = facts
@@ -1148,9 +1149,9 @@ class Compiler:
             operation = f"jbc_clear_file({handle}, "
         setting = self.file_setting()
         call = f"{operation}{setting})"
-        self.write_error_arm(opening, call, setting)
+        self.file_error_arm(opening, call, setting)
 
-    def write_error_arm(self, opening, call, setting):
+    def file_error_arm(self, opening, call, setting):
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
@@ -1257,6 +1258,19 @@ class Compiler:
                 call = f'jbc_readblk({handle}, {size}, &{slot}, {self.location(opening)})'
             else:
                 call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'OSBREAD':
+            target, slot = self.record_read_destination()
+            self.expect('FROM')
+            handle = self.temporary(self.expression(format_stops=('AT', 'LENGTH')))
+            offset = 'NULL'
+            if self.word == 'AT':
+                self.advance()
+                offset = self.temporary(self.expression(format_stops=('LENGTH',)))
+            self.expect('LENGTH')
+            length = self.expression()
+            if target is not None:
+                self.assigned.add(target)
+            call = f'jbc_osbread({handle}, {offset}, {length}, &{slot})'
         elif op == 'OSREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
@@ -1329,7 +1343,9 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        if op in ('CREATE', 'SEEK'):
+        if op == 'OSBREAD':
+            self.file_error_arm(opening, f"!{status}", 'NULL')
+        elif op in ('CREATE', 'SEEK'):
             self.conditional_arms(opening, f"!{status}")
         else:
             self.record_read_arms(opening, status, setting)
@@ -1516,7 +1532,7 @@ class Compiler:
             self.advance()
             name = self.expression()
             setting = self.file_setting()
-            self.write_error_arm(opening, f"jbc_writelist({value}, {name}, {setting})", setting)
+            self.file_error_arm(opening, f"jbc_writelist({value}, {name}, {setting})", setting)
             return
         target = self.identifier()
         slot = self.variable_slot(target)
@@ -1542,7 +1558,7 @@ class Compiler:
         dest = self.select_list('TO')
         setting = self.file_setting()
         if sorted_selection:
-            self.write_error_arm(opening, f"jbc_sselect({source}, {dest}, {setting})", setting)
+            self.file_error_arm(opening, f"jbc_sselect({source}, {dest}, {setting})", setting)
             return
         call = f"jbc_select({source}, {dest}, {setting})"
         if setting == 'NULL':
@@ -1657,7 +1673,7 @@ class Compiler:
             keep_lock = int(op == 'WRITEVU')
             call = (f"jbc_write_field({handle}, {key}, {field}, {value}, {setting}, "
                     f"{keep_lock}, {self.location(opening)})")
-            self.write_error_arm(opening, call, setting)
+            self.file_error_arm(opening, call, setting)
             return
         handle, key = self.file_key()
         if op == 'READ':
@@ -1672,7 +1688,7 @@ class Compiler:
             if op == 'WRITE' and self.word in ('THEN', 'ELSE'):
                 self.conditional_arms(opening, call)
             else:
-                self.write_error_arm(opening, call, setting)
+                self.file_error_arm(opening, call, setting)
 
     def case_statement(self):
         opening = self.current
@@ -2402,7 +2418,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

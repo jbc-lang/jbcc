@@ -5015,6 +5015,42 @@ int jbc_readseq(const char *token, jbc_variable *out)
     return file_result(0);
 }
 
+static int parse_byte_offset(const char *value, off_t *position)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.sign < 0 || n.places) return 0;
+    errno = 0;
+    intmax_t number = strtoimax(value, NULL, 10);
+    *position = (off_t)number;
+    return !errno && (intmax_t)*position == number;
+}
+
+static int read_sequential_block(FILE *in, uintmax_t requested, int os_block, jbc_variable *out)
+{
+    if (!requested) return 0;
+    off_t position = ftello(in);
+    struct stat info;
+    if (position < 0 || fstat(fileno(in), &info)) return file_error(errno);
+    if (position >= info.st_size) return os_block ? 0 : 128;
+    /* Bound allocation by the bytes left in an open regular file. */
+    uintmax_t remaining = (uintmax_t)(info.st_size - position);
+    size_t amount = (size_t)(remaining < requested ? remaining : requested);
+    if (amount >= SIZE_MAX - sizeof(struct jbc_buffer)) return 32768;
+    char *value = allocate(amount);
+    size_t length = fread(value, 1, amount, in);
+    if (ferror(in)) return file_error(errno);
+    if (os_block) {
+        for (size_t i = 0; i < length; ++i)
+            if (!value[i]) value[i] = (char)128;
+    } else {
+        if (length != requested) return 128;
+        if (memchr(value, '\0', length)) return 32768;
+    }
+    value[length] = '\0';
+    assign_value(out, value);
+    return 0;
+}
+
 int jbc_readblk(const char *token, const char *size, jbc_variable *out,
                 const char *source, int line, int column)
 {
@@ -5033,21 +5069,28 @@ int jbc_readblk(const char *token, const char *size, jbc_variable *out,
     if (!file || !file->stream) return file_result(128);
     if (file->access == SEQ_WRITE_ONLY) return file_result(24576);
     FILE *in = sequential_stream(file);
-    off_t position = ftello(in);
-    struct stat info;
-    if (position < 0 || fstat(fileno(in), &info)) return file_result(file_error(errno));
-    if (position >= info.st_size) return file_result(128);
-    /* Bound allocation by the bytes left in an open regular file. */
-    uintmax_t remaining = (uintmax_t)(info.st_size - position);
-    size_t amount = (size_t)(remaining < requested ? remaining : requested);
-    char *value = allocate(amount);
-    size_t length = fread(value, 1, amount, in);
-    if (ferror(in)) return file_result(file_error(errno));
-    if (length != requested) return file_result(128);
-    if (memchr(value, '\0', length)) return file_result(32768);
-    value[length] = '\0';
-    assign_value(out, value);
-    return file_result(0);
+    return file_result(read_sequential_block(in, requested, 0, out));
+}
+
+int jbc_osbread(const char *token, const char *offset, const char *size, jbc_variable *out)
+{
+    assign_value(out, "");
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return file_result(128);
+    if (file->access == SEQ_WRITE_ONLY) return file_result(24576);
+
+    struct decimal n;
+    if (!parse_decimal(size, &n) || n.sign < 0 || n.places) return file_result(32768);
+    errno = 0;
+    uintmax_t requested = strtoumax(size, NULL, 10);
+    if (errno || requested > SIZE_MAX) return file_result(32768);
+
+    off_t position = 0;
+    if (offset && !parse_byte_offset(offset, &position)) return file_result(32768);
+    FILE *in = sequential_stream(file);
+    if (offset && fseeko(in, position, SEEK_SET)) return file_result(file_error(errno));
+    clearerr(in);
+    return file_result(read_sequential_block(in, requested, 1, out));
 }
 
 static int writable_sequential(struct sequential_file *file)

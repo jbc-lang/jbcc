@@ -1156,6 +1156,16 @@ invalidates aliases. It accepts `ON ERROR` for a failed close.
 [OSOPEN](https://jbc-lang.org/pages/osopen.html),
 [OSCLOSE](https://jbc-lang.org/pages/osclose.html).
 
+`OSBREAD value FROM F [AT offset] LENGTH count` reads bytes from an
+open OSOPEN or OPENSEQ handle. Offset and count are nonnegative integers.
+The offset is zero-based. jbcc provisionally reads from the current
+position when AT is omitted and leaves the cursor after the bytes read.
+A short read returns the available bytes, and a read at or beyond EOF
+returns an empty value with status 0. NUL bytes become byte 128.
+`SETTING` and `STATUS()` report the result. Failures take `ON ERROR`
+when present or report the statement location.
+[OSBREAD](https://jbc-lang.org/pages/osbread.html).
+
 `OSREAD value FROM path` reads a regular file into a scalar or
 record context variable. It keeps internal line endings, strips one final
 LF, and replaces each NUL byte with byte 128. A bare name that is missing

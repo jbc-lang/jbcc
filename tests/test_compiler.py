@@ -272,6 +272,47 @@ OSOPEN '.' TO F SETTING S ON ERROR CRT S ELSE ABORT
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: OSCLOSE failed'.encode(), result.stderr)
 
+    def test_osbread_offsets_short_reads_and_nul_conversion(self):
+        (self.work / 'data').write_bytes(b'X\0Y\nline\nz')
+        source = self.work / 'osbread.b'
+        source.write_text("""OSOPEN 'data' READONLY TO F ELSE ABORT
+AT = 1
+LENGTH = 2
+OSBREAD B FROM F AT AT LENGTH LENGTH SETTING S
+CRT SEQ(B[1,1]):':':SEQ(B[2,1]):':':S
+OSBREAD B FROM F LENGTH 1
+CRT SEQ(B)
+READSEQ Line FROM F THEN CRT Line ELSE ABORT
+OSBREAD B FROM F LENGTH 10000
+CRT B:':':STATUS()
+OSBREAD B FROM F LENGTH 1
+CRT '[':B:'] ':STATUS()
+OSBREAD B FROM F AT 0 LENGTH 0
+OSBREAD B FROM F LENGTH 1
+CRT B
+OSCLOSE F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'128:89:0\n10\nline\nz:0\n[] 0\nX\n', b''))
+
+    def test_osbread_error_arms_and_diagnostic(self):
+        (self.work / 'data').touch()
+        source = self.work / 'osbread.b'
+        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
+OSBREAD B FROM F AT -1 LENGTH 1 SETTING S ON ERROR CRT S
+OSBREAD B FROM F LENGTH 1.5 SETTING S ON ERROR CRT S
+OSCLOSE F
+OSBREAD B FROM F LENGTH 1 SETTING S ON ERROR CRT S
+OSOPEN 'data' WRITEONLY TO F ELSE ABORT
+OSBREAD B FROM F LENGTH 1 SETTING S ON ERROR CRT S
+OSBREAD B FROM F LENGTH 1
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'32768\n32768\n128\n24576\n')
+        self.assertIn(f'{source}:8:1: OSBREAD failed'.encode(), result.stderr)
+
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
         directory.mkdir()

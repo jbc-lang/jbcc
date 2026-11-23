@@ -1921,6 +1921,14 @@ files now pass. The reference lexer maps these statements to OPENSEQ
 and CLOSESEQ. Native tests check shared handles, access modes, path
 search and error arms.
 
-- [ ] Implement OSBREAD on an open OS file handle. Check byte offsets,
+- [x] Implement OSBREAD on an open OS file handle. Check byte offsets,
   short reads, cursor position and NUL conversion against the guide
   and verify the behavior with an OSOPEN fixture.
+
+After OSBREAD, the same 16,364 of 17,336 candidates pass strict C99
+checking. Native tests verify explicit offsets, continued reads,
+cursor position, short reads, NUL conversion and failure handling.
+
+- [ ] Implement OSBWRITE on an open OS file handle. Check offset and
+  cursor behavior, byte 128 conversion and error handling, then
+  verify a native OSBWRITE and OSBREAD round trip.
