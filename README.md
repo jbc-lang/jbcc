@@ -88,6 +88,13 @@ operand is empty. jbcc applies that rule before numeric validation and
 reports a zero divisor at the DIV call for nonempty operands.
 [DIV](https://jbc-lang.org/pages/div.html).
 
+`DROUND(value[, places])` rounds decimal values and removes trailing
+fractional zeros. It defaults to the active PRECISION, or four places
+before a PRECISION statement runs, following the jBASE manual. An
+explicit nonnegative integer overrides that default. jbcc provisionally
+uses exact decimal rounding with midpoint ties away from zero.
+[jBASE DROUND](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DROUND.htm).
+
 ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
 Digits, punctuation and array marks return 0. jbcc provisionally returns
 0 for an empty string pending a reference run. The guide describes Unicode

@@ -308,6 +308,7 @@ NEXT I
                                   ('@ID += 1\n', ":1:5: expected '='"),
                                   ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
+                                  ("CRT DROUND(1, 2, 3)\n", ":1:5: wrong argument count for 'DROUND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
@@ -807,6 +808,19 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
+
+    def test_dround_diagnostics(self):
+        source = self.work / 'dround.b'
+        for args, diagnostic in [
+                ("'text'", "DROUND requires a numeric value"),
+                ("1, -1", "DROUND precision requires a nonnegative integer"),
+                ("1, 1.5", "DROUND precision requires a nonnegative integer"),
+                ("1, ''", "DROUND precision requires a nonnegative integer")]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT DROUND({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
 
     def test_adds_diagnostics(self):
         source = self.work / 'adds.b'

@@ -1515,7 +1515,16 @@ now pass. Native tests cover byte ordering, alignment, empty strings
 and invalid justification. Right justification follows the guide's
 TAFJ result using the same left padding as LOCATE.
 
-- [ ] Implement DROUND with the guide's four-place default and an
+- [x] Implement DROUND with the guide's four-place default and an
   explicit precision. Check midpoint and negative values, and verify
   the interaction with PRECISION. Six T24 files first stop on a line
   containing DROUND.
+
+After DROUND, 16,261 of 17,336 candidates pass strict C99 checking.
+All 16,255 previous passes still pass, and all six targeted files
+now pass. Native tests cover default and explicit precision, midpoint
+ties, carry, and values with more than 15 fractional digits.
+
+- [ ] Implement BYTELEN using the existing byte length operation.
+  Check empty strings, multibyte text and dynamic-array marks. Five
+  T24 files first stop on a line containing BYTELEN.

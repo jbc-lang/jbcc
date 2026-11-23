@@ -1178,6 +1178,31 @@ static char *fmt_decimal(struct decimal n, size_t places)
     return out;
 }
 
+const char *jbc_dround(const char *value, const char *precision,
+                       const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n))
+        numeric_error(file, line, column, "DROUND requires a numeric value");
+
+    int64_t digits = jbc_precision < 0 ? 4 : jbc_precision;
+    if (precision) {
+        struct decimal requested;
+        if (!parse_decimal(precision, &requested) || requested.sign < 0 || requested.places)
+            numeric_error(file, line, column, "DROUND precision requires a nonnegative integer");
+        digits = integer(precision, file, line, column);
+    }
+    size_t places = (uintmax_t)digits < n.places ? (size_t)digits : n.places;
+    char *out = fmt_decimal(n, places);
+    if (places) {
+        char *end = out + strlen(out);
+        while (end[-1] == '0') --end;
+        if (end[-1] == '.') --end;
+        *end = '\0';
+    }
+    return out;
+}
+
 /* Address a decimal digit in a common, zero-padded field. */
 static int sum_digit(struct decimal n, size_t whole, size_t index)
 {
