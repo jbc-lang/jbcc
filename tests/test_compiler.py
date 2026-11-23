@@ -1930,6 +1930,25 @@ CRT 'after'
                 self.assertEqual(run.stdout, b'0\ndone\n' if continues else b'')
                 self.assertIn(f'{source}:1:{column}: {message}'.encode(), run.stderr)
 
+    def test_randomize_compatibility_forms_leave_rnd_available(self):
+        source = self.work / 'randomize.b'
+        source.write_text("""RANDOMIZE = 5
+IF 1 THEN RANDOMIZE ELSE ABORT
+RANDOMIZE()
+RANDOMIZE(RANDOMIZE / 0)
+N = RND(50)
+IF N < 0 OR N >= 50 THEN ABORT
+CRT RANDOMIZE:':':RND(1)
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'5:0\n', b''))
+
+        source.write_text('RANDOMIZE(1, 2)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:12: expected ')'", result.stderr)
+
     def test_rnd_invalid_bound(self):
         source = self.work / 'rnd.b'
         for bound, diagnostic in [('1.5', 'requires an integer bound'),

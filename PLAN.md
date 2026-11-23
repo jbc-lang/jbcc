@@ -2034,6 +2034,17 @@ HOST.TO.DOS now passes, and SC.INTEGRITY.RUN reaches a later expression.
 All previous passes still pass. Native tests cover command output,
 exit status, capture and result clauses, and duplicate-clause diagnostics.
 
-- [ ] Investigate RANDOMIZE. Check the reference parser's forms and
-  whether the seed affects RND. Verify the resulting native behavior
-  and recheck the T24 unit blocked by this statement.
+- [x] Implement the RANDOMIZE compatibility statement. Check the
+  reference parser's forms and whether the seed affects RND. Verify the
+  native behavior and recheck the T24 unit blocked by this statement.
+
+After RANDOMIZE, 16,383 of 17,336 candidates pass strict C99 checking.
+CHECK.SPF now passes and all previous passes still pass. The reference
+parser discards the optional argument. Native tests cover all three
+forms, skipped argument evaluation, RND bounds and the diagnostic for
+an extra argument.
+
+- [ ] Investigate increment and decrement syntax. Start with the
+  postfix statement forms in the reference grammar. Check which
+  assignment targets are allowed and how the expression forms differ.
+  Two T24 units first stop at a postfix increment.

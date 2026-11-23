@@ -1190,6 +1190,10 @@ class Compiler:
         if unit is None:
             return self.expression()
         # The reference generator uses UNIT in preference to a trailing channel.
+        self.ignored_expression()
+        return unit
+
+    def ignored_expression(self):
         before = self.assigned.copy()
         self.emit("if (0) {")
         self.depth += 1
@@ -1197,7 +1201,6 @@ class Compiler:
         self.depth -= 1
         self.emit("}")
         self.assigned = before
-        return unit
 
     def tape_statement(self):
         opening = self.current
@@ -2567,6 +2570,14 @@ class Compiler:
             self.uses_sleep = True
             duration = '"1"' if not self.word or self.word in OUTPUT_END else self.expression()
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
+        elif (self.word == 'RANDOMIZE' and self.following.word not in ASSIGNMENT_PREFIXES
+              and self.word not in self.matrices):
+            self.advance()
+            if self.word == '(':
+                self.advance()
+                if self.word != ')':
+                    self.ignored_expression()
+                self.expect(')')
         elif (self.word in ('INPUTCLEAR', 'CLEARINPUT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current
