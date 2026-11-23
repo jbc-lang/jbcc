@@ -2480,6 +2480,21 @@ JGLOBUS.DATABASE.COPY.JBASE now passes strict C99 checking in byte mode.
 The total is 17,064 of 17,336 candidates, including all 17,063 previous
 passes.
 
-- [ ] Implement SENTENCE() and SENTENCE(position). EB.CREATE.FILE
+- [x] Implement SENTENCE() and SENTENCE(position). EB.CREATE.FILE
   and EB.DELETE.FILE use the no-argument form. Verify program-name and
   argument lookup against the guide and jbcc's command-line handling.
+
+The reference grammar and generated C distinguish the zero- and
+one-argument forms. jbcc follows the guide for empty, zero and negative
+positions and uses native argument boundaries for indexed reads.
+Native tests cover reads from a subroutine, empty and spaced arguments,
+indices outside the argument list, invalid indices and preservation of
+the GET (ARG.) cursor.
+
+EB.CREATE.FILE and EB.DELETE.FILE now pass strict C99 checking in byte
+mode. The total is 17,066 of 17,336 candidates, including all 17,064
+previous passes.
+
+- [ ] Investigate DTX and XTD hexadecimal conversion, starting with
+  the DTX call in EB.GC.GET.CONSTRAINT. Check signed values, bit width,
+  and invalid input against the guide and reference implementation.

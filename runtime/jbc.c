@@ -258,6 +258,17 @@ const char *jbc_get_argument(const char *position, const char *file, int line, i
     return command_argv[index];
 }
 
+const char *jbc_sentence(const char *position, const char *file, int line, int column)
+{
+    if (!position || !*position) return jbc_command_line;
+    struct decimal n;
+    if (!parse_decimal(position, &n) || n.places)
+        numeric_error(file, line, column, "SENTENCE requires an integer index");
+    if (n.sign < 0) return "";
+    uintmax_t index = n.sign == 0 ? 0 : strtoumax(n.whole, NULL, 10);
+    return index < (uintmax_t)command_argc ? command_argv[index] : "";
+}
+
 #ifdef JBC_HUSH
 #include <fcntl.h>
 #include <unistd.h>

@@ -618,12 +618,19 @@ provisional pending a reference run. [INPUT](https://jbc-lang.org/pages/input.ht
 
 `@SENTENCE` reads the invocation in the main program or any called routine.
 For example, starting `./report today` gives `./report today`, and
-`@SENTENCE[' ',2,1]` gives `today`. The guide documents a space-separated
-invocation for the related `SENTENCE` function. For native executables,
+`@SENTENCE[' ',2,1]` gives `today`. For native executables,
 jbcc provisionally uses the exact program name supplied in `argv[0]` and
 joins all arguments with one space. Embedded spaces and empty arguments
 are preserved, and shell quoting is already removed by the time the
-program starts. [SENTENCE](https://jbc-lang.org/pages/sentence.html).
+program starts.
+
+`SENTENCE()` and `SENTENCE('')` return the full invocation. `SENTENCE(0)`
+returns the program name, and positive integer positions select individual
+arguments starting at 1. Indexed reads preserve argument boundaries,
+including embedded spaces and empty arguments. Negative and out-of-range
+positions return an empty string. Indexed reads leave the `GET (ARG.)`
+cursor in place. jbcc requires an integer value for a nonempty index.
+[SENTENCE](https://jbc-lang.org/pages/sentence.html).
 
 jbcc provisionally gives `@COMMAND` the same invocation string. The
 reference compiler recognizes it as a system variable, and T24's

@@ -4013,6 +4013,55 @@ CRT '[':@COMMAND[' ',2,99]:']'
                 self.assertEqual((run.returncode, run.stdout, run.stderr),
                                  (0, sentence + b'\n[' + tail + b']\n', b''))
 
+    def test_sentence_function_reads_invocation_in_a_subroutine(self):
+        source = self.work / 'caller.b'
+        routine = self.work / 'show.b'
+        binary = self.work / 'invocation'
+        source.write_text('CALL SHOW.ARGS\n')
+        routine.write_text("""SUBROUTINE SHOW.ARGS
+CRT SENTENCE()
+CRT SENTENCE('')
+CRT SENTENCE(0)
+FOR I = 1 TO 4
+    CRT '[':SENTENCE(I):']'
+NEXT I
+CRT '[':SENTENCE(-1):'] [':SENTENCE(999999999999999999999999):']'
+""")
+        subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True)
+        for args in ([], ['first', 'two words', '', 'last']):
+            with self.subTest(args=args):
+                invocation = ' '.join(['./invocation', *args])
+                fields = args + [''] * (4 - len(args))
+                expected = [invocation, invocation, './invocation',
+                            *(f'[{field}]' for field in fields), '[] []']
+                run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr),
+                                 (0, ('\n'.join(expected) + '\n').encode(), b''))
+
+    def test_sentence_function_preserves_get_argument_cursor(self):
+        source = self.work / 'args.b'
+        binary = self.work / 'args'
+        source.write_text("""GET(ARG.) First THEN CRT First ELSE ABORT
+CRT SENTENCE(3)[1,2]
+GET(ARG.) Second THEN CRT Second ELSE ABORT
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        run = subprocess.run([binary, 'one', 'two', 'three'], capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'one\nth\ntwo\n', b''))
+
+    def test_sentence_function_diagnostics(self):
+        source = self.work / 'sentence.b'
+        source.write_text('CRT SENTENCE(1, 2)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'SENTENCE'".encode(), result.stderr)
+        for position in ('1.5', "'word'"):
+            with self.subTest(position=position):
+                source.write_text(f'CRT SENTENCE({position})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: SENTENCE requires an integer index'.encode(), run.stderr)
+
     def test_get_argument_preserves_argv_and_shares_cursor_across_routines(self):
         source = self.work / 'args.b'
         routine = self.work / 'next.b'
