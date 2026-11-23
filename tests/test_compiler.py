@@ -81,6 +81,32 @@ CRT 'done'
             finally:
                 proc.kill()
 
+    def test_sequential_block_io(self):
+        (self.work / 'input').write_bytes(b'a\r\n\xfeend')
+        (self.work / 'binary').write_bytes(b'x\0yz')
+        result = self.run_native(ROOT / 'tests/io/block-io.b', cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'aRN|\t0\nen\nshort\t128\t0\nd\neof\t128\n'
+                                        b'readonly\t24576\npending\t128\nwrote\t0\nA\nB\n'
+                                        b'nul\t32768\t0\nz\n')
+        self.assertEqual((self.work / 'output').read_bytes(), b'AXB')
+        self.assertEqual((self.work / 'input').read_bytes(), b'a\r\n\xfeend')
+
+    def test_block_io_operand_diagnostics(self):
+        source = self.work / 'invalid.b'
+        for statement, message in [
+            ("READBLK V FROM '',2 ELSE NULL", 'READBLK requires nonempty handle and block size'),
+            ("READBLK V FROM 'file',0 ELSE NULL", 'READBLK requires a positive integer block size'),
+            ("READBLK V FROM 'file',1.5 ELSE NULL", 'READBLK requires a positive integer block size'),
+            ("WRITEBLK '' TO 'file' ELSE NULL", 'WRITEBLK requires nonempty handle and data'),
+        ]:
+            with self.subTest(statement=statement):
+                source.write_text(statement + '\n')
+                result = self.run_native(source, cwd=self.work)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:1: {message}'.encode(), result.stderr)
+
     def test_sequential_create_and_truncate(self):
         (self.work / 'zero').write_bytes(b'old content')
         (self.work / 'input').write_bytes(b'keep\n' + b'discard\n' * 2000)

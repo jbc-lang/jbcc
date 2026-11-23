@@ -1067,13 +1067,18 @@ class Compiler:
             slot = self.variable_slot(target)
             self.assigned.add(target.word)
             call = f'jbc_openseq({path}, {name}, {int(existing)}, {int(append)}, {int(readonly)}, &{slot})'
-        elif op == 'READSEQ':
+        elif op in ('READSEQ', 'READBLK'):
             target = self.identifier()
             slot = self.variable_slot(target)
             self.expect('FROM')
             handle = self.expression()
             self.assigned.add(target.word)
-            call = f'jbc_readseq({handle}, &{slot})'
+            if op == 'READBLK':
+                self.expect(',')
+                size = self.expression()
+                call = f'jbc_readblk({handle}, {size}, &{slot}, {self.location(opening)})'
+            else:
+                call = f'jbc_readseq({handle}, &{slot})'
         elif op == 'SEEK':
             handle = self.expression()
             offset = origin = '"0"'
@@ -1104,14 +1109,17 @@ class Compiler:
             return
         else:
             value = self.expression()
-            append = self.word == 'APPEND'
+            append = op != 'WRITEBLK' and self.word == 'APPEND'
             if append:
                 self.advance()
             if self.word not in ('ON', 'TO'):
                 self.error(f"expected ON or TO after {op} value")
             self.advance()
             handle = self.expression()
-            call = f"jbc_writeseq({handle}, {value}, {int(append)}, {int(op == 'WRITESEQF')})"
+            if op == 'WRITEBLK':
+                call = f'jbc_writeblk({handle}, {value}, {self.location(opening)})'
+            else:
+                call = f"jbc_writeseq({handle}, {value}, {int(append)}, {int(op == 'WRITESEQF')})"
         setting = self.file_setting()
         status = f'seq_status_{self.temporaries}'
         self.temporaries += 1
@@ -2125,7 +2133,8 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK')
+        elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

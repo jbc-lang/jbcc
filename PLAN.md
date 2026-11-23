@@ -1305,6 +1305,15 @@ strict C99 checking. All 16,043 previous passes still pass. Of the 38
 files previously blocked by WRITE with ON ERROR, 34 now pass and four
 reach later diagnostics.
 
-- [ ] Implement sequential block I/O with READBLK and WRITEBLK. Check
+- [x] Implement sequential block I/O with READBLK and WRITEBLK. Check
   byte counts, file position, end of file, and writes without automatic
   newlines. Verify the reference grammar's SETTING and conditional arms.
+
+After READBLK and WRITEBLK, 16,085 of 17,336 candidates pass strict C99
+checking. All 16,077 previous passes still pass. Eight of the nine
+block I/O blockers now pass. TK.TELEKURS.1 advances to STATUS() in
+its READBLK error arm.
+
+- [ ] Implement STATUS() for the result of the latest supported file I/O.
+  Distinguish the function from the STATUS statement and verify its value
+  inside success and failure arms, including when SETTING is omitted.

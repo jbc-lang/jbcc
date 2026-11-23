@@ -825,6 +825,22 @@ contents. Passing an empty value to CREATE gives a source-located error.
 The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
 `READONLY` disable deferred creation. [CREATE](https://jbc-lang.org/pages/create.html).
 
+`READBLK Block FROM F, Size` reads a positive number of bytes at the
+current position, including line endings and field marks. A complete
+block takes THEN. Following the guide's EOF rule, jbcc provisionally
+takes ELSE with an empty destination on a short read, and the position
+advances past any bytes consumed. Embedded NUL bytes take ELSE with
+status 32768 because jbcc values use NUL-terminated strings.
+
+`WRITEBLK Block TO F` (or `ON F`) writes at the current byte position
+without adding a newline. A missing file must first be created with
+CREATE using its pending handle. The reference grammar accepts SETTING
+and requires at least one conditional arm on either statement. jbcc
+uses the sequential status codes, with 0 on success, 128 for EOF or a
+missing handle, and 24576 for a read-only write. Empty operands raise a
+source-located error. [READBLK](https://jbc-lang.org/pages/readblk.html),
+[WRITEBLK](https://jbc-lang.org/pages/writeblk.html).
+
 `SEEK F, offset, origin` positions a regular-file handle in bytes. Origins
 0, 1 and 2 count from the start, current position and end respectively.
 Both numeric operands default to zero, so `SEEK F ELSE STOP` rewinds.

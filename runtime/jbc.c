@@ -3671,6 +3671,40 @@ int jbc_readseq(const char *token, jbc_variable *out)
     return 0;
 }
 
+int jbc_readblk(const char *token, const char *size, jbc_variable *out,
+                const char *source, int line, int column)
+{
+    if (!*token || !*size)
+        numeric_error(source, line, column, "READBLK requires nonempty handle and block size");
+    struct decimal n;
+    if (!parse_decimal(size, &n) || n.sign <= 0 || n.places)
+        numeric_error(source, line, column, "READBLK requires a positive integer block size");
+    errno = 0;
+    uintmax_t requested = strtoumax(size, NULL, 10);
+    if (errno || requested > SIZE_MAX)
+        numeric_error(source, line, column, "READBLK block size out of range");
+
+    struct sequential_file *file = *sequential_slot(token);
+    assign_value(out, "");
+    if (!file || !file->stream) return 128;
+    FILE *in = file->stream;
+    off_t position = ftello(in);
+    struct stat info;
+    if (position < 0 || fstat(fileno(in), &info)) return file_error(errno);
+    if (position >= info.st_size) return 128;
+    /* Bound allocation by the bytes left in an open regular file. */
+    uintmax_t remaining = (uintmax_t)(info.st_size - position);
+    size_t amount = (size_t)(remaining < requested ? remaining : requested);
+    char *value = allocate(amount);
+    size_t length = fread(value, 1, amount, in);
+    if (ferror(in)) return file_error(errno);
+    if (length != requested) return 128;
+    if (memchr(value, '\0', length)) return 32768;
+    value[length] = '\0';
+    assign_value(out, value);
+    return 0;
+}
+
 static int writable_sequential(struct sequential_file *file)
 {
     if (!file) return 128;
@@ -3731,18 +3765,31 @@ int jbc_weofseq(const char *token)
     return 0;
 }
 
-int jbc_writeseq(const char *token, const char *value, int append, int flush)
+static int write_sequential(const char *token, const char *value, int append, int flush, int newline)
 {
     struct sequential_file *file = *sequential_slot(token);
+    if (!newline && (!file || !file->stream)) return 128;
     int status = writable_sequential(file);
     if (status) return status;
     FILE *out = file->stream;
     /* Positioning synchronizes stdio after a buffered read. */
     if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||
-        fputs(value, out) == EOF || fputc('\n', out) == EOF || fflush(out))
+        fputs(value, out) == EOF || (newline && fputc('\n', out) == EOF) || fflush(out))
         return file_error(errno);
     if (flush && fsync(fileno(out))) return file_error(errno);
     return 0;
+}
+
+int jbc_writeseq(const char *token, const char *value, int append, int flush)
+{
+    return write_sequential(token, value, append, flush, 1);
+}
+
+int jbc_writeblk(const char *token, const char *value, const char *source, int line, int column)
+{
+    if (!*token || !*value)
+        numeric_error(source, line, column, "WRITEBLK requires nonempty handle and data");
+    return write_sequential(token, value, 0, 0, 0);
 }
 
 int jbc_closeseq(jbc_variable *slot)
