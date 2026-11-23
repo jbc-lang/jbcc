@@ -30,8 +30,10 @@ COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "><": "!=", "NE": "
                "#>": "<=", ">": ">", ">=": ">=", "=>": ">=", "GE": ">=", "#<": ">="}
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
+CONCATENATION = {":", "CAT"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
-PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, ":": 5, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9})
+PRECEDENCE.update(dict.fromkeys(CONCATENATION, 5))
+PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9})
 FORMAT_PRECEDENCE = 6  # Identifier precedence in the reference grammar.
 
 
@@ -547,7 +549,7 @@ class Compiler:
         self.assigned = set()
         self.assignment_facts = {}
         self.statement_stops = set()
-        self.dangling_colons = 0
+        self.omitted_concatenations = 0
 
     @property
     def word(self):
@@ -995,11 +997,12 @@ class Compiler:
                 mask = self.primary()
                 left = self.temporary(f"jbc_fmt({left}, {mask}, {self.location(token)})")
                 continue
-            if precedence < minimum or (operator == ':' and self.following.word in colon_stops):
+            concatenating = operator in CONCATENATION
+            if precedence < minimum or (concatenating and self.following.word in colon_stops):
                 break
             self.advance()
-            if operator == ':' and self.missing_concat_operand():
-                self.dangling_colons += 1
+            if concatenating and self.missing_concat_operand():
+                self.omitted_concatenations += 1
                 continue
             if operator in LOGICAL:
                 left = self.logical_expression(left, operator, colon_stops, locate_source, format_stops)
@@ -1024,7 +1027,7 @@ class Compiler:
             elif operator in ('^', '**'):
                 self.uses_math = True
                 call = f"jbc_pwr({left}, {right}, {self.location(token)})"
-            elif operator == ':':
+            elif concatenating:
                 call = f"jbc_concat({left}, {right})"
             else:
                 left = self.arithmetic(token, left, right, operator)
@@ -2078,7 +2081,7 @@ class Compiler:
     def print_statement(self):
         opening = self.current
         location = self.location(opening)
-        colons_before = self.dangling_colons
+        omitted_before = self.omitted_concatenations
         self.advance()
         destination = 'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
         if opening.word == 'PRINT' and self.word == 'ON':
@@ -2102,14 +2105,14 @@ class Compiler:
                 if self.word != ':':
                     value = self.expression(colon_stops=OUTPUT_END)
                     self.emit(f"jbc_output({destination}, {value}, {location});")
-                if self.word == ':':
+                if self.word in CONCATENATION:
                     self.advance()
                     return
                 if self.word != ',':
                     break
                 self.emit(f'jbc_output({destination}, "\\t", {location});')
                 self.advance()
-        if self.dangling_colons == colons_before:
+        if self.omitted_concatenations == omitted_before:
             self.emit(f'jbc_output({destination}, "\\n", {location});')
 
     def begin_loop(self):
@@ -2941,18 +2944,20 @@ class Compiler:
                 target = self.identifier()
                 slot = self.variable_slot(target)
                 limit = 'NULL'
+                omitted_before = self.omitted_concatenations
                 if self.word == ',':
                     self.advance()
                     limit = self.expression(colon_stops=OUTPUT_END | {'FOR', '_'})
-                suppress = self.word == ':'
-                if suppress:
+                suppress = self.omitted_concatenations != omitted_before
+                if self.word in CONCATENATION:
+                    suppress = True
                     self.advance()
                 discard_excess = self.word == '_'
                 if discard_excess:
                     if limit == 'NULL':
                         self.error("INPUT underscore requires a length")
                     self.advance()
-                    if not suppress and self.word == ':':
+                    if not suppress and self.word in CONCATENATION:
                         suppress = True
                         self.advance()
                 timeout = 'NULL'

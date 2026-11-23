@@ -2397,6 +2397,19 @@ TAKEOVER.MAPPING.RUN now passes strict C99 checking in byte mode.
 The total is 17,057 of 17,336 candidates, including all 17,056
 previous passes.
 
-- [ ] Investigate the CAT spelling of concatenation in LD.OVER.RIDE.
+- [x] Investigate the CAT spelling of concatenation in LD.OVER.RIDE.
   Trace the reference lexer's CAT token and check its precedence and
   interaction with omitted operands and output newline suppression.
+
+The reference lexer maps CAT to the colon token. Reference probes
+confirm mixed spellings, omitted operands, newline suppression for
+output and INPUT, and CAT as a label. jbcc uses the same operator
+precedence and omission rules for both spellings. Native tests cover
+dynamic-array selectors, arithmetic precedence, and terminal output.
+
+LD.OVER.RIDE now passes strict C99 checking in byte mode. The total
+is 17,058 of 17,336 candidates, including all 17,057 previous passes.
+
+- [ ] Investigate CLEAR in HELPTEXT.CONVERSION. The guide says it
+  initializes local variables to numeric zero. Check which storage
+  it affects and how to preserve caller arguments and COMMON values.

@@ -1709,6 +1709,24 @@ CRT 'x':'y'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'abcd\ne\tf2i\tjk\nxy\n', b''))
 
+    def test_cat_spells_concatenation_and_suppresses_output_newline(self):
+        source = self.work / 'cat.b'
+        source.write_text("""GOTO CAT
+CRT 'unexpected'
+CAT:
+R = 'first':@FM:'second'
+Text = R <2> CAT 1 + 2 : '!'
+CRT Text
+CRT 'a' CAT CAT 'b'
+DISPLAY ('c' CAT)
+PRINT 'd' CAT
+CRT 'e'
+CRT 'f' CAT 'g'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'second3!\nabcde\nfg\n', b''))
+
     def test_concatenation_requires_a_left_operand(self):
         source = self.work / 'concat.b'
         source.write_text("X = :'x'\n")
@@ -4371,7 +4389,7 @@ CRT SYSTEM(24)
     def test_input_terminal_echo(self):
         source = self.work / 'input.b'
         source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n"
-                          "INPUT X, 2\nCRT X\nINPUT X, 1:\nCRT X\n"
+                          "INPUT X, 2\nCRT X\nINPUT X, (1 CAT)\nCRT X\n"
                           "INPUT X FOR 4 ELSE CRT '[' : X : ']'\n"
                           "INPUT X FOR 0 THEN CRT 'unexpected' ELSE CRT DQUOTE(X)\n")
         binary = self.work / 'input'

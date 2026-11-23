@@ -77,12 +77,14 @@ with `*`, `!` or `REM` comments out the rest of its line. These markers
 can follow a named or numeric label directly, as in `setup:* read inputs`
 or `100: REM retry`.
 
-A concatenation colon with an omitted right operand keeps the left
-value. For example, `X = 'a':` stores `a` and `X = 'a'::'b'` stores
+`CAT` is another spelling of the concatenation operator `:` and has
+the same precedence. An omitted right operand keeps the left value.
+For example, `X = 'a':` stores `a` and `X = 'a'::'b'` stores
 `ab`. Within CRT, DISPLAY or PRINT, an omitted operand also suppresses
-the statement's final newline, including when the colon occurs inside
-a nested expression or between output arguments. This follows the
-reference parser's `resultant ':'` production.
+the statement's final newline, including when the operator occurs inside
+a nested expression or between output arguments. In an INPUT length,
+the same rule suppresses the input newline. This follows the reference
+parser's `resultant ':'` production.
 [jBASE CRT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_crt.htm).
 
 `CHANGE old TO new IN target` replaces nonoverlapping substrings from left
