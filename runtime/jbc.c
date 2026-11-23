@@ -1531,6 +1531,27 @@ const char *jbc_negate(const char *value, const char *file, int line, int column
     return jbc_arithmetic('-', "0", value, file, line, column);
 }
 
+static const char *skip_wrap_spaces(const char *start, const char *end)
+{
+    while (start < end && *start == ' ') ++start;
+    return start;
+}
+
+static size_t word_wrap_line(const char *start, const char *end, uintmax_t width,
+                             const char **next)
+{
+    size_t remaining = (size_t)(end - start);
+    size_t take = remaining < width ? remaining : (size_t)width;
+    if (take < remaining && start[take] != ' ') {
+        size_t split = take;
+        while (split && start[split - 1] != ' ') --split;
+        if (split) take = split;
+    }
+    *next = skip_wrap_spaces(start + take, end);
+    while (take && start[take - 1] == ' ') --take;
+    return take;
+}
+
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
     const char *p = mask;
@@ -1544,7 +1565,7 @@ const char *jbc_fmt(const char *text, const char *mask, const char *file, int li
             p += 3;
         }
     }
-    if (*p != 'L' && *p != 'R') goto unsupported;
+    if (*p != 'L' && *p != 'R' && !(wrap && *p == 'T')) goto unsupported;
     char align = *p++;
     int precision = -1;
     if (ascii_digit(*p)) precision = *p++ - '0';
@@ -1561,19 +1582,30 @@ const char *jbc_fmt(const char *text, const char *mask, const char *file, int li
     if (precision >= 0 && parse_decimal(text, &n)) text = fmt_decimal(n, (size_t)precision);
     if (!*text || !width) return text;
     size_t length = strlen(text);
+    const char *end = text + length;
     size_t blocks = wrap ? 1 + (length - 1) / width : 1;
+    if (align == 'T') {
+        text = skip_wrap_spaces(text, end);
+        blocks = 1;
+        for (const char *start = text; start < end;) {
+            word_wrap_line(start, end, width, &start);
+            if (start < end) ++blocks;
+        }
+    }
     if (width > (SIZE_MAX - (blocks - 1)) / blocks)
         numeric_error(file, line, column, "FMT result too large");
     char *out = allocate(blocks * width + (blocks - 1));
     char *write = out;
     if (!wrap && length > width && align == 'R') text += length - width;
     for (size_t i = 0; i < blocks; ++i) {
-        size_t used = length < width ? length : width;
+        size_t remaining = (size_t)(end - text);
+        size_t used = remaining < width ? remaining : width;
+        const char *next = text + used;
+        if (align == 'T') used = word_wrap_line(text, end, width, &next);
         memset(write, fill, width);
         memcpy(write + (align == 'R' ? width - used : 0), text, used);
         write += width;
-        text += used;
-        length -= used;
+        text = next;
         if (i + 1 < blocks) *write++ = (char)251;
     }
     *write = '\0';
@@ -2131,23 +2163,14 @@ const char *jbc_fold(const char *text, const char *size, const char *file, int l
     for (;;) {
         const char *mark = strchr(field, 254);
         const char *end = mark ? mark : field + strlen(field);
-        const char *start = field;
-        while (start < end && *start == ' ') ++start;
+        const char *start = skip_wrap_spaces(field, end);
         while (start < end) {
-            size_t remaining = (size_t)(end - start);
-            size_t take = remaining < width ? remaining : (size_t)width;
-            if (take < remaining && start[take] != ' ') {
-                size_t split = take;
-                while (split && start[split - 1] != ' ') --split;
-                if (split) take = split;
-            }
-            const char *next = start + take;
-            while (take && start[take - 1] == ' ') --take;
+            const char *next;
+            size_t take = word_wrap_line(start, end, width, &next);
             memcpy(write, start, take);
             write += take;
 
             start = next;
-            while (start < end && *start == ' ') ++start;
             if (start < end) *write++ = (char)254;
         }
         if (!mark) break;

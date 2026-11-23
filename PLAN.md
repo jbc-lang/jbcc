@@ -1664,6 +1664,14 @@ All 16,310 previous passes still pass, and both targeted files now
 pass. Native tests cover existing FMT masks, mixed marks, empty
 elements and diagnostics. Both newly translated units use a `T` mask.
 
-- [ ] Implement width-prefixed `T` masks for FMT and FMTS. Check
+- [x] Implement width-prefixed `T` masks for FMT and FMTS. Check
   word boundaries, padding and text-mark separation against the
   guide, then run a native example like the T24 narrative calls.
+
+All 16,312 of the previous strict C99 passes still pass after adding
+`T` masks. A native fixture follows the T24 narrative call pattern and
+checks word breaks, padding, text marks, and value-mark preservation.
+
+- [ ] Implement ABSS using the runtime's decimal absolute value and
+  dynamic-array traversal. Check empty elements, marks, precision,
+  and invalid input. Two T24 files first stop on a line containing ABSS.

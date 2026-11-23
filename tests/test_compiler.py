@@ -1244,7 +1244,7 @@ CRT UPCASE(''):LOWCASE('')
 
     def test_fmt_diagnostics(self):
         source = self.work / 'fmt.b'
-        for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,']:
+        for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T']:
             with self.subTest(mask=mask):
                 source.write_text(f'M = "{mask}"\nPRINT FMT(42,M)\n')
                 run = self.run_native(source)

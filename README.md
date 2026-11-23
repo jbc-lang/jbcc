@@ -516,11 +516,15 @@ aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 
+Width-prefixed `T` masks such as `35T` wrap at spaces when possible.
+They split overlong words, pad each block on the right, and insert
+a text mark between blocks. jbcc provisionally uses the same
+byte widths and edge-space trimming as FOLD.
+
 `FMTS(array, mask)` applies the supported FMT masks to each field,
 value and subvalue, preserving delimiters and empty elements. An empty
 array gives an empty result with a valid mask. An empty or unsupported
-mask reports a source-located formatting error, including the
-width-prefixed `T` word-wrap masks used by T24.
+mask reports a source-located formatting error.
 [jBASE FMTS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_FMTS.htm).
 
 CRT writes to standard output. PRINT uses the current output device, initially
