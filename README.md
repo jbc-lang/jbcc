@@ -1790,7 +1790,14 @@ These snippets have yet to be run on a reference jBC implementation.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative
-positions count from the end). The guide defines `@(column,row)` with a
+positions count from the end). For single-index replacement,
+`S[length] = text` replaces the last `length` bytes and `S[length] := text`
+appends within that selection. The reference generator treats the index
+as a length. jbcc truncates fractional lengths, clamps oversized lengths
+to the full string, and treats a nonpositive length as an empty selection
+at the end. [String variables](https://jbc-lang.org/pages/string_variables.html).
+
+The guide defines `@(column,row)` with a
 zero-based origin. jbcc returns an ANSI cursor-position string, so
 `@(5,2)` emits `ESC[3;6H` when printed. The runtime truncates fractional
 coordinates toward zero and reports a negative result at the call site.

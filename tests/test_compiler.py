@@ -1556,6 +1556,44 @@ time_t test_clock(time_t *out)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
 
+    def test_single_index_substring_assignment(self):
+        source = self.work / 'suffix.b'
+        source.write_text("""Text = 'abcde'
+Text[2.9] = 'WXYZ'
+CRT Text
+Text[3] = ''
+CRT Text
+Text[0] = '!'
+Text[-1] := '?'
+CRT Text
+Text[999] = 'whole'
+CRT Text
+DIM A(2)
+A(1) = 'left'
+A(2) = 'right'
+A(1)[1] = 'T'
+A(2)[2] := '!'
+CRT A(1):':':A(2)
+R = 'one':@FM:'two'
+R<2>[2] = 'WO'
+CRT R<1>:':':R<2>
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'abcWXYZ\nabcW\nabcW!?\nwhole\nlefT:right!\none:tWO\n', b''))
+
+    def test_single_index_substring_assignment_diagnostics(self):
+        source = self.work / 'suffix.b'
+        source.write_text("Text = 'abc'\nText['bad'] = '!'\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:5: expected a numeric value'.encode(), result.stderr)
+
+        source.write_text("Text = 'abc'\nText[1] += 1\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:2:9: expected '=' or ':=' for substring replacement", result.stderr)
+
     def test_substrings_requires_numeric_bounds(self):
         source = self.work / 'substrings.b'
         for args in ("'x', 1", "1, 'x'"):

@@ -2631,7 +2631,8 @@ class Compiler:
             substring = None
             if self.word == '[':
                 location = self.location(self.current)
-                start_pos, length = self.bracket_arguments(2, 2)
+                bounds = self.bracket_arguments(1, 2)
+                start_pos, length = bounds if len(bounds) == 2 else ('NULL', bounds[0])
                 substring = f"{start_pos}, {length}, {location}"
             operator = self.current
             if self.word not in ASSIGNMENTS:

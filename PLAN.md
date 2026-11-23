@@ -1995,7 +1995,17 @@ runtime mapping before those calls can succeed.
 After BREAK ON/OFF, the same 16,366 of 17,336 candidates pass strict
 C99 checking. The targeted unit now reaches a substring assignment.
 
-- [ ] Investigate single-index substring assignment. Check the
+- [x] Implement single-index substring assignment. Check the
   reference grammar and code generator for `value[length] = text`,
   and verify how it replaces bytes at the end of a string. One T24
   unit reaches this form after BREAK OFF.
+
+After single-index substring assignment, 16,377 of 17,336 candidates
+pass strict C99 checking. Eleven new units pass and all previous
+passes still pass. Native tests cover replacement and concatenation on
+scalars, matrix elements and dynamic-array fields, including empty and
+oversized selections. The reference generator treats the index as a length.
+
+- [ ] Implement BITXOR. Check operand coercion, empty values and the
+  integer width against the guide, then verify a native bitwise
+  calculation. The targeted unit reaches BITXOR after the assignment.

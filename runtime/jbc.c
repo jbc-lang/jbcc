@@ -3994,11 +3994,20 @@ const char *jbc_substrings(const char *source, const char *start, const char *le
     }
 }
 
-static const char *substring(const char *text, int64_t i, int64_t count, const char *replacement)
+const char *jbc_substring(const char *text, const char *start, const char *length,
+                          const char *file, int line, int column, const char *replacement)
 {
+    int64_t first = start ? truncated(start, file, line, column) : 0;
+    int64_t count = truncated(length, file, line, column);
+    if (!start && !replacement && count <= 0) return "";
     size_t n = strlen(text);
-    size_t offset;
-    size_t take = substring_range(n, i, count, &offset);
+    size_t offset, take;
+    if (start) {
+        take = substring_range(n, first, count, &offset);
+    } else {
+        take = count <= 0 ? 0 : (uint64_t)count > n ? n : (size_t)count;
+        offset = n - take;
+    }
     if (!replacement) {
         char *out = allocate(take);
         memcpy(out, text + offset, take);
@@ -4014,23 +4023,14 @@ static const char *substring(const char *text, int64_t i, int64_t count, const c
     return out;
 }
 
-const char *jbc_substring(const char *text, const char *start, const char *length,
-                          const char *file, int line, int column, const char *replacement)
-{
-    int64_t i = truncated(start, file, line, column);
-    int64_t count = truncated(length, file, line, column);
-    return substring(text, i, count, replacement);
-}
-
 const char *jbc_left(const char *text, const char *length, const char *file, int line, int column)
 {
-    return substring(text, 1, truncated(length, file, line, column), NULL);
+    return jbc_substring(text, "1", length, file, line, column, NULL);
 }
 
 const char *jbc_right(const char *text, const char *length, const char *file, int line, int column)
 {
-    int64_t count = truncated(length, file, line, column);
-    return count > 0 ? substring(text, -count, count, NULL) : "";
+    return jbc_substring(text, NULL, length, file, line, column, NULL);
 }
 
 #ifdef JBC_MATH
