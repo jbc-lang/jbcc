@@ -95,6 +95,15 @@ explicit nonnegative integer overrides that default. jbcc provisionally
 uses exact decimal rounding with midpoint ties away from zero.
 [jBASE DROUND](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DROUND.htm).
 
+`SMUL(left, right[, places])` multiplies decimal strings exactly before
+limiting the output scale, so products can exceed the native integer range.
+It ignores the active PRECISION. jbcc provisionally truncates toward zero
+and removes trailing fractional zeros. The default is 16 fractional
+places, which reproduces the guide's fractional example. The reference
+grammar accepts a third argument. jbcc treats it as a nonnegative
+fractional limit and accepts `-1` for the default.
+[jBASE SMUL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SMUL.htm).
+
 ALPHA returns 1 when every byte in a nonempty value is an ASCII letter.
 Digits, punctuation and array marks return 0. jbcc provisionally returns
 0 for an empty string pending a reference run. The guide describes Unicode

@@ -1270,6 +1270,57 @@ static int sum_digit(struct decimal n, size_t whole, size_t index)
     return place < n.places ? n.fraction[place] - '0' : 0;
 }
 
+const char *jbc_smul(const char *left, const char *right, const char *precision,
+                     const char *file, int line, int column)
+{
+    struct decimal a, b;
+    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
+        numeric_error(file, line, column, "SMUL requires numeric operands");
+
+    int64_t places = 16;
+    if (precision) {
+        struct decimal requested;
+        if (!parse_decimal(precision, &requested) || requested.places)
+            numeric_error(file, line, column, "SMUL precision requires -1 or a nonnegative integer");
+        int64_t value = integer(precision, file, line, column);
+        if (value < -1)
+            numeric_error(file, line, column, "SMUL precision requires -1 or a nonnegative integer");
+        if (value >= 0) places = value;
+    }
+    if (!a.sign || !b.sign) return "0";
+
+    size_t left_width = a.digits + a.places, right_width = b.digits + b.places;
+    if (right_width > SIZE_MAX - left_width)
+        numeric_error(file, line, column, "SMUL result is too large");
+    size_t width = left_width + right_width;
+    char *digits = allocate(width);
+    memset(digits, '0', width);
+
+    /* Multiply the unscaled digit strings, then restore the decimal point. */
+    for (size_t i = left_width; i > 0; --i) {
+        int carry = 0;
+        int left_digit = sum_digit(a, a.digits, i - 1);
+        for (size_t j = right_width; j > 0; --j) {
+            size_t position = i + j - 1;
+            int digit = digits[position] - '0'
+                      + left_digit * sum_digit(b, b.digits, j - 1) + carry;
+            digits[position] = (char)('0' + digit % 10);
+            carry = digit / 10;
+        }
+        digits[i - 1] = (char)('0' + carry);
+    }
+
+    size_t whole = a.digits + b.digits;
+    struct decimal result = {digits, digits + whole, whole, width - whole, a.sign * b.sign};
+    while (result.digits && *result.whole == '0') {
+        ++result.whole;
+        --result.digits;
+    }
+    if ((uintmax_t)places < result.places) result.places = (size_t)places;
+    while (result.places && result.fraction[result.places - 1] == '0') --result.places;
+    return fmt_decimal(result, result.places);
+}
+
 static const char *add_sum_item(const char *total, const char *item, struct decimal b,
                                 const char *file, int line, int column)
 {

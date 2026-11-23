@@ -1025,6 +1025,19 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
 
+    def test_smul_diagnostics(self):
+        source = self.work / 'smul.b'
+        for args, diagnostic in [
+                ("'text', 2", "SMUL requires numeric operands"),
+                ("1, '', 2", "SMUL requires numeric operands"),
+                ("0, 2, -2", "SMUL precision requires -1 or a nonnegative integer"),
+                ("1, 2, 1.5", "SMUL precision requires -1 or a nonnegative integer")]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT SMUL({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+
     def test_adds_diagnostics(self):
         source = self.work / 'adds.b'
         for args, diagnostic in [

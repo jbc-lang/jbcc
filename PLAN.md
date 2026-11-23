@@ -1681,7 +1681,17 @@ All 16,312 previous passes still pass, and both targeted files now
 pass. Native tests cover large magnitudes, empty elements, marks,
 PRECISION and invalid elements.
 
-- [ ] Implement SMUL for decimal-string multiplication. Check large
+- [x] Implement SMUL for decimal-string multiplication. Check large
   products, signs, fractional precision and the reference grammar's
   optional precision argument. Two T24 files first stop on a line
   containing SMUL.
+
+After SMUL, all 16,314 previous strict C99 passes still pass out of
+17,336 candidates. The two targeted files now reach nested SDIV calls.
+Native tests reproduce both guide examples and check signs, optional
+precision and source-located diagnostics.
+
+- [ ] Implement SDIV for decimal-string division. Check the guide's
+  14-place examples, its rounding description, the reference grammar's
+  optional precision argument, and division by zero. Rerun the two T24
+  files that now reach SDIV.
