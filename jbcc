@@ -356,8 +356,13 @@ class Preprocessor:
             parentheses = 0
         if words:
             last = list(split_statements(words))[-1][1]
-            message = "unfinished EQUATE list" if is_equate(last) else "unfinished comma continuation"
-            directive_error(words[-1], message)
+            if is_equate(last):
+                directive_error(words[-1], "unfinished EQUATE list")
+            if parentheses or not any(token.kind == 'name' and token.word in ('CRT', 'DISPLAY', 'PRINT')
+                                      for token in last):
+                directive_error(words[-1], "unfinished comma continuation")
+            yield from self.expand_line(list(angle_tokens(words)))
+            yield newline
         if not parents:
             yield newline._replace(word='', kind='eof')
 
@@ -2101,18 +2106,17 @@ class Compiler:
             if self.word == ':':
                 self.emit(f'(void){channel};')
             destination = channel
-        if self.word not in OUTPUT_END:
-            while True:
-                if self.word != ':':
-                    value = self.expression(colon_stops=OUTPUT_END)
-                    self.emit(f"jbc_output({destination}, {value}, {location});")
-                if self.word in CONCATENATION:
-                    self.advance()
-                    return
-                if self.word != ',':
-                    break
-                self.emit(f'jbc_output({destination}, "\\t", {location});')
+        while self.word and self.word not in OUTPUT_END:
+            if self.word not in (':', ','):
+                value = self.expression(colon_stops=OUTPUT_END)
+                self.emit(f"jbc_output({destination}, {value}, {location});")
+            if self.word in CONCATENATION:
                 self.advance()
+                return
+            if self.word != ',':
+                break
+            self.emit(f'jbc_output({destination}, "\\t", {location});')
+            self.advance()
         if self.omitted_concatenations == omitted_before:
             self.emit(f'jbc_output({destination}, "\\n", {location});')
 

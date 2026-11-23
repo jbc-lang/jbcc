@@ -87,6 +87,11 @@ the same rule suppresses the input newline. This follows the reference
 parser's `resultant ':'` production.
 [jBASE CRT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_crt.htm).
 
+Each comma in CRT, DISPLAY or PRINT emits a tab. Leading and repeated
+commas can stand on their own. A comma at the end of a physical line
+also continues the statement onto the next source line. At the end of
+the source, a final output comma emits its tab before the newline.
+
 `CLEAR` assigns numeric zero to local scalars, including locals first
 mentioned later in the source. It preserves caller arguments and
 COMMON storage. jbcc provisionally also zeroes allocated local matrix

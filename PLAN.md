@@ -2425,6 +2425,20 @@ HELPTEXT.CONVERSION now passes strict C99 checking in byte mode.
 The total is 17,059 of 17,336 candidates, including all 17,058
 previous passes.
 
-- [ ] Investigate leading, repeated and trailing commas in CRT and PRINT.
+- [x] Investigate leading, repeated and trailing commas in CRT and PRINT.
   Start with `PRINT ,,,value` in SC.PERF.POLICY.VAR and compare the
   reference parser's tab behavior, line continuation and newline suppression.
+
+The reference grammar treats a comma as an output item that emits a tab.
+Reference probes confirmed leading and repeated commas, continuation
+across a commented line, and an output comma at the end of the source.
+Native tests also cover a comma before ELSE and a colon with an omitted
+operand in an output list.
+
+SC.PERF.POLICY.VAR now passes strict C99 checking in byte mode.
+The total is 17,060 of 17,336 candidates, including all 17,059
+previous passes.
+
+- [ ] Investigate NEXT on the same line as an inline IF inside a FOR,
+  starting with XT.MAKE.KEYS. Check where the IF arm ends and how the
+  parser distinguishes NEXT from a variable or a label.

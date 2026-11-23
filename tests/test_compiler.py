@@ -1727,6 +1727,20 @@ CRT 'f' CAT 'g'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'second3!\nabcde\nfg\n', b''))
 
+    def test_output_commas_emit_tabs_without_an_expression(self):
+        source = self.work / 'tabs.b'
+        source.write_text("""PRINT ,,,'start'
+CRT 'a',,;* continue across a comment
+* intervening comment
+    'b'
+DISPLAY 'c':,, 'd'
+IF 1 THEN CRT 'e', ELSE CRT 'unexpected'
+CRT ,
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'\t\t\tstart\na\t\tb\nc\t\tde\t\n\t\n', b''))
+
     def test_clear_resets_local_storage_and_preserves_shared_slots(self):
         main = self.work / 'main.b'
         reset = self.work / 'reset.b'
