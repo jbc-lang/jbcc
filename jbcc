@@ -592,6 +592,22 @@ class Compiler:
             return self.postfix(value, locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
             return self.postfix(self.remove_expression(), locate_source)
+        elif word == 'INDICES' and self.following.word == '(':
+            opening = self.current
+            self.advance()
+            self.expect('(')
+            target = self.identifier()
+            if target.word in self.matrices:
+                handle = self.checked_read(self.matrix_slot(target), target)
+            else:
+                handle = self.read_variable(target)
+            index = 'NULL'
+            if self.word == ',':
+                self.advance()
+                index = self.expression()
+            self.expect(')')
+            call = f"jbc_indices({handle}, {index}, {self.location(opening)})"
+            return self.postfix(self.temporary(call), locate_source)
         elif word == 'INMAT' and self.following.word == '(':
             self.advance()
             self.expect('(')

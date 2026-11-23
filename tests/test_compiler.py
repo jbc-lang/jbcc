@@ -1651,6 +1651,32 @@ CRT Text
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
 
+    def test_indices_requires_backend_only_when_a_query_is_reached(self):
+        source = self.work / 'indices.b'
+        for query in ('INDICES(File)', "INDICES(Handles(1), 'BY.':'TITLE')"):
+            with self.subTest(query=query):
+                source.write_text(f"""OPEN 'BOOKS' TO File ELSE ABORT
+DIM Handles(2)
+Handles(1) = File
+IF 0 THEN CRT INDICES(File)<1>
+CRT 'before'
+CRT {query}
+CRT 'after'
+""")
+                result = self.run_native(source, options=('--memory-file', 'BOOKS'))
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, b'before\n')
+                self.assertEqual(
+                    result.stderr, f'{source}:6:5: INDICES requires a secondary-index backend\n'.encode()
+                )
+
+    def test_indices_requires_a_file_variable(self):
+        source = self.work / 'indices.b'
+        source.write_text("CRT INDICES('BOOKS')\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{source}:1:13: expected a name\n')
+
     def test_single_index_substring_assignment(self):
         source = self.work / 'suffix.b'
         source.write_text("""Text = 'abcde'

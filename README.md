@@ -1473,6 +1473,13 @@ invalid handle. Other keys produce a source-located diagnostic.
 [jBC FILEINFO](https://jbc-lang.org/pages/fileinfo.html),
 [UniVerse BASIC Reference](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
 
+`INDICES(file)` queries the file's secondary indexes. The optional
+expression in `INDICES(file, indexName)` requests information about one
+index. The file operand is a variable or a matrix element, as in the
+reference grammar. Executing either form reports a source-located error
+because jbcc's file backend has no secondary-index metadata.
+[jBASE file index metadata](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/JRCS_INTERFACE.htm).
+
 ## In-memory file tests
 
 The test backend starts with empty files explicitly named at translation

@@ -2274,6 +2274,22 @@ numeric and text ordering, and single evaluation of the reused scalar.
 AZ.GEN.CC.AMT now passes strict C99 checking, bringing the total to
 16,554 of 17,336 candidates. All 16,553 previous passes still pass.
 
-- [ ] Investigate INDICES(file) in BUILD.DICTS.INDICES and the reference
+- [x] Investigate INDICES(file) in BUILD.DICTS.INDICES and the reference
   parser's optional second operand. Establish what index metadata a
   backend would need and how to diagnose a query without that backend.
+
+BUILD.DICTS.INDICES consumes the list of index names. STANDARD.SELECTION
+also queries a specific name and tests the result for presence. The
+reference compiler passes a null pointer for the omitted name and
+accepts a matrix element as the file operand. jbcc translates both
+query forms and reports an unavailable secondary-index backend at
+the call site. Native tests use an open in-memory file and verify that
+a skipped query has no effect.
+
+BUILD.DICTS.INDICES now passes strict C99 checking, bringing the total
+to 16,555 of 17,336 candidates. All 16,554 previous passes still pass.
+
+- [ ] Trace the 228 UTF-8 decoding failures to their source files or
+  includes. Compare Windows-1252 punctuation with single-byte jBC marks
+  before adding an explicit legacy source-encoding option. Keep
+  strict UTF-8 as the default.

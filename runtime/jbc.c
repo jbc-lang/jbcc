@@ -5782,6 +5782,14 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
     return file_succeeded(status);
 }
 
+const char *jbc_indices(const char *handle, const char *index, const char *file, int line, int column)
+{
+    (void)handle;
+    (void)index;
+    numeric_error(file, line, column, "INDICES requires a secondary-index backend");
+    return "";
+}
+
 const char *jbc_fileinfo(const char *handle, const char *key, const char *source, int line, int column)
 {
     int validity = !jbc_compare(key, "0", -1);
