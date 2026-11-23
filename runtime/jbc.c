@@ -3685,6 +3685,16 @@ void jbc_echo(int enabled)
     input_echo = enabled;
 }
 
+void jbc_inputclear(const char *file, int line, int column)
+{
+    if (!isatty(STDIN_FILENO)) return;
+    int result;
+    do {
+        result = tcflush(STDIN_FILENO, TCIFLUSH);
+    } while (result < 0 && errno == EINTR);
+    if (result < 0) numeric_error(file, line, column, "INPUTCLEAR cannot clear terminal input");
+}
+
 static void input_signal(int sig)
 {
     if (input_modified) tcsetattr(STDIN_FILENO, TCSANOW, &input_saved);

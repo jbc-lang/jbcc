@@ -392,6 +392,10 @@ HUSH. The native runtime restores the host terminal mode after each read.
 [ECHO](https://jbc-lang.org/pages/echo.html),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`INPUTCLEAR` and `CLEARINPUT` clear terminal type-ahead. Queued DATA
+and nonterminal stdin stay available for subsequent reads.
+[INPUTCLEAR](https://jbc-lang.org/pages/inputclear.html).
+
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
 `?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps

@@ -2327,6 +2327,12 @@ class Compiler:
             self.uses_sleep = True
             duration = '"1"' if not self.word or self.word in OUTPUT_END else self.expression()
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
+        elif (self.word in ('INPUTCLEAR', 'CLEARINPUT') and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            opening = self.current
+            self.advance()
+            self.terminal = True
+            self.emit(f"jbc_inputclear({self.location(opening)});")
         elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current

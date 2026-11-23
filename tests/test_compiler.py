@@ -2261,6 +2261,52 @@ END
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
 
+    def test_inputclear_discards_only_terminal_typeahead(self):
+        source = self.work / 'input.b'
+        binary = self.work / 'input'
+
+        def read_until(fd, marker):
+            data = bytearray()
+            while not data.endswith(marker):
+                self.assertTrue(select.select([fd], [], [], 5)[0], data)
+                data.extend(os.read(fd, 1024))
+            return bytes(data)
+
+        for statement in ('INPUTCLEAR', 'CLEARINPUT'):
+            with self.subTest(statement=statement):
+                source.write_text(f"""PROMPT ''
+DATA 'queued'
+{statement}
+INPUT Queued
+CRT Queued
+PROMPT '>'
+INPUT Fresh
+CRT Fresh
+""")
+                subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+                run = subprocess.run([binary], input=b'pipe\n', capture_output=True, timeout=5)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, b'queued\n>pipe\n')
+                self.assertEqual(run.stderr, b'')
+
+                master, slave = os.openpty()
+                self.addCleanup(os.close, master)
+                self.addCleanup(os.close, slave)
+                mode = termios.tcgetattr(slave)
+                mode[3] &= ~(termios.ECHO | termios.ECHONL)
+                termios.tcsetattr(slave, termios.TCSANOW, mode)
+                os.write(master, b'stale\npartial')
+                self.assertTrue(select.select([slave], [], [], 5)[0])
+                with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
+                    try:
+                        self.assertEqual(read_until(master, b'>'), b'queued\r\n>')
+                        os.write(master, b'fresh\n')
+                        self.assertEqual(read_until(master, b'\r\n'), b'fresh\r\n')
+                        self.assertEqual(proc.wait(timeout=5), 0)
+                    finally:
+                        if proc.poll() is None:
+                            proc.kill()
+
     def test_input_underscore_discards_excess_in_queue_and_pipe(self):
         source = self.work / 'input.b'
         source.write_text("""PROMPT ''

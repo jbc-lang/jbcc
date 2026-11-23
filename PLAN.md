@@ -1627,6 +1627,15 @@ All 16,304 previous passes still pass. One targeted file now passes
 and the other reaches INPUTCLEAR. A pseudo-terminal test covers
 character echo, SYSTEM(24), HUSH and terminal mode restoration.
 
-- [ ] Implement INPUTCLEAR and its CLEARINPUT alias. Verify that it
+- [x] Implement INPUTCLEAR and its CLEARINPUT alias. Verify that it
   clears terminal type-ahead while preserving queued DATA. Unsupported
   INPUTCLEAR is the first diagnostic in one T24 file.
+
+After INPUTCLEAR, 16,306 of 17,336 candidates pass strict C99 checking.
+All 16,305 previous passes still pass, and EDIT.CMD.LINE now passes.
+Native tests cover both spellings, complete and partial terminal
+type-ahead, queued DATA, and stdin from a pipe.
+
+- [ ] Implement FOOTING using the existing report pagination and
+  heading options. Check page breaks, printer output and terminal
+  pauses. Unsupported FOOTING is the first diagnostic in two T24 files.
