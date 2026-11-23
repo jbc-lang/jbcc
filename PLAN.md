@@ -2439,6 +2439,18 @@ SC.PERF.POLICY.VAR now passes strict C99 checking in byte mode.
 The total is 17,060 of 17,336 candidates, including all 17,059
 previous passes.
 
-- [ ] Investigate NEXT on the same line as an inline IF inside a FOR,
+- [x] Investigate NEXT on the same line as an inline IF inside a FOR,
   starting with XT.MAKE.KEYS. Check where the IF arm ends and how the
   parser distinguishes NEXT from a variable or a label.
+
+Reference compiler probes put NEXT after the inline IF, including
+when the arm contains another IF or an ELSE. jbcc now uses the enclosing
+FOR boundary to end the arm. Native tests also cover jbcc's contextual
+assignment and label forms for NEXT.
+
+XT.MAKE.KEYS now passes strict C99 checking in byte mode. The total
+is 17,061 of 17,336 candidates, including all 17,060 previous passes.
+
+- [ ] Investigate RELEASE with ON ERROR in CONVERT.KEYWORD and
+  JBASE.CONVERSION. Check the reference release status and define
+  how the in-memory backend handles invalid descriptors and lock ownership.

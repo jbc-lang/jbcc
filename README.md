@@ -805,6 +805,10 @@ LOOP bodies, with an optional DO after the condition. An inline arm can
 end at a loop guard. In `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,
 the guard tests the ID after READNEXT and its ELSE arm have run. An ELSE
 inside a nested conditional still binds to the nearest eligible THEN.
+An inline arm inside a FOR also ends at the enclosing NEXT. For example,
+`FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ; NEXT I` increments I on every
+iteration and prints only 2. jbcc also recognizes `NEXT = value`
+and `NEXT:` as an assignment and a label where a statement can begin.
 T24 uses
 `UNTIL found` immediately before `NEXT`. When the body reaches that
 guard and `found` is true, the FOR exits with its counter at the current

@@ -1741,6 +1741,27 @@ CRT ,
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'\t\t\tstart\na\t\tb\nc\t\tde\t\n\t\n', b''))
 
+    def test_inline_if_ends_at_next_in_the_enclosing_for(self):
+        source = self.work / 'inline-next.b'
+        source.write_text("""FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ELSE CRT 'other' ; NEXT I
+FOR I = 1 TO 2 ; IF I > 0 THEN IF I = 2 THEN CRT I ; NEXT
+FOR I = 1 TO 2 ; IF I = 1 THEN CRT I NEXT I
+CRT 'done'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'other\n2\nother\n2\n1\ndone\n', b''))
+
+    def test_inline_if_preserves_next_as_an_assignment_target_or_label(self):
+        source = self.work / 'inline-next.b'
+        source.write_text("""NEXT = 0
+FOR I = 1 TO 3 ; IF I = 2 THEN NEXT += 4 ; NEXT I
+CRT (NEXT)
+FOR I = 1 TO 2 ; IF 1 THEN GOTO NEXT ; NEXT: CRT I ; NEXT I
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'4\n1\n2\n', b''))
+
     def test_clear_resets_local_storage_and_preserves_shared_slots(self):
         main = self.work / 'main.b'
         reset = self.work / 'reset.b'
