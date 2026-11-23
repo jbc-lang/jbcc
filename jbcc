@@ -2249,6 +2249,17 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
+        elif (self.word == 'ASSIGN' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            opening = self.current
+            self.advance()
+            value = self.temporary(self.expression())
+            self.expect('TO')
+            self.expect('SYSTEM')
+            self.expect('(')
+            key = self.expression()
+            self.expect(')')
+            self.emit(f"jbc_assign_system({value}, {key}, {self.location(opening)});")
         elif (self.word == 'DATA' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.advance()

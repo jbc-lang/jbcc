@@ -1585,7 +1585,17 @@ All 16,284 previous passes still pass. Five of the six targeted files
 now pass. The native midnight test covers the shared startup clock
 when either variable is used alone and when both are read together.
 
-- [ ] Implement `ASSIGN value TO SYSTEM(key)` syntax. Identify the
+- [x] Implement `ASSIGN value TO SYSTEM(key)` syntax. Identify the
   keys used by T24 and verify which native runtime state can be updated.
   Report unavailable services at the call site. Unsupported ASSIGN is
   the first diagnostic in five T24 files.
+
+After ASSIGN, 16,293 of 17,336 candidates pass strict C99 checking.
+All 16,289 previous passes still pass. Four of the five targeted files
+now pass, and one reaches `@USERSTATS`. Native tests cover the lock
+counter reset, retained locks and diagnostics for unavailable keys.
+
+- [ ] Implement RECORDLOCKU using the in-memory record lock backend.
+  Verify successful acquisition, contention, release and the new
+  SYSTEM(1036) counter. Unsupported RECORDLOCKU is the first
+  diagnostic in three T24 files.

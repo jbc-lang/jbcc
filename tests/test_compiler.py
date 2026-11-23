@@ -1652,6 +1652,36 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:1: READU cannot wait for a simulated foreign lock'.encode(), run.stderr)
 
+    def test_assign_system_resets_blocked_record_lock_counter(self):
+        source = self.work / 'assign-system.b'
+        source.write_text("""OPEN 'F' TO F ELSE STOP
+Key = 1036
+CRT SYSTEM(Key)
+FOR I = 1 TO 2
+    READU R FROM F, 'busy' LOCKED NULL THEN STOP ELSE STOP
+NEXT I
+CRT SYSTEM(Key)
+ASSIGN 0 TO SYSTEM(Key)
+CRT SYSTEM(Key)
+CRT RECORDLOCKED(F, 'busy')
+""")
+        run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\n2\n0\n-2\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_assign_system_diagnostics(self):
+        source = self.work / 'assign-system.b'
+        for statement, diagnostic in [
+                ('ASSIGN 1 TO SYSTEM(1036)', 'SYSTEM(1036) can only be reset to zero'),
+                ('ASSIGN 7 TO SYSTEM(1039)', 'ASSIGN TO SYSTEM(1039) requires a journaling backend'),
+                ('ASSIGN 0 TO SYSTEM(2021)', 'unsupported ASSIGN TO SYSTEM key 2021')]:
+            with self.subTest(statement=statement):
+                source.write_text(statement + '\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:1: {diagnostic}'.encode(), run.stderr)
+
     def test_readv(self):
         run = self.run_native(ROOT / 'tests/io/readv.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)

@@ -970,6 +970,20 @@ const char *jbc_inmat(int rank, const int *bounds)
 enum { JBC_LOCKED = -2 };
 
 static int last_file_status;
+static size_t blocked_record_locks;
+
+void jbc_assign_system(const char *value, const char *key, const char *file, int line, int column)
+{
+    if (!jbc_compare(key, "1036", -1)) {
+        if (jbc_compare(value, "0", -1))
+            numeric_error(file, line, column, "SYSTEM(1036) can only be reset to zero");
+        blocked_record_locks = 0;
+        return;
+    }
+    if (!jbc_compare(key, "1039", -1))
+        numeric_error(file, line, column, "ASSIGN TO SYSTEM(1039) requires a journaling backend");
+    numeric_error(file, line, column, jbc_concat("unsupported ASSIGN TO SYSTEM key ", key));
+}
 
 static int file_result(int status)
 {
@@ -3028,6 +3042,7 @@ static int lock_for_update(struct memory_file *f, const char *key, jbc_variable 
     }
     struct record_lock *lock = find_lock(f, key);
     if (lock && lock->foreign) {
+        if (blocked_record_locks < SIZE_MAX) ++blocked_record_locks;
         if (setting) assign_value(setting, "-2");
         return JBC_LOCKED;
     }
@@ -3790,8 +3805,9 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
     if (!jbc_compare(code, "18", -1)) return jbc_port_number(file, line, column);
     if (!jbc_compare(code, "19", -1)) return jbc_login_name();
+    if (!jbc_compare(code, "1036", -1)) return size_value(blocked_record_locks);
     if (jbc_compare(code, "14", -1))
-        numeric_error(file, line, column, "only SYSTEM(14), SYSTEM(17), SYSTEM(18) and SYSTEM(19) are supported");
+        numeric_error(file, line, column, jbc_concat("unsupported SYSTEM key ", code));
     int bytes = 0;
     fflush(stdout);
     int result;

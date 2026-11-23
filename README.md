@@ -233,6 +233,13 @@ Their record counts require a query backend.
 [jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/par2_PARAGRAPHS.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`SYSTEM(1036)` counts contention when an update read tries to lock a
+simulated foreign-locked record. `ASSIGN 0 TO SYSTEM(1036)` resets that
+process-wide count, following T24 usage. Assignments for other keys
+produce a source-located diagnostic, including the journaling request
+at key 1039 and the T24 request at key 2021.
+[jBASE SYSTEM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SYSTEM.htm).
+
 `@USERNO`, its reference compiler aliases `@USER_NO` and `@UDTNO`,
 and `SYSTEM(18)` return the same port number. jbcc reads `JBCPORTNO`
 at program startup. Set it to a single nonnegative decimal number to
