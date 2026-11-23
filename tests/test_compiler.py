@@ -394,6 +394,51 @@ OSWRITE 'x' TO '.'
         self.assertIn(f'{source}:3:1: OSWRITE failed'.encode(), result.stderr)
         self.assertEqual(data.read_bytes(), b'unchanged')
 
+    def test_osdelete_path_resolution_and_status(self):
+        directory = self.work / 'search'
+        directory.mkdir()
+        for path in (self.work / 'local', directory / 'local', directory / 'payload',
+                     directory / 'explicit', directory / 'search'):
+            path.write_bytes(b'data')
+        source = self.work / 'osdelete.b'
+        source.write_text("""OSDELETE 'local' SETTING S ON ERROR ABORT
+CRT S:':':STATUS()
+OSDELETE 'payload' ON ERROR ABORT
+OSDELETE './explicit' SETTING S ON ERROR CRT S:':':STATUS()
+OSDELETE 'search' SETTING S ON ERROR CRT S:':':STATUS()
+OSDELETE 'search/explicit'
+CRT STATUS()
+""")
+        search_path = f":{self.work / 'missing'}::{directory}:"
+        result = self.run_native(source, cwd=self.work,
+                                 env=dict(os.environ, JEDIFILEPATH=search_path))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:0\n1:1\n1:1\n0\n', b''))
+        self.assertFalse((self.work / 'local').exists())
+        self.assertFalse((directory / 'payload').exists())
+        self.assertFalse((directory / 'explicit').exists())
+        self.assertEqual((directory / 'local').read_bytes(), b'data')
+        self.assertEqual((directory / 'search').read_bytes(), b'data')
+
+    def test_osdelete_missing_file_and_diagnostics(self):
+        source = self.work / 'osdelete.b'
+        source.write_text("""OSDELETE 'missing' SETTING S ON ERROR
+    CRT S:':':STATUS()
+END
+OSDELETE 'missing' SETTING S
+CRT 'unreachable'
+""")
+        result = self.run_native(source, cwd=self.work,
+                                 env=dict(os.environ, JEDIFILEPATH=''))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'1:1\n')
+        self.assertIn(f'{source}:4:1: OSDELETE failed'.encode(), result.stderr)
+
+        source.write_text("OSDELETE 'missing' ON NULL\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:23: expected 'ERROR'", result.stderr)
+
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
         directory.mkdir()

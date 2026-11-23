@@ -4871,19 +4871,30 @@ void jbc_seq_setting(jbc_variable *out, int status)
     assign_value(out, file_status_value(status));
 }
 
+static const char *os_search_path(const char *path, int error)
+{
+    if (file_error(error) != 128 || strchr(path, '/') || !*path) return NULL;
+    return getenv("JEDIFILEPATH");
+}
+
+static const char *next_os_path(const char *path, const char **directories)
+{
+    while (*directories && **directories) {
+        const char *dir = take_field(directories, ':');
+        if (*dir) return jbc_concat(jbc_concat(dir, "/"), path);
+    }
+    return NULL;
+}
+
 static int open_os_file(const char **name, int flags)
 {
     const char *path = *name;
     int fd = open(path, flags);
     if (fd >= 0) return fd;
     int error = errno;
-    if (file_error(error) != 128 || strchr(path, '/') || !*path) return -1;
-
-    const char *directories = getenv("JEDIFILEPATH");
-    while (directories && *directories) {
-        const char *dir = take_field(&directories, ':');
-        if (!*dir) continue;
-        const char *candidate = jbc_concat(jbc_concat(dir, "/"), path);
+    const char *directories = os_search_path(path, error);
+    const char *candidate;
+    while ((candidate = next_os_path(path, &directories))) {
         fd = open(candidate, flags);
         if (fd >= 0) {
             *name = candidate;
@@ -5160,6 +5171,19 @@ int jbc_oswrite(const char *path, const char *value, int append)
     if (!status) status = write_os_bytes(out, value);
     if (fclose(out) && !status) status = file_error(errno);
     return file_result(status);
+}
+
+int jbc_osdelete(const char *path)
+{
+    if (unlink(path) == 0) return file_result(0);
+
+    const char *directories = os_search_path(path, errno);
+    const char *candidate;
+    while ((candidate = next_os_path(path, &directories))) {
+        if (unlink(candidate) == 0) return file_result(0);
+        if (file_error(errno) != 128) break;
+    }
+    return file_result(1);
 }
 
 int jbc_createseq(const char *token, const char *source, int line, int column)

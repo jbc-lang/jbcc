@@ -1946,5 +1946,13 @@ checking. Native tests cover creation, truncation, append, path
 lookup, exact byte conversion and error handling. They verify that
 a locked file keeps its original contents.
 
-- [ ] Investigate OSDELETE for regular files. Check path resolution,
+- [x] Implement OSDELETE for OS files. Check path resolution,
   missing files and the reference error arms using temporary fixtures.
+
+After OSDELETE, the same 16,364 of 17,336 candidates pass strict C99
+checking. Native tests cover explicit paths, working directory precedence,
+`JEDIFILEPATH` fallback, directories, status and error arms.
+
+- [ ] Implement OPENDEV for regular files using the reference lexer's
+  OPENSEQ alias. Check native file access and the LOCKED and ELSE arms,
+  and identify what the device cases need from the runtime.

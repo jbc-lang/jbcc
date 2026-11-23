@@ -1194,6 +1194,16 @@ truncating or writing. The statement accepts `SETTING` and `ON ERROR`,
 and a failure without an error arm reports the statement location.
 [OSWRITE](https://jbc-lang.org/pages/oswrite.html).
 
+`OSDELETE path [SETTING code] [ON ERROR statements]` removes an OS file.
+A bare name is resolved in the working directory first, then in
+`JEDIFILEPATH` if it is missing. A path containing a slash is used as
+given. The POSIX backend uses `unlink`, which removes a symbolic link
+itself and rejects directories. `STATUS()` returns 0 for success and 1
+for failure. jbcc assigns the same value to the optional `SETTING`
+variable accepted by the reference grammar. A failed deletion runs
+`ON ERROR` or reports the statement location.
+[OSDELETE](https://jbc-lang.org/pages/osdelete.html).
+
 `TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
 decimal seconds. A pending or closed handle and an invalid duration
 report an error at the statement. The regular-file backend completes

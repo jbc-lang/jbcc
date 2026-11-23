@@ -1295,6 +1295,9 @@ class Compiler:
             self.advance()
             path = self.expression()
             call = f'jbc_oswrite({path}, {value}, {int(append)})'
+        elif op == 'OSDELETE':
+            path = self.expression()
+            call = f'jbc_osdelete({path})'
         elif op == 'OSREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
@@ -1367,7 +1370,7 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        if op in ('OSBREAD', 'OSBWRITE', 'OSWRITE'):
+        if op in ('OSBREAD', 'OSBWRITE', 'OSWRITE', 'OSDELETE'):
             self.file_error_arm(opening, f"!{status}", 'NULL')
         elif op in ('CREATE', 'SEEK'):
             self.conditional_arms(opening, f"!{status}")
@@ -2442,7 +2445,8 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT',
+                            'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE', 'OSDELETE')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices
