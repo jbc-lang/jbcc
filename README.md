@@ -81,6 +81,9 @@ Standalone `V++`, `V--`, `++V`, and `--V` change an assigned
 variable or matrix element by one. They use the same numeric coercion
 and overflow checks as compound assignment. The reference grammar
 uses scalar and matrix targets for these statements.
+In expressions, a prefix operator returns the updated value and a
+postfix operator returns the previous value. jbcc evaluates operands
+from left to right, including when they refer to the same variable.
 [Numeric variables](https://jbc-lang.org/pages/numeric_variables.html).
 
 The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop

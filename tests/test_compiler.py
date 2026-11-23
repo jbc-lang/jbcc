@@ -2158,10 +2158,40 @@ CRT 4 - -2
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'4.5\n1:11\n2\n6\n', b''))
 
+    def test_increment_and_decrement_expression_values(self):
+        source = self.work / 'step.b'
+        source.write_text("""N = 0
+Old = N++
+New = ++N
+CRT Old:':':New:':':N
+CRT N--:':':--N:':':N
+N = 4
+CRT N - N++
+CRT N++ + N++ * 2
+IF 0 AND ++N THEN ABORT
+V = IF 1 THEN N ELSE N++
+CRT V:':':N
+DIM A(2)
+A(1) = 8
+A(2) = 20
+I = 1
+CRT A(I++)++:':':I:':':A(1)
+CALL SHOW.STEPS(A(2)--, --A(2), A(2))
+""")
+        routine = self.work / 'show-steps.b'
+        routine.write_text("""SUBROUTINE SHOW.STEPS(Old, New, Current)
+CRT Old:':':New:':':Current
+""")
+        result = self.run_native(source, routine)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:2:2\n2:0:0\n0\n17\n7:7\n8:2:9\n20:18:18\n', b''))
+
     def test_increment_and_decrement_diagnostics(self):
         source = self.work / 'step.b'
         for program, message in [
                 ('Count++\n', "1:1: unassigned variable 'Count'"),
+                ('CRT --Count\n', "1:7: unassigned variable 'Count'"),
+                ('CRT ++1\n', '1:7: expected a name'),
                 ("R = '1'\nR<1>++\n", '2:5: increment and decrement require a variable or matrix element')]:
             with self.subTest(program=program):
                 source.write_text(program)

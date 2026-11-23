@@ -454,14 +454,16 @@ class Compiler:
 
     def checked_read(self, var, token):
         read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
-        # Capture the value before a later call can overwrite this slot.
-        return self.temporary(read) if self.functions or self.has_output_arguments else read
+        # Capture the value before a later operand can overwrite this slot.
+        return self.temporary(read) if self.functions or self.has_expression_writes else read
 
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
 
     def primary(self, locate_source=False):
         word = self.word
+        if word in STEP_OPERATORS:
+            return self.postfix(self.prefix_step(), locate_source)
         if word in ('-', '+'):
             operator = self.current
             self.advance()
@@ -550,8 +552,7 @@ class Compiler:
             target = self.current
             self.advance()
             slot = self.matrix_slot(target)
-            value = self.checked_read(slot, target)
-            return self.postfix(value, locate_source)
+            return self.variable_expression(target, slot, locate_source)
         elif word in self.functions and self.following.word == '(':
             target = self.identifier()
             args, kinds = self.call_arguments()
@@ -688,6 +689,9 @@ class Compiler:
                         self.assignment_facts[value, not truth] = self.assignment_facts[args[0], truth]
         elif word == 'IF' and word not in self.assigned:
             return self.postfix(self.conditional_expression(), locate_source)
+        elif self.current.kind == 'name' and self.following.word in STEP_OPERATORS:
+            target = self.identifier()
+            return self.variable_expression(target, self.variable(target.word), locate_source)
         elif self.current.kind == 'name':
             value = self.read_variable(self.current)
         elif self.current.kind == 'number':
@@ -699,6 +703,15 @@ class Compiler:
         else:
             self.error("expected a variable, integer, string or parenthesized expression")
         self.advance()
+        return self.postfix(value, locate_source)
+
+    def variable_expression(self, target, slot, locate_source=False):
+        if self.word in STEP_OPERATORS:
+            operator = self.current
+            self.advance()
+            value = self.step_value(target, operator, slot, postfix=True)
+        else:
+            value = self.checked_read(slot, target)
         return self.postfix(value, locate_source)
 
     def postfix(self, value, locate_source=False):
@@ -2010,7 +2023,7 @@ class Compiler:
                     if self.word in (',', ')'):
                         args.append('&' + slot)
                     else:
-                        value = self.postfix(self.checked_read(slot, target_element))
+                        value = self.variable_expression(target_element, slot)
                         args.append(self.value_argument(self.expression_tail(value)))
                 elif self.current.kind == 'name' and self.following.word in (',', ')'):
                     name = self.identifier().word
@@ -2324,7 +2337,16 @@ class Compiler:
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
         return f"({matrix.base})[{index}]"
 
-    def step_statement(self, target, operator, slot):
+    def prefix_step(self, statement=False):
+        operator = self.current
+        self.advance()
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        if statement and self.word in ('<', '['):
+            self.error("increment and decrement require a variable or matrix element")
+        return self.step_value(target, operator, slot)
+
+    def step_value(self, target, operator, slot, postfix=False):
         scalar = target.word not in self.matrices
         if scalar and target.word not in self.assigned and not self.has_unstructured_jumps:
             self.assignment_error(f"unassigned variable '{target.word}'", target)
@@ -2333,6 +2355,7 @@ class Compiler:
         self.emit(f"assign_value(&{slot}, {value});")
         if scalar:
             self.assigned.add(target.word)
+        return old if postfix else value
 
     def statement(self, stops):
         if self.current.kind == 'program_header':
@@ -2645,13 +2668,7 @@ class Compiler:
             self.expect('=')
             self.emit(f"assign_value(&{slot}, {self.expression()});")
         elif self.word in STEP_OPERATORS:
-            operator = self.current
-            self.advance()
-            target = self.identifier()
-            slot = self.variable_slot(target)
-            if self.word in ('<', '['):
-                self.error("increment and decrement require a variable or matrix element")
-            self.step_statement(target, operator, slot)
+            self.prefix_step(statement=True)
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
@@ -2669,7 +2686,7 @@ class Compiler:
                 if indices or substring:
                     self.error("increment and decrement require a variable or matrix element")
                 self.advance()
-                self.step_statement(start, operator, var or self.variable(start.word))
+                self.step_value(start, operator, var or self.variable(start.word))
                 return
             if self.word not in ASSIGNMENTS:
                 self.error(f"unsupported statement '{start.word}'", start)
@@ -2738,9 +2755,10 @@ class Compiler:
         return self.identifier(), is_matrix
 
     def parse(self, tokens):
-        self.has_output_arguments = any(
-            t.word in ('GETENV', 'REMOVE') and tokens[i + 1].word == '('
-            for i, t in enumerate(tokens) if t.kind == 'name'
+        self.has_expression_writes = any(
+            t.kind == 'symbol' and t.word in STEP_OPERATORS
+            or t.kind == 'name' and t.word in ('GETENV', 'REMOVE') and tokens[i + 1].word == '('
+            for i, t in enumerate(tokens)
         )
         self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') or
                                           (t.word == 'RETURN' and n + 1 < len(tokens) and tokens[n + 1].word == 'TO')

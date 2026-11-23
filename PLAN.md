@@ -2054,6 +2054,16 @@ passes still pass. EB.GET.RECORD.XML now reaches a spaced `: =`
 assignment. Native tests cover both spellings in each position, scalar
 and matrix targets, and diagnostics for invalid targets and overflow.
 
-- [ ] Implement increment and decrement in expressions. Verify the
+- [x] Implement increment and decrement in expressions. Verify the
   guide's old-value and new-value examples, matrix element targets,
   and evaluation order when the variable is used twice.
+
+After increment and decrement expressions, the same 16,396 of 17,336
+candidates pass strict C99 checking. Native tests cover prefix and postfix
+results, left-to-right operand evaluation, short-circuiting and matrix
+elements used as call arguments.
+
+- [ ] Investigate spaced concatenating assignment (`: =`). The
+  reference lexer spells this operator `:=`, while EB.GET.RECORD.XML
+  uses the spaced form. Check how to recognize it without changing
+  expression concatenation and comparison.
