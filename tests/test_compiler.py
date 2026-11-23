@@ -448,6 +448,7 @@ NEXT I
                                   ('REWIND ON 2\n', ':1:12: expected THEN or ELSE'),
                                   ('READT X\n', ':1:8: expected THEN or ELSE'),
                                   ("WRITET 'x'\n", ':1:11: expected THEN or ELSE'),
+                                  ('WEOF\n', ':1:5: expected THEN or ELSE'),
                                   ("IF 1 THEN CRT 1\n  ELSE CRT Missing\n", ":2:12: unknown variable"),
                                   ("CRT 'done'\nELSE CRT 1\n", ":2:1: unexpected 'ELSE'"),
                                   ("DIM A(2)\nMATREAD A FROM 'id'\n LOCKED STOP ELSE STOP\n",
@@ -1064,6 +1065,17 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn((str(source) + diagnostic).encode(), result.stderr)
+
+    def test_weof_invalid_channel(self):
+        source = self.work / 'weof.b'
+        for operand in ('ON 10', 'UNIT(-1)', "FROM 'text'"):
+            with self.subTest(operand=operand):
+                source.write_text(f"WEOF {operand} ELSE CRT 'unexpected branch'\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b'')
+                self.assertIn(f'{source}:1:1: WEOF channel must be an integer from 0 to 9'.encode(),
+                              result.stderr)
 
     def test_smul_diagnostics(self):
         source = self.work / 'smul.b'

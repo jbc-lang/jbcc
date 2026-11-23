@@ -1099,6 +1099,13 @@ precedence over a trailing channel. With no attached media, jbcc sets
 `SYSTEM(0)` to 1 and takes ELSE when present.
 [WRITET](https://jbc-lang.org/pages/writet.html).
 
+`WEOF [UNIT(channel)] [ON channel]` requests an end-of-file mark on a
+tape channel. Following the reference grammar, jbcc accepts FROM in
+place of ON and requires a THEN or ELSE arm. UNIT takes precedence,
+and the default channel is 0. With no attached media, jbcc sets
+`SYSTEM(0)` to 1 and takes ELSE when present.
+[WEOF](https://jbc-lang.org/pages/weof.html).
+
 `WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
 the retained prefix includes the line terminator. The next read sees EOF,
 and the next write starts at that same position. WEOFSEQ accepts `SETTING`,

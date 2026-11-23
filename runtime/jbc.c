@@ -1046,6 +1046,12 @@ int jbc_writet(const char *record, const char *channel, const char *file, int li
     return 0;
 }
 
+int jbc_weof(const char *channel, const char *file, int line, int column)
+{
+    tape_no_media(channel, "WEOF", file, line, column);
+    return 0;
+}
+
 static int last_command_code;
 
 const char *jbc_system_return_code(void)

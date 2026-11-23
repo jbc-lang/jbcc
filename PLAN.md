@@ -1728,6 +1728,16 @@ All 16,319 previous passes still pass. Two targeted files now pass,
 and the other two reach WEOF. Native tests cover the channel forms,
 no-media status and source-located errors.
 
-- [ ] Implement WEOF for tape end-of-file marks. Check the reference
+- [x] Implement WEOF for tape end-of-file marks. Check the reference
   grammar's conditional arms and unit and channel forms. Verify the
   no-media path and rerun the three T24 files that first stop at WEOF.
+
+After WEOF, 16,324 of 17,336 candidates pass strict C99 checking.
+All 16,321 previous passes still pass, and all three targeted files
+now pass. Native tests cover conditional arms, channel selection and
+precedence, and the no-media status.
+
+- [ ] Implement @TTY for the terminal port name. Verify a native run
+  with a pseudoterminal and define the fallback for redirected input
+  using the guide and reference runtime evidence. Four T24 files
+  first stop at @TTY.

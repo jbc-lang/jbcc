@@ -1161,7 +1161,7 @@ class Compiler:
             call = f"jbc_writet({record}, {channel}, {self.location(opening)})"
         else:
             channel = self.tape_channel(unit)
-            call = f"jbc_rewind({channel}, {self.location(opening)})"
+            call = f"jbc_{opening.word.lower()}({channel}, {self.location(opening)})"
         self.conditional_arms(opening, call)
 
     def sequential_statement(self):
@@ -2277,7 +2277,7 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word in ('READT', 'REWIND', 'WRITET') and self.word not in self.matrices
+        elif (self.word in ('READT', 'REWIND', 'WEOF', 'WRITET') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
