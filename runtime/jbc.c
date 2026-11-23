@@ -4812,6 +4812,7 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #include <unistd.h>
 
 enum sequential_buffering { SEQ_PRISTINE, SEQ_USED, SEQ_UNBUFFERED };
+enum sequential_access { SEQ_READ_WRITE, SEQ_READ_ONLY, SEQ_WRITE_ONLY };
 
 /* The immutable token is shared by scalar aliases. Only its address identifies
    the handle. A pending handle remembers a missing file until the first write. */
@@ -4820,7 +4821,7 @@ struct sequential_file {
     const char *token;
     FILE *stream;
     enum sequential_buffering buffering;
-    int readonly;
+    enum sequential_access access;
     unsigned depth;
 };
 static struct sequential_file *sequential_files;
@@ -4870,47 +4871,9 @@ void jbc_seq_setting(jbc_variable *out, int status)
     assign_value(out, file_status_value(status));
 }
 
-static int open_sequential(const char *path, int readonly, int create, int append, FILE **out)
+static int open_os_file(const char **name, int flags)
 {
-    int flags = readonly ? O_RDONLY : O_RDWR;
-    if (create) flags |= O_CREAT | O_EXCL;
-    int fd = open(path, flags | O_NONBLOCK | O_NOCTTY | O_CLOEXEC, 0666);
-    if (fd < 0) return file_error(errno);
-    struct stat st;
-    int status = 0;
-    if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) status = 32768;
-    else if (flock(fd, (readonly ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
-        status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
-    else if (append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
-    else if (!(*out = fdopen(fd, readonly ? "rb" : "r+b"))) status = file_error(errno);
-    if (status) close(fd);
-    return status;
-}
-
-int jbc_openseq(const char *path, const char *name, int existing, int append, int readonly,
-                jbc_variable *out)
-{
-    if (name) path = jbc_concat(jbc_concat(path, "/"), name);
-    FILE *stream = NULL;
-    int status = open_sequential(path, readonly, 0, append, &stream);
-    assign_value(out, "");
-    if (status && (status != 128 || existing || readonly)) return file_result(status);
-    struct sequential_file *file = malloc(sizeof *file);
-    if (!file) fail("out of memory");
-    file->token = strcpy(allocate(strlen(path)), path);
-    file->depth = seq_depth;
-    file->readonly = readonly;
-    file->stream = stream;
-    file->buffering = SEQ_PRISTINE;
-    file->next = sequential_files;
-    sequential_files = file;
-    assign_value(out, file->token);
-    return file_result(status);
-}
-
-static int open_os_input(const char *path)
-{
-    const int flags = O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC;
+    const char *path = *name;
     int fd = open(path, flags);
     if (fd >= 0) return fd;
     int error = errno;
@@ -4920,8 +4883,12 @@ static int open_os_input(const char *path)
     while (directories && *directories) {
         const char *dir = take_field(&directories, ':');
         if (!*dir) continue;
-        fd = open(jbc_concat(jbc_concat(dir, "/"), path), flags);
-        if (fd >= 0) return fd;
+        const char *candidate = jbc_concat(jbc_concat(dir, "/"), path);
+        fd = open(candidate, flags);
+        if (fd >= 0) {
+            *name = candidate;
+            return fd;
+        }
         error = errno;
         if (file_error(error) != 128) break;
     }
@@ -4929,10 +4896,51 @@ static int open_os_input(const char *path)
     return -1;
 }
 
+static int open_sequential(const char **path, enum sequential_access access, int create,
+                           int append, int search_path, FILE **out)
+{
+    int flags = access == SEQ_READ_ONLY ? O_RDONLY : access == SEQ_WRITE_ONLY ? O_WRONLY : O_RDWR;
+    const char *mode = access == SEQ_READ_ONLY ? "rb" : access == SEQ_WRITE_ONLY ? "wb" : "r+b";
+    if (create) flags |= O_CREAT | O_EXCL;
+    flags |= O_NONBLOCK | O_NOCTTY | O_CLOEXEC;
+    int fd = search_path ? open_os_file(path, flags) : open(*path, flags, 0666);
+    if (fd < 0) return file_error(errno);
+    struct stat st;
+    int status = 0;
+    if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) status = 32768;
+    else if (flock(fd, (access == SEQ_READ_ONLY ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
+        status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
+    else if (append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
+    else if (!(*out = fdopen(fd, mode))) status = file_error(errno);
+    if (status) close(fd);
+    return status;
+}
+
+int jbc_openseq(const char *path, const char *name, int existing, int append,
+                enum sequential_access access, int search_path, jbc_variable *out)
+{
+    if (name) path = jbc_concat(jbc_concat(path, "/"), name);
+    FILE *stream = NULL;
+    int status = open_sequential(&path, access, 0, append, search_path, &stream);
+    assign_value(out, "");
+    if (status && (status != 128 || existing || access == SEQ_READ_ONLY)) return file_result(status);
+    struct sequential_file *file = malloc(sizeof *file);
+    if (!file) fail("out of memory");
+    file->token = strcpy(allocate(strlen(path)), path);
+    file->depth = seq_depth;
+    file->access = access;
+    file->stream = stream;
+    file->buffering = SEQ_PRISTINE;
+    file->next = sequential_files;
+    sequential_files = file;
+    assign_value(out, file->token);
+    return file_result(status);
+}
+
 int jbc_osread(const char *path, jbc_variable *out)
 {
     assign_value(out, "");
-    int fd = open_os_input(path);
+    int fd = open_os_file(&path, O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
     if (fd < 0) return file_result(file_error(errno));
 
     struct stat st;
@@ -4989,6 +4997,7 @@ int jbc_readseq(const char *token, jbc_variable *out)
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
     if (!file || !file->stream) return file_result(128);
+    if (file->access == SEQ_WRITE_ONLY) return file_result(24576);
     FILE *in = sequential_stream(file);
     char record[1024];
     size_t length = 0;
@@ -5022,6 +5031,7 @@ int jbc_readblk(const char *token, const char *size, jbc_variable *out,
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
     if (!file || !file->stream) return file_result(128);
+    if (file->access == SEQ_WRITE_ONLY) return file_result(24576);
     FILE *in = sequential_stream(file);
     off_t position = ftello(in);
     struct stat info;
@@ -5043,9 +5053,9 @@ int jbc_readblk(const char *token, const char *size, jbc_variable *out,
 static int writable_sequential(struct sequential_file *file)
 {
     if (!file) return 128;
-    if (file->readonly) return 24576;
+    if (file->access == SEQ_READ_ONLY) return 24576;
     if (file->stream) return 0;
-    return open_sequential(file->token, 0, 1, 0, &file->stream);
+    return open_sequential(&file->token, file->access, 1, 0, 0, &file->stream);
 }
 
 int jbc_createseq(const char *token, const char *source, int line, int column)

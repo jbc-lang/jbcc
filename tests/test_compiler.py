@@ -239,6 +239,39 @@ CLOSESEQ F
         self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
         self.assertEqual(result.stderr, b'')
 
+    def test_osopen_access_modes_and_osclose_aliases(self):
+        directory = self.work / 'search'
+        directory.mkdir()
+        data = directory / 'payload'
+        data.write_bytes(b'old\nsecond\n')
+        source = self.work / 'osopen.b'
+        source.write_text("""OSOPEN 'payload' READONLY TO F SETTING S THEN CRT S ELSE ABORT
+Alias = F
+READSEQ Line FROM Alias THEN CRT Line ELSE ABORT
+WRITESEQ 'denied' TO F SETTING S THEN ABORT ELSE CRT S
+OSCLOSE F
+CRT FILEINFO(Alias, 0)
+OSCLOSE Alias ON ERROR CRT STATUS()
+OSOPEN 'payload' WRITEONLY TO F ELSE ABORT
+READSEQ Line FROM F SETTING S ELSE CRT S
+WRITESEQ 'new' TO F ELSE ABORT
+CLOSESEQ F
+OSOPEN EXISTING 'missing' TO F SETTING S ELSE CRT '[':F:'] ':S
+OSOPEN '.' TO F SETTING S ON ERROR CRT S ELSE ABORT
+""")
+        result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0\nold\n24576\n0\n128\n24576\n[] 128\n32768\n', b''))
+        self.assertEqual(data.read_bytes(), b'new\nsecond\n')
+        self.assertFalse((self.work / 'missing').exists())
+
+    def test_osclose_invalid_handle_reports_location(self):
+        source = self.work / 'osclose.b'
+        source.write_text("F = ''\nOSCLOSE F\n")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:1: OSCLOSE failed'.encode(), result.stderr)
+
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
         directory.mkdir()

@@ -52,7 +52,7 @@ OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 FORMAT_BOUNDARIES = OUTPUT_END | {
     "APPEND", "BEFORE", "BY", "CAPTURING", "CASE", "DO", "END", "ERROR", "FOR", "FROM",
     "GO", "GOSUB", "GOTO", "IN", "LOCKED", "ON", "READONLY", "RETURNING", "SETTING",
-    "STEP", "THEN", "TO", "USING", "WAIT", "WITH",
+    "STEP", "THEN", "TO", "USING", "WAIT", "WITH", "WRITEONLY",
 }
 
 
@@ -1222,7 +1222,8 @@ class Compiler:
         op = opening.word
         self.advance()
         self.uses_sequential = True
-        if op == 'OPENSEQ':
+        if op in ('OPENSEQ', 'OSOPEN'):
+            osopen = op == 'OSOPEN'
             existing = self.word == 'EXISTING'
             if existing:
                 self.advance()
@@ -1235,14 +1236,15 @@ class Compiler:
                 self.advance()
                 path = self.temporary(path)
                 name = self.expression()
-            readonly = self.word == 'READONLY'
-            if readonly:
+            mode = 'SEQ_READ_WRITE'
+            if self.word == 'READONLY' or (osopen and self.word == 'WRITEONLY'):
+                mode = 'SEQ_READ_ONLY' if self.word == 'READONLY' else 'SEQ_WRITE_ONLY'
                 self.advance()
             self.expect('TO')
             target = self.identifier()
             slot = self.variable_slot(target)
             self.assigned.add(target.word)
-            call = f'jbc_openseq({path}, {name}, {int(existing)}, {int(append)}, {int(readonly)}, &{slot})'
+            call = f'jbc_openseq({path}, {name}, {int(existing)}, {int(append)}, {mode}, {int(osopen)}, &{slot})'
         elif op in ('READSEQ', 'READBLK'):
             target = self.identifier()
             slot = self.variable_slot(target)
@@ -1291,14 +1293,22 @@ class Compiler:
             else:
                 handle = self.read_variable(target)
             call = f'jbc_weofseq({handle})'
-        elif op == 'CLOSESEQ':
+        elif op in ('CLOSESEQ', 'OSCLOSE'):
             target = self.identifier()
             slot = self.variable_slot(target)
             call = f'jbc_closeseq(&{slot})'
-            if self.word in ('THEN', 'ELSE'):
+            if op == 'OSCLOSE' and self.word == 'ON':
+                self.advance()
+                self.expect('ERROR')
+                before = self.assigned.copy()
+                self.emit(f"if (!{call}) {{")
+                self.clause(opening)
+                self.assigned &= before
+                self.emit("}")
+            elif self.word in ('THEN', 'ELSE'):
                 self.conditional_arms(opening, call)
             else:
-                self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "CLOSESEQ failed");')
+                self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "{op} failed");')
             return
         else:
             value = self.expression()
@@ -1437,7 +1447,7 @@ class Compiler:
             self.depth += 1
         elif opening.word == 'OSREAD':
             self.emit(f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");')
-        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ', 'RECORDLOCKU'):
+        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ', 'OSOPEN', 'RECORDLOCKU'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -1446,7 +1456,7 @@ class Compiler:
                 self.assigned = before.copy()
                 self.emit("} else {")
                 self.depth += 1
-            elif opening.word != 'OPENSEQ':
+            elif opening.word not in ('OPENSEQ', 'OSOPEN'):
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
         if opening.word in ('WEOFSEQ', 'FLUSH', 'NOBUF', 'RECORDLOCKU') and self.word not in ('THEN', 'ELSE'):
@@ -2392,7 +2402,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

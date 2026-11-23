@@ -1912,5 +1912,15 @@ All 16,361 previous passes still pass, and UPDATE.UPLOAD.SERVICE now
 passes. Native tests cover path search, reading across a buffer
 boundary, NUL replacement, the final LF, and failure arms.
 
-- [ ] Investigate OSOPEN for regular files and its relationship to
+- [x] Investigate OSOPEN for regular files and its relationship to
   OSBREAD, OSBWRITE, and OSCLOSE. Two T24 files first stop at OSOPEN.
+
+After OSOPEN and OSCLOSE, 16,364 of 17,336 candidates pass strict C99
+checking. All 16,362 previous passes still pass, and both targeted
+files now pass. The reference lexer maps these statements to OPENSEQ
+and CLOSESEQ. Native tests check shared handles, access modes, path
+search and error arms.
+
+- [ ] Implement OSBREAD on an open OS file handle. Check byte offsets,
+  short reads, cursor position and NUL conversion against the guide
+  and verify the behavior with an OSOPEN fixture.

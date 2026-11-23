@@ -1146,6 +1146,16 @@ following the reference grammar. Without an arm or SETTING, a failure
 produces a source-located runtime error.
 [NOBUF](https://jbc-lang.org/pages/nobuf.html).
 
+`OSOPEN path TO F` uses the same regular-file handles, locks, and
+conditional clauses as OPENSEQ, following the reference lexer's mapping.
+It also searches `JEDIFILEPATH` for a missing bare name and accepts
+`WRITEONLY` alongside `READONLY`. Line and block operations on the
+handle respect the access mode. Opening with `WRITEONLY` preserves
+existing bytes until a write. `OSCLOSE F` closes the handle and
+invalidates aliases. It accepts `ON ERROR` for a failed close.
+[OSOPEN](https://jbc-lang.org/pages/osopen.html),
+[OSCLOSE](https://jbc-lang.org/pages/osclose.html).
+
 `OSREAD value FROM path` reads a regular file into a scalar or
 record context variable. It keeps internal line endings, strips one final
 LF, and replaces each NUL byte with byte 128. A bare name that is missing
