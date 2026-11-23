@@ -313,6 +313,50 @@ OSBREAD B FROM F LENGTH 1
         self.assertEqual(result.stdout, b'32768\n32768\n128\n24576\n')
         self.assertIn(f'{source}:8:1: OSBREAD failed'.encode(), result.stderr)
 
+    def test_osbwrite_round_trips_bytes_and_advances_cursor(self):
+        data = self.work / 'data'
+        data.write_bytes(b'0123456789')
+        source = self.work / 'osbwrite.b'
+        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
+AT = 2
+NODELAY = 1
+OSBWRITE 'A':CHAR(128):'B' TO F AT AT NODELAY SETTING S
+CRT S:':':STATUS()
+OSBWRITE 'C' ON F
+OSBREAD B FROM F AT 1 LENGTH 6
+CRT B
+OSBWRITE 'Z' TO F
+OSBWRITE 'Q' TO F AT 12
+OSBREAD B FROM F AT 10 LENGTH 20
+CRT B
+OSBWRITE '' TO F AT 4
+OSBREAD B FROM F LENGTH 2
+CRT B
+OSCLOSE F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:0\n1A\x80BC6\n\x80\x80Q\nBC\n', b''))
+        self.assertEqual(data.read_bytes(), b'01A\0BC6Z89\0\0Q')
+
+    def test_osbwrite_error_arms_and_diagnostic(self):
+        data = self.work / 'data'
+        data.write_bytes(b'unchanged')
+        source = self.work / 'osbwrite.b'
+        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
+OSBWRITE 'x' TO F AT -1 SETTING S ON ERROR CRT S:':':STATUS()
+OSCLOSE F
+OSBWRITE 'x' TO F SETTING S ON ERROR CRT S
+OSOPEN 'data' READONLY TO F ELSE ABORT
+OSBWRITE 'x' TO F SETTING S ON ERROR CRT S
+OSBWRITE 'x' TO F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'32768:32768\n128\n24576\n')
+        self.assertIn(f'{source}:7:1: OSBWRITE failed'.encode(), result.stderr)
+        self.assertEqual(data.read_bytes(), b'unchanged')
+
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
         directory.mkdir()

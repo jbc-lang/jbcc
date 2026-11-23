@@ -5101,6 +5101,34 @@ static int writable_sequential(struct sequential_file *file)
     return open_sequential(&file->token, file->access, 1, 0, 0, &file->stream);
 }
 
+int jbc_osbwrite(const char *token, const char *offset, const char *value, int nodelay)
+{
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return file_result(128);
+    if (file->access == SEQ_READ_ONLY) return file_result(24576);
+
+    off_t position = 0;
+    if (offset && !parse_byte_offset(offset, &position)) return file_result(32768);
+    FILE *out = sequential_stream(file);
+    /* Positioning also synchronizes stdio after a buffered read. */
+    if (fseeko(out, position, offset ? SEEK_SET : SEEK_CUR)) return file_result(file_error(errno));
+    clearerr(out);
+    size_t remaining = strlen(value);
+    while (remaining) {
+        unsigned char bytes[4096];
+        size_t length = remaining < sizeof bytes ? remaining : sizeof bytes;
+        for (size_t i = 0; i < length; ++i) {
+            unsigned char byte = (unsigned char)value[i];
+            bytes[i] = byte == 128 ? 0 : byte;
+        }
+        if (fwrite(bytes, 1, length, out) != length) return file_result(file_error(errno));
+        value += length;
+        remaining -= length;
+    }
+    if (fflush(out) || (nodelay && fsync(fileno(out)))) return file_result(file_error(errno));
+    return file_result(0);
+}
+
 int jbc_createseq(const char *token, const char *source, int line, int column)
 {
     if (!*token) numeric_error(source, line, column, "CREATE requires an OPENSEQ handle");

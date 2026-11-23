@@ -1166,6 +1166,14 @@ returns an empty value with status 0. NUL bytes become byte 128.
 when present or report the statement location.
 [OSBREAD](https://jbc-lang.org/pages/osbread.html).
 
+`OSBWRITE value TO F [AT offset] [NODELAY]` writes bytes to an open
+writable handle and converts byte 128 to NUL. ON is a synonym for TO.
+The cursor advances by the bytes written. Omitting AT provisionally
+uses the current cursor. jbcc flushes every block and also requests
+`fsync` for NODELAY. The statement accepts `SETTING` and `ON ERROR`.
+A failed write reports the source location when no error arm is present.
+[OSBWRITE](https://jbc-lang.org/pages/osbwrite.html).
+
 `OSREAD value FROM path` reads a regular file into a scalar or
 record context variable. It keeps internal line endings, strips one final
 LF, and replaces each NUL byte with byte 128. A bare name that is missing

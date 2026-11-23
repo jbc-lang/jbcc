@@ -1271,6 +1271,20 @@ class Compiler:
             if target is not None:
                 self.assigned.add(target)
             call = f'jbc_osbread({handle}, {offset}, {length}, &{slot})'
+        elif op == 'OSBWRITE':
+            value = self.temporary(self.expression())
+            if self.word not in ('ON', 'TO'):
+                self.error("expected ON or TO after OSBWRITE value")
+            self.advance()
+            handle = self.temporary(self.expression(format_stops=('AT', 'NODELAY')))
+            offset = 'NULL'
+            if self.word == 'AT':
+                self.advance()
+                offset = self.expression(format_stops=('NODELAY',))
+            nodelay = self.word == 'NODELAY'
+            if nodelay:
+                self.advance()
+            call = f'jbc_osbwrite({handle}, {offset}, {value}, {int(nodelay)})'
         elif op == 'OSREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
@@ -1343,7 +1357,7 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        if op == 'OSBREAD':
+        if op in ('OSBREAD', 'OSBWRITE'):
             self.file_error_arm(opening, f"!{status}", 'NULL')
         elif op in ('CREATE', 'SEEK'):
             self.conditional_arms(opening, f"!{status}")
@@ -2418,7 +2432,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

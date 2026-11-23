@@ -1929,6 +1929,14 @@ After OSBREAD, the same 16,364 of 17,336 candidates pass strict C99
 checking. Native tests verify explicit offsets, continued reads,
 cursor position, short reads, NUL conversion and failure handling.
 
-- [ ] Implement OSBWRITE on an open OS file handle. Check offset and
+- [x] Implement OSBWRITE on an open OS file handle. Check offset and
   cursor behavior, byte 128 conversion and error handling, then
   verify a native OSBWRITE and OSBREAD round trip.
+
+After OSBWRITE, the same 16,364 of 17,336 candidates pass strict C99
+checking. Native tests compare the exact file bytes after writes,
+read them back through OSBREAD, and check cursor movement, sparse
+extension, and invalid or read-only handles.
+
+- [ ] Implement OSWRITE for whole regular files. Check replacement,
+  APPEND, byte conversion, status, and error handling against the guide.
