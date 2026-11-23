@@ -1126,7 +1126,8 @@ delimiters as in the guide’s `jbase_field` example. [FIELDS](https://jbc-lang.
 on the native filesystem. Relative paths use the executable’s working
 directory. `READONLY` takes a shared advisory lock. A writable open takes
 an exclusive lock. Contention takes `LOCKED` when supplied, otherwise
-`ELSE`. Pipes and devices currently take the I/O error branch.
+`ELSE`. POSIX terminals also open without a file lock. Pipes and
+other devices take the I/O error branch.
 [OPENSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_OPENSEQ.htm).
 
 A missing file takes `ELSE` and leaves a pending handle. `CREATE F THEN … ELSE …`
@@ -1140,9 +1141,22 @@ The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
 `OPENSEQ`, following the reference lexer. It starts at the beginning
 of the file by default. A missing path takes `ELSE` with status 128.
 Lock contention takes `LOCKED` when present or `ELSE` otherwise.
-Pipes and special devices currently return status 32768. Supporting
-them requires a stream backend that can handle non-seekable I/O
-and device timeouts. [OPENDEV](https://jbc-lang.org/pages/opendev.html).
+For terminal paths, this provides a handle for querying settings.
+[OPENDEV](https://jbc-lang.org/pages/opendev.html).
+
+`TTYGET Settings FROM F [SETTING S] THEN … ELSE …` queries an open
+terminal handle using POSIX `tcgetattr`. The reference parser requires
+`FROM` and permits either conditional arm. The dynamic array follows
+the positions documented by IBM and used by the T24 sources. jbcc fills
+input mode, minimum bytes and timeout in field 1, echo in `<7,1>`,
+baud code, data bits, stop bits and output parity in `<10,2>` through
+`<10,5>`, and signal keys and break handling in `<11,1>` and
+`<11,3>`. Other positions and baud rates outside the legacy table
+return empty values. jbcc maps canonical mode to line mode and
+noncanonical mode to raw mode. A regular file returns 32768 and a
+closed or pending handle returns 128. Errors clear the destination and
+take `ELSE` when supplied. Printer and tape channel forms remain
+unsupported. [TTYGET](https://www.ibm.com/docs/en/iis/11.7.0?topic=functions-ttyget-statement).
 
 `NOBUF F` disables stdio buffering on an open sequential handle. Call
 it after OPENSEQ or CREATE and before any operation on the stream. It
@@ -1216,7 +1230,8 @@ variable accepted by the reference grammar. A failed deletion runs
 decimal seconds. A pending or closed handle and an invalid duration
 report an error at the statement. The regular-file backend completes
 READSEQ and READBLK with available bytes or EOF, so the requested
-timeout requires no timer there. EOF still yields status 128.
+timeout requires no timer there. EOF still yields status 128. Terminal
+handles report a source-located error until device timeouts are supported.
 [TIMEOUT](https://jbc-lang.org/pages/timeout.html).
 
 `READBLK Block FROM F, Size` reads a positive number of bytes at the

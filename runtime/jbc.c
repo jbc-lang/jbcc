@@ -4809,6 +4809,7 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 
 enum sequential_buffering { SEQ_PRISTINE, SEQ_USED, SEQ_UNBUFFERED };
@@ -4918,11 +4919,13 @@ static int open_sequential(const char **path, enum sequential_access access, int
     if (fd < 0) return file_error(errno);
     struct stat st;
     int status = 0;
-    if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) status = 32768;
-    else if (flock(fd, (access == SEQ_READ_ONLY ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
-        status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
-    else if (append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
-    else if (!(*out = fdopen(fd, mode))) status = file_error(errno);
+    if (fstat(fd, &st) < 0) status = 32768;
+    else if (S_ISREG(st.st_mode)) {
+        if (flock(fd, (access == SEQ_READ_ONLY ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
+            status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
+    } else if (search_path || !S_ISCHR(st.st_mode) || !isatty(fd)) status = 32768;
+    if (!status && append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
+    if (!status && !(*out = fdopen(fd, mode))) status = file_error(errno);
     if (status) close(fd);
     return status;
 }
@@ -4946,6 +4949,52 @@ int jbc_openseq(const char *path, const char *name, int existing, int append,
     sequential_files = file;
     assign_value(out, file->token);
     return file_result(status);
+}
+
+static const char *tty_baud_code(speed_t speed)
+{
+    static const speed_t rates[] = {B50, B75, B110, B134, B150, B200, B300, B600,
+                                    B1200, B1800, B2400, B4800, B9600, B19200, B38400};
+    for (size_t i = 0; i < sizeof rates / sizeof *rates; ++i)
+        if (rates[i] == speed) return size_value(i + 1);
+    return "";
+}
+
+int jbc_ttyget(const char *token, jbc_variable *out)
+{
+    const struct sequential_file *file = *sequential_slot(token);
+    assign_value(out, "");
+    if (!file || !file->stream) return file_result(128);
+
+    struct termios mode;
+    if (tcgetattr(fileno(file->stream), &mode) < 0) return file_result(file_error(errno));
+    tcflag_t control = mode.c_cflag;
+    tcflag_t local = mode.c_lflag;
+    tcflag_t input = mode.c_iflag;
+    int bits;
+    switch (control & CSIZE) {
+        case CS5: bits = 5; break;
+        case CS6: bits = 6; break;
+        case CS7: bits = 7; break;
+        default: bits = 8; break;
+    }
+    int canonical = (local & ICANON) != 0;
+    int minimum = canonical ? 0 : mode.c_cc[VMIN];
+    int timeout_ms = canonical ? 0 : mode.c_cc[VTIME] * 100;
+    int parity = !(control & PARENB) ? 0 : (control & PARODD) ? 2 : 1;
+    int break_key = (input & IGNBRK) ? 0 : (input & BRKINT) ? 1 : 2;
+    const char *baud = tty_baud_code(cfgetospeed(&mode));
+
+    /* Populate the supported values in fields 1, 7, 10 and 11. */
+    char settings[128];
+    snprintf(settings, sizeof settings,
+             "%d\375%d\375%d\376\376\376\376\376\376%d"
+             "\376\376\376\375%s\375%d\375%d\375%d\376%d\375\375%d",
+             !canonical, minimum, timeout_ms, (local & ECHO) != 0,
+             baud, bits, (control & CSTOPB) ? 2 : 1, parity,
+             (local & ISIG) != 0, break_key);
+    assign_value(out, strcpy(allocate(strlen(settings)), settings));
+    return file_result(0);
 }
 
 int jbc_osread(const char *path, jbc_variable *out)
@@ -5243,6 +5292,8 @@ void jbc_timeout(const char *token, const char *seconds, const char *source, int
     struct decimal duration;
     if (!parse_decimal(seconds, &duration) || duration.sign < 0)
         numeric_error(source, line, column, "TIMEOUT requires nonnegative decimal seconds");
+    if (isatty(fileno(file->stream)))
+        numeric_error(source, line, column, "TIMEOUT is unavailable on terminal handles");
 
     /* Regular files return data or EOF without waiting for incoming bytes. */
 }

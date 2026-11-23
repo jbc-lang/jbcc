@@ -716,6 +716,65 @@ OPENDEV 'pipe' TO F SETTING S ON ERROR CRT S THEN ABORT ELSE ABORT
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:20: expected THEN or ELSE', result.stderr)
 
+    def test_ttyget_reads_pseudoterminal_settings(self):
+        source = self.work / 'ttyget.b'
+        source.write_text("""P = GETENV('JBCC_TEST_PTY')
+OPENDEV P TO F ELSE ABORT
+TTYGET Settings FROM F SETTING S ELSE ABORT
+CRT S:':':STATUS()
+CRT Settings<1,1>:':':Settings<1,2>:':':Settings<1,3>
+CRT Settings<7,1>:':':Settings<10,2>:':':Settings<10,3>
+CRT Settings<10,4>:':':Settings<10,5>:':':Settings<11,1>:':':Settings<11,3>
+CLOSESEQ F
+""")
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        env = dict(os.environ, JBCC_TEST_PTY=os.ttyname(slave))
+        mode = termios.tcgetattr(slave)
+        mode[0] = (mode[0] & ~termios.IGNBRK) | termios.BRKINT
+        mode[2] = (mode[2] & ~(termios.CSIZE | termios.CSTOPB | termios.PARENB)) | termios.CS8
+        mode[3] |= termios.ISIG | termios.ICANON | termios.ECHO
+        mode[4] = mode[5] = termios.B9600
+        termios.tcsetattr(slave, termios.TCSANOW, mode)
+        canonical = self.run_native(source, env=env)
+        self.assertEqual((canonical.returncode, canonical.stdout, canonical.stderr),
+                         (0, b'0:0\n0:0:0\n1:13:8\n1:0:1:1\n', b''))
+
+        mode[3] &= ~(termios.ICANON | termios.ECHO)
+        mode[6][termios.VMIN] = 3
+        mode[6][termios.VTIME] = 2
+        termios.tcsetattr(slave, termios.TCSANOW, mode)
+        noncanonical = self.run_native(source, env=env)
+        self.assertEqual((noncanonical.returncode, noncanonical.stdout, noncanonical.stderr),
+                         (0, b'0:0\n1:3:200\n0:13:8\n1:0:1:1\n', b''))
+
+        source.write_text("""OPENDEV GETENV('JBCC_TEST_PTY') TO F ELSE ABORT
+TIMEOUT F, 1
+""")
+        result = self.run_native(source, env=env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:1: TIMEOUT is unavailable on terminal handles'.encode(),
+                      result.stderr)
+
+    def test_ttyget_failure_arms_and_diagnostic(self):
+        (self.work / 'data').touch()
+        source = self.work / 'ttyget.b'
+        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
+Settings = 'old'
+TTYGET Settings FROM F SETTING S THEN ABORT ELSE CRT '[':Settings:'] ':S:':':STATUS()
+CLOSESEQ F
+TTYGET Settings FROM F SETTING S ELSE CRT S
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'[] 32768:32768\n128\n', b''))
+
+        source.write_text("TTYGET Settings ELSE STOP\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:17: expected 'FROM'", result.stderr)
+
     def test_sequential_routine_lifetime(self):
         (self.work / 'input').write_bytes(b'hello\n')
         source = self.work / 'main.b'

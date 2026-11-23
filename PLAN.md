@@ -1963,7 +1963,17 @@ tests cover file position, reads and writes, the missing-file branch,
 and lock contention with and without a LOCKED clause. The regular-file
 backend reports an I/O error for a named pipe.
 
-- [ ] Investigate TTYGET for terminal settings. Check the reference
-  grammar and the settings expected by the three blocked T24 units,
-  then verify the failure path on regular files and assess a
-  pseudo-terminal fixture for the supported settings.
+- [x] Implement TTYGET for POSIX terminal handles. Check the reference
+  grammar and field positions used by T24. Verify the supported fields
+  with a pseudo-terminal and check the failure path on regular files.
+
+After TTYGET, the same 16,364 of 17,336 candidates pass strict C99
+checking. All three units that stopped at TTYGET now reach TTYSET.
+Native tests query canonical and noncanonical settings from a
+pseudo-terminal and verify the error branches for regular files and
+closed handles. The initial field mapping covers mode, echo, baud,
+data bits, stop bits, parity and selected signal options.
+
+- [ ] Investigate TTYSET for POSIX terminal handles. Check which edits
+  the three blocked T24 units make, define handling for unsupported
+  fields, and verify a TTYSET and TTYGET round trip on a pseudo-terminal.
