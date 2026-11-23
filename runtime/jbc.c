@@ -35,10 +35,18 @@ struct input_chunk {
 static struct input_chunk *input_data;
 static struct input_chunk **input_data_tail = &input_data;
 
+#ifdef JBC_CALLONEXIT
+static void jbc_run_exit_callbacks(void);
+#else
+#define jbc_run_exit_callbacks() ((void)0)
+#endif
+
+#define jbc_terminate(status) do { jbc_run_exit_callbacks(); exit(status); } while (0)
+
 static void fail(const char *message)
 {
     fprintf(stderr, "jbcc runtime: %s\n", message);
-    exit(EXIT_FAILURE);
+    jbc_terminate(EXIT_FAILURE);
 }
 
 static char *allocate(size_t length)
@@ -89,6 +97,7 @@ void jbc_data(const char *text)
 
 void jbc_finish(void)
 {
+    jbc_run_exit_callbacks();
 #ifdef JBC_REPORT
     finish_reports();
 #endif
@@ -213,7 +222,7 @@ int jbc_compare(const char *left, const char *right, int precision)
 static void numeric_error(const char *file, int line, int column, const char *message)
 {
     fprintf(stderr, "%s:%d:%d: %s\n", file, line, column, message);
-    exit(EXIT_FAILURE);
+    jbc_terminate(EXIT_FAILURE);
 }
 
 #ifdef JBC_HUSH
@@ -639,7 +648,7 @@ void jbc_matrix_copy(jbc_matrix dest, jbc_matrix src, const char *name,
         if (!src.values[i].value) {
             fprintf(stderr, "%s:%d:%d: unassigned element in matrix '%s'\n",
                     file, line, column, name);
-            exit(EXIT_FAILURE);
+            jbc_terminate(EXIT_FAILURE);
         }
     }
     /* Identical shapes also have matching zero-subscript slots. Vector
@@ -668,13 +677,13 @@ static size_t matrix_position(const char *value, size_t fallback, size_t total,
     struct decimal n;
     if (!parse_decimal(value, &n) || n.places) {
         fprintf(stderr, "%s:%d:%d: %s requires integer positions\n", file, line, column, statement);
-        exit(EXIT_FAILURE);
+        jbc_terminate(EXIT_FAILURE);
     }
     int64_t pos = integer(value, file, line, column);
     if (pos == -1) return fallback;
     if (pos < 1 || (uint64_t)pos > total) {
         fprintf(stderr, "%s:%d:%d: %s position out of bounds\n", file, line, column, statement);
-        exit(EXIT_FAILURE);
+        jbc_terminate(EXIT_FAILURE);
     }
     return (size_t)pos;
 }
@@ -693,7 +702,7 @@ const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
         if (!value) {
             fprintf(stderr, "%s:%d:%d: unassigned element %zu in matrix '%s'\n",
                     file, line, column, i, name);
-            exit(EXIT_FAILURE);
+            jbc_terminate(EXIT_FAILURE);
         }
         size_t bytes = strlen(value);
         if (bytes > SIZE_MAX - length) fail("MATBUILD result is too large");
@@ -839,7 +848,7 @@ const char *jbc_read(const char *value, const char *name, const char *file, int 
 {
     if (!value) {
         fprintf(stderr, "%s:%d:%d: unassigned variable '%s'\n", file, line, column, name);
-        exit(EXIT_FAILURE);
+        jbc_terminate(EXIT_FAILURE);
     }
     return value;
 }
@@ -904,6 +913,62 @@ static const char *size_value(uintmax_t n)
     snprintf(out, 3 * sizeof(n) + 1, "%" PRIuMAX, n);
     return out;
 }
+
+#ifdef JBC_CALLONEXIT
+typedef void (*jbc_exit_callback)(jbc_variable *argument);
+static jbc_exit_callback jbc_find_exit_callback(const char *name, size_t length);
+
+struct exit_registration {
+    struct exit_registration *next;
+    jbc_exit_callback callback;
+    char argument[];
+};
+
+static struct exit_registration *exit_callbacks;
+static struct exit_registration **exit_callbacks_tail = &exit_callbacks;
+static int running_exit_callbacks;
+
+const char *jbc_callonexit(const char *request)
+{
+    if (running_exit_callbacks) return size_value(EBUSY);
+    const char *mark = strchr(request, 253);
+    size_t name_length = mark ? (size_t)(mark - request) : strlen(request);
+    if (!name_length) return size_value(EINVAL);
+    jbc_exit_callback callback = jbc_find_exit_callback(request, name_length);
+    if (!callback) return size_value(ENOENT);
+    for (struct exit_registration *entry = exit_callbacks; entry; entry = entry->next)
+        if (entry->callback == callback) return "0";
+
+    const char *argument = mark ? mark + 1 : "";
+    size_t length = strlen(argument);
+    if (length >= SIZE_MAX - sizeof(struct exit_registration)) return size_value(ENOMEM);
+    struct exit_registration *entry = malloc(sizeof *entry + length + 1);
+    if (!entry) return size_value(ENOMEM);
+    entry->next = NULL;
+    entry->callback = callback;
+    memcpy(entry->argument, argument, length + 1);
+    *exit_callbacks_tail = entry;
+    exit_callbacks_tail = &entry->next;
+    return "0";
+}
+
+static void jbc_run_exit_callbacks(void)
+{
+    if (running_exit_callbacks) return;
+    running_exit_callbacks = 1;
+    while (exit_callbacks) {
+        struct exit_registration *entry = exit_callbacks;
+        exit_callbacks = entry->next;
+        jbc_exit_callback callback = entry->callback;
+        /* The subroutine can retain this value in COMMON or a file. */
+        const char *argument = strcpy(allocate(strlen(entry->argument)), entry->argument);
+        free(entry);
+        jbc_variable arg = {.value = argument};
+        callback(&arg);
+    }
+    exit_callbacks_tail = &exit_callbacks;
+}
+#endif
 
 #ifdef JBC_SESSION
 #include <pwd.h>
@@ -1788,7 +1853,7 @@ const char *jbc_fmt(const char *text, const char *mask, const char *file, int li
 
 unsupported:
     fprintf(stderr, "%s:%d:%d: unsupported FMT mask '%s'\n", file, line, column, mask);
-    exit(EXIT_FAILURE);
+    jbc_terminate(EXIT_FAILURE);
 }
 
 static int ascii_alpha(unsigned char c)
@@ -2085,7 +2150,7 @@ const char *jbc_iconv(const char *value, const char *mask, const char *file, int
     enum input_conversion conversion = input_mask(mask);
     if (conversion == ICONV_UNSUPPORTED) {
         fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
-        exit(EXIT_FAILURE);
+        jbc_terminate(EXIT_FAILURE);
     }
     const char *error = NULL;
     const char *result = convert_input(value, conversion, &error);
@@ -2220,7 +2285,7 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     struct output_conversion conversion;
     if (!output_mask(mask, &conversion)) {
         fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
-        exit(EXIT_FAILURE);
+        jbc_terminate(EXIT_FAILURE);
     }
     const char *error = NULL;
     const char *result = convert_output(value, &conversion, &error);
@@ -3721,6 +3786,7 @@ void jbc_exit(const char *value, const char *file, int line, int column)
     int64_t status = truncated(value, file, line, column);
     if (status < INT_MIN || status > INT_MAX)
         numeric_error(file, line, column, "EXIT status out of range");
+    jbc_run_exit_callbacks();
 #ifdef JBC_REPORT
     finish_reports();
 #endif
@@ -3729,6 +3795,7 @@ void jbc_exit(const char *value, const char *file, int line, int column)
 
 void jbc_stop(int aborting, const char *const *args, size_t count)
 {
+    if (!aborting) jbc_run_exit_callbacks();
 #ifdef JBC_REPORT
     if (!aborting) finish_reports();
 #endif
@@ -3745,7 +3812,7 @@ void jbc_stop(int aborting, const char *const *args, size_t count)
         }
         fputc('\n', stderr);
     }
-    exit(aborting ? EXIT_FAILURE : EXIT_SUCCESS);
+    jbc_terminate(aborting ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
 const char *jbc_update_array(const char *source, const char *value, const char **indices,

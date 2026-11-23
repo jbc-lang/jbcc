@@ -1820,5 +1820,14 @@ All 16,341 previous passes still pass. JBASE.COMPILE and
 PERFORM.GLOBUS.RELEASE now pass. T24.INITIALISE reaches CALLONEXIT.
 Native tests check the configured port and process ID fallback.
 
-- [ ] Investigate CALLONEXIT. Check callback lookup, value-mark arguments
+- [x] Investigate CALLONEXIT. Check callback lookup, value-mark arguments
   and registration order against the guide, then rerun T24.INITIALISE.
+
+After CALLONEXIT, the same 16,343 of 17,336 candidates pass strict C99
+checking. T24.INITIALISE reaches a duplicate declaration of FWC in
+I_IO.EQUATE. Native tests cover linked callback lookup, registration
+order, value-mark arguments and runtime-controlled termination.
+
+- [ ] Trace the duplicate FWC declaration in the T24.INITIALISE
+  include chain. Check how the reference compiler handles the two
+  declarations before changing COMMON or include behavior.

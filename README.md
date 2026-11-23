@@ -884,6 +884,16 @@ callee reads the status field, selects a CASE arm, and updates the output.
   Each invocation has its own locals. A RETURN outside a local GOSUB ends
   the invocation. Reading an unassigned output reports a runtime diagnostic.
   [SUBROUTINE](https://jbc-lang.org/pages/subroutine.html)
+- `CALLONEXIT(name[:@VM:arguments])` registers a linked subroutine
+  with one scalar parameter. The parameter receives the text after the
+  first value mark, or an empty string. Name lookup is case-sensitive.
+  Registrations run in order when the program ends normally or exits
+  through the jbcc runtime. The first registration for a name wins.
+  Registration returns 0 on success and a nonzero error code for an
+  empty name or an unavailable callback. Registrations during callback
+  dispatch return a nonzero code. Signal-triggered exits are outside
+  this native implementation.
+  [CALLONEXIT](https://jbc-lang.org/pages/callonexit.html)
 - EQU or EQUATE defines token substitutions, including comma-separated
   definitions. T24 also uses definitions between semicolon-separated
   statements. Each definition applies from that point onward, including
@@ -1594,8 +1604,8 @@ fragments and expands them when referenced by a compilation unit. It runs
 the compiler's preprocessor, parser and C generator on each remaining file.
 For direct external calls it declares the observed signature so that the system C
 compiler can check the complete generated unit with C99 warnings as errors.
-For indirect calls it checks the dispatch code using the current unit. Native
-tests exercise lookup across multiple linked units.
+For indirect calls and exit callbacks it checks the dispatch code using the
+current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
 
 The JSON report records a status per relative path, diagnostic locations,

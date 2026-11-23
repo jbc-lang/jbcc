@@ -1179,6 +1179,42 @@ time_t test_clock(time_t *out)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn((str(source) + diagnostic).encode(), result.stderr)
 
+    def test_callonexit_dispatches_linked_callbacks(self):
+        source = self.work / 'exit.b'
+        save = self.work / 'save.b'
+        show = self.work / 'show.b'
+        wrong = self.work / 'wrong.b'
+        save.write_text("""SUBROUTINE SAVE.ARG(Arg)
+COMMON /EXIT.DATA/ Saved
+Saved = Arg
+CRT 'save'
+""")
+        show.write_text("""SUBROUTINE SHOW.ARG(Arg)
+COMMON /EXIT.DATA/ Saved
+CRT '[':Arg:'] ':Saved
+""")
+        wrong.write_text("SUBROUTINE WRONG()\nCRT 'unexpected callback'\n")
+        program = """Name = 'SAVE.ARG'
+FOR I = 1 TO 2
+    CRT CALLONEXIT(Name:@VM:'payload':@VM:I)
+NEXT I
+CRT CALLONEXIT('SHOW.ARG')
+CRT CALLONEXIT('MISSING') > 0
+CRT CALLONEXIT('WRONG') > 0
+CRT CALLONEXIT('') > 0
+CRT 'main'
+"""
+        for ending, status in (('', 0), ('STOP', 0), ('EXIT(7)', 7), ('ABORT', 1), ('DEBUG', 1)):
+            with self.subTest(ending=ending):
+                source.write_text(program + ending + '\n')
+                result = self.run_native(source, save, show, wrong)
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertEqual(result.stdout, b'0\n0\n0\n1\n1\n1\nmain\nsave\n[] payload\xfd1\n')
+                if ending == 'DEBUG':
+                    self.assertIn(b'DEBUG requires a jBC debugger', result.stderr)
+                else:
+                    self.assertEqual(result.stderr, b'')
+
     def test_debug_reports_location_only_when_reached(self):
         source = self.work / 'debug.b'
         source.write_text("""DEBUG = 'before'
