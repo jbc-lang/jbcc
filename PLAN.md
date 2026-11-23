@@ -2306,8 +2306,25 @@ passes. In bytes mode, 198 of the 228 decoding failures turn into C99
 passes and 30 reach compiler diagnostics. The resulting total is
 16,753 of 17,336 candidates, with all 16,555 previous passes preserved.
 
-- [ ] Investigate forward references to dimensioned arrays. DPC.FILES
+- [x] Investigate forward references to dimensioned arrays. DPC.FILES
   first blocks 14 T24 units, where its DIM appears after its first textual
   use. The reference compiler's check_dimmed records assumed arrays and
   validates their declarations later. Distinguish source order from
   execution order, including for MAT arguments and runtime-sized arrays.
+
+The reference compiler accepted a forward DIM probe in fixed and Prime
+modes. The T24 units call an initializer before passing DPC.FILES as a
+MAT argument. jbcc indexes declarations before translating their uses.
+Native tests cover DIM and COMMON in an insert, MAT arguments, rank
+diagnostics at the use, and the requirement to execute runtime-sized
+declarations before use.
+
+The byte-mode corpus now has 16,959 of 17,336 candidates passing strict
+C99 checking. All 14 DPC.FILES cases and 192 other units now pass.
+All 16,753 previous passes still pass, and 13 remaining units reach
+different diagnostics.
+
+- [ ] Investigate missing concatenation operands in the reference
+  lexer and generator. Trace trailing colons and doubled colons in T24,
+  starting with AA.CREATE.NEW.DD.ITEM, and distinguish them from the
+  trailing colon that suppresses a CRT newline.

@@ -3435,6 +3435,50 @@ PRINT X, Grid(1,2+N)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'2\t0\n2\t1\n2\t2\n')
 
+    def test_forward_matrix_declarations_follow_execution_order(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'check.b'
+        include = self.work / 'I_ARRAYS'
+        main.write_text("""GOSUB Initialize
+CALL CHECK(MAT Rows, MAT Flags, MAT Shared)
+CRT Rows(2,1):':':Flags(1):':':Shared(2)
+STOP
+Initialize:
+Config<1,1> = 2
+$INSERT I_ARRAYS
+Rows(2,1) = 'rows'
+Flags(1) = 'flags'
+Shared(2) = 'common'
+RETURN
+""")
+        include.write_text("DIM Rows(Config<1,1>, 1),\n    Flags(2)\nCOMMON /DATA/ Shared(2)\n")
+        routine.write_text("""SUBROUTINE CHECK(MAT A,MAT B,MAT C)
+A(2,1) := '!'
+B(1) := '!'
+C(2) := '!'
+""")
+        result = self.run_native(main, routine)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'rows!:flags!:common!\n', b''))
+
+    def test_forward_fixed_matrix_can_be_used_before_dim_executes(self):
+        source = self.work / 'forward.b'
+        source.write_text("A(1) = 7\nCRT A(1)\nSTOP\nDIM A(2)\n")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'7\n', b''))
+
+    def test_forward_matrix_errors_use_reference_location(self):
+        source = self.work / 'forward.b'
+        source.write_text("A(1) = 1\nN = 2\nDIM A(N)\n")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{source}:1:1: local matrix declaration has not executed\n'.encode())
+
+        source.write_text("CRT A(1,1)\nDIM A(2)\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{source}:1:5: expected 1 subscripts for 'A'\n")
+
     def test_repeated_local_dim_reuses_storage_from_either_path(self):
         caller = self.work / 'main.b'
         routine = self.work / 'store.b'

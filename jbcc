@@ -378,6 +378,74 @@ def compatible_dimensions(a, b):
     return len(a) == len(b) and all(x is None or y is None or x == y for x, y in zip(a, b))
 
 
+def constant_dimension(tokens, start, end):
+    token = tokens[start]
+    if (end == start + 1 and token.kind == 'number' and token.word.isdigit()
+            and 0 < len(token.word) <= 9):
+        return int(token.word)
+    return None
+
+
+def dimension_shape(tokens, opening):
+    """Read the rank and literal bounds without evaluating any expressions."""
+    stack = [')']
+    shape = []
+    start = opening + 1
+    for i in range(start, len(tokens)):
+        token = tokens[i]
+        if token.kind == 'array_open':
+            stack.append('>')
+        elif token.word in ('(', '['):
+            stack.append(')' if token.word == '(' else ']')
+        elif token.word == stack[-1] and (token.word != '>' or token.kind == 'array_close'):
+            stack.pop()
+            if not stack:
+                shape.append(constant_dimension(tokens, start, i))
+                return tuple(shape), i + 1
+        elif token.word == ',' and len(stack) == 1:
+            shape.append(constant_dimension(tokens, start, i))
+            start = i + 1
+    return (), len(tokens) - 1
+
+
+def matrix_declarations(tokens):
+    """Index the first declaration of each member before generating code."""
+    members = {}
+    for i, opening in enumerate(tokens):
+        if opening.word not in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
+            continue
+        if (i and tokens[i - 1].word not in ('\n', ';', 'THEN', 'ELSE', 'ERROR', 'LOCKED')
+                and not (i > 1 and tokens[i - 1].word == ':' and is_label(tokens[i - 2], tokens[i - 1]))):
+            continue
+        i += 1
+        block_name = None
+        if opening.word in ('COM', 'COMMON'):
+            block_name = ''
+            if tokens[i].word == '/':
+                i += 1
+                if tokens[i].kind == 'name':
+                    block_name = tokens[i].word
+                    i += 1
+                if tokens[i].word != '/':
+                    continue
+                i += 1
+        while tokens[i].kind == 'name':
+            member = tokens[i]
+            i += 1
+            shape = ()
+            if tokens[i].word == '(':
+                shape, i = dimension_shape(tokens, i)
+            elif block_name is None:
+                break
+            members.setdefault(member.word, (member, shape, block_name))
+            if tokens[i].word != ',':
+                break
+            i += 1
+            while tokens[i].word == '\n':
+                i += 1
+    return ((token, shape, block) for token, shape, block in members.values() if shape)
+
+
 class Compiler:
     def __init__(self, path, unit=0, encoding='utf-8'):
         self.path = path
@@ -402,6 +470,7 @@ class Compiler:
         self.saved_steps = {}
         self.names = {}
         self.matrices = {}
+        self.pending_matrices = {}
         self.local_arrays = {}
         self.commons = {}
         self.common_scalars = {}
@@ -2315,7 +2384,8 @@ class Compiler:
         if common and self.common_scalars.get(name) == block_name and self.word != '(':
             return
         matrix = self.matrices.get(name)
-        if (matrix and matrix.shape is not None and self.word == '('
+        pending = self.pending_matrices.get(name) == token
+        if (matrix and not pending and matrix.shape is not None and self.word == '('
                 and (not common or matrix.common_block == block_name)):
             self.redeclare_matrix(token, matrix)
             return
@@ -2327,7 +2397,7 @@ class Compiler:
                       f"{len(bounds)} * sizeof(int))) numeric_error({self.location(token)}, "
                       '"incompatible MAT parameter dimensions");')
             return
-        if name in self.names or name in self.matrices:
+        if name in self.names or (matrix and not pending):
             self.error(f"duplicate declaration of '{name}'", token)
         bounds = self.dimension_bounds() if self.word == '(' or not common else ()
         shape = tuple(n if isinstance(n, int) else None for n in bounds)
@@ -2340,9 +2410,9 @@ class Compiler:
                 self.assigned.add(name)
                 return
             block.matrix_slots[name] = member
-            field = f"{block.field}_m{member}"
+            field = matrix.field if pending else f"{block.field}_m{member}"
         else:
-            field = f"matrix{len(self.local_arrays)}"
+            field = matrix.field if pending else f"matrix{len(self.local_arrays)}"
             self.local_arrays[field] = None if None in shape else math.prod(n + 1 for n in bounds)
 
         if common or None in shape:
@@ -2354,6 +2424,8 @@ class Compiler:
             else:
                 block.initializers.append(f"frame.{field} = {call};")
         self.matrices[name] = Matrix(field, shape, block_name)
+        if pending:
+            del self.pending_matrices[name]
 
     def matrix_storage_call(self, previous, key, bounds, token):
         return (f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
@@ -2980,6 +3052,10 @@ class Compiler:
                 self.expect(')')
             if self.word not in (';', '\n'):
                 self.error(f"expected separator after {header} declaration")
+        for index, (token, shape, block) in enumerate(matrix_declarations(tokens)):
+            if token.word not in self.formals:
+                self.matrices[token.word] = Matrix(f"declared_matrix{index}", shape, block)
+                self.pending_matrices[token.word] = token
         self.sequence({'', 'END'})
         if self.word == 'END':
             self.advance()
@@ -2989,6 +3065,8 @@ class Compiler:
                 self.error("unexpected text after final END")
         if self.pending_assignment_error and not self.has_goto:
             self.error(*self.pending_assignment_error)
+        for token in self.pending_matrices.values():
+            self.error(f"expected a declaration of '{token.word}'", token)
         for name, target in self.return_targets.items():
             if name not in self.labels:
                 self.error(f"unknown label '{name}'", target)

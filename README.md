@@ -821,7 +821,13 @@ DIM and DIMENSION accept comma-separated declarations with positive integer
 bounds, including expanded EQUATE constants. Indices run from zero through
 the declared bound, inclusive, in this subset. Supply one index per dimension.
 Local matrices belong to one invocation. Passing an element to CALL passes
-that slot by reference. For T24 sources, jbcc also accepts bounds such as
+that slot by reference. Matrix references, including MAT call arguments,
+can appear earlier in the source than the DIM or COMMON declaration.
+The compiler determines their rank from the declaration, including in
+inserts. Fixed-size matrices are available from routine entry.
+Runtime-sized matrices still require execution of the declaration before
+use. This follows the reference compiler's assumed-array rule.
+For T24 sources, jbcc also accepts bounds such as
 `DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s
 `dimvar` rule in dynamic-array mode. The guide describes the constant-bound
 form. Each time execution reaches a declaration with expression bounds,
