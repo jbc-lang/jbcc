@@ -171,6 +171,21 @@ RETURN
         self.assertEqual((read.returncode, read.stderr), (0, b''))
         self.assertEqual(read.stdout, b'4\n[first]\n[]\n[last]\n[]\nempty 0\nmissing 0\n7\nkeys 2\na\nb\n')
 
+        deleted = self.run_native(ROOT / 'tests/io/delete-lists.b', env=env)
+        self.assertEqual((deleted.returncode, deleted.stderr), (0, b''))
+        self.assertEqual(deleted.stdout, b'4\nfirst\n3\n[]\n7\nmissing 0\ninactive\ncleared\n')
+        check = self.work / 'check.b'
+        check.write_text("GETLIST '../order' ELSE CRT 'gone'\nGETLIST 'empty' SETTING N THEN CRT N\n")
+        after = self.run_native(check, env=env)
+        self.assertEqual((after.returncode, after.stdout, after.stderr), (0, b'gone\n0\n', b''))
+
+    def test_deletelist_requires_named_store(self):
+        source = self.work / 'delete.b'
+        source.write_text("DELETELIST 'batch'\n")
+        result = self.run_native(source, env=dict(os.environ, JBCC_LIST_DIR=''))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:1: DELETELIST requires JBCC_LIST_DIR'.encode(), result.stderr)
+
     def test_saved_list_write_failure(self):
         source = self.work / 'failed.b'
         source.write_text("WRITELIST 'item' TO 'name' SETTING S ON ERROR CRT S\n")

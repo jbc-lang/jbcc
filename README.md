@@ -1008,6 +1008,17 @@ Writing to an empty name sets the default list for the current process.
 [READLIST](https://jbc-lang.org/pages/readlist.html),
 [WRITELIST](https://jbc-lang.org/pages/writelist.html).
 
+`GETLIST Name TO L SETTING N THEN ... ELSE ...` retrieves the same saved
+list and element count as READLIST. The reference grammar permits omitting
+`TO L` to restore the default cursor, as in `GETLIST Name ELSE STOP`
+followed by `READNEXT Key`. A numbered destination such as `TO 2` is
+also supported. An empty name retrieves the remaining default selection.
+`DELETELIST Name` removes the stored list from `JBCC_LIST_DIR`. A cursor
+already retrieved can finish iterating its copy. Provisionally, deleting
+an absent name succeeds and deleting an empty name clears the default
+cursor. [GETLIST](https://jbc-lang.org/pages/getlist.html),
+[DELETELIST](https://jbc-lang.org/pages/deletelist.html).
+
 CLEARSELECT discards one cursor. Bare `CLEARSELECT` clears the default
 list (0). A named list, a list number, or a variable holding the number
 selects the cursor to clear. Other cursors keep their positions, and the

@@ -1199,6 +1199,16 @@ All 15,741 previous passes still pass. Of the 24 new passes, 11 previously
 stopped at READLIST and 13 at WRITELIST. Two native executables share a
 list directory to check replacement, retrieval, element counts and iteration.
 
-- [ ] Implement GETLIST and DELETELIST against the saved-list store.
+- [x] Implement GETLIST and DELETELIST against the saved-list store.
   Exercise the guide’s write, retrieve and delete sequence across processes.
   GETLIST is the first blocker in five files and DELETELIST in two.
+
+After GETLIST and DELETELIST, 15,769 of 17,336 candidates pass strict C99
+checking. All 15,765 previous passes still pass. Four of the seven files
+blocked by these statements now pass, and three reach later diagnostics.
+All five GETLIST cases used the reference grammar’s omitted TO clause.
+
+- [ ] Implement FORMLIST to build a default, named or numbered select
+  list from a dynamic array. Check the reference grammar’s optional
+  SETTING clause and verify element order with READNEXT. FORMLIST is
+  the first blocker in three files.

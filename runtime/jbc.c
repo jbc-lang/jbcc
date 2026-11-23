@@ -2470,9 +2470,23 @@ int jbc_readlist(const char *name, jbc_variable *out, jbc_variable *setting)
             free(bytes);
         }
     }
-    set_saved_list(out, value, count);
+    if (found) set_saved_list(out, value, count);
+    else assign_value(out, "");
     if (setting) assign_value(setting, size_value(count));
     return found;
+}
+
+void jbc_deletelist(const char *name, const char *file, int line, int column)
+{
+    if (!*name) {
+        assign_value(&select_lists[0], NULL);
+        return;
+    }
+    const char *directory = getenv("JBCC_LIST_DIR");
+    if (!directory || !*directory)
+        numeric_error(file, line, column, "DELETELIST requires JBCC_LIST_DIR");
+    if (unlink(saved_list_path(directory, name)) && errno != ENOENT)
+        numeric_error(file, line, column, strerror(errno));
 }
 #endif
 

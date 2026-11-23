@@ -1210,6 +1210,15 @@ class Compiler:
         opening = self.current
         self.advance()
         self.uses_saved_lists = True
+        if opening.word == 'DELETELIST':
+            self.emit(f"jbc_deletelist({self.expression()}, {self.location(opening)});")
+            return
+        if opening.word == 'GETLIST':
+            name = self.temporary(self.expression())
+            dest = self.select_list('TO')
+            setting = self.file_setting()
+            self.conditional_arms(opening, f"jbc_readlist({name}, {dest}, {setting})")
+            return
         if opening.word == 'WRITELIST':
             value = self.temporary(self.expression())
             if self.word not in ('ON', 'TO'):
@@ -2003,7 +2012,7 @@ class Compiler:
         elif (self.word == 'READV' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readv_statement()
-        elif (self.word in ('READLIST', 'WRITELIST') and self.word not in self.matrices
+        elif (self.word in ('READLIST', 'WRITELIST', 'GETLIST', 'DELETELIST') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.saved_list_statement()
         elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
