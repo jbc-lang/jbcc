@@ -544,6 +544,7 @@ class Compiler:
         self.uses_putenv = False
         self.has_goto = False
         self.sets_precision = False
+        self.clear_assignments = None
 
         self.depth = 0
         self.assigned = set()
@@ -2156,6 +2157,16 @@ class Compiler:
             print(f"{token.path}:{token.line}:{token.column}: warning: {token.word} outside a loop ignored",
                   file=sys.stderr)
 
+    def clear_statement(self):
+        self.advance()
+        if self.clear_assignments is None:
+            # Locals first mentioned after CLEAR also get a slot at routine entry.
+            self.clear_assignments = set(self.names)
+            self.clear_assignments.update(token.word for token in self.tokens
+                                          if token.kind == 'name' and token.word != 'IF')
+        self.assigned.update(self.clear_assignments)
+        self.emit(f"clear_locals_{self.unit}(frame);")
+
     def termination_statement(self, stops):
         aborting = int(self.word == 'ABORT')
         self.advance()
@@ -2875,6 +2886,9 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.advance()
             self.emit("jbc_cleardata();")
+        elif (self.word == 'CLEAR' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.clear_statement()
         elif (self.word == 'DATA' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.advance()
@@ -3167,11 +3181,19 @@ class Compiler:
         fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
         if self.is_function:
             fields.append("const char *result;")
-        fields += [f"jbc_variable {var.split('->')[1]};" for name, var in self.names.items()
-                   if name not in self.formals and name not in self.common_scalars]
+        local_scalars = [var for name, var in self.names.items()
+                         if name not in self.formals and name not in self.common_scalars]
+        fields += [f"jbc_variable {var.split('->')[1]};" for var in local_scalars]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
         fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.shape is not None]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
+        if self.clear_assignments is not None:
+            lines.extend([f"static void clear_locals_{u}(struct frame_{u} *frame)", "{", "    (void)frame;"])
+            lines.extend(f'    assign_value(&{var}, "0");' for var in local_scalars)
+            for field in self.local_arrays:
+                lines.append(f'    if (frame->{field}) jbc_matrix_fill(frame->{field}->values, '
+                             f'frame->{field}->count, "0");')
+            lines.append("}")
         lines += [f"static int body_{u}(struct frame_{u} *frame, int entry)", "{"]
         lines += ["    (void)frame;", "    (void)entry;"]
         if self.loops or self.has_goto or (self.return_targets and self.gosub_sites):

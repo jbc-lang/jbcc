@@ -1727,6 +1727,49 @@ CRT 'f' CAT 'g'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'second3!\nabcde\nfg\n', b''))
 
+    def test_clear_resets_local_storage_and_preserves_shared_slots(self):
+        main = self.work / 'main.b'
+        reset = self.work / 'reset.b'
+        main.write_text("""COMMON /STATE/ Shared, Cache(2)
+COMMON Unnamed
+Shared = 10
+Unnamed = 11
+Cache(1) = 12
+DIM Buffer(2)
+Buffer(0) = 13
+Value = 14
+CALL RESET(Value, MAT Buffer, 0)
+CALL RESET(Value, MAT Buffer, 1)
+CRT Shared:':':Unnamed:':':Cache(1):':':Buffer(0):':':Value
+""")
+        reset.write_text("""SUBROUTINE RESET(Argument, MAT Items, Flag)
+COMMON /STATE/ Shared, Cache(2)
+COMMON Unnamed
+N = 2
+DIM Fixed(2), Ready(N)
+IF 0 THEN DIM Deferred(N)
+Fixed(1) = 'discard'
+Ready(2) = 'discard'
+IF Flag THEN
+    CLEAR
+    CRT (IF 1 THEN Late ELSE 'bad'):':':Fixed(1):':':Ready(2):':':Ready(0)
+    CRT Shared:':':Unnamed:':':Cache(1):':':Items(0):':':Argument
+END ELSE
+    Local = 9
+END
+CRT Local
+""")
+        result = self.run_native(main, reset)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'9\n0:0:0:0\n10:11:12:13:14\n0\n10:11:12:13:14\n', b''))
+
+    def test_clear_requires_a_path_that_initializes_the_local(self):
+        source = self.work / 'clear.b'
+        source.write_text('IF 0 THEN CLEAR\nCRT Local\n')
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{source}:2:5: unknown variable or unsupported function 'Local'\n")
+
     def test_concatenation_requires_a_left_operand(self):
         source = self.work / 'concat.b'
         source.write_text("X = :'x'\n")

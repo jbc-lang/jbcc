@@ -2410,6 +2410,21 @@ dynamic-array selectors, arithmetic precedence, and terminal output.
 LD.OVER.RIDE now passes strict C99 checking in byte mode. The total
 is 17,058 of 17,336 candidates, including all 17,057 previous passes.
 
-- [ ] Investigate CLEAR in HELPTEXT.CONVERSION. The guide says it
+- [x] Investigate CLEAR in HELPTEXT.CONVERSION. The guide says it
   initializes local variables to numeric zero. Check which storage
   it affects and how to preserve caller arguments and COMMON values.
+
+The guide demonstrates resetting locals and retaining COMMON. The
+reference compiler emits CLEARVAR_V and delegates the storage details
+to its runtime. jbcc provisionally resets scalars and allocated
+matrices owned by the current invocation. Native tests cover caller
+arguments, named and unnamed COMMON, and definite assignment after a
+branch containing CLEAR.
+
+HELPTEXT.CONVERSION now passes strict C99 checking in byte mode.
+The total is 17,059 of 17,336 candidates, including all 17,058
+previous passes.
+
+- [ ] Investigate leading, repeated and trailing commas in CRT and PRINT.
+  Start with `PRINT ,,,value` in SC.PERF.POLICY.VAR and compare the
+  reference parser's tab behavior, line continuation and newline suppression.

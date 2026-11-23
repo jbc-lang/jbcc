@@ -87,6 +87,13 @@ the same rule suppresses the input newline. This follows the reference
 parser's `resultant ':'` production.
 [jBASE CRT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_crt.htm).
 
+`CLEAR` assigns numeric zero to local scalars, including locals first
+mentioned later in the source. It preserves caller arguments and
+COMMON storage. jbcc provisionally also zeroes allocated local matrix
+elements, including index zero, and leaves their dimensions intact.
+A runtime-sized matrix still needs its declaration to execute before use.
+[CLEAR](https://jbc-lang.org/pages/clear.html).
+
 `CHANGE old TO new IN target` replaces nonoverlapping substrings from left
 to right in an assigned scalar, matrix element or dynamic-array field.
 The original grammar also accepts `WITH` in place of `TO`. The function
