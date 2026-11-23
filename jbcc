@@ -321,7 +321,7 @@ class CommonBlock:
 class Matrix(NamedTuple):
     field: str
     shape: Optional[tuple]  # A caller supplies the shape of a MAT parameter.
-    common: bool
+    common_block: Optional[str] = None
 
     @property
     def base(self):
@@ -1768,7 +1768,7 @@ class Compiler:
                 self.assigned.add(target.word)
                 matrix = self.matrices.get(target.word)
                 if (self.routine and target.word not in self.formals and target.word not in self.common_scalars
-                        and not (matrix and matrix.common)):
+                        and not (matrix and matrix.common_block is not None)):
                     self.opens_local_files = True
                     scope = 'frame'
         setting = self.file_setting()
@@ -2243,8 +2243,10 @@ class Compiler:
         name = token.word
         if common and self.common_scalars.get(name) == block_name and self.word != '(':
             return
-        if common and name in block.matrix_slots and self.word == '(':
-            self.redeclare_common_matrix(token, block_name, block.matrix_slots[name])
+        matrix = self.matrices.get(name)
+        if (matrix and matrix.common_block is not None and self.word == '('
+                and (not common or matrix.common_block == block_name)):
+            self.redeclare_common_matrix(token, matrix)
             return
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
@@ -2280,14 +2282,13 @@ class Compiler:
                 self.emit(f"frame->{field} = {call};")
             else:
                 block.initializers.append(f"frame.{field} = {call};")
-        self.matrices[name] = Matrix(field, shape, common)
+        self.matrices[name] = Matrix(field, shape, block_name)
 
     def matrix_storage_call(self, previous, key, bounds, token):
         return (f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
                 f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
 
-    def redeclare_common_matrix(self, token, block_name, member):
-        matrix = self.matrices[token.word]
+    def redeclare_common_matrix(self, token, matrix):
         bounds = self.dimension_bounds()
         shape = tuple(bound if isinstance(bound, int) else None for bound in bounds)
         if not compatible_dimensions(matrix.shape, shape):
@@ -2300,6 +2301,8 @@ class Compiler:
                 self.emit(f'if ({bound} != {expected}) numeric_error({self.location(token)}, '
                           '"incompatible COMMON matrix dimensions");')
         slot = f"frame->{matrix.field}"
+        block_name = matrix.common_block
+        member = self.commons[block_name].matrix_slots[token.word]
         call = self.matrix_storage_call(slot, c_string(f"{block_name}:{member}"), bounds, token)
         self.emit(f"{slot} = {call};")
 
@@ -2312,7 +2315,7 @@ class Compiler:
     def checked_matrix(self, token):
         matrix = self.matrices[token.word]
         if matrix.shape is not None and None in matrix.shape:
-            kind = "COMMON" if matrix.common else "local"
+            kind = "COMMON" if matrix.common_block is not None else "local"
             self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
                       f'"{kind} matrix declaration has not executed");')
         return matrix
@@ -2897,7 +2900,7 @@ class Compiler:
                     i = len(self.formals)
                     self.formals[param.word] = is_matrix
                     if is_matrix:
-                        self.matrices[param.word] = Matrix(f"arg{i}", None, False)
+                        self.matrices[param.word] = Matrix(f"arg{i}", None)
                     else:
                         self.names[param.word] = f"(*frame->arg{i})"
                         self.assigned.add(param.word)

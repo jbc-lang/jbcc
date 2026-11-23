@@ -3186,6 +3186,49 @@ C := '!'
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:4:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
 
+    def test_dim_reuses_named_and_unnamed_common_matrix_slots(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'update.b'
+        main.write_text("""N = 2
+COMMON A(2)
+COMMON /CACHE/ Rows(N,3), Tail
+A(2) = 'unnamed'
+Rows(2,3) = 'named'
+Tail = 'tail'
+DIM A(2), Rows(2,3)
+DIMENSION Rows(N,3)
+CALL UPDATE()
+CRT A(2):':':Rows(2,3):':':Tail
+""")
+        sub.write_text("""SUBROUTINE UPDATE()
+COMMON Shared(2)
+COMMON /CACHE/ Table(2,3), Last
+Shared(2) := '!'
+Table(2,3) := '!'
+Last := '!'
+""")
+        result = self.run_native(main, sub)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'unnamed!:named!:tail!\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_dim_rejects_incompatible_common_matrix_shapes(self):
+        source = self.work / 'shape.b'
+        for bounds in ('3,2', '11'):
+            with self.subTest(bounds=bounds):
+                source.write_text(f'COMMON /X/ A(2,3)\nDIM A({bounds})\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
+
+        for initial, redeclared in (('2', 'N'), ('N', '3')):
+            with self.subTest(initial=initial, redeclared=redeclared):
+                source.write_text(f'N = 2\nCOMMON /X/ A({initial})\nN = 3\nDIM A({redeclared})\n')
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, f'{source}:4:5: incompatible COMMON matrix dimensions\n'.encode())
+
     def test_runtime_common_dimensions(self):
         main = self.work / 'main.b'
         sub = self.work / 'change.b'

@@ -878,6 +878,12 @@ expanded twice. This follows the reference parser’s `common_identifier`
 allocation rule and its dynamic-dimension generator. Repeated matrix
 declarations must agree on rank and bounds. jbcc checks constant bounds
 at compile time and expression bounds when the declaration executes.
+For T24 compatibility, a later DIM or DIMENSION that names a COMMON
+matrix also checks its shape and reuses its original shared slot. The
+reference generator accepts a repeated DIM in resize-enabled emulation.
+jbcc provisionally accepts the same shape and diagnoses a size or rank
+change. [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
+
 The compiler also checks member count, rank, and known bounds across
 input files. For T24 declarations such as
 `COMMON /CACHE/ Rows(Config<1>), Tail`, jbcc evaluates the bound when

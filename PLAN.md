@@ -2156,7 +2156,26 @@ multiline conditional arms.
 EB.TRANS.JBASE now passes strict C99 checking, bringing the total to
 16,425 of 17,336 candidates. All 16,424 previous passes still pass.
 
-- [ ] Trace DIM declarations that reuse an existing COMMON matrix, starting
+- [x] Trace DIM declarations that reuse an existing COMMON matrix, starting
   with R.NEW in AZ.DEPOSIT.REVERSAL. This is the first diagnostic in
   107 units. Compare the reference compiler's fixed and dynamic dimension
   modes before changing declaration handling.
+
+The fixed-dimension generator rejects a second DIM. The dynamic generator
+emits a repeated declaration for the existing COMMON variable. In
+AZ.DEPOSIT.REVERSAL, both declarations of R.NEW use C$SYSDIM from I_COMMON.
+jbcc accepts the repeated DIM with the same rank and bounds and keeps
+the COMMON slot. Native tests check named and unnamed blocks, sharing
+across routines, and compile-time and runtime shape mismatches.
+The standalone reference compiler crashed in both emulation modes, so
+this comparison uses the generator source.
+
+After this change, 16,486 of 17,336 candidates pass strict C99 checking,
+including all 16,425 previous passes. Of the 107 units previously blocked
+at these declarations, 61 pass, 42 report incompatible COMMON matrix
+dimensions, and four reach another diagnostic.
+
+- [ ] Trace repeated DIM declarations for local matrices, starting with
+  YR.LOCTAB in ARCHIVES.UPDATE.RUN. Check first execution through either
+  declaration and verify how the reference generator handles later uses
+  of the same local slot.
