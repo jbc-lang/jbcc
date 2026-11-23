@@ -2859,6 +2859,25 @@ CRT SYSTEM(24)
         with os.fdopen(read_fd, 'rb') as reader:
             self.assertEqual(subprocess.check_output([binary], stdin=reader), b'3\n3\n')
 
+    def test_tty_name_with_terminal_and_redirected_input(self):
+        source = self.work / 'tty.b'
+        source.write_text("CRT '[':@TTY:']'\nCRT @TTY[1,1]\n")
+        binary = self.work / 'tty'
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        self.c, '-o', binary], check=True)
+
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        terminal = os.fsencode(os.ttyname(slave))
+        for stdin, expected in ((slave, terminal), (subprocess.DEVNULL, b'phantom')):
+            with self.subTest(stdin=stdin):
+                run = subprocess.run([binary], stdin=stdin, capture_output=True, timeout=5)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, b'[' + expected + b']\n' + expected[:1] + b'\n')
+                self.assertEqual(run.stderr, b'')
+
     def test_port_number_aliases_use_startup_environment(self):
         main = self.work / 'main.b'
         routine = self.work / 'show.port.b'

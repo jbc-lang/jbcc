@@ -504,6 +504,10 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_account_name()"), locate_source)
+            if self.word == 'TTY':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_terminal_name()"), locate_source)
             if self.word in ('USERNO', 'USER_NO', 'UDTNO'):
                 self.uses_session = True
                 self.advance()

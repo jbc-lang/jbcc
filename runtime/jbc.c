@@ -957,6 +957,12 @@ const char *jbc_account_name(void)
 {
     return account_override ? account_override : jbc_login_name();
 }
+
+const char *jbc_terminal_name(void)
+{
+    const char *terminal = ttyname(STDIN_FILENO);
+    return terminal ? strcpy(allocate(strlen(terminal)), terminal) : "phantom";
+}
 #endif
 
 static size_t last_matrix_load;

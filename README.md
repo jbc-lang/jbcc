@@ -273,6 +273,12 @@ produce a diagnostic when the program requests the port number.
 [JBCPORTNO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/env2_JBCPORTNO.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`@TTY` returns the POSIX device name for the terminal on standard
+input, such as `/dev/pts/2`. If standard input has no terminal device
+name, jbcc provisionally returns `phantom`, following the check used
+by T24's PRO.
+[jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
+
 `@WHO` and the login-name form of `SYSTEM(19)` return the same name.
 At startup jbcc uses the first nonempty value of `JBCLOGNAME` from the
 jBASE manual or `JBASICLOGNAME` from the jBC guide. Without either override,

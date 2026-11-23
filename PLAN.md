@@ -1737,7 +1737,15 @@ All 16,321 previous passes still pass, and all three targeted files
 now pass. Native tests cover conditional arms, channel selection and
 precedence, and the no-media status.
 
-- [ ] Implement @TTY for the terminal port name. Verify a native run
+- [x] Implement @TTY for the terminal port name. Verify a native run
   with a pseudoterminal and define the fallback for redirected input
   using the guide and reference runtime evidence. Four T24 files
   first stop at @TTY.
+
+After @TTY, 16,328 of 17,336 candidates pass strict C99 checking.
+All 16,324 previous passes still pass, and all four targeted files
+now pass. A native test checks a pseudoterminal and redirected input.
+
+- [ ] Implement @PID for the current process ID. Check that it matches
+  the native process ID when JBCPORTNO overrides @USERNO. Two T24 files
+  first stop at @PID.
