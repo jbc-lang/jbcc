@@ -4022,6 +4022,55 @@ CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
             self.assertEqual(stdout, f'{proc.pid}\n0\n'.encode())
             self.assertEqual(stderr, b'')
 
+    def test_userstats_native_snapshot_and_record_writes(self):
+        source = self.work / 'main.b'
+        routine = self.work / 'stats.b'
+        binary = self.work / 'stats'
+        source.write_text("""CALL SNAPSHOT(Before)
+OPEN 'F' TO F ELSE ABORT
+WRITE 'new' TO F,'one'
+WRITEU 'updated' TO F,'one'
+WRITEV 'tail' TO F,'one',2
+DIM A(1)
+A(1) = 'matrix'
+MATWRITE A TO F,'two'
+WRITE 'blocked' TO F,'held' ON ERROR NULL
+DELETE F,'two'
+CALL SNAPSHOT(After)
+CRT Before<20>:':':After<20>:':':DCOUNT(After,@FM)
+CRT After<1>:':':After<2>:':':After<4>
+CRT After<3>
+CRT After<5>:':':After<6>:':':After<8>:':':After<10>
+CRT '[':After<7>:']:[':After<19>:']'
+CRT After<41>
+CRT After<42>
+CRT After<43>
+""")
+        routine.write_text("SUBROUTINE SNAPSHOT(Value)\nValue = @USERSTATS\n")
+        env = dict(os.environ, JBCPORTNO='93', JBCLOGNAME='stats-user', TERM='stats-terminal')
+        subprocess.run([CLI, '--exe', '--memory-file', 'F', '--memory-lock', 'F', 'held',
+                        source, routine, '-o', binary], check=True,
+                       env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        start = int(time.time())
+        with subprocess.Popen([binary, 'two words'], env=env, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            stdout, stderr = proc.communicate(timeout=5)
+            self.assertEqual((proc.returncode, stderr), (0, b''))
+            lines = stdout.splitlines()
+            self.assertEqual(lines[:2], [b'0:4:52', f'93:1:{proc.pid}'.encode()])
+            self.assertLessEqual(start, int(lines[2]))
+            self.assertLessEqual(int(lines[2]), int(time.time()))
+            self.assertEqual(lines[3:], [
+                b'stats-user:stats-user:stats-terminal:phantom', b'[]:[]',
+                f'{binary} two words'.encode(), b'2', str(routine).encode()])
+
+    def test_userstats_reports_invalid_port_at_reference(self):
+        source = self.work / 'stats.b'
+        source.write_text('CRT @USERSTATS<1>\n')
+        result = self.run_native(source, env=dict(os.environ, JBCPORTNO='bad'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:5: JBCPORTNO requires'.encode(), result.stderr)
+
     def test_port_number_defaults_to_process_id(self):
         source = self.work / 'port.b'
         source.write_text('CRT @USERNO\nCRT @USER.NO\n')

@@ -392,6 +392,7 @@ class Compiler:
         self.loops = 0
         self.needs_arguments = False
         self.uses_session = False
+        self.uses_userstats = False
         self.uses_startup_clock = False
         self.uses_math = False
         self.terminal = False
@@ -534,6 +535,13 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_process_id()"), locate_source)
+            if self.word == 'USERSTATS':
+                self.uses_session = True
+                self.uses_userstats = True
+                self.needs_arguments = True
+                self.advance()
+                call = f"jbc_userstats({self.location(target)})"
+                return self.postfix(self.temporary(call), locate_source)
             if self.word in ('USERNO', 'USER.NO', 'USER_NO', 'UDTNO'):
                 self.uses_session = True
                 self.advance()
@@ -3139,6 +3147,8 @@ def runtime_features(units):
         flags.append("#define JBC_TERMINAL 1")
     if any(unit.uses_session for unit in units):
         flags.append("#define JBC_SESSION 1")
+    if any(unit.uses_userstats for unit in units):
+        flags.append("#define JBC_USERSTATS 1")
     return "\n".join(flags)
 
 

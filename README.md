@@ -319,6 +319,15 @@ the account path. A failure to resolve it reports the source location.
 `@USERNO` independently.
 [@PID](https://jbc-lang.org/pages/@pid.html).
 
+`@USERSTATS` returns a snapshot with attribute numbers from `JBC.h`.
+The native runtime fills fields 1–6 with the port, active program count
+of one, startup time in Unix seconds, PID, account, and login. Fields 8
+and 10 hold the OS terminal type and device. Field 20 counts successful
+in-memory record writes, including WRITEV, WRITEU, WRITEVU, and MATWRITE.
+Fields 41–43 hold the native invocation and the line and path where the
+snapshot was taken. Other fields are empty.
+[@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
+
 `@TTY` returns the POSIX device name for the terminal on standard
 input, such as `/dev/pts/2`. If standard input has no terminal device
 name, jbcc provisionally returns `phantom`, following the check used

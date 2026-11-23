@@ -1018,6 +1018,11 @@ static int invalid_port_number;
 static const char *login_override;
 static const char *account_override;
 
+#ifdef JBC_USERSTATS
+static time_t session_started;
+static size_t record_write_count;
+#endif
+
 static const char *session_environment(const char *name)
 {
     const char *value = getenv(name);
@@ -1026,6 +1031,9 @@ static const char *session_environment(const char *name)
 
 void jbc_init_session(void)
 {
+#ifdef JBC_USERSTATS
+    session_started = time(NULL);
+#endif
     login_override = session_environment("JBCLOGNAME");
     account_override = login_override;
     if (!login_override) login_override = session_environment("JBASICLOGNAME");
@@ -1085,6 +1093,30 @@ const char *jbc_terminal_name(void)
     const char *terminal = ttyname(STDIN_FILENO);
     return terminal ? strcpy(allocate(strlen(terminal)), terminal) : "phantom";
 }
+
+#ifdef JBC_USERSTATS
+const char *jbc_userstats(const char *file, int line, int column)
+{
+    enum { USERSTATS_ATTRIBUTES = 52 };
+    jbc_variable attrs[USERSTATS_ATTRIBUTES + 1] = {{0}};
+    for (int i = 1; i <= USERSTATS_ATTRIBUTES; ++i) attrs[i].value = "";
+    attrs[1].value = jbc_port_number(file, line, column);
+    attrs[2].value = "1";
+    if (session_started != (time_t)-1)
+        attrs[3].value = size_value((uintmax_t)session_started);
+    attrs[4].value = jbc_process_id();
+    attrs[5].value = jbc_account_name();
+    attrs[6].value = jbc_login_name();
+    attrs[8].value = jbc_terminal_type();
+    attrs[10].value = jbc_terminal_name();
+    attrs[20].value = size_value(record_write_count);
+    attrs[41].value = jbc_command_line;
+    attrs[42].value = size_value((size_t)line);
+    attrs[43].value = file;
+    const int bounds[] = {USERSTATS_ATTRIBUTES};
+    return jbc_matbuild(attrs, 1, bounds, NULL, NULL, "\376", "@USERSTATS", file, line, column);
+}
+#endif
 #endif
 
 static size_t last_matrix_load;
@@ -3781,6 +3813,9 @@ static int write_record_status(const char *handle, const char *key, const char *
     free(r->value);
     r->value = copy;
     if (lock && !keep_lock) release_locks(f, key, 0);
+#ifdef JBC_USERSTATS
+    if (record_write_count < SIZE_MAX) ++record_write_count;
+#endif
     return 0;
 }
 
