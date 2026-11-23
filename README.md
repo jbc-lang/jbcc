@@ -465,7 +465,11 @@ still increments the counter from that FOR header. The limit and step are evalua
 at the start of each iteration. The captured step increments the counter
 after the body. FOR accepts WHILE and UNTIL guards in its header.
 The reference grammar also allows guards between statements in FOR and
-LOOP bodies, with an optional DO after the condition. T24 uses
+LOOP bodies, with an optional DO after the condition. An inline arm can
+end at a loop guard. In `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,
+the guard tests the ID after READNEXT and its ELSE arm have run. An ELSE
+inside a nested conditional still binds to the nearest eligible THEN.
+T24 uses
 `UNTIL found` immediately before `NEXT`. When the body reaches that
 guard and `found` is true, the FOR exits with its counter at the current
 value. CONTINUE skips the rest of the innermost iteration.

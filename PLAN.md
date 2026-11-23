@@ -1227,8 +1227,17 @@ All 15,772 previous passes still pass. Eight of the eleven SSELECT
 blockers now pass. Two of the three remaining files reach a loop guard
 after an inline READNEXT arm.
 
-- [ ] Allow an inline READNEXT arm to end at a LOOP guard, as in
+- [x] Allow an inline READNEXT arm to end at a LOOP guard, as in
   `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`. Verify that the guard
   tests the value after the conditional arm and that an inner ELSE
   still binds to its own statement. Eleven T24 files first stop at
   WHILE in this pattern.
+
+After inline loop guards, 15,795 of 17,336 candidates pass strict C99
+checking. All 15,780 previous passes still pass. Of the 15 additional
+passes, eight previously stopped at WHILE, including
+EOD.GROUP.ACCRUAL.POST and RE.UPDT.STAT.LINE.CONT.
+
+- [ ] Implement READVU by combining field extraction with a record lock.
+  Verify explicit and default files, field zero, successful and missing
+  reads, LOCKED and ON ERROR. READVU is the first blocker in nine files.

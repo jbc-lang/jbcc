@@ -42,6 +42,7 @@ SYSTEM_CONSTANTS = {
 }
 
 
+LOOP_BOUNDARIES = {'WHILE', 'UNTIL', 'REPEAT'}
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 
 
@@ -392,6 +393,7 @@ class Compiler:
         self.depth = 0
         self.assigned = set()
         self.assignment_facts = {}
+        self.statement_stops = set()
 
     @property
     def word(self):
@@ -743,14 +745,16 @@ class Compiler:
         return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
 
     def clause(self, opening, inline_stops=None):
-        # A multiline arm ends at END. An inline arm ends at EOL or ELSE.
+        # A multiline arm has its own END. An inline arm can also end
+        # where the enclosing loop resumes.
         self.depth += 1
         if self.word == '\n':
             self.advance()
             self.sequence({'END'}, opening)
             self.expect('END')
         else:
-            self.sequence(inline_stops or {'ELSE', '\n'}, opening)
+            stops = (inline_stops or {'ELSE', '\n'}) | (self.statement_stops & LOOP_BOUNDARIES)
+            self.sequence(stops, opening)
         self.depth -= 1
 
     def conditional(self):
@@ -2178,15 +2182,18 @@ class Compiler:
         else:
             self.error("expected an assignment, CRT or IF")
 
-    def for_guard_is_target(self):
-        # FOR bodies also accept assignments and labels named WHILE or UNTIL.
-        return self.word in ('WHILE', 'UNTIL') and (
-            self.following.word in ASSIGNMENT_PREFIXES
+    def loop_boundary_is_target(self):
+        # Preserve assignments and labels using loop keywords in inline arms.
+        return (self.following.word in ASSIGNMENT_PREFIXES
             or (self.word in self.matrices and self.following.word == '(')
             or is_label(self.current, self.following))
 
     def sequence(self, stops, opening=None):
-        while self.word not in stops or (opening and opening.word == 'FOR' and self.for_guard_is_target()):
+        enclosing_stops = self.statement_stops
+        self.statement_stops = stops
+        while self.word not in stops or (
+            self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.loop_boundary_is_target()
+        ):
             if self.word == '':
                 self.error(f"unterminated {opening.word}", opening)
             if self.word in (';', '\n'):
@@ -2202,6 +2209,7 @@ class Compiler:
             self.statement(stops)
             if self.word not in stops and self.word not in (';', '\n'):
                 self.error(f"unexpected '{self.word}'")
+        self.statement_stops = enclosing_stops
 
     def parameter(self):
         is_matrix = self.word == 'MAT'
