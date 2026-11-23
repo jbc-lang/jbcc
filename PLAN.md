@@ -2192,7 +2192,33 @@ including all 16,486 previous passes. Of the 50 units whose result
 changed, 45 pass, including ARCHIVES.UPDATE.RUN. Three report
 incompatible local matrix dimensions and two reach another diagnostic.
 
-- [ ] Trace COMMON matrices whose later DIM supplies different bounds,
-  starting with R.ACCOUNT declared at 500 and dimensioned again at 210.
-  Establish which bounds apply and what happens to shared elements
-  before implementing a resize rule.
+- [x] Trace COMMON matrices whose later DIM supplies different bounds.
+
+All 42 current corpus diagnostics for incompatible COMMON dimensions
+involve one-dimensional arrays. The second bound is smaller in 28 units
+and larger in 14. REBUILD.AVAIL.FUNDS.LOAD imports R.ACCOUNT(500) through
+I_REBUILD.AVAIL.FUNDS.COMMON and dimensions it again at
+AC.AUDIT.DATE.TIME, which I_F.ACCOUNT defines as 210. The paired
+REBUILD.AVAIL.FUNDS routine uses the same COMMON declaration and passes
+R.ACCOUNT as a MAT argument.
+
+The standalone reference compiler crashed because its DIM generator
+released the syntax node before the COMMON parser action used it.
+Moving that release to the consuming parser actions in a temporary
+build let the probe run through code generation. For
+`COMMON /EXAMPLE/ A(5)` followed by `DIM A(3)`, fixed mode diagnosed
+the second declaration. Prime mode emitted DECLARE_DYN_DIM operations
+7 and 8 against the same variable with bounds 5 and 3, respectively.
+Growth probes likewise emitted bounds 2 and 5, using operations 7 and
+8 for named COMMON and 3 and 4 for unnamed COMMON.
+[jBASE emulation documentation](https://docs.rocketsoftware.com/bundle/jbase_lib_59/page/ryu1684869638605.html).
+
+- [ ] Verify shared COMMON resize behavior with the vendor runtime.
+  Measure the bound visible to a routine using the original declaration,
+  the elements preserved across shrink and grow, and the effect on MAT
+  aliases. Keep the shape-mismatch diagnostic until those rules are known.
+
+- [ ] Investigate EXECUTE and PERFORM RTNLIST. Check the explicit and
+  default output forms and report when the command backend cannot
+  return a jBC select list. EBS.CREATE.FILE and WR.MANUAL.REP.INITIALISE
+  first stop at RTNLIST.
