@@ -357,6 +357,43 @@ OSBWRITE 'x' TO F
         self.assertIn(f'{source}:7:1: OSBWRITE failed'.encode(), result.stderr)
         self.assertEqual(data.read_bytes(), b'unchanged')
 
+    def test_oswrite_replaces_appends_and_creates_regular_files(self):
+        directory = self.work / 'search'
+        directory.mkdir()
+        data = directory / 'payload'
+        data.write_bytes(b'old contents that should be replaced')
+        (self.work / 'empty').write_bytes(b'old')
+        source = self.work / 'oswrite.b'
+        source.write_text("""OSWRITE 'new':CHAR(128) TO 'payload' SETTING S
+CRT S:':':STATUS()
+OSWRITE CHAR(10):'tail' APPEND ON 'payload'
+OSREAD B FROM 'payload' THEN CRT B ELSE ABORT
+OSWRITE 'created' TO 'new'
+OSWRITE '' TO 'empty'
+""")
+        result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0:0\nnew\x80\ntail\n', b''))
+        self.assertEqual(data.read_bytes(), b'new\0\ntail')
+        self.assertEqual((self.work / 'new').read_bytes(), b'created')
+        self.assertEqual((self.work / 'empty').read_bytes(), b'')
+        self.assertFalse((self.work / 'payload').exists())
+
+    def test_oswrite_reports_errors_before_truncating_a_locked_file(self):
+        data = self.work / 'data'
+        data.write_bytes(b'unchanged')
+        source = self.work / 'oswrite.b'
+        source.write_text("""OSWRITE 'x' TO 'data' SETTING S ON ERROR CRT S:':':STATUS()
+OSWRITE 'x' TO 'missing/file' SETTING S ON ERROR CRT S
+OSWRITE 'x' TO '.'
+""")
+        with data.open('rb') as locked:
+            fcntl.flock(locked, fcntl.LOCK_EX)
+            result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'-2:-2\n128\n')
+        self.assertIn(f'{source}:3:1: OSWRITE failed'.encode(), result.stderr)
+        self.assertEqual(data.read_bytes(), b'unchanged')
+
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
         directory.mkdir()

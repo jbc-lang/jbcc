@@ -1185,6 +1185,15 @@ status 128. Other I/O errors take ON ERROR when present or report the
 statement location.
 [OSREAD](https://jbc-lang.org/pages/osread.html).
 
+`OSWRITE value [APPEND] TO path` replaces a regular file or creates it
+if absent. It accepts ON instead of TO. APPEND follows the reference
+grammar. A missing bare name is looked up in `JEDIFILEPATH` before jbcc
+creates it in the working directory. The write preserves supplied line
+endings and converts byte 128 to NUL. jbcc takes an exclusive lock before
+truncating or writing. The statement accepts `SETTING` and `ON ERROR`,
+and a failure without an error arm reports the statement location.
+[OSWRITE](https://jbc-lang.org/pages/oswrite.html).
+
 `TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
 decimal seconds. A pending or closed handle and an invalid duration
 report an error at the statement. The regular-file backend completes

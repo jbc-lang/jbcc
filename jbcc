@@ -1285,6 +1285,16 @@ class Compiler:
             if nodelay:
                 self.advance()
             call = f'jbc_osbwrite({handle}, {offset}, {value}, {int(nodelay)})'
+        elif op == 'OSWRITE':
+            value = self.temporary(self.expression())
+            append = self.word == 'APPEND'
+            if append:
+                self.advance()
+            if self.word not in ('ON', 'TO'):
+                self.error("expected ON or TO after OSWRITE value")
+            self.advance()
+            path = self.expression()
+            call = f'jbc_oswrite({path}, {value}, {int(append)})'
         elif op == 'OSREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
@@ -1357,7 +1367,7 @@ class Compiler:
         self.emit(f'int {status} = {call};')
         if setting != 'NULL':
             self.emit(f'jbc_seq_setting({setting}, {status});')
-        if op in ('OSBREAD', 'OSBWRITE'):
+        if op in ('OSBREAD', 'OSBWRITE', 'OSWRITE'):
             self.file_error_arm(opening, f"!{status}", 'NULL')
         elif op in ('CREATE', 'SEEK'):
             self.conditional_arms(opening, f"!{status}")
@@ -2432,7 +2442,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT', 'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

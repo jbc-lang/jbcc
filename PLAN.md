@@ -1938,5 +1938,13 @@ checking. Native tests compare the exact file bytes after writes,
 read them back through OSBREAD, and check cursor movement, sparse
 extension, and invalid or read-only handles.
 
-- [ ] Implement OSWRITE for whole regular files. Check replacement,
+- [x] Implement OSWRITE for whole regular files. Check replacement,
   APPEND, byte conversion, status, and error handling against the guide.
+
+After OSWRITE, the same 16,364 of 17,336 candidates pass strict C99
+checking. Native tests cover creation, truncation, append, path
+lookup, exact byte conversion and error handling. They verify that
+a locked file keeps its original contents.
+
+- [ ] Investigate OSDELETE for regular files. Check path resolution,
+  missing files and the reference error arms using temporary fixtures.

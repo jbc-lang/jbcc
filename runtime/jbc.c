@@ -5101,6 +5101,23 @@ static int writable_sequential(struct sequential_file *file)
     return open_sequential(&file->token, file->access, 1, 0, 0, &file->stream);
 }
 
+static int write_os_bytes(FILE *out, const char *value)
+{
+    size_t remaining = strlen(value);
+    while (remaining) {
+        unsigned char bytes[4096];
+        size_t length = remaining < sizeof bytes ? remaining : sizeof bytes;
+        for (size_t i = 0; i < length; ++i) {
+            unsigned char byte = (unsigned char)value[i];
+            bytes[i] = byte == 128 ? 0 : byte;
+        }
+        if (fwrite(bytes, 1, length, out) != length) return file_error(errno);
+        value += length;
+        remaining -= length;
+    }
+    return fflush(out) ? file_error(errno) : 0;
+}
+
 int jbc_osbwrite(const char *token, const char *offset, const char *value, int nodelay)
 {
     struct sequential_file *file = *sequential_slot(token);
@@ -5113,20 +5130,36 @@ int jbc_osbwrite(const char *token, const char *offset, const char *value, int n
     /* Positioning also synchronizes stdio after a buffered read. */
     if (fseeko(out, position, offset ? SEEK_SET : SEEK_CUR)) return file_result(file_error(errno));
     clearerr(out);
-    size_t remaining = strlen(value);
-    while (remaining) {
-        unsigned char bytes[4096];
-        size_t length = remaining < sizeof bytes ? remaining : sizeof bytes;
-        for (size_t i = 0; i < length; ++i) {
-            unsigned char byte = (unsigned char)value[i];
-            bytes[i] = byte == 128 ? 0 : byte;
-        }
-        if (fwrite(bytes, 1, length, out) != length) return file_result(file_error(errno));
-        value += length;
-        remaining -= length;
+    int status = write_os_bytes(out, value);
+    if (!status && nodelay && fsync(fileno(out))) status = file_error(errno);
+    return file_result(status);
+}
+
+int jbc_oswrite(const char *path, const char *value, int append)
+{
+    int flags = O_WRONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC;
+    if (append) flags |= O_APPEND;
+    int fd = open_os_file(&path, flags);
+    if (fd < 0 && file_error(errno) == 128) fd = open(path, flags | O_CREAT, 0666);
+    if (fd < 0) return file_result(file_error(errno));
+
+    struct stat info;
+    int status = 0;
+    FILE *out = NULL;
+    if (fstat(fd, &info) < 0) status = file_error(errno);
+    else if (!S_ISREG(info.st_mode)) status = 32768;
+    else if (flock(fd, LOCK_EX | LOCK_NB) < 0)
+        status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
+    else if (!(out = fdopen(fd, append ? "ab" : "wb"))) status = file_error(errno);
+    if (!out) {
+        close(fd);
+        return file_result(status);
     }
-    if (fflush(out) || (nodelay && fsync(fileno(out)))) return file_result(file_error(errno));
-    return file_result(0);
+
+    if (!append && ftruncate(fd, 0)) status = file_error(errno);
+    if (!status) status = write_os_bytes(out, value);
+    if (fclose(out) && !status) status = file_error(errno);
+    return file_result(status);
 }
 
 int jbc_createseq(const char *token, const char *source, int line, int column)
