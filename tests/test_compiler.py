@@ -276,6 +276,7 @@ RETURN
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
+                                  ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
@@ -784,6 +785,27 @@ time_t test_clock(time_t *out)
                 ("2, REUSE(3:@FM:4)", ':1:13: REUSE in MULS requires a scalar')]:
             with self.subTest(args=args):
                 source.write_text(f'CRT MULS({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + diagnostic).encode(), run.stderr)
+
+    def test_divs_substitutes_zero_for_zero_divisors(self):
+        source = self.work / 'divs.b'
+        source.write_text("CRT DIVS(4:@VM:12:@VM:9:@VM:'', '-0.00':@VM:3:@VM:'00':@VM:0:@VM:0)\n"
+                          "CRT 'continued'\n")
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'0\xfd4\xfd0\xfd\xfd0\ncontinued\n')
+        warning = f'{source}:1:5: warning: DIVS: division by zero\n'
+        self.assertEqual(run.stderr, warning.encode() * 2)
+
+    def test_divs_diagnostics(self):
+        source = self.work / 'divs.b'
+        for args, diagnostic in [
+                ("4:@VM:6, 2:@VM:'bad'", ':1:5: arithmetic requires numeric operands'),
+                ("REUSE(3:@FM:4), 2", ':1:10: REUSE in DIVS requires a scalar')]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT DIVS({args})\n')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + diagnostic).encode(), run.stderr)

@@ -1429,7 +1429,18 @@ first stopped on a line containing MULS now pass. The other three reach
 DIVS. Native tests cover mixed marks, unmatched positions, empty pairs,
 scalar REUSE, decimal precision and overflow.
 
-- [ ] Implement DIVS for element-wise division. Reuse the array arithmetic
+- [x] Implement DIVS for element-wise division. Reuse the array arithmetic
   traversal and check asymmetric padding, empty pairs, PRECISION, scalar
   REUSE and the guide's zero-divisor diagnostic and result. Four T24
   files first stop on a line containing DIVS.
+
+After DIVS, 16,181 of 17,336 candidates pass strict C99 checking.
+All 16,179 previous passes still pass. Two of the four files that first
+stopped on a line containing DIVS now pass. The other two reach SUBS.
+Native tests cover asymmetric padding, empty pairs, scalar REUSE,
+decimal precision, and reporting zero divisors while completing the array.
+
+- [ ] Implement SUBS for element-wise subtraction. Check the guide's
+  use of zero for empty and missing elements, mixed marks, PRECISION,
+  scalar REUSE and invalid operands. Three T24 files first stop on a
+  line containing SUBS.

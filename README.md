@@ -842,6 +842,15 @@ gives an empty result. MULS uses the same array alignment and scalar
 operand as one empty element. Products follow the PRECISION and overflow
 rules of scalar multiplication. [MULS](https://jbc-lang.org/pages/muls.html).
 
+`DIVS(left, right)` divides corresponding fields, values and subvalues
+with the same PRECISION rules as scalar division. A missing divisor
+preserves the dividend and a missing dividend gives zero. An empty
+element in a pair gives an empty result. A wholly empty operand
+provisionally counts as one empty element. For a numeric pair with a
+zero divisor, jbcc warns at the call site, emits zero for that position,
+and continues. Direct `REUSE(scalar)` works on either side.
+[DIVS](https://jbc-lang.org/pages/divs.html).
+
 CATS concatenates corresponding fields, values and subvalues. An unmatched
 element is copied through, and a wholly empty operand returns the other
 array. jbcc treats an empty element within an array as contributing zero

@@ -294,14 +294,18 @@ static const char *format_decimal(long double result, enum precision_mode mode)
     return strcmp(out, "-0") == 0 ? "0" : out;
 }
 
-const char *jbc_arithmetic(char op, const char *left, const char *right,
-                           const char *file, int line, int column)
+static const char *arithmetic(char op, const char *left, const char *right,
+                              int warn_on_zero_divisor, const char *file, int line, int column)
 {
     struct decimal lhs, rhs;
     if (!parse_decimal(left, &lhs) || !parse_decimal(right, &rhs))
         numeric_error(file, line, column, "arithmetic requires numeric operands");
-    if (op == '/' && rhs.sign == 0)
-        numeric_error(file, line, column, "division by zero");
+    if (op == '/' && rhs.sign == 0) {
+        if (!warn_on_zero_divisor)
+            numeric_error(file, line, column, "division by zero");
+        fprintf(stderr, "%s:%d:%d: warning: DIVS: division by zero\n", file, line, column);
+        return "0";
+    }
 
     if (op != '/' && !strchr(left, '.') && !strchr(right, '.')) {
         int64_t a = integer(left, file, line, column);
@@ -336,6 +340,12 @@ const char *jbc_arithmetic(char op, const char *left, const char *right,
     if (!isfinite(a) || !isfinite(b) || !isfinite(result))
         numeric_error(file, line, column, "decimal arithmetic out of range");
     return format_decimal(result, TRUNCATE_RESULT);
+}
+
+const char *jbc_arithmetic(char op, const char *left, const char *right,
+                           const char *file, int line, int column)
+{
+    return arithmetic(op, left, right, 0, file, line, column);
 }
 
 const char *jbc_div(const char *dividend, const char *divisor,
@@ -2169,8 +2179,9 @@ static const char *array_arithmetic(char op, const char *left, const char *right
         if (!lhs.present || !rhs.present) {
             item = "0";
             if (op == '+') item = lhs.present ? a : b;
+            else if (op == '/' && lhs.present) item = a;
         } else if (*a && *b) {
-            item = jbc_arithmetic(op, a, b, file, line, column);
+            item = arithmetic(op, a, b, op == '/', file, line, column);
         }
 
         size_t bytes = strlen(item);
@@ -2208,6 +2219,12 @@ const char *jbc_muls(const char *left, const char *right, int reuse_left, int re
                      const char *file, int line, int column)
 {
     return array_arithmetic('*', left, right, reuse_left, reuse_right, file, line, column);
+}
+
+const char *jbc_divs(const char *left, const char *right, int reuse_left, int reuse_right,
+                     const char *file, int line, int column)
+{
+    return array_arithmetic('/', left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_negs(const char *source, const char *file, int line, int column)
