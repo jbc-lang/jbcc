@@ -1556,6 +1556,35 @@ time_t test_clock(time_t *out)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
 
+    def test_col_positions_follow_last_field_selection(self):
+        source = self.work / 'field-positions.b'
+        source.write_text("""CRT COL1():':':COL2()
+S = 'ABC/DEF/QWE/XYZ'
+CRT FIELD(S, '/', 2):':':COL1():':':COL2()
+CRT FIELD(S, '/', 2, 2):':':COL1():':':COL2()
+CRT S['/', 3, 2]:':':COL1():':':COL2()
+CRT FIELD('ab--cd--ef', '--', 2):':':COL1():':':COL2()
+CRT FIELDS('x/y', '/', 2):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 2):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 4):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 5):':':COL1():':':COL2()
+CRT FIELD('whole', '/', 1):':':COL1():':':COL2()
+CRT FIELD('whole', '', 1):':':COL1():':':COL2()
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:0\nDEF:4:8\nDEF/QWE:4:12\nQWE/XYZ:8:16\ncd:4:7\ny:4:7\n'
+                             b':2:3\n:5:6\n:0:0\nwhole:0:6\nwhole:0:0\n', b''))
+
+    def test_col_positions_require_no_arguments(self):
+        source = self.work / 'field-positions.b'
+        for name in ('COL1', 'COL2'):
+            with self.subTest(name=name):
+                source.write_text(f'CRT {name}(1)\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
+
     def test_single_index_substring_assignment(self):
         source = self.work / 'suffix.b'
         source.write_text("""Text = 'abcde'

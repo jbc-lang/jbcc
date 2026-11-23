@@ -1031,6 +1031,15 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+`COL1()` and `COL2()` report the one-based byte positions immediately
+before and after the last scalar FIELD selection, including the bracket
+form. `COL1()` returns 0 at the start of the string, and `COL2()` can
+return the string length plus one. jbcc provisionally keeps these
+positions for the process and resets both to 0 for a missing occurrence
+or an empty delimiter. An existing empty field still has positions.
+Element-wise FIELDS leaves the saved positions intact.
+[COL1 and COL2](https://jbc-lang.org/pages/col1_and_col2.html).
+
 `BYTELEN(value)` counts bytes, including each field, value and subvalue
 mark. For example, `BYTELEN('é')` is 2 for a UTF-8 literal. It uses the
 same byte-count operation as LEN in the current runtime.

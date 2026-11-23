@@ -2015,6 +2015,16 @@ DE.SWIFT.LINE.HANDLER now passes and all previous passes still pass.
 Native tests cover the guide example, fractional and empty operands,
 signed 32-bit results, wrapping and diagnostics.
 
-- [ ] Implement COL1() and COL2() for FIELD positions. Verify the guide
+- [x] Implement COL1() and COL2() for FIELD positions. Verify the guide
   examples and check how positions reset on a missing field. Two T24
   units use COL2() inside substring assignment.
+
+After COL1 and COL2, 16,381 of 17,336 candidates pass strict C99
+checking. Three new units pass, including both targeted units, and
+all previous passes still pass. Native tests cover scalar FIELD and
+bracket syntax, multiple fields, multi-byte delimiters, empty fields,
+and missing occurrences.
+
+- [ ] Investigate EXEC as an EXECUTE alias. Check the reference
+  grammar's Prime and UniVerse forms and verify the existing native
+  execution behavior through the alias. Two T24 units stop at EXEC.

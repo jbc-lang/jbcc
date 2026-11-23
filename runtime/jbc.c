@@ -2632,7 +2632,7 @@ static int64_t field_index(const char *s, const char *file, int line, int column
 }
 
 /* Each selected range fits inside its input, including separators between
-   selected fields. A missing occurrence selects an empty range. */
+   selected fields. A missing occurrence has no start pointer. */
 static const char *field_range(const char *s, const char *separator, size_t width,
                                int64_t first, int64_t count, size_t *bytes)
 {
@@ -2640,7 +2640,7 @@ static const char *field_range(const char *s, const char *separator, size_t widt
         const char *next = width ? strstr(s, separator) : NULL;
         if (!next) {
             *bytes = 0;
-            return "";
+            return NULL;
         }
         s = next + width;
         --first;
@@ -2660,6 +2660,18 @@ static const char *field_range(const char *s, const char *separator, size_t widt
     return s;
 }
 
+static size_t field_before, field_after;
+
+const char *jbc_col1(void)
+{
+    return size_value(field_before);
+}
+
+const char *jbc_col2(void)
+{
+    return size_value(field_after);
+}
+
 const char *jbc_field(const char *s, const char *separator, const char *start,
                       const char *count, const char *file, int line, int column)
 {
@@ -2667,6 +2679,8 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
     int64_t length = field_index(count, file, line, column);
     size_t bytes;
     const char *selected = field_range(s, separator, strlen(separator), first, length, &bytes);
+    field_before = selected && *separator ? (size_t)(selected - s) : 0;
+    field_after = selected && *separator ? field_before + bytes + 1 : 0;
     if (!bytes) return "";
     if (selected == s && !s[bytes]) return s;
     char *field = allocate(bytes);
@@ -3094,7 +3108,7 @@ const char *jbc_fields(const char *source, const char *separator, const char *st
         *end = '\0';
         size_t bytes;
         const char *selected = field_range(item, separator, width, first, length, &bytes);
-        memmove(write, selected, bytes);
+        if (selected) memmove(write, selected, bytes);
         write += bytes;
         *write++ = mark;
         if (!mark) return out;
