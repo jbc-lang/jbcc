@@ -1764,7 +1764,17 @@ All 16,329 previous passes still pass. Five targeted files now pass,
 and ENQ.REAL.TIME.PUSH reaches NOBUF. Native verification checks the
 diagnostic only when execution reaches the statement.
 
-- [ ] Implement NOBUF for open sequential files. Check SETTING and
+- [x] Implement NOBUF for open sequential files. Check SETTING and
   conditional arms against the reference grammar, and verify that
   writes become visible before the handle closes. Three T24 files
   first stop at NOBUF.
+
+After NOBUF, the same 16,334 of 17,336 candidates pass strict C99
+checking. Two targeted files reach TIMEOUT, and one reaches TTYGET.
+A native test checks read-ahead and write visibility while the handle
+is still open. Another checks statuses and the error location.
+
+- [ ] Investigate TIMEOUT for sequential reads. Check the time unit,
+  handle validation and timeout status against the guide. Verify how
+  it applies to the regular-file backend. Four T24 files first stop
+  at TIMEOUT.

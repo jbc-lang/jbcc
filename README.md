@@ -1065,6 +1065,16 @@ contents. Passing an empty value to CREATE gives a source-located error.
 The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
 `READONLY` disable deferred creation. [CREATE](https://jbc-lang.org/pages/create.html).
 
+`NOBUF F` disables stdio buffering on an open sequential handle. Call
+it after OPENSEQ or CREATE and before any operation on the stream. It
+also affects aliases of the handle, and repeating it after success is
+allowed. With `SETTING`, jbcc returns 0 on success and 128 for a missing
+or pending handle. It returns 32768 if the buffered stream was already
+used or the buffering change fails. Conditional arms are optional,
+following the reference grammar. Without an arm or SETTING, a failure
+produces a source-located runtime error.
+[NOBUF](https://jbc-lang.org/pages/nobuf.html).
+
 `READBLK Block FROM F, Size` reads a positive number of bytes at the
 current position, including line endings and field marks. A complete
 block takes THEN. Following the guide's EOF rule, jbcc provisionally

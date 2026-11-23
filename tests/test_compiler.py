@@ -203,6 +203,62 @@ CLOSESEQ F
         self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
         self.assertEqual(result.stderr, b'')
 
+    def test_nobuf_uses_unbuffered_sequential_io(self):
+        data = self.work / 'data'
+        data.write_bytes(b'first\nold\n')
+        source = self.work / 'nobuf.b'
+        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
+Alias = F
+NOBUF Alias SETTING S ELSE ABORT
+READSEQ Line FROM F ELSE ABORT
+CRT Line:':':S
+PROMPT ''
+INPUT Answer
+READSEQ Line FROM F ELSE ABORT
+NOBUF F
+WRITESEQ 'visible' TO F ELSE ABORT
+CRT Line
+INPUT Answer
+CLOSESEQ F
+""")
+        binary = self.work / 'nobuf'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        with subprocess.Popen([binary], cwd=self.work, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            try:
+                self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
+                self.assertEqual(proc.stdout.readline(), b'first:0\n')
+                with data.open('r+b') as stream:
+                    stream.seek(len(b'first\n'))
+                    stream.write(b'new')
+                proc.stdin.write(b'continue\n')
+                proc.stdin.flush()
+                self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
+                self.assertEqual(proc.stdout.readline(), b'new\n')
+                self.assertEqual(data.read_bytes(), b'first\nnew\nvisible\n')
+                stdout, stderr = proc.communicate(b'done\n', timeout=5)
+                self.assertEqual((proc.returncode, stdout, stderr), (0, b'', b''))
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
+    def test_nobuf_failure_status_and_diagnostic(self):
+        data = self.work / 'data'
+        data.write_bytes(b'line\n')
+        source = self.work / 'nobuf.b'
+        source.write_text("""OPENSEQ 'missing' TO Pending THEN ABORT
+NOBUF Pending SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+OPENSEQ 'data' TO F ELSE ABORT
+READSEQ Line FROM F ELSE ABORT
+NOBUF F SETTING S
+CRT S:':':STATUS()
+NOBUF F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'128:128\n32768:32768\n')
+        self.assertIn(f'{source}:7:1: NOBUF failed'.encode(), result.stderr)
+
     def test_flush_null_handle(self):
         source = self.work / 'flush.b'
         source.write_text("F = ''\nFLUSH F ELSE CRT 'failed'\n")

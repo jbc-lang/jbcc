@@ -4494,12 +4494,15 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #include <sys/stat.h>
 #include <unistd.h>
 
+enum sequential_buffering { SEQ_PRISTINE, SEQ_USED, SEQ_UNBUFFERED };
+
 /* The immutable token is shared by scalar aliases. Only its address identifies
    the handle. A pending handle remembers a missing file until the first write. */
 struct sequential_file {
     struct sequential_file *next;
     const char *token;
     FILE *stream;
+    enum sequential_buffering buffering;
     int readonly;
     unsigned depth;
 };
@@ -4511,6 +4514,12 @@ static struct sequential_file **sequential_slot(const char *token)
     struct sequential_file **slot = &sequential_files;
     while (*slot && (*slot)->token != token) slot = &(*slot)->next;
     return slot;
+}
+
+static FILE *sequential_stream(struct sequential_file *file)
+{
+    if (file->buffering == SEQ_PRISTINE) file->buffering = SEQ_USED;
+    return file->stream;
 }
 
 static int release_sequential(const char *token)
@@ -4575,6 +4584,7 @@ int jbc_openseq(const char *path, const char *name, int existing, int append, in
     file->depth = seq_depth;
     file->readonly = readonly;
     file->stream = stream;
+    file->buffering = SEQ_PRISTINE;
     file->next = sequential_files;
     sequential_files = file;
     assign_value(out, file->token);
@@ -4586,14 +4596,15 @@ int jbc_readseq(const char *token, jbc_variable *out)
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
     if (!file || !file->stream) return file_result(128);
+    FILE *in = sequential_stream(file);
     char record[1024];
     size_t length = 0;
     int ch, binary = 0;
-    while ((ch = fgetc(file->stream)) != EOF && ch != '\n') {
+    while ((ch = fgetc(in)) != EOF && ch != '\n') {
         if (ch == 0) binary = 1;
         if (length < sizeof record) record[length++] = (char)ch;
     }
-    if (ferror(file->stream) || binary) return file_result(32768);
+    if (ferror(in) || binary) return file_result(32768);
     if (ch == EOF && !length) return file_result(128);
     char *value = allocate(length);
     memcpy(value, record, length);
@@ -4618,7 +4629,7 @@ int jbc_readblk(const char *token, const char *size, jbc_variable *out,
     struct sequential_file *file = *sequential_slot(token);
     assign_value(out, "");
     if (!file || !file->stream) return file_result(128);
-    FILE *in = file->stream;
+    FILE *in = sequential_stream(file);
     off_t position = ftello(in);
     struct stat info;
     if (position < 0 || fstat(fileno(in), &info)) return file_result(file_error(errno));
@@ -4668,19 +4679,20 @@ int jbc_seek(const char *token, const char *offset, const char *origin,
     intmax_t delta = strtoimax(offset, NULL, 10);
     if (errno) return file_result(32768);
 
+    FILE *stream = sequential_stream(file);
     off_t base = 0;
     if (relative == 1) {
-        base = ftello(file->stream);
+        base = ftello(stream);
         if (base < 0) return file_result(file_error(errno));
     } else if (relative == 2) {
         struct stat st;
-        if (fstat(fileno(file->stream), &st)) return file_result(file_error(errno));
+        if (fstat(fileno(stream), &st)) return file_result(file_error(errno));
         base = st.st_size;
     }
     if (delta < -(intmax_t)base || delta > INTMAX_MAX - base) return file_result(32768);
     intmax_t target = base + delta;
     if ((off_t)target != target) return file_result(32768);
-    return file_result(fseeko(file->stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0);
+    return file_result(fseeko(stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0);
 }
 
 int jbc_flushseq(const char *token, const char *source, int line, int column)
@@ -4688,7 +4700,19 @@ int jbc_flushseq(const char *token, const char *source, int line, int column)
     if (!*token) numeric_error(source, line, column, "FLUSH requires an OPENSEQ handle");
     struct sequential_file *file = *sequential_slot(token);
     if (!file || !file->stream) return file_result(128);
-    return file_result(fflush(file->stream) ? file_error(errno) : 0);
+    return file_result(fflush(sequential_stream(file)) ? file_error(errno) : 0);
+}
+
+int jbc_nobuf(const char *token)
+{
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return file_result(128);
+    if (file->buffering == SEQ_UNBUFFERED) return file_result(0);
+    /* C only permits changing the buffering before using the stream. */
+    if (file->buffering == SEQ_USED || setvbuf(file->stream, NULL, _IONBF, 0))
+        return file_result(32768);
+    file->buffering = SEQ_UNBUFFERED;
+    return file_result(0);
 }
 
 int jbc_weofseq(const char *token)
@@ -4696,7 +4720,7 @@ int jbc_weofseq(const char *token)
     struct sequential_file *file = *sequential_slot(token);
     int status = writable_sequential(file);
     if (status) return file_result(status);
-    FILE *out = file->stream;
+    FILE *out = sequential_stream(file);
     /* Discard prefetched input so a later READSEQ sees the new EOF. */
     off_t position = ftello(out);
     if (position < 0 || fflush(out) || ftruncate(fileno(out), position) ||
@@ -4710,7 +4734,7 @@ static int write_sequential(const char *token, const char *value, int append, in
     if (!newline && (!file || !file->stream)) return 128;
     int status = writable_sequential(file);
     if (status) return status;
-    FILE *out = file->stream;
+    FILE *out = sequential_stream(file);
     /* Positioning synchronizes stdio after a buffered read. */
     if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||
         fputs(value, out) == EOF || (newline && fputc('\n', out) == EOF) || fflush(out))
@@ -4773,14 +4797,15 @@ static int sequential_status(const char *handle, jbc_variable *attrs)
 {
     struct sequential_file *file = *sequential_slot(handle);
     if (!file || !file->stream) return 128;
+    FILE *stream = sequential_stream(file);
     struct stat st;
-    if (fstat(fileno(file->stream), &st)) return file_error(errno);
-    off_t pos = ftello(file->stream);
+    if (fstat(fileno(stream), &st)) return file_error(errno);
+    off_t pos = ftello(stream);
     if (pos < 0) return file_error(errno);
 
     attrs[1].value = size_value((uintmax_t)pos);
-    attrs[2].value = feof(file->stream) ? "1" : "0";
-    attrs[3].value = ferror(file->stream) ? "1" : "0";
+    attrs[2].value = feof(stream) ? "1" : "0";
+    attrs[3].value = ferror(stream) ? "1" : "0";
     attrs[4].value = size_value(pos < st.st_size ? (uintmax_t)(st.st_size - pos) : 0);
     char *mode = allocate(4);
     snprintf(mode, 5, "%o", (unsigned)st.st_mode & 07777);
