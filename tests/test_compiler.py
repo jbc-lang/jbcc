@@ -2563,6 +2563,41 @@ CRT WORK
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
 
+    def test_quoted_and_punctuated_direct_routine_names(self):
+        main = self.work / 'main.b'
+        star = self.work / 'star.b'
+        dashed = self.work / 'dashed.b'
+        quoted_header = self.work / 'quoted.b'
+        main.write_text(r"""EQU ADD TO 200
+EQU STEP TO 700
+N = 1
+* full-line comment
+again: CALL *ADD(N);* trailing comment
+IF N = 2 THEN CALL 'ADD-STEP'(N)
+CALL \*ADD\(N)
+CALL '"SUMMARY"'(N)
+Name = '*ADD'
+CALL @Name(N)
+CRT N
+""")
+        star.write_text('SUBROUTINE *ADD(Value)\nValue += 1\n')
+        dashed.write_text('SUB ADD-STEP(Value)\nValue += 10\n')
+        quoted_header.write_text('SUBROUTINE "SUMMARY"(Value)\nValue += 100\n')
+        result = self.run_native(main, star, dashed, quoted_header)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'114\n', b''))
+
+    def test_quoted_direct_target_preserves_whitespace_and_punctuation(self):
+        main = self.work / 'main.b'
+        main.write_text("CALL 'TWO WORDS;(AND PUNCTUATION)'\n")
+        result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{main}:1:6: unknown subroutine 'TWO WORDS;(AND PUNCTUATION)'\n")
+
+        main.write_text("CALL 'UNCLOSED\n")
+        result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{main}:1:6: unterminated quoted routine name\n')
+
     def test_indirect_call_diagnostics(self):
         main = self.work / 'main.b'
         sub = self.work / 'update.b'

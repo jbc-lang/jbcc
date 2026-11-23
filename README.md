@@ -1029,10 +1029,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
   and a quoted name containing a semicolon. [PROGRAM](https://jbc-lang.org/pages/program.html)
 - SUBROUTINE parameters and plain variable arguments to CALL share storage,
   including output arguments. Expressions are passed in temporary slots.
-  A static subroutine name can start with `!`, as in the T24 call
-  `CALL !HUSHIT(1)`. The prefix is part of the name when matching a CALL
-  to a SUB or SUBROUTINE definition, following the reference compiler’s
-  direct call-name reader. A direct CALL keeps its literal target when an
+  A static subroutine name can contain punctuation, as in
+  `CALL !HUSHIT(1)`, `CALL *REPORT(1)`, or `CALL REPORT-NAME(1)`.
+  Direct CALL accepts single, double, or backslash delimiters around
+  a name and strips them. SUB and SUBROUTINE headers read a bare name
+  through the next whitespace, opening parenthesis, or statement
+  separator. Quote characters in a header are literal. A direct CALL
+  keeps its literal target when an
   EQUATE shares the name. Arguments still expand EQUATEs. In
   `CALL @Name(args)`, jbcc expands any EQUATE for Name, then uses the
   resulting variable's value to select a linked subroutine. Lookup is

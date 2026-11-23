@@ -2368,6 +2368,20 @@ All 27 affected units now pass strict C99 checking in byte mode.
 The total is 17,050 of 17,336 candidates, including all 17,023
 previous passes.
 
-- [ ] Investigate quoted and punctuated direct routine names. Check the
+- [x] Investigate quoted and punctuated direct routine names. Check the
   reference name reader for `CALL *name`, quoted targets, and matching
   SUBROUTINE headers. Distinguish a routine-name prefix from a comment.
+
+The reference compiler strips quote delimiters from direct CALL targets
+and reads header names as bare tokens. Reference probes confirmed raw
+asterisk and hyphen names in both places, and quote characters retained
+by the header reader. Native tests link punctuated names, call them
+through quoted operands, and verify an indirect call to a punctuated name.
+
+All six affected units now pass strict C99 checking in byte mode.
+The total is 17,056 of 17,336 candidates, including all 17,050
+previous passes.
+
+- [ ] Investigate indirect calls through a matrix element. Start with
+  `CALL @ROUTINES(FLDNO) (...)` in TAKEOVER.MAPPING.RUN and trace how
+  the reference compiler distinguishes subscripts from call arguments.
