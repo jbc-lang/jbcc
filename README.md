@@ -842,6 +842,14 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+`COMPARE(left, right[, justification])` returns -1, 0 or 1 using
+bytewise string ordering. The default `L` compares from the left.
+For `R`, jbcc provisionally compares as if the shorter string had leading
+spaces, reusing LOCATE's right-justified ordering. This produces the
+guide's TAFJ result for `XY999` and `XY1000`. An explicit justification
+must be `L` or `R`.
+[COMPARE](https://jbc-lang.org/pages/compare.html).
+
 EQS and NES compare corresponding fields, values and subvalues using
 scalar equality, including numeric comparison for numeric pairs. Both
 retain the combined array structure. EQS returns 1 for an equal pair and

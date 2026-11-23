@@ -313,6 +313,7 @@ NEXT I
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
                                   ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
+                                  ("CRT COMPARE('x')\n", ":1:5: wrong argument count for 'COMPARE'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
                                   ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),
@@ -799,6 +800,13 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+
+    def test_compare_invalid_justification(self):
+        source = self.work / 'compare.b'
+        source.write_text("CRT COMPARE('left', 'right', 'X')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
 
     def test_adds_diagnostics(self):
         source = self.work / 'adds.b'

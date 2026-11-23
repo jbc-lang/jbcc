@@ -1040,6 +1040,20 @@ static int compare_right(const char *a, const char *b)
     return strcmp(a, b);
 }
 
+const char *jbc_compare_strings(const char *left, const char *right, const char *justification,
+                                const char *file, int line, int column)
+{
+    int order;
+    if (!strcmp(justification, "L")) order = strcmp(left, right);
+    else if (!strcmp(justification, "R")) order = compare_right(left, right);
+    else {
+        numeric_error(file, line, column, "COMPARE justification must be L or R");
+        return "";
+    }
+    if (order < 0) return "-1";
+    return order > 0 ? "1" : "0";
+}
+
 static int contains_bytes(const char *element, size_t bytes, const char *needle, size_t length)
 {
     if (length > bytes) return 0;
