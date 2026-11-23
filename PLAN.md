@@ -1450,7 +1450,18 @@ All 16,181 previous passes still pass, and all three targeted files
 now pass. Native tests cover zero padding, mixed marks, scalar REUSE,
 decimal precision, nonnumeric operands and overflow.
 
-- [ ] Implement the `@USERNO` port number and the reference compiler's
+- [x] Implement the `@USERNO` port number and the reference compiler's
   `@USER_NO` and `@UDTNO` aliases. Check their relationship to
   `SYSTEM(18)` and document how a native process gets its port number.
   Unsupported `@USERNO` is the first diagnostic in 35 T24 files.
+
+After the port number support, 16,209 of 17,336 candidates pass strict
+C99 checking. All 16,184 previous passes still pass. Of the 35 files
+previously blocked on `@USERNO`, 25 now pass and 10 reach other diagnostics.
+Native tests verify startup overrides, aliases, `SYSTEM(18)`, the process
+ID fallback and diagnostics for malformed settings.
+
+- [ ] Implement `@WHO` for the login name. Check its relationship to
+  `SYSTEM(19)` and the guide's login-name override before choosing the
+  native fallback. Unsupported `@WHO` is the first diagnostic in 18 T24
+  files.

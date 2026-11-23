@@ -2316,3 +2316,49 @@ CRT O:
             writer.write(b'abc')
         with os.fdopen(read_fd, 'rb') as reader:
             self.assertEqual(subprocess.check_output([binary], stdin=reader), b'3\n3\n')
+
+    def test_port_number_aliases_use_startup_environment(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'show.port.b'
+        main.write_text('CALL SHOW.PORT()\n')
+        routine.write_text("""SUBROUTINE SHOW.PORT()
+Changed = PUTENV('JBCPORTNO=99')
+Code = 18
+CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
+""")
+        for setting, port in [('00042', '42'), ('0', '0')]:
+            with self.subTest(setting=setting):
+                run = self.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, (':'.join(['1'] + [port] * 4) + '\n').encode())
+                self.assertEqual(run.stderr, b'')
+
+    def test_port_number_defaults_to_process_id(self):
+        source = self.work / 'port.b'
+        source.write_text('CRT @USERNO\n')
+        binary = self.work / 'port'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        env = dict(os.environ)
+        env.pop('JBCPORTNO', None)
+        for empty in (False, True):
+            with self.subTest(empty=empty):
+                if empty:
+                    env['JBCPORTNO'] = ''
+                with subprocess.Popen([binary], env=env, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE) as proc:
+                    stdout, stderr = proc.communicate(timeout=5)
+                    self.assertEqual(proc.returncode, 0, stderr)
+                    self.assertEqual(stdout, f'{proc.pid}\n'.encode())
+                    self.assertEqual(stderr, b'')
+
+    def test_invalid_port_number_reports_call_site(self):
+        source = self.work / 'port.b'
+        source.write_text("CRT SYSTEM(17)\nCRT @USERNO\n")
+        for setting in ('12-15', '42,43', '-1', '12.25', '9' * 80):
+            with self.subTest(setting=setting):
+                run = self.run_native(source, env=dict(os.environ, JBCPORTNO=setting))
+                self.assertNotEqual(run.returncode, 0)
+                self.assertEqual(run.stdout, b'0\n')
+                self.assertIn(
+                    f'{source}:2:5: JBCPORTNO requires a single nonnegative decimal port number'.encode(),
+                    run.stderr)

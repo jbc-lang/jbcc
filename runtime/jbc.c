@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_PORT_NUMBER)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -860,6 +860,33 @@ static const char *size_value(uintmax_t n)
     snprintf(out, 3 * sizeof(n) + 1, "%" PRIuMAX, n);
     return out;
 }
+
+#ifdef JBC_PORT_NUMBER
+#include <unistd.h>
+
+static uintmax_t port_number;
+static int invalid_port_number;
+
+void jbc_init_port_number(void)
+{
+    const char *value = getenv("JBCPORTNO");
+    if (!value || !*value) {
+        port_number = (uintmax_t)getpid();
+        return;
+    }
+    char *end;
+    errno = 0;
+    port_number = strtoumax(value, &end, 10);
+    invalid_port_number = errno || *end || *value < '0' || *value > '9';
+}
+
+const char *jbc_port_number(const char *file, int line, int column)
+{
+    if (invalid_port_number)
+        numeric_error(file, line, column, "JBCPORTNO requires a single nonnegative decimal port number");
+    return size_value(port_number);
+}
+#endif
 
 static size_t last_matrix_load;
 
@@ -3576,10 +3603,12 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     return !timed_out;
 }
 
+#ifdef JBC_PORT_NUMBER
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
     if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
-    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14) and SYSTEM(17) are supported");
+    if (!jbc_compare(code, "18", -1)) return jbc_port_number(file, line, column);
+    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14), SYSTEM(17) and SYSTEM(18) are supported");
     int bytes = 0;
     fflush(stdout);
     int result;
@@ -3594,6 +3623,7 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     }
     return bytes > 0 ? size_value((size_t)bytes) : "0";
 }
+#endif
 
 const char *jbc_cursor(const char *col, const char *row, const char *file, int line, int column)
 {

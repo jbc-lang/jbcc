@@ -212,6 +212,15 @@ Their record counts require a query backend.
 [jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/par2_PARAGRAPHS.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`@USERNO`, its reference compiler aliases `@USER_NO` and `@UDTNO`,
+and `SYSTEM(18)` return the same port number. jbcc reads `JBCPORTNO`
+at program startup. Set it to a single nonnegative decimal number to
+provide a fixed port. When it is unset or empty, native builds use the
+POSIX process ID as the port number. Malformed values, lists and ranges
+produce a diagnostic when the program requests the port number.
+[JBCPORTNO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/env2_JBCPORTNO.htm),
+[SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
+
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
 duration in seconds, including fractions such as `SLEEP .25`. Zero
 continues immediately. The native runtime truncates durations to whole
