@@ -1245,10 +1245,15 @@ class Compiler:
         opening = self.current
         self.advance()
         source = "NULL"
+        sorted_selection = opening.word == 'SSELECT'
         if self.word not in OUTPUT_END and self.word not in ('', 'TO', 'SETTING'):
-            source = self.expression()
+            if not sorted_selection or self.word != 'ON' or self.following.word != 'ERROR':
+                source = self.expression()
         dest = self.select_list('TO')
         setting = self.file_setting()
+        if sorted_selection:
+            self.write_error_arm(opening, f"jbc_sselect({source}, {dest}, {setting})", setting)
+            return
         call = f"jbc_select({source}, {dest}, {setting})"
         if setting == 'NULL':
             self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "SELECT requires an open default file");')
@@ -2022,9 +2027,9 @@ class Compiler:
             dest = self.select_list('TO')
             setting = self.file_setting()
             self.emit(f"jbc_formlist({source}, {dest}, {setting});")
-        elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
+        elif (self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
-            if self.word == 'SELECT':
+            if self.word in ('SELECT', 'SSELECT'):
                 self.select_statement()
             elif self.word == 'CLEARSELECT':
                 self.clearselect_statement()

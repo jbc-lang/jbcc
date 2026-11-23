@@ -1217,7 +1217,18 @@ After FORMLIST, 15,772 of 17,336 candidates pass strict C99 checking.
 All 15,769 previous passes still pass. E.CRYS.PORT.VAL, E.GET.SC.PERF.VB
 and E.GET.SC.VAL.VB now pass with the default-list form.
 
-- [ ] Implement SSELECT for open files. Verify that READNEXT visits
+- [x] Implement SSELECT for open files. Verify that READNEXT visits
   record IDs in ascending order when insertion order differs, and cover
   the default file, explicit destinations and ON ERROR. File SSELECT
   is the first blocker in 11 T24 units.
+
+After file SSELECT, 15,780 of 17,336 candidates pass strict C99 checking.
+All 15,772 previous passes still pass. Eight of the eleven SSELECT
+blockers now pass. Two of the three remaining files reach a loop guard
+after an inline READNEXT arm.
+
+- [ ] Allow an inline READNEXT arm to end at a LOOP guard, as in
+  `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`. Verify that the guard
+  tests the value after the conditional arm and that an inner ELSE
+  still binds to its own statement. Eleven T24 files first stop at
+  WHILE in this pattern.

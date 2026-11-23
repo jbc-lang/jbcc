@@ -1189,6 +1189,19 @@ static int compare_sort_elements(const void *left, const void *right)
     return (a->length > b->length) - (a->length < b->length);
 }
 
+static const char *join_sorted_elements(struct sort_element *elements, size_t count, size_t length)
+{
+    qsort(elements, count, sizeof *elements, compare_sort_elements);
+    char *out = allocate(length), *write = out;
+    for (size_t i = 0; i < count; ++i) {
+        if (i) *write++ = (char)254;
+        memcpy(write, elements[i].text, elements[i].length);
+        write += elements[i].length;
+    }
+    *write = '\0';
+    return out;
+}
+
 const char *jbc_sort(const char *source)
 {
     size_t count = 1;
@@ -1204,14 +1217,7 @@ const char *jbc_sort(const char *source)
         elements[i] = (struct sort_element){start, (size_t)(end - start)};
         if (*end) start = ++end;
     }
-    qsort(elements, count, sizeof *elements, compare_sort_elements);
-    char *out = allocate((size_t)(end - source)), *write = out;
-    for (size_t i = 0; i < count; ++i) {
-        if (i) *write++ = (char)254;
-        memcpy(write, elements[i].text, elements[i].length);
-        write += elements[i].length;
-    }
-    *write = '\0';
+    const char *out = join_sorted_elements(elements, count, (size_t)(end - source));
     free(elements);
     return out;
 }
@@ -2309,6 +2315,33 @@ int jbc_select(const char *source, jbc_variable *list, jbc_variable *setting)
     else assign_value(list, f ? &f->list_token : "");
     if (setting) assign_value(setting, success ? "" : "128");
     return success;
+}
+
+int jbc_sselect(const char *source, jbc_variable *list, jbc_variable *setting)
+{
+    struct memory_file *f = file_for(source ? source : jbc_default_file.value);
+    const char *value = "";
+    size_t count = 0, length = 0;
+    for (struct memory_record *r = f ? f->records : NULL; r; r = r->next) {
+        size_t bytes = strlen(r->key);
+        if (bytes >= SIZE_MAX - length) fail("select list too large");
+        length += bytes + 1;
+        ++count;
+    }
+    if (count) {
+        struct sort_element *elements = calloc(count, sizeof *elements);
+        if (!elements) fail("out of memory");
+        size_t i = 0;
+        for (struct memory_record *r = f->records; r; r = r->next)
+            elements[i++] = (struct sort_element){r->key, strlen(r->key)};
+        value = join_sorted_elements(elements, count, length - 1);
+        free(elements);
+    }
+    list = list_slot(list);
+    if (f) set_array_list(list, value, count != 0);
+    else assign_value(list, "");
+    if (setting) assign_value(setting, f ? "" : "128");
+    return f != NULL;
 }
 
 static struct memory_file *selected_file(const char *token)

@@ -1325,6 +1325,24 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:11: select list number must be between 0 and 10", run.stderr)
 
+    def test_sselect_file(self):
+        result = self.run_native(ROOT / 'tests/io/sselect.b', options=['--memory-file', 'F'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'missing default\n128\nempty\n0\ndefault item1\n'
+                                        b'numbered item1\nitem1\nitem10\nitem2\nbad file 128\ncleared\n')
+
+    def test_sselect_diagnostics(self):
+        source = self.work / 'sselect.b'
+        source.write_text("SSELECT TO 11\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:12: select list number must be between 0 and 10", result.stderr)
+        source.write_text("SSELECT\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:1:1: SSELECT failed".encode(), run.stderr)
+
     def test_clearselect(self):
         run = self.run_native(ROOT / 'tests/io/clearselect.b', options=['--memory-file', 'F'])
         self.assertEqual(run.returncode, 0, run.stderr)

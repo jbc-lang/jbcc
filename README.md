@@ -976,6 +976,17 @@ in a variable. File keys are visited in insertion order. Keys added during
 iteration are eligible until READNEXT first reports exhaustion. Deleting
 an unread key skips it. Reselecting starts a fresh iteration.
 
+File `SSELECT F TO L` takes a snapshot of the open file's record IDs
+in ascending byte order. Record IDs in this snapshot use field marks as
+separators, so an ID containing a field mark splits into separate entries.
+Omit the source for the default file and omit
+`TO` for list 0. A named or numbered destination has its own cursor.
+A missing file clears the destination and runs the optional `ON ERROR`
+arm. The reference grammar permits `SETTING`. jbcc provisionally reports
+an empty status on success and 128 on failure, matching SELECT. An
+unhandled failure without `SETTING` produces a runtime diagnostic.
+[SSELECT](https://jbc-lang.org/pages/sselect.html).
+
 `READNEXT Key FROM L THEN ... ELSE ...` returns one key, and
 `LOOP WHILE READNEXT Key FROM L DO` uses the same operation as a Boolean
 expression. On exhaustion jbcc clears the destination and returns false.
