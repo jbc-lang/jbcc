@@ -3019,13 +3019,13 @@ CRT SYSTEM(24)
         routine.write_text("""SUBROUTINE SHOW.PORT()
 Changed = PUTENV('JBCPORTNO=99')
 Code = 18
-CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
+CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
 """)
         for setting, port in [('00042', '42'), ('0', '0')]:
             with self.subTest(setting=setting):
                 run = self.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, (':'.join(['1'] + [port] * 4) + '\n').encode())
+                self.assertEqual(run.stdout, (':'.join(['1'] + [port] * 5) + '\n').encode())
                 self.assertEqual(run.stderr, b'')
 
     def test_pid_uses_native_process_id_with_port_override(self):
@@ -3044,7 +3044,7 @@ CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
 
     def test_port_number_defaults_to_process_id(self):
         source = self.work / 'port.b'
-        source.write_text('CRT @USERNO\n')
+        source.write_text('CRT @USERNO\nCRT @USER.NO\n')
         binary = self.work / 'port'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         env = dict(os.environ)
@@ -3057,7 +3057,7 @@ CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
                                       stderr=subprocess.PIPE) as proc:
                     stdout, stderr = proc.communicate(timeout=5)
                     self.assertEqual(proc.returncode, 0, stderr)
-                    self.assertEqual(stdout, f'{proc.pid}\n'.encode())
+                    self.assertEqual(stdout, f'{proc.pid}\n{proc.pid}\n'.encode())
                     self.assertEqual(stderr, b'')
 
     def test_invalid_port_number_reports_call_site(self):

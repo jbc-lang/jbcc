@@ -1812,5 +1812,13 @@ LI.SECURED.ONLINE and MG.PERFORM.ACCRUALS now pass.
 Native tests cover scalar reuse on either side, expression precedence,
 mixed array marks and an invalid array inside REUSE.
 
-- [ ] Investigate the @USER.NO spelling in T24 and its relationship to
+- [x] Investigate the @USER.NO spelling in T24 and its relationship to
   @USERNO and SYSTEM(18). Three T24 files first stop at @USER.NO.
+
+After @USER.NO, 16,343 of 17,336 candidates pass strict C99 checking.
+All 16,341 previous passes still pass. JBASE.COMPILE and
+PERFORM.GLOBUS.RELEASE now pass. T24.INITIALISE reaches CALLONEXIT.
+Native tests check the configured port and process ID fallback.
+
+- [ ] Investigate CALLONEXIT. Check callback lookup, value-mark arguments
+  and registration order against the guide, then rerun T24.INITIALISE.

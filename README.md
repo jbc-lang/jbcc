@@ -273,6 +273,10 @@ produce a diagnostic when the program requests the port number.
 [JBCPORTNO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/env2_JBCPORTNO.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+jbcc also accepts the T24 spelling `@USER.NO` as a port-number alias.
+The Caché MultiValue reference documents it as another spelling of
+`@USERNO`. [Caché MultiValue system variables](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_gsysvariables).
+
 `DEBUG` is a standalone statement. The guide uses it to enter the jBC
 debugger. When a native jbcc program reaches it, the runtime reports the
 source location and exits with an error because a jBC debugger is unavailable.
