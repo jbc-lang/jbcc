@@ -3356,6 +3356,54 @@ END
                     self.assertEqual(run.returncode, 0, run.stderr)
                     self.assertEqual(run.stdout, (sentence + b'\n') * (1 + direct_read) + first + b'\n')
 
+    def test_get_argument_preserves_argv_and_shares_cursor_across_routines(self):
+        source = self.work / 'args.b'
+        routine = self.work / 'next.b'
+        binary = self.work / 'args'
+        source.write_text("""GET (ARG.) First THEN CRT First ELSE ABORT
+CALL GET.MORE
+Keep = 'previous'
+GET(ARG., 99) Keep ELSE CRT Keep
+GET(ARG.) Next THEN
+    CRT Next
+END ELSE ABORT
+GET(ARG.) Exhausted THEN ABORT
+CRT '[':Exhausted:']'
+GET(ARG., 1) Again
+CRT Again
+""")
+        routine.write_text("""SUBROUTINE GET.MORE
+DIM Args(2)
+GET(ARG., 2) Args(1) ELSE ABORT
+GET(ARG., 0) Args(2) THEN CRT '[':Args(1):'] [':Args(2):']' ELSE ABORT
+""")
+        subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        result = subprocess.run([binary, 'first', 'two words', '', 'last'],
+                                capture_output=True, timeout=5)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'first\n[two words] []\nprevious\nlast\n[]\nfirst\n', b''))
+
+    def test_get_argument_failures_and_diagnostics(self):
+        source = self.work / 'args.b'
+        source.write_text("""Value = 'previous'
+GET(ARG.) Value
+CRT '[':Value:']'
+GET(ARG., -1) Value ELSE CRT 'missing'
+GET(ARG., '18446744073709551616') Value ELSE CRT 'missing'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'[]\nmissing\nmissing\n', b''))
+        source.write_text("GET(ARG., 1.5) Value\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:1: GET (ARG.) requires an integer index'.encode(), result.stderr)
+        source.write_text("GET(ARG.,) Value\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:10: expected a variable', result.stderr)
+
     def test_input_from_pipe(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input.b', '-o', binary], check=True)

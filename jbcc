@@ -390,7 +390,7 @@ class Compiler:
         self.continued_loops = set()
         self.loop_exit_assignments = {}
         self.loops = 0
-        self.needs_sentence = False
+        self.needs_arguments = False
         self.uses_session = False
         self.uses_startup_clock = False
         self.uses_math = False
@@ -540,7 +540,7 @@ class Compiler:
                 value = self.temporary(f"jbc_port_number({self.location(target)})")
                 return self.postfix(value, locate_source)
             if self.word == 'SENTENCE':
-                self.needs_sentence = True
+                self.needs_arguments = True
                 self.advance()
                 return self.postfix("jbc_command_line", locate_source)
             if self.word not in SYSTEM_CONSTANTS:
@@ -940,7 +940,7 @@ class Compiler:
         condition = self.expression()
         self.conditional_arms(opening, f"jbc_truth({condition})", condition)
 
-    def conditional_arms(self, opening, condition, expression=None):
+    def conditional_arms(self, opening, condition, expression=None, default_else=None):
         if opening.word == 'MATREAD' and self.word == 'LOCKED':
             self.error("MATREAD LOCKED requires a locking file backend")
         if self.word not in ('THEN', 'ELSE'):
@@ -958,6 +958,11 @@ class Compiler:
             self.advance()
             self.emit("} else {")
             self.clause(opening)
+        elif not inverted and default_else is not None:
+            self.emit("} else {")
+            self.depth += 1
+            default_else()
+            self.depth -= 1
         self.assigned = taken & self.assigned
         self.emit("}")
 
@@ -2370,6 +2375,37 @@ class Compiler:
             self.error("increment and decrement require a variable or matrix element")
         return self.step_value(target, operator, slot)
 
+    def get_argument_statement(self):
+        opening = self.current
+        self.advance()
+        self.expect('(')
+        self.expect('ARG.')
+        position = 'NULL'
+        if self.word == ',':
+            self.advance()
+            position = self.temporary(self.expression())
+        self.expect(')')
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        self.needs_arguments = True
+        value = self.temporary(f"jbc_get_argument({position}, {self.location(opening)})")
+        scalar = target.word not in self.matrices
+        if self.word in ('THEN', 'ELSE'):
+            self.emit(f"if ({value}) assign_value(&{slot}, {value});")
+            if scalar:
+                self.assignment_facts[value, True] = {target.word}
+
+            def assign_empty():
+                self.emit(f'assign_value(&{slot}, "");')
+                if scalar:
+                    self.assigned.add(target.word)
+
+            self.conditional_arms(opening, value, value, default_else=assign_empty)
+        else:
+            self.emit(f'assign_value(&{slot}, {value} ? {value} : "");')
+            if scalar:
+                self.assigned.add(target.word)
+
     def step_value(self, target, operator, slot, postfix=False):
         scalar = target.word not in self.matrices
         if scalar and target.word not in self.assigned and not self.has_unstructured_jumps:
@@ -2645,6 +2681,9 @@ class Compiler:
             self.advance()
             self.terminal = True
             self.emit(f"jbc_inputclear({self.location(opening)});")
+        elif (self.word == 'GET' and self.word not in self.matrices and self.following.word == '('
+              and len(self.tokens) > 1 and self.tokens[1].word == 'ARG.'):
+            self.get_argument_statement()
         elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current
@@ -2848,7 +2887,7 @@ class Compiler:
 
     def signature(self):
         if not self.routine:
-            return "int main(int argc, char **argv)" if self.needs_sentence else "int main(void)"
+            return "int main(int argc, char **argv)" if self.needs_arguments else "int main(void)"
         return routine_signature(self.routine.word, self.formals.values(), self.is_function)
 
     def render(self, memory_files=(), memory_dicts=(), memory_locks=()):
@@ -2913,8 +2952,8 @@ class Compiler:
                 lines.append("    jbc_init_startup_clock();")
             if self.uses_session:
                 lines.append("    jbc_init_session();")
-            if self.needs_sentence:
-                lines.append("    jbc_init_sentence(argc, argv);")
+            if self.needs_arguments:
+                lines.append("    jbc_init_arguments(argc, argv);")
             for section, names in (('', memory_files), ('DICT', memory_dicts)):
                 for name in names:
                     lines.append(f"    jbc_create_memory_file({c_string(section)}, {c_string(name)});")
@@ -3048,7 +3087,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
             programs.append(unit)
     if len(programs) != 1:
         raise Diagnostic("expected one main program among the input files")
-    programs[0].needs_sentence = any(unit.needs_sentence for unit in units)
+    programs[0].needs_arguments = any(unit.needs_arguments for unit in units)
     programs[0].uses_session = any(unit.uses_session for unit in units)
     programs[0].uses_startup_clock = any(unit.uses_startup_clock for unit in units)
     layouts = {}

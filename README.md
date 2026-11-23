@@ -548,6 +548,17 @@ joins all arguments with one space. Embedded spaces and empty arguments
 are preserved, and shell quoting is already removed by the time the
 program starts. [SENTENCE](https://jbc-lang.org/pages/sentence.html).
 
+`GET (ARG.) Value` reads the next native command-line argument.
+`GET (ARG., n) Value` reads argument `n`, counting from 1 after the
+program name. Zero also reads the next argument. A successful read
+moves the shared program cursor forward from that argument, and a
+failed read leaves the cursor in place. A quoted argument with spaces
+or an explicitly empty argument is returned as one value. Optional
+`THEN` runs on success. On failure, an explicit `ELSE` retains the
+destination's previous value. With no `ELSE`, failure assigns an
+empty string. Nonnumeric, empty and fractional indices are errors.
+[GET(ARG.) reference](https://www.ibm.com/docs/en/iis/11.7.0?topic=functions-getarg-statement).
+
 Single-line and multiline IF support THEN, ELSE, and nested branches.
 Close a multiline arm with END. Its ELSE can follow on the same line or
 on the next line. The reference preprocessor joins a line beginning with

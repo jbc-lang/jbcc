@@ -2089,6 +2089,15 @@ ATP.DATA.POPULATE now passes and all previous passes still pass.
 Native tests cover formatting, tab separation, newline suppression
 and output routing with a printer active.
 
-- [ ] Investigate GET (ARG.) for program arguments. Check the reference
+- [x] Implement GET (ARG.) for program arguments. Check the reference
   forms with and without an index and conditional arms, then verify
   how they map to native argv. One T24 unit stops at GET (ARG.).
+
+After GET (ARG.), 16,416 of 17,336 candidates pass strict C99 checking.
+VIB now passes and all previous passes still pass. Native tests cover
+arguments containing spaces, empty arguments, indexed and sequential
+reads, the shared cursor across routines, and missing arguments.
+
+- [ ] Investigate @USERSTATS. Compare the field definitions in JBC.h and
+  the guide with the fields requested in T24. Verify the fields that
+  jbcc can supply from the native process.

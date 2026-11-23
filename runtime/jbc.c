@@ -24,6 +24,8 @@ struct jbc_buffer {
 
 static struct jbc_buffer *buffers;
 static const char *jbc_command_line = "";
+static int command_argc, next_argument = 1;
+static char **command_argv;
 static const char *jbc_input_prompt = "?";
 
 struct input_chunk {
@@ -118,8 +120,10 @@ void jbc_finish(void)
     }
 }
 
-void jbc_init_sentence(int argc, char **argv)
+void jbc_init_arguments(int argc, char **argv)
 {
+    command_argc = argc;
+    command_argv = argv;
     size_t length = argc ? (size_t)argc - 1 : 0;
     for (int i = 0; i < argc; ++i) {
         size_t bytes = strlen(argv[i]);
@@ -228,6 +232,21 @@ static void numeric_error(const char *file, int line, int column, const char *me
 {
     fprintf(stderr, "%s:%d:%d: %s\n", file, line, column, message);
     jbc_terminate(EXIT_FAILURE);
+}
+
+const char *jbc_get_argument(const char *position, const char *file, int line, int column)
+{
+    uintmax_t index = (uintmax_t)next_argument;
+    if (position) {
+        struct decimal n;
+        if (!parse_decimal(position, &n) || n.places)
+            numeric_error(file, line, column, "GET (ARG.) requires an integer index");
+        if (n.sign < 0) return NULL;
+        if (n.sign > 0) index = strtoumax(n.whole, NULL, 10);
+    }
+    if (index >= (uintmax_t)command_argc) return NULL;
+    next_argument = (int)index + 1;
+    return command_argv[index];
 }
 
 #ifdef JBC_HUSH
