@@ -892,6 +892,15 @@ CRT UPCASE(''):LOWCASE('')
         self.assertEqual(run.stdout, b'2\ncontinued\n')
         self.assertEqual(run.stderr, f'{source}:1:5: warning: NEG: Non-numeric value -- ZERO USED\n'.encode())
 
+    def test_negs_warns_for_nonnumeric_elements(self):
+        source = self.work / 'negs.b'
+        source.write_text("CRT CONVERT(NEGS('bad':@FM:1:@VM:'' :@SM:'text'),@FM:@VM:@SM,'|^~')\n")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'0|-1^~0\n')
+        warning = f'{source}:1:13: warning: NEGS: Non-numeric value -- ZERO USED\n'
+        self.assertEqual(result.stderr, warning.encode() * 2)
+
     def test_abs_diagnostics(self):
         source = self.work / 'abs.b'
         source.write_text("PRINT ABS('text')\n")

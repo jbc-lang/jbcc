@@ -152,6 +152,12 @@ PRECISION as it does for ABS. For nonnumeric input, NEG writes a warning
 to stderr at the call site and returns zero, allowing execution to continue.
 [NEGS and NEG](https://jbc-lang.org/pages/negs.html).
 
+`NEGS(array)` applies the same conversion and explicit PRECISION to
+each nonempty element. It preserves field, value, and subvalue marks and
+keeps empty elements empty, following the jBASE reference prose. A
+nonnumeric element becomes zero and produces a warning at the call site.
+[jBASE NEGS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_NEGS.htm).
+
 DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).

@@ -1303,15 +1303,21 @@ static const char *negate_decimal(struct decimal n)
     return fmt_decimal(n, n.places);
 }
 
-const char *jbc_neg(const char *value, const char *file, int line, int column)
+static const char *negative_value(const char *value, const char *name,
+                                  const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(value, &n)) {
-        fprintf(stderr, "%s:%d:%d: warning: NEG: Non-numeric value -- ZERO USED\n",
-                file, line, column);
+        fprintf(stderr, "%s:%d:%d: warning: %s: Non-numeric value -- ZERO USED\n",
+                file, line, column, name);
         return "0";
     }
     return negate_decimal(n);
+}
+
+const char *jbc_neg(const char *value, const char *file, int line, int column)
+{
+    return negative_value(value, "NEG", file, line, column);
 }
 
 const char *jbc_negate(const char *value, const char *file, int line, int column)
@@ -2101,6 +2107,32 @@ static char *split_array_items(const char *array, size_t *marks)
         if (marks) ++*marks;
     }
     return copy;
+}
+
+const char *jbc_negs(const char *source, const char *file, int line, int column)
+{
+    if (!*source) return "";
+    size_t marks = 0, length = strlen(source);
+    char *items = split_array_items(source, &marks);
+    /* A decimal can gain a minus sign and a leading zero. */
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    if (length > limit || marks + 1 > (limit - length) / 2)
+        numeric_error(file, line, column, "NEGS result too large");
+    char *out = allocate(length + 2 * (marks + 1)), *write = out;
+    for (const char *item = items;;) {
+        const char *negated = *item ? negative_value(item, "NEGS", file, line, column) : "";
+        size_t bytes = strlen(negated);
+        memcpy(write, negated, bytes);
+        write += bytes;
+
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        *write++ = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
 }
 
 static const char *compare_array_items(const char *left, const char *right, int reuse_left,

@@ -1355,7 +1355,19 @@ CONVERT.ASCII.EBCDIC now pass. A local native probe linked the T24 SEQX
 and CONVERT.ASCII.EBCDIC routines, initialized their shared startup flags,
 and verified the 255-byte table and lookup results for ASCII A and @FM.
 
-- [ ] Implement NEGS for element-wise negation using NEG's numeric
+- [x] Implement NEGS for element-wise negation using NEG's numeric
   conversion. Check marks, empty elements, and nonnumeric input
   against the guide, whose prose and empty-element example differ.
   Five T24 files first stop on a line containing NEGS.
+
+After NEGS, 16,138 of 17,336 candidates pass strict C99 checking.
+All 16,133 previous passes still pass. All five files blocked on NEGS
+now pass. Native fixtures preserve empty elements per the jBASE reference
+and test precision, delimiters and warnings for nonnumeric elements.
+
+- [ ] Implement the REMOVE function in expressions. The reference
+  grammar accepts `REMOVE(array, delimiterCode)`, and T24 uses it in
+  assignments and loop headers. Check whether the expression and
+  statement forms share a cursor, and verify exhaustion and resetting
+  the cursor by reassigning the source. Thirteen files first stop on
+  a line containing a REMOVE call.
