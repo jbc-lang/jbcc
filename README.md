@@ -835,6 +835,13 @@ is empty. jbcc provisionally treats a wholly empty operand as one empty
 element. A direct `REUSE(scalar)` in either argument repeats that scalar
 at every position and evaluates it once. [ADDS](https://jbc-lang.org/pages/adds.html).
 
+`MULS(left, right)` multiplies corresponding fields, values and
+subvalues. An unmatched element gives zero. An empty element in a pair
+gives an empty result. MULS uses the same array alignment and scalar
+`REUSE` as ADDS, including the provisional treatment of a wholly empty
+operand as one empty element. Products follow the PRECISION and overflow
+rules of scalar multiplication. [MULS](https://jbc-lang.org/pages/muls.html).
+
 CATS concatenates corresponding fields, values and subvalues. An unmatched
 element is copied through, and a wholly empty operand returns the other
 array. jbcc treats an empty element within an array as contributing zero

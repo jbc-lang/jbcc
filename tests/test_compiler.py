@@ -275,6 +275,7 @@ RETURN
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
+                                  ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
                                   ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
                                   ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
@@ -771,6 +772,18 @@ time_t test_clock(time_t *out)
                 ("REUSE(1:@VM:2), 3", ':1:10: REUSE in ADDS requires a scalar')]:
             with self.subTest(args=args):
                 source.write_text(f'CRT ADDS({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + diagnostic).encode(), run.stderr)
+
+    def test_muls_diagnostics(self):
+        source = self.work / 'muls.b'
+        for args, diagnostic in [
+                ("3, 'bad'", ':1:5: arithmetic requires numeric operands'),
+                ("1:@VM:4611686018427387904, REUSE(2)", ':1:5: integer multiplication overflow'),
+                ("2, REUSE(3:@FM:4)", ':1:13: REUSE in MULS requires a scalar')]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT MULS({args})\n')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + diagnostic).encode(), run.stderr)

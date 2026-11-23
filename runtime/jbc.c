@@ -2150,8 +2150,9 @@ static char *split_array_items(const char *array, size_t *marks)
     return copy;
 }
 
-const char *jbc_adds(const char *left, const char *right, int reuse_left, int reuse_right,
-                     const char *file, int line, int column)
+static const char *array_arithmetic(char op, const char *left, const char *right,
+                                     int reuse_left, int reuse_right,
+                                     const char *file, int line, int column)
 {
     struct array_cursor lhs = array_cursor(left, reuse_left, 1);
     struct array_cursor rhs = array_cursor(right, reuse_right, 1);
@@ -2165,15 +2166,18 @@ const char *jbc_adds(const char *left, const char *right, int reuse_left, int re
         const char *a = left_items + (lhs.item - left);
         const char *b = right_items + (rhs.item - right);
         const char *item = "";
-        if (!lhs.present) item = b;
-        else if (!rhs.present) item = a;
-        else if (*a && *b) item = jbc_arithmetic('+', a, b, file, line, column);
+        if (!lhs.present || !rhs.present) {
+            item = "0";
+            if (op == '+') item = lhs.present ? a : b;
+        } else if (*a && *b) {
+            item = jbc_arithmetic(op, a, b, file, line, column);
+        }
 
         size_t bytes = strlen(item);
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         size_t separator = mark != 256;
         if (bytes > limit - used || separator > limit - used - bytes)
-            numeric_error(file, line, column, "ADDS result too large");
+            numeric_error(file, line, column, "array arithmetic result too large");
         size_t required = used + bytes + separator;
         if (required > capacity) {
             capacity = required <= limit / 2 ? 2 * required : required;
@@ -2192,6 +2196,18 @@ const char *jbc_adds(const char *left, const char *right, int reuse_left, int re
     free(left_items);
     free(right_items);
     return out;
+}
+
+const char *jbc_adds(const char *left, const char *right, int reuse_left, int reuse_right,
+                     const char *file, int line, int column)
+{
+    return array_arithmetic('+', left, right, reuse_left, reuse_right, file, line, column);
+}
+
+const char *jbc_muls(const char *left, const char *right, int reuse_left, int reuse_right,
+                     const char *file, int line, int column)
+{
+    return array_arithmetic('*', left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_negs(const char *source, const char *file, int line, int column)

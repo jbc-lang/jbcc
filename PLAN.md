@@ -1418,7 +1418,18 @@ on their original failing line now pass. The other two stop at MULS.
 Native tests cover mixed marks, empty and unmatched positions, decimal
 precision, scalar REUSE and call-site diagnostics.
 
-- [ ] Implement MULS for element-wise multiplication. Reuse the ADDS
+- [x] Implement MULS for element-wise multiplication. Reuse the ADDS
   traversal, return zero for an unmatched element and propagate paired
   empty elements as in the guide. Check PRECISION and scalar REUSE.
   Eight T24 files first stop on a line containing MULS.
+
+After MULS, 16,179 of 17,336 candidates pass strict C99 checking.
+All 16,174 previous passes still pass. Five of the eight files that
+first stopped on a line containing MULS now pass. The other three reach
+DIVS. Native tests cover mixed marks, unmatched positions, empty pairs,
+scalar REUSE, decimal precision and overflow.
+
+- [ ] Implement DIVS for element-wise division. Reuse the array arithmetic
+  traversal and check asymmetric padding, empty pairs, PRECISION, scalar
+  REUSE and the guide's zero-divisor diagnostic and result. Four T24
+  files first stop on a line containing DIVS.
