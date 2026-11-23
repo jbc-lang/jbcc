@@ -1598,6 +1598,30 @@ CRT FIELD('whole', '', 1):':':COL1():':':COL2()
                          (0, b'0:0\nDEF:4:8\nDEF/QWE:4:12\nQWE/XYZ:8:16\ncd:4:7\ny:4:7\n'
                              b':2:3\n:5:6\n:0:0\nwhole:0:6\nwhole:0:0\n', b''))
 
+    def test_counts_preserves_marks_and_counts_each_element(self):
+        source = self.work / 'counts.b'
+        source.write_text("""Values = @FM:'aaaaa':@VM:'Bb':@SM:'aa':@FM
+CRT COUNTS(Values, 'aa')
+CRT COUNTS(Values, '')
+CRT COUNTS('', 'a'), COUNTS('', '')
+CRT COUNTS('ab':@VM:'ab', 'b':@VM:'a'), COUNT('ab':@VM:'ab', 'b':@VM:'a')
+CRT COUNTS(CHAR(195):CHAR(169):@TM:'x', '')
+CRT SUM(COUNTS('aaa':@VM:'aa':@VM:'bbb', 'a'))
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0\xfe2\xfd0\xfc1\xfe0\n0\xfe5\xfd2\xfc2\xfe0\n'
+                             b'0\t0\n0\xfd0\t1\n4\n5\n', b''))
+
+    def test_counts_requires_two_arguments(self):
+        source = self.work / 'counts.b'
+        for args in ("'ab'", "'ab', 'b', 1"):
+            with self.subTest(args=args):
+                source.write_text(f'CRT COUNTS({args})\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for 'COUNTS'", result.stderr)
+
     def test_col_positions_require_no_arguments(self):
         source = self.work / 'field-positions.b'
         for name in ('COL1', 'COL2'):

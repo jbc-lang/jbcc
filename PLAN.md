@@ -2546,5 +2546,21 @@ followed by KEYIN. The 21 T24 units with a literal length of -1 already
 passed strict C99 checking. The corpus total stays at 17,068 of 17,336,
 with identical results for every file.
 
-- [ ] Investigate COUNTS in LD.SCHEDULES.CROSSVAL. Compare it with COUNT
+- [x] Investigate COUNTS in LD.SCHEDULES.CROSSVAL. Compare it with COUNT
   and verify nonoverlapping matches, empty values and array mark handling.
+
+The reference compiler emits COUNTS_BBBB, and the guide describes
+nonoverlapping per-element matches and character lengths for an empty
+substring. jbcc reuses COUNT's byte-oriented matching and preserves
+field, value and subvalue marks. Tests cover zero counts for empty
+elements, matching within element boundaries, and a nested SUM call.
+The guide's distinct null value is outside the current value model.
+[jBASE COUNTS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_COUNTS.htm).
+
+LD.SCHEDULES.CROSSVAL now passes strict C99 checking in byte mode.
+The total is 17,069 of 17,336 candidates, including all 17,068
+previous passes.
+
+- [ ] Investigate ISALPHA and ISDIGIT in UI.CREATE.SCRIPTS.VALIDATE
+  and SY.PRODUCT.DEFINITION.VALIDATE. Compare them with ALPHA and NUM
+  and check empty values, signs, punctuation and character classes.

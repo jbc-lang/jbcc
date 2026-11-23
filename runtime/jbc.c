@@ -2932,6 +2932,27 @@ static char *split_array_items(const char *array, size_t *marks)
     return copy;
 }
 
+const char *jbc_counts(const char *source, const char *needle)
+{
+    size_t length = strlen(source), marks = 0;
+    char *items = split_array_items(source, &marks);
+    /* A count fits within each nonempty item. Empty items grow by one byte. */
+    if (marks >= SIZE_MAX - length) fail("COUNTS result too large");
+    size_t capacity = length + marks + 1;
+    char *out = allocate(capacity), *write = out;
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        size_t available = capacity - (size_t)(write - out) + 1;
+        write += snprintf(write, available, "%zu", occurrences(item, needle));
+        *write++ = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
 static const char *convert_input_array(const char *source, enum input_conversion conversion,
                                        const char *file, int line, int column)
 {

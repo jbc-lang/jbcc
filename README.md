@@ -1217,6 +1217,13 @@ choices are provisional. NOT uses the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
+`COUNTS(array, substring)` counts nonoverlapping matches in each element
+and preserves field, value and subvalue marks. A match cannot cross a mark.
+An empty substring returns each element's byte length. Ordinary empty
+elements return zero. The guide describes a distinct null value, which
+jbcc's value model currently lacks.
+[jBASE COUNTS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_COUNTS.htm).
+
 `Text[delimiter, occurrence, count] = replacement` replaces the byte
 span selected by the bracket expression. Delimiters outside that span
 are preserved. With `:=`, the new text is appended to the selected span.
