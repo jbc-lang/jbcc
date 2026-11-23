@@ -385,6 +385,7 @@ class Compiler:
         self.loops = 0
         self.needs_sentence = False
         self.uses_session = False
+        self.uses_startup_date = False
         self.uses_math = False
         self.terminal = False
         self.uses_sequential = False
@@ -489,6 +490,11 @@ class Compiler:
             if self.word == 'ID':
                 self.advance()
                 return self.postfix(self.temporary("jbc_record_id.value"), locate_source)
+            if self.word == 'DATE':
+                self.uses_startup_date = True
+                self.advance()
+                value = self.temporary(f"jbc_startup_date({self.location(target)})")
+                return self.postfix(value, locate_source)
             if self.word == 'WHO':
                 self.uses_session = True
                 self.advance()
@@ -2531,6 +2537,8 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
+            if self.uses_startup_date:
+                lines.append("    jbc_init_startup_date();")
             if self.uses_session:
                 lines.append("    jbc_init_session();")
             if self.needs_sentence:
@@ -2650,6 +2658,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
         raise Diagnostic("expected one main program among the input files")
     programs[0].needs_sentence = any(unit.needs_sentence for unit in units)
     programs[0].uses_session = any(unit.uses_session for unit in units)
+    programs[0].uses_startup_date = any(unit.uses_startup_date for unit in units)
     layouts = {}
     for unit in units:
         for name, block in unit.commons.items():

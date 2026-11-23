@@ -1565,7 +1565,17 @@ All 16,278 previous passes still pass, and all five targeted files
 now pass. Native tests cover valid, pending, failed and closed handles,
 the pathname selector, and diagnostics for unsupported keys.
 
-- [ ] Implement `@DATE` using the guide's startup date semantics.
+- [x] Implement `@DATE` using the guide's startup date semantics.
   Share the internal date conversion with DATE() and verify
   that routines see the startup date. Unsupported `@DATE` is the first
   diagnostic in five T24 files.
+
+After `@DATE`, 16,284 of 17,336 candidates pass strict C99 checking.
+All 16,283 previous passes still pass. One of the five targeted files
+now passes, and the other four reach `@TIME`. A native test verifies
+that a called routine sees the startup date after local midnight.
+
+- [ ] Implement `@TIME` using the same startup clock snapshot as
+  `@DATE`. Check seconds since midnight and compare with TIME() across
+  local midnight. Unsupported `@TIME` is the first diagnostic in six
+  T24 files.

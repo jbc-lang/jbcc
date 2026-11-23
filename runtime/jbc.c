@@ -1716,10 +1716,15 @@ static int leap_year(int year)
 /* Zero-based Gregorian ordinal of the jBC epoch, 1967-12-31. */
 enum { JBC_DATE_EPOCH = 718430 };
 
-static const struct tm *local_clock(const char *file, int line, int column, const char *error)
+static const struct tm *read_local_clock(void)
 {
     time_t now = time(NULL);
-    const struct tm *today = now == (time_t)-1 ? NULL : localtime(&now);
+    return now == (time_t)-1 ? NULL : localtime(&now);
+}
+
+static const struct tm *local_clock(const char *file, int line, int column, const char *error)
+{
+    const struct tm *today = read_local_clock();
     if (!today) numeric_error(file, line, column, error);
     return today;
 }
@@ -1746,12 +1751,34 @@ static const char *internal_date(int year, int day_of_year)
     return out;
 }
 
-const char *jbc_date(const char *file, int line, int column)
+static const char *date_from_clock(const struct tm *today, const char *file, int line, int column)
 {
-    const struct tm *today = local_clock(file, line, column, "DATE cannot read local date");
+    if (!today) numeric_error(file, line, column, "DATE cannot read local date");
     if (today->tm_year < 1 - 1900 || today->tm_year > 9999 - 1900)
         numeric_error(file, line, column, "DATE outside years 1 through 9999");
     return internal_date(today->tm_year + 1900, today->tm_yday + 1);
+}
+
+const char *jbc_date(const char *file, int line, int column)
+{
+    return date_from_clock(read_local_clock(), file, line, column);
+}
+
+static struct tm startup_clock;
+static int have_startup_clock;
+
+void jbc_init_startup_date(void)
+{
+    const struct tm *snapshot = read_local_clock();
+    if (snapshot) {
+        startup_clock = *snapshot;
+        have_startup_clock = 1;
+    }
+}
+
+const char *jbc_startup_date(const char *file, int line, int column)
+{
+    return date_from_clock(have_startup_clock ? &startup_clock : NULL, file, line, column);
 }
 
 const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)

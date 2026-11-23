@@ -175,6 +175,10 @@ DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
 
+`@DATE` uses the same day count from the local calendar date at program
+startup. The main program and all called routines share that date,
+including after local midnight. [@DATE](https://jbc-lang.org/pages/@date.html).
+
 `GETENV(name, value)` looks up a name in the running program’s environment
 and assigns the result to a scalar or matrix element. A present variable
 returns 1, including when its value is empty. A missing variable returns
