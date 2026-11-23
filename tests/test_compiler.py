@@ -252,6 +252,8 @@ RETURN
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT GETENV("x", 1)\n', ':1:17: expected a name'),
                                   ('CRT PUTENV("A", "B")\n', ":1:5: wrong argument count for 'PUTENV'"),
+                                  ('R <1 = 2\n', ":1:3: expected closing '>' for dynamic-array assignment"),
+                                  ('R <1,2,3,4> = 0\n', ':1:3: expected one to three dynamic-array indices'),
                                   ('CLOSE\n', ':1:6: expected a name'),
                                   ('CLOSE F,G ON ERROR NULL\n', ":1:11: unexpected 'ON'"),
                                   ('CRT DATE(1)\n', ':1:5:'),

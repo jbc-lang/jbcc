@@ -46,7 +46,12 @@ literals, quoted strings (single, double or backslash delimiters),
 parentheses, arithmetic, concatenation, and compound assignments. The reference
 lexer accepts spaces and tabs before the equals sign in `+=`, `-=`, `*=`
 and `/=`. For example, `R<1> + = 1` increments the first field, a form
-used in T24. Concatenating assignment uses the single token `:=`.
+used in T24. An assignment target may have whitespace before the opening
+angle bracket. Both `T.SEQU <-1> = A+1` and `T.SEQU < - 1 > = A + 1`
+append a field. The reference grammar allows one to three indices followed
+by an optional substring selector. In expressions, spaced `<` and `>`
+remain comparison operators. Concatenating assignment uses the single
+token `:=`.
 Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value. Routines with GOTO, GOSUB or RETURN TO check this at runtime because jumps can bypass assignments. Separate statements with a newline or semicolon. A statement beginning
 with `*`, `!` or `REM` comments out the rest of its line. These markers

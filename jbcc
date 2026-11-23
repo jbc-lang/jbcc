@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Translate a subset of jBC to standalone C99."""
+from collections import deque
 from typing import NamedTuple, Optional
 import argparse
 import math
@@ -17,7 +18,7 @@ TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<n
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
-ASSIGNMENT_OR_SUBSTRING = ASSIGNMENTS | {'['}
+ASSIGNMENT_PREFIXES = ASSIGNMENTS | {'[', '<'}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "GT": ">",
                ">": ">", ">=": ">=", "GE": ">="}
@@ -171,7 +172,7 @@ def is_equate(statement):
     if not statement or statement[0].word not in ('EQU', 'EQUATE'):
         return False
     # EQU and EQUATE can also be assignment targets.
-    return len(statement) == 1 or statement[1].word not in ASSIGNMENT_OR_SUBSTRING | {'(', '<'}
+    return len(statement) == 1 or statement[1].word not in ASSIGNMENT_PREFIXES | {'('}
 
 
 class Preprocessor:
@@ -368,9 +369,12 @@ class Compiler:
     def word(self):
         return self.current.word
 
+    @property
+    def following(self):
+        return self.tokens[0] if self.tokens else None
+
     def advance(self):
-        self.current = self.following
-        self.following = next(self.tokens, None)
+        self.current = self.tokens.popleft()
 
     def expect(self, word):
         if self.word != word:
@@ -625,6 +629,27 @@ class Compiler:
             self.error("expected one to three dynamic-array indices", token)
         self.advance()
         return indices
+
+    def assignment_indices(self):
+        if self.word != '<':
+            return None
+        if self.current.kind != 'array_open':
+            # A spaced < on an assignment target opens a selector. Mark its
+            # terminator before parsing the indices with expression precedence.
+            depth = 0
+            for i, token in enumerate(self.tokens):
+                if token.word in ('\n', '', 'THEN', 'ELSE') or (token.word == ';' and token.kind == 'symbol'):
+                    self.error("expected closing '>' for dynamic-array assignment")
+                if token.kind == 'array_open' or token.word in ('(', '['):
+                    depth += 1
+                elif token.kind == 'array_close' or token.word in (')', ']'):
+                    depth -= 1
+                elif depth == 0 and token.word in ('>', '>='):
+                    self.tokens[i] = token._replace(kind='array_close', word='>')
+                    if token.word == '>=':
+                        self.tokens.insert(i + 1, token._replace(word='=', column=token.column + 1))
+                    break
+        return self.array_indices()
 
     def array_indices(self):
         indices = self.index_expressions()
@@ -1831,14 +1856,12 @@ class Compiler:
         elif self.word == 'MATPARSE':
             self.matparse_statement()
         elif (self.word in ('MATREAD', 'MATREADU', 'MATWRITE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.matrix_file_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
         elif self.word == 'CONVERT' or (self.word == 'CHANGE' and self.word not in self.matrices
-                                       and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-                                       and self.following.kind != 'array_open'):
+                                       and self.following.word not in ASSIGNMENT_PREFIXES):
             self.change_or_convert_statement()
         elif self.word == 'INS':
             self.ins_statement()
@@ -1847,8 +1870,7 @@ class Compiler:
         elif self.word == 'REMOVE':
             self.remove_statement()
         elif (self.word in ('FIND', 'FINDSTR') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.find_statement()
         elif self.word == 'LOCATE':
             self.locate_statement()
@@ -1874,12 +1896,11 @@ class Compiler:
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
         elif self.word in ('GOSUB', 'GOTO') or (self.word == 'GO' and
-                self.following.word not in ASSIGNMENT_OR_SUBSTRING and
-                self.following.kind != 'array_open' and self.following.word != '('):
+                self.following.word not in ASSIGNMENT_PREFIXES and
+                self.following.word != '('):
             jump = self.jump_operator()
             self.emit_jump(self.local_label(), jump)
-        elif (self.word == 'ON' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'
+        elif (self.word == 'ON' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.indexed_jump()
         elif self.word == 'RETURN':
@@ -1912,24 +1933,21 @@ class Compiler:
             self.advance()
             self.emit("exit(EXIT_SUCCESS);")
         elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.delete_or_clearfile_statement()
         elif (self.word == 'RELEASE' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.advance()
             handle, key = ("NULL", "NULL") if self.word in OUTPUT_END or not self.word else self.file_key()
             self.emit(f"jbc_release_lock({handle}, {key});")
         elif (self.word == 'READU' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readu_statement()
         elif (self.word == 'READV' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readv_statement()
         elif (self.word in ('SELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             if self.word == 'SELECT':
                 self.select_statement()
             elif self.word == 'CLEARSELECT':
@@ -1938,14 +1956,13 @@ class Compiler:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
         elif (self.word in ('OPENSEQ', 'READSEQ', 'WRITESEQ', 'WRITESEQF', 'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK')
-              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'):
+              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open')):
+              and self.following.word not in ASSIGNMENT_PREFIXES)):
             self.open_statement()
         elif (self.word == 'CLOSE' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.close_statement()
         elif (self.word == 'STATUS' and self.following.kind == 'name'
               and self.word not in self.matrices):
@@ -1964,8 +1981,7 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
-        elif (self.word in ('EXECUTE', 'PERFORM') and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'
+        elif (self.word in ('EXECUTE', 'PERFORM') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current
             self.advance()
@@ -1984,8 +2000,7 @@ class Compiler:
             self.assigned.update(assigned)
             self.emit(f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
                       f"{outputs.get('RETURNING', 'NULL')}, {self.location(opening)});")
-        elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_OR_SUBSTRING
-              and self.following.kind != 'array_open'
+        elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current
             self.advance()
@@ -1993,7 +2008,7 @@ class Compiler:
             duration = '"1"' if not self.word or self.word in OUTPUT_END else self.expression()
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
         elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current
             self.advance()
             self.terminal = True
@@ -2020,7 +2035,7 @@ class Compiler:
                 else:
                     self.conditional_arms(opening, call)
         elif (self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'PAGE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_OR_SUBSTRING and self.following.kind != 'array_open'):
+              and self.following.word not in ASSIGNMENT_PREFIXES):
             self.report_statement()
         elif self.word == 'PRINTER' and self.following.word in ('ON', 'OFF', 'CLOSE', 'RESET'):
             self.printer_statement()
@@ -2031,7 +2046,7 @@ class Compiler:
             self.advance()
             matrix = start.word in self.matrices
             var = self.matrix_slot(start) if matrix else None
-            indices = self.array_indices() if self.current.kind == 'array_open' else None
+            indices = self.assignment_indices()
             substring = None
             if self.word == '[':
                 location = self.location(self.current)
@@ -2072,7 +2087,7 @@ class Compiler:
     def for_guard_is_target(self):
         # FOR bodies also accept assignments and labels named WHILE or UNTIL.
         return self.word in ('WHILE', 'UNTIL') and (
-            self.following.word in ASSIGNMENT_OR_SUBSTRING or self.following.kind == 'array_open'
+            self.following.word in ASSIGNMENT_PREFIXES
             or (self.word in self.matrices and self.following.word == '(')
             or is_label(self.current, self.following))
 
@@ -2110,8 +2125,7 @@ class Compiler:
         self.possible_go = any(t.word == 'GO' and tokens[i + 1].kind in ('name', 'number')
                                for i, t in enumerate(tokens) if t.kind == 'name')
         self.pending_assignment_error = None
-        self.tokens = iter(tokens)
-        self.following = next(self.tokens)
+        self.tokens = deque(tokens)
         self.advance()
         while self.word == '\n':
             self.advance()

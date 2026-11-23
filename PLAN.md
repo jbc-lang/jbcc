@@ -1144,7 +1144,18 @@ EB.CATALOG.PATCH.JBASE and SET.LIBRARIES.JBASE now pass, along with
 all 15,480 previous passes. Native tests cover child-process inheritance,
 empty values, malformed assignments and short-circuit evaluation.
 
-- [ ] Recognize dynamic-array assignment with whitespace before the
+- [x] Recognize dynamic-array assignment with whitespace before the
   selector. All 28 first diagnostics naming T.SEQU are appends such as
   `T.SEQU <-1> = A+1` or `T.SEQU < - 1 > = A + 1`. Check the grammar
   and test both spellings alongside less-than and greater-than comparisons.
+
+After spaced dynamic-array assignments, 15,574 of 17,336 candidates
+pass strict C99 checking. All 15,482 previous passes still pass.
+Of the 92 new passes, 25 previously stopped at T.SEQU and 67 at other
+assignment targets. The remaining three T.SEQU cases now reach later
+diagnostics. Native fixtures exercise both append spellings, compound and
+substring assignments, nested indices, matrix elements and comparisons.
+
+- [ ] Support the alternate comparison spellings `=<` and `=>`. The
+  reference preprocessor maps them to LE and GE. Check both against
+  ordinary comparisons and dynamic-array selectors in native fixtures.
