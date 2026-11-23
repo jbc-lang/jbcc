@@ -1718,6 +1718,37 @@ CRT 'x':'y'
             result.stderr, f'{source}:1:5: expected a variable, integer, string or parenthesized expression\n'
         )
 
+    def test_comparison_spellings_with_dynamic_array_selectors(self):
+        source = self.work / 'compare.b'
+        source.write_text("""A = 2
+B = 3
+R = 'x':@VM:'y':@FM:B
+CRT (A#>B):(B#>A):(A#<B):(B#<A)
+CRT (A >< B):(A\t>< A):(B> = A):(A >\t= B)
+CRT R<1><1,2>
+CRT (R<2>>=B):(R<2> > = B):(R<2> >< R<1>)
+CRT (R <2> = B)
+R<2> = 'updated'
+R<1>= 'first'
+CRT R<1>:'|':R<2>
+CRT '#> #< >< > ='
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'1001\n1010\ny\n111\n1\nfirst|updated\n#> #< >< > =\n', b''))
+
+    def test_comparison_signs_keep_reference_spacing_rules(self):
+        source = self.work / 'compare.b'
+        for expression, column in (('1><2', 7), ('1 # > 2', 9), ('1 < = 2', 9)):
+            with self.subTest(expression=expression):
+                source.write_text(f'CRT {expression}\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(
+                    result.stderr,
+                    f'{source}:1:{column}: expected a variable, integer, string or parenthesized expression\n'
+                )
+
     def test_single_index_substring_assignment(self):
         source = self.work / 'suffix.b'
         source.write_text("""Text = 'abcde'

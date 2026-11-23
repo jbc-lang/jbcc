@@ -16,16 +16,16 @@ import tempfile
 SOURCE_ENCODINGS = {'utf-8': 'utf-8', 'bytes': 'latin-1'}
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|\*\*|\+\+|--|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[:+*/-][ \t]*=|\+\+|--)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
 STEP_OPERATORS = {'++', '--'}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
-COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
+COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "><": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
-               ">": ">", ">=": ">=", "=>": ">=", "GE": ">="}
+               "#>": "<=", ">": ">", ">=": ">=", "=>": ">=", "GE": ">=", "#<": ">="}
 PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
 LOGICAL = {"AND", "&", "OR", "!"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
@@ -114,9 +114,12 @@ def angle_tokens(words):
     while i < len(words):
         token = words[i]
         i += 1
-        if i < len(words) and token.kind == words[i].kind == 'symbol':
-            pair = token.word + words[i].word
-            if pair in ('<=', '>=', '<>') and words[i].column == token.column + 1:
+        if i < len(words) and token.kind == words[i].kind == 'symbol' and token.line == words[i].line:
+            following = words[i]
+            pair = token.word + following.word
+            adjacent = following.column == token.column + 1
+            # Form >= only after selector closers have been classified.
+            if pair == '>=' or (adjacent and pair in ('<=', '<>')):
                 token = token._replace(word=pair)
                 i += 1
         yield token

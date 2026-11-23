@@ -62,7 +62,13 @@ angle brackets within an expression and checks for intervening logical
 operators. jbcc keeps a spaced comparison chain such as `A < B > C`
 when an operand follows the closing bracket. Before a binary operator,
 `R <1> + 3` reads field one and adds three. Use `LT` and `GT` to make
-ambiguous comparisons explicit. The reference lexer spells concatenating
+ambiguous comparisons explicit. The reference preprocessor spells LE
+as `#>`, GE as `#<`, and NE as `><` with a space or tab before it.
+For example, `R<1> >< R<2>` compares two fields and `R<1><2>` chains
+selectors. A greater-than sign and equals sign can be separated by
+spaces or tabs when the greater-than sign is a comparison. After
+a field selector, `R<1> = X` still uses the single equals operator.
+The reference lexer spells concatenating
 assignment `:=`. jbcc also accepts spaces or tabs before the equals sign
 in this operator, following usage in T24.
 Addition binds more tightly than

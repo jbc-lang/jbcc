@@ -2339,7 +2339,21 @@ The byte-mode scan now has 17,007 of 17,336 candidates passing strict
 C99 checking. All 45 targeted units and three additional units now pass.
 All 16,959 previous passes still pass.
 
-- [ ] Investigate comparison spellings used by T24. The reference
+- [x] Investigate comparison spellings used by T24. The reference
   preprocessor maps `#>` to LE, `#<` to GE and whitespace-prefixed
   `><` to NE. Check their interaction with dynamic-array selectors
   and trace space-separated comparison signs.
+
+The reference compiler accepted `> =` as GE after classifying angle
+brackets. It diagnosed separated `< =` and unspaced `A><B`, while
+`R<1><2>` remained two selectors. Native tests cover those distinctions,
+comparisons between selected fields, and assignment through a selector.
+
+All 16 affected units now pass strict C99 checking in byte mode.
+The total is 17,023 of 17,336 candidates, with all 17,007 previous
+passes preserved.
+
+- [ ] Preserve direct CALL targets when a same-named EQUATE is in scope.
+  Trace CONV.SW.SCHEDULE.PROCESSING and AC.PRINT.MASK, where the
+  reported numeric token comes from an include. This affects 27 units.
+  Check the reference preprocessor's direct and indirect CALL expansion rules.
