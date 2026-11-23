@@ -835,6 +835,12 @@ is empty. jbcc provisionally treats a wholly empty operand as one empty
 element. A direct `REUSE(scalar)` in either argument repeats that scalar
 at every position and evaluates it once. [ADDS](https://jbc-lang.org/pages/adds.html).
 
+`SUBS(left, right)` subtracts corresponding fields, values and subvalues.
+Empty or missing elements count as zero, including a wholly empty
+operand. Nonnumeric elements cause an error at the call site. SUBS uses
+the scalar subtraction rules for PRECISION and overflow and accepts
+direct `REUSE(scalar)` in either operand. [SUBS](https://jbc-lang.org/pages/subs.html).
+
 `MULS(left, right)` multiplies corresponding fields, values and
 subvalues. An unmatched element gives zero. An empty element in a pair
 gives an empty result. MULS uses the same array alignment and scalar

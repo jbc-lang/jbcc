@@ -275,6 +275,7 @@ RETURN
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
+                                  ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
                                   ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
                                   ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
@@ -806,6 +807,19 @@ time_t test_clock(time_t *out)
                 ("REUSE(3:@FM:4), 2", ':1:10: REUSE in DIVS requires a scalar')]:
             with self.subTest(args=args):
                 source.write_text(f'CRT DIVS({args})\n')
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn((str(source) + diagnostic).encode(), run.stderr)
+
+    def test_subs_diagnostics(self):
+        source = self.work / 'subs.b'
+        for args, diagnostic in [
+                ("1:@VM:'bad', 2", ':1:5: arithmetic requires numeric operands'),
+                ("'', 'bad'", ':1:5: arithmetic requires numeric operands'),
+                ("'-9223372036854775808', 1", ':1:5: integer subtraction overflow'),
+                ("2, REUSE(3:@FM:4)", ':1:13: REUSE in SUBS requires a scalar')]:
+            with self.subTest(args=args):
+                source.write_text(f'CRT SUBS({args})\n')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + diagnostic).encode(), run.stderr)

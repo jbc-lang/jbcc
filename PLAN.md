@@ -1440,7 +1440,17 @@ stopped on a line containing DIVS now pass. The other two reach SUBS.
 Native tests cover asymmetric padding, empty pairs, scalar REUSE,
 decimal precision, and reporting zero divisors while completing the array.
 
-- [ ] Implement SUBS for element-wise subtraction. Check the guide's
+- [x] Implement SUBS for element-wise subtraction. Check the guide's
   use of zero for empty and missing elements, mixed marks, PRECISION,
   scalar REUSE and invalid operands. Three T24 files first stop on a
   line containing SUBS.
+
+After SUBS, 16,184 of 17,336 candidates pass strict C99 checking.
+All 16,181 previous passes still pass, and all three targeted files
+now pass. Native tests cover zero padding, mixed marks, scalar REUSE,
+decimal precision, nonnumeric operands and overflow.
+
+- [ ] Implement the `@USERNO` port number and the reference compiler's
+  `@USER_NO` and `@UDTNO` aliases. Check their relationship to
+  `SYSTEM(18)` and document how a native process gets its port number.
+  Unsupported `@USERNO` is the first diagnostic in 35 T24 files.

@@ -2176,7 +2176,11 @@ static const char *array_arithmetic(char op, const char *left, const char *right
         const char *a = left_items + (lhs.item - left);
         const char *b = right_items + (rhs.item - right);
         const char *item = "";
-        if (!lhs.present || !rhs.present) {
+        if (op == '-') {
+            const char *minuend = lhs.present && *a ? a : "0";
+            const char *subtrahend = rhs.present && *b ? b : "0";
+            item = jbc_arithmetic('-', minuend, subtrahend, file, line, column);
+        } else if (!lhs.present || !rhs.present) {
             item = "0";
             if (op == '+') item = lhs.present ? a : b;
             else if (op == '/' && lhs.present) item = a;
@@ -2213,6 +2217,12 @@ const char *jbc_adds(const char *left, const char *right, int reuse_left, int re
                      const char *file, int line, int column)
 {
     return array_arithmetic('+', left, right, reuse_left, reuse_right, file, line, column);
+}
+
+const char *jbc_subs(const char *left, const char *right, int reuse_left, int reuse_right,
+                     const char *file, int line, int column)
+{
+    return array_arithmetic('-', left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_muls(const char *left, const char *right, int reuse_left, int reuse_right,
