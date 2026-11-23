@@ -1126,6 +1126,15 @@ reference grammar requires a named descriptor. Native tests verify
 that closing it leaves the default descriptor usable and that later
 routine cleanup preserves locks acquired after an explicit close.
 
-- [ ] Implement GETENV(name, variable). EBS.CREATE.FILE now reaches it
+- [x] Implement GETENV(name, variable). EBS.CREATE.FILE now reaches it
   after CLOSE. Verify the Boolean result and the output variable for
   present, empty and missing environment variables in a native subprocess.
+
+After both GETENV forms, 15,480 of 17,336 candidates pass strict C99
+checking. All 15,474 previous passes still pass. Six additional units
+pass, including GET.ENV.JBASE and T24.BUILD.LIBRARIES. EBS.CREATE.FILE
+advances to a duplicate declaration of R.FILE.CONTROL.
+
+- [ ] Implement PUTENV(expression). EB.CATALOG.PATCH.JBASE and
+  SET.LIBRARIES.JBASE now reach it. Verify replacement, empty values,
+  failure handling and visibility to GETENV and child processes.

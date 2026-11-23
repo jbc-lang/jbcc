@@ -250,6 +250,7 @@ RETURN
                                   ("CRT NEG(1, 2)\n", ":1:5: wrong argument count for 'NEG'"),
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
+                                  ('CRT GETENV("x", 1)\n', ':1:17: expected a name'),
                                   ('CLOSE\n', ':1:6: expected a name'),
                                   ('CLOSE F,G ON ERROR NULL\n', ":1:11: unexpected 'ON'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -1158,6 +1159,14 @@ CLOSESEQ F
         result = self.run_native(main, opener, closer, options=['--memory-file', 'F'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'2\n')
+
+    def test_getenv(self):
+        env = dict(os.environ, JBCC_TEST_VALUE='two words', JBCC_TEST_EMPTY='')
+        env.pop('JBCC_TEST_ABSENT', None)
+        result = self.run_native(ROOT / 'tests/io/getenv.b', env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'two words\ntwo words\n1[]\n0[]\n[]\n1:two words\n'
+                         b'JBCC_TEST_VALUE:1:two words\n0\ntwo words\n')
 
     def test_open_sections(self):
         run = self.run_native(ROOT / 'tests/io/open-sections.b',

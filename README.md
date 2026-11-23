@@ -146,6 +146,14 @@ DATE() returns the process’s current local calendar date as the number of
 days since 31 December 1967. For example, `OCONV(DATE(),'D-')` prints
 today’s date as `MM-DD-YYYY`. [DATE](https://jbc-lang.org/pages/date.html).
 
+`GETENV(name, value)` looks up a name in the running program’s environment
+and assigns the result to a scalar or matrix element. A present variable
+returns 1, including when its value is empty. A missing variable returns
+0 and clears the destination. Clearing on failure is provisional pending
+a reference run. The reference parser also accepts `GETENV(name)`, which
+returns the value directly or an empty string for a missing name.
+[GETENV](https://jbc-lang.org/pages/getenv.html).
+
 `EXECUTE expression` and `PERFORM expression` run the resulting command
 in the native host's default Bourne shell on POSIX. The child inherits
 standard input, output and error. The caller waits for it and continues

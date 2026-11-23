@@ -387,6 +387,15 @@ static void assign_value(jbc_variable *slot, const char *value)
     slot->array_list = 0;
 }
 
+const char *jbc_getenv(const char *name, jbc_variable *out)
+{
+    const char *found = *name && !strchr(name, '=') ? getenv(name) : NULL;
+    const char *value = found && *found ? strcpy(allocate(strlen(found)), found) : "";
+    if (!out) return value;
+    assign_value(out, value);
+    return found ? "1" : "0";
+}
+
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
 struct jbc_slots {
     struct jbc_slots *next;

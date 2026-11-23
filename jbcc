@@ -404,8 +404,8 @@ class Compiler:
 
     def checked_read(self, var, token):
         read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
-        # A later function in the expression can change this variable by reference.
-        return self.temporary(read) if self.functions else read
+        # Capture the value before a later call can overwrite this slot.
+        return self.temporary(read) if self.functions or self.has_getenv else read
 
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
@@ -466,6 +466,23 @@ class Compiler:
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
+        elif word == 'GETENV' and self.following.word == '(':
+            self.advance()
+            self.advance()
+            name = self.expression()
+            output = 'NULL'
+            target = None
+            if self.word == ',':
+                self.advance()
+                target = self.identifier()
+                output = '&' + self.variable_slot(target)
+            self.expect(')')
+            value = self.temporary(f'jbc_getenv({name}, {output})')
+            if target and target.word not in self.matrices:
+                self.assigned.add(target.word)
+                for truth in (True, False):
+                    self.assignment_facts[value, truth] = {target.word}
+            return self.postfix(value, locate_source)
         elif word == 'READNEXT' and self.following.kind == 'name':
             call = self.readnext_call()
             return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
@@ -2081,6 +2098,7 @@ class Compiler:
         return self.identifier(), is_matrix
 
     def parse(self, tokens):
+        self.has_getenv = any(t.word == 'GETENV' for t in tokens)
         self.has_unstructured_jumps = any(t.word in ('GOTO', 'GOSUB') or
                                           (t.word == 'RETURN' and n + 1 < len(tokens) and tokens[n + 1].word == 'TO')
                                           for n, t in enumerate(tokens))
