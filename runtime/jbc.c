@@ -3794,15 +3794,17 @@ const char *jbc_recordlocked(const char *handle, const char *key)
     return !lock ? "0" : lock->foreign ? "-2" : "2";
 }
 
-void jbc_release_lock(const char *handle, const char *key)
+int jbc_release_lock(const char *handle, const char *key)
 {
     if (key) {
         struct memory_file *f = file_for(handle);
-        if (f) release_locks(f, key, 0);
+        if (!f) return 128;
+        release_locks(f, key, 0);
     } else {
         for (struct memory_file *f = files; f; f = f->next)
             release_locks(f, NULL, 0);
     }
+    return 0;
 }
 
 static int lock_for_update(struct memory_file *f, const char *key, jbc_variable *setting)

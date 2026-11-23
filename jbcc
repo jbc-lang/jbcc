@@ -2804,9 +2804,15 @@ class Compiler:
                 self.clearfile_statement()
         elif (self.word == 'RELEASE' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
+            opening = self.current
             self.advance()
-            handle, key = ("NULL", "NULL") if self.word in OUTPUT_END or not self.word else self.file_key()
-            self.emit(f"jbc_release_lock({handle}, {key});")
+            on_error = self.word == 'ON' and self.following.word == 'ERROR'
+            handle, key = ("NULL", "NULL") if on_error or not self.word or self.word in OUTPUT_END else self.file_key()
+            call = f"jbc_release_lock({handle}, {key})"
+            if self.word == 'ON':
+                self.file_error_arm(opening, f"file_succeeded({call})", "NULL")
+            else:
+                self.emit(f"{call};")
         elif (self.word == 'RECORDLOCKU' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current

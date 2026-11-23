@@ -2451,6 +2451,20 @@ assignment and label forms for NEXT.
 XT.MAKE.KEYS now passes strict C99 checking in byte mode. The total
 is 17,061 of 17,336 candidates, including all 17,060 previous passes.
 
-- [ ] Investigate RELEASE with ON ERROR in CONVERT.KEYWORD and
+- [x] Investigate RELEASE with ON ERROR in CONVERT.KEYWORD and
   JBASE.CONVERSION. Check the reference release status and define
   how the in-memory backend handles invalid descriptors and lock ownership.
+
+The reference compiler emits the error arm for a false RELEASE_IBB
+result. The in-memory backend provisionally reports 128 through STATUS()
+for invalid descriptors and zero on success when an arm is present.
+Native tests cover explicit, default and global releases, unlocked keys,
+and preservation of simulated foreign locks.
+
+Both affected units now pass strict C99 checking in byte mode. The
+total is 17,063 of 17,336 candidates, including all 17,061 previous
+passes.
+
+- [ ] Investigate @COMMAND in JGLOBUS.DATABASE.COPY.JBASE. Check the
+  reference spelling and compare the program name and argument handling
+  with @SENTENCE before adding it.

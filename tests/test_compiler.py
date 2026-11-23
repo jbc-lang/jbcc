@@ -3201,6 +3201,35 @@ CRT RECORDLOCKED(F, 'new'):':':RECORDLOCKED(F, 'busy')
         self.assertIn(f'{source}:2:1: RECORDLOCKU cannot wait for a simulated foreign lock'.encode(),
                       run.stderr)
 
+    def test_release_on_error_reports_invalid_files_and_preserves_foreign_locks(self):
+        source = self.work / 'release.b'
+        source.write_text("""RELEASE 'missing' ON ERROR CRT 'default ':STATUS()
+OPEN 'F' TO F ELSE ABORT
+OPEN 'F' ELSE ABORT
+OPEN 'G' TO G ELSE ABORT
+RECORDLOCKU 'owned'
+RECORDLOCKU F, 'explicit'
+RECORDLOCKU G, 'owned'
+Bad = 'invalid'
+RELEASE Bad, 'owned' ON ERROR
+    CRT STATUS()
+END
+RELEASE Bad, 'owned'
+CRT STATUS():':':RECORDLOCKED(F, 'owned')
+RELEASE F, 'busy' ON ERROR ABORT
+RELEASE F, 'missing' ON ERROR ABORT
+RELEASE F, 'explicit' ON ERROR ABORT
+RELEASE 'owned' ON ERROR ABORT
+CRT STATUS():':':RECORDLOCKED(F, 'owned'):':':RECORDLOCKED(F, 'explicit'):':':RECORDLOCKED(G, 'owned')
+RELEASE ON ERROR ABORT
+CRT STATUS():':':RECORDLOCKED(G, 'owned'):':':RECORDLOCKED(F, 'busy')
+""")
+        result = self.run_native(source, options=(
+            '--memory-file', 'F', '--memory-file', 'G', '--memory-lock', 'F', 'busy',
+        ))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'default 128\n128\n128:2\n0:0:0:2\n0:0:-2\n', b''))
+
     def test_assign_system_resets_blocked_record_lock_counter(self):
         source = self.work / 'assign-system.b'
         source.write_text("""OPEN 'F' TO F ELSE STOP

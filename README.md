@@ -1643,6 +1643,12 @@ RECORDLOCKED returns 2 for an owned update lock, -2 for a simulated
 foreign lock, and 0 for an unlocked key. WRITE, MATWRITE and DELETE
 release an owned lock on the affected key. Use `RELEASE F, Key` or
 `RELEASE Key` for a single key, or bare `RELEASE` for all owned locks.
+All three forms accept `ON ERROR`. With that clause, the in-memory
+backend provisionally sets STATUS() to 128 for an invalid descriptor
+and executes the arm. Success sets STATUS() to zero. A valid descriptor
+succeeds even when the requested key has no owned lock. RELEASE only
+removes locks held by the current process. Without an error arm, it
+discards the backend status.
 Returning from a routine that opened a file into a local variable
 releases that process’s locks on the file. [READU](https://jbc-lang.org/pages/readu.html),
 [RELEASE](https://jbc-lang.org/pages/release.html), [RECORDLOCKED](https://jbc-lang.org/pages/recordlocked.html).
