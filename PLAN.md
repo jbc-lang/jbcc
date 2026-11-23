@@ -1617,7 +1617,16 @@ whose colon-before-underscore form originally reached an expression
 diagnostic. The other two reach REWIND. Native tests cover piped input,
 queued DATA, terminal bells and waiting for Enter.
 
-- [ ] Implement ECHO ON, ECHO OFF and its expression form. Verify
+- [x] Implement ECHO ON, ECHO OFF and its expression form. Verify
   terminal behavior, interaction with HUSH, and the guide's SYSTEM
   query for echo state. Unsupported ECHO is the first diagnostic
   in two T24 files.
+
+After ECHO, 16,305 of 17,336 candidates pass strict C99 checking.
+All 16,304 previous passes still pass. One targeted file now passes
+and the other reaches INPUTCLEAR. A pseudo-terminal test covers
+character echo, SYSTEM(24), HUSH and terminal mode restoration.
+
+- [ ] Implement INPUTCLEAR and its CLEARINPUT alias. Verify that it
+  clears terminal type-ahead while preserving queued DATA. Unsupported
+  INPUTCLEAR is the first diagnostic in one T24 file.

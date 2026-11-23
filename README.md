@@ -383,6 +383,15 @@ jbcc provisionally diagnoses nonnumeric operands. Output suppression spans
 routine calls. Printer jobs and `EXECUTE ... CAPTURING` still receive
 their output. [HUSH](https://jbc-lang.org/pages/hush.html).
 
+`ECHO ON`, `ECHO OFF` and `ECHO expression` control terminal echo during
+INPUT. The expression uses ordinary jBC truth conversion. Before an ECHO
+statement, INPUT follows the terminal settings. ECHO OFF suppresses
+typed characters and the echoed newline while keeping the prompt visible.
+`SYSTEM(24)` reports the effective setting, including suppression by
+HUSH. The native runtime restores the host terminal mode after each read.
+[ECHO](https://jbc-lang.org/pages/echo.html),
+[SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
+
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
 `?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps

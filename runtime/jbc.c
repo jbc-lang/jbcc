@@ -3678,6 +3678,12 @@ void jbc_sleep(const char *duration, const char *file, int line, int column)
 /* Bounded and timed reads need each keystroke before the line is submitted. */
 static struct termios input_saved;
 static volatile sig_atomic_t input_modified;
+static int input_echo = -1;
+
+void jbc_echo(int enabled)
+{
+    input_echo = enabled;
+}
 
 static void input_signal(int sig)
 {
@@ -3704,13 +3710,15 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
     struct timespec interval = {(time_t)(ticks / 10), (long)(ticks % 10) * 100000000L};
     if (interval.tv_sec != ticks / 10) numeric_error(file, line, column, "INPUT timeout too large");
     int echo_chars = 0, ended_line = 0, timed_out = 0;
-    if (!input_data && (jbc_hushed || suppress_newline || limit_text || timeout_text) &&
+    if (!input_data && (input_echo >= 0 || jbc_hushed || suppress_newline || limit_text || timeout_text) &&
         isatty(STDIN_FILENO)) {
         if (tcgetattr(STDIN_FILENO, &input_saved) != 0)
             numeric_error(file, line, column, "cannot read input terminal settings");
-        if (limit_text || timeout_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
-            echo_chars = !jbc_hushed && (input_saved.c_lflag & ECHO) != 0;
-            if (echo_chars || (!jbc_hushed && !suppress_newline && (input_saved.c_lflag & ECHONL))) {
+        if (input_echo >= 0 || limit_text || timeout_text || (input_saved.c_lflag & (ECHO | ECHONL))) {
+            int enabled = input_echo >= 0 ? input_echo : (input_saved.c_lflag & ECHO) != 0;
+            echo_chars = !jbc_hushed && enabled;
+            if (echo_chars || (!jbc_hushed && input_echo != 0 && !suppress_newline &&
+                               (input_saved.c_lflag & ECHONL))) {
                 const char *tty = ttyname(STDIN_FILENO);
                 if (!tty || (echo_fd = open(tty, O_WRONLY | O_NOCTTY)) < 0)
                     numeric_error(file, line, column, "cannot echo terminal input");
@@ -3816,6 +3824,12 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
     if (!jbc_compare(code, "18", -1)) return jbc_port_number(file, line, column);
     if (!jbc_compare(code, "19", -1)) return jbc_login_name();
+    if (!jbc_compare(code, "24", -1)) {
+        if (jbc_hushed) return "0";
+        if (input_echo >= 0) return input_echo ? "1" : "0";
+        struct termios mode;
+        return !tcgetattr(STDIN_FILENO, &mode) && (mode.c_lflag & ECHO) ? "1" : "0";
+    }
     if (!jbc_compare(code, "1036", -1)) return size_value(blocked_record_locks);
     if (jbc_compare(code, "14", -1))
         numeric_error(file, line, column, jbc_concat("unsupported SYSTEM key ", code));

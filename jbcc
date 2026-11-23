@@ -2310,6 +2310,16 @@ class Compiler:
             else:
                 state = self.expression()
             self.emit(f"jbc_hush({state}, {self.location(opening)});")
+        elif (self.word == 'ECHO' and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.advance()
+            self.terminal = True
+            if self.word in ('ON', 'OFF'):
+                state = int(self.word == 'ON')
+                self.advance()
+            else:
+                state = f"jbc_truth({self.expression()})"
+            self.emit(f"jbc_echo({state});")
         elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current

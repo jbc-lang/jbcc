@@ -2470,6 +2470,54 @@ CRT O:
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: HUSH requires a numeric operand'.encode(), result.stderr)
 
+    def test_echo_controls_terminal_input_and_system24(self):
+        source = self.work / 'echo.b'
+        source.write_text("""PROMPT '>'
+CRT SYSTEM(24)
+ECHO OFF
+CRT SYSTEM(24)
+INPUT Secret
+CRT LEN(Secret)
+ECHO 2 > 1
+HUSH ON
+Quiet = SYSTEM(24)
+HUSH OFF
+CRT Quiet:':':SYSTEM(24)
+INPUT Visible
+ECHO ON
+CRT SYSTEM(24)
+ECHO 0
+CRT SYSTEM(24)
+""")
+        binary = self.work / 'echo'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        original = termios.tcgetattr(slave)
+
+        def read_until(marker):
+            data = bytearray()
+            while not data.endswith(marker):
+                self.assertTrue(select.select([master], [], [], 5)[0], data)
+                data.extend(os.read(master, 1024))
+            return bytes(data)
+
+        with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
+            try:
+                self.assertEqual(read_until(b'>'), b'1\r\n0\r\n>')
+                os.write(master, b'secret\n')
+                self.assertEqual(read_until(b'>'), b'6\r\n0:1\r\n>')
+                os.write(master, b'visible\n')
+                self.assertEqual(read_until(b'1\r\n0\r\n'), b'visible\r\n1\r\n0\r\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+                actual = termios.tcgetattr(slave)
+                actual[3] &= ~getattr(termios, 'PENDIN', 0)
+                self.assertEqual(actual, original)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
     def test_hush_terminal_input_and_printer(self):
         source = self.work / 'hush.b'
         source.write_text("HUSH ON\nPRINT ON 1 'job'\nINPUT X\nHUSH OFF\nCRT LEN(X)\nINPUT Y\nCRT Y\n")
