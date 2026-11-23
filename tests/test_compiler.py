@@ -690,6 +690,22 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
 
+    def test_spaces_diagnostics(self):
+        source = self.work / 'spaces.b'
+        for argument, message in [
+            ("''", 'SPACES requires nonempty elements'),
+            ('@FM:2', 'SPACES requires nonempty elements'),
+            ('2:@VM:@SM:3', 'SPACES requires nonempty elements'),
+            ('2:@SM', 'SPACES requires nonempty elements'),
+            ("2:@FM:'bad'", 'expected a numeric value'),
+            ('9223372036854775807:@FM:9223372036854775807', 'SPACES result too large'),
+        ]:
+            with self.subTest(argument=argument):
+                source.write_text(f'CRT SPACES({argument})\n')
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:5: {message}'.encode(), result.stderr)
+
     def test_left_right_require_numeric_length(self):
         source = self.work / 'length.b'
         for name in ('LEFT', 'RIGHT'):

@@ -2090,16 +2090,15 @@ const char *jbc_cats(const char *left, const char *right, int reuse_left, int re
     return join_arrays(left, "", right, reuse_left, reuse_right);
 }
 
-/* Supply NUL-terminated scalar views to jbc_compare at the same byte
-   offsets as the original array. Count marks to bound the output size. */
-static char *comparison_items(const char *array, size_t *marks)
+/* Supply NUL-terminated scalar views at the original array's byte offsets. */
+static char *split_array_items(const char *array, size_t *marks)
 {
     char *copy = malloc(strlen(array) + 1);
     if (!copy) fail("out of memory");
     strcpy(copy, array);
     for (char *p = copy; (p = strpbrk(p, "\376\375\374")) != NULL; ++p) {
         *p = '\0';
-        ++*marks;
+        if (marks) ++*marks;
     }
     return copy;
 }
@@ -2113,8 +2112,8 @@ static const char *compare_array_items(const char *left, const char *right, int 
         return !*left || !*right ? "" : (jbc_compare(left, right, jbc_precision) ? unequal : equal);
 
     size_t marks = 0;
-    char *a = comparison_items(left, &marks);
-    char *b = comparison_items(right, &marks);
+    char *a = split_array_items(left, &marks);
+    char *b = split_array_items(right, &marks);
     if (marks > (SIZE_MAX - 1) / 2) fail("array comparison result too large");
     char *out = allocate(2 * marks + 1), *write = out;
     for (;;) {
@@ -2948,14 +2947,56 @@ const char *jbc_str(const char *text, const char *count, const char *file, int l
     return out;
 }
 
-const char *jbc_space(const char *value, const char *file, int line, int column)
+static size_t space_count(const char *value, const char *file, int line, int column,
+                          const char *size_error)
 {
     int64_t n = truncated(value, file, line, column);
-    if (n <= 0) return "";
-    if ((uint64_t)n >= SIZE_MAX) fail("SPACE result too large");
-    char *out = allocate((size_t)n);
-    memset(out, ' ', (size_t)n);
-    out[n] = '\0';
+    if (n <= 0) return 0;
+    if ((uint64_t)n > SIZE_MAX - sizeof(struct jbc_buffer) - 1)
+        numeric_error(file, line, column, size_error);
+    return (size_t)n;
+}
+
+const char *jbc_space(const char *value, const char *file, int line, int column)
+{
+    size_t count = space_count(value, file, line, column, "SPACE result too large");
+    if (!count) return "";
+    char *out = allocate(count);
+    memset(out, ' ', count);
+    out[count] = '\0';
+    return out;
+}
+
+/* Size every element before allocating the result, then fill it in place. */
+static size_t fill_space_array(const char *source, const char *items, char *out,
+                               const char *file, int line, int column)
+{
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    size_t used = 0;
+    for (const char *item = items;;) {
+        if (!*item) numeric_error(file, line, column, "SPACES requires nonempty elements");
+        size_t count = space_count(item, file, line, column, "SPACES result too large");
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        size_t bytes = count + (mark != '\0');
+        if (bytes > limit - used) numeric_error(file, line, column, "SPACES result too large");
+        if (out) {
+            memset(out + used, ' ', count);
+            out[used + count] = mark;
+        }
+        used += bytes;
+        if (!mark) return used;
+        item = end + 1;
+    }
+}
+
+const char *jbc_spaces(const char *source, const char *file, int line, int column)
+{
+    char *items = split_array_items(source, NULL);
+    size_t length = fill_space_array(source, items, NULL, file, line, column);
+    char *out = allocate(length);
+    fill_space_array(source, items, out, file, line, column);
+    free(items);
     return out;
 }
 

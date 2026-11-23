@@ -1344,7 +1344,18 @@ The exact reference table is unspecified, so jbcc provisionally uses
 CP037 and ISO-8859-1. Native tests verify both directions and round trips
 for every nonzero byte.
 
-- [ ] Implement SPACES for scalar counts and dynamic arrays. Check
+- [x] Implement SPACES for scalar counts and dynamic arrays. Check
   delimiter preservation, zero counts, and the guide's empty-element
   diagnostic. CONVERT.ASCII.EBCDIC first stops at SPACES(255) when
   initializing the table used by SEQX.
+
+After SPACES, 16,133 of 17,336 candidates pass strict C99 checking.
+All 16,131 previous passes still pass. ATM.BALANCE.UPLOAD.USW and
+CONVERT.ASCII.EBCDIC now pass. A local native probe linked the T24 SEQX
+and CONVERT.ASCII.EBCDIC routines, initialized their shared startup flags,
+and verified the 255-byte table and lookup results for ASCII A and @FM.
+
+- [ ] Implement NEGS for element-wise negation using NEG's numeric
+  conversion. Check marks, empty elements, and nonnumeric input
+  against the guide, whose prose and empty-element example differ.
+  Five T24 files first stop on a line containing NEGS.

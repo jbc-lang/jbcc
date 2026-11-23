@@ -242,6 +242,13 @@ For fractional or negative counts, jbcc provisionally follows SPACE. It truncate
 toward zero and returns an empty string for nonpositive counts.
 [STR](https://jbc-lang.org/pages/str.html).
 
+`SPACES(counts)` replaces each count with that many ASCII spaces while
+preserving field, value, and subvalue marks. A scalar count works too.
+An empty input or empty element raises a runtime diagnostic at the call.
+jbcc follows SPACE for numeric counts, provisionally truncating
+fractions toward zero and producing empty elements for nonpositive
+counts. [jBASE SPACES](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SPACES.htm).
+
 TRIM accepts one to three arguments. In jbcc, `TRIM(text)` removes
 leading and trailing spaces and collapses internal runs to one space.
 A second argument selects the trim byte. An empty second argument selects
