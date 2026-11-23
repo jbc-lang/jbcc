@@ -4087,26 +4087,55 @@ const char *jbc_int(const char *value, const char *file, int line, int column)
     return out;
 }
 
-static uint32_t bitxor_operand(const char *value, const char *file, int line, int column)
+static uint32_t decimal_word(const char *value, const char *message,
+                             const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(value, &n))
-        numeric_error(file, line, column, "BITXOR requires numeric operands");
+        numeric_error(file, line, column, message);
     uint32_t bits = 0;
     for (size_t i = 0; i < n.digits; ++i)
         bits = (uint32_t)(UINT64_C(10) * bits + (unsigned)(n.whole[i] - '0'));
     return n.sign < 0 ? (uint32_t)(0u - bits) : bits;
 }
 
-const char *jbc_bitxor(const char *left, const char *right, const char *file, int line, int column)
+static const char *signed_word_value(uint32_t bits)
 {
-    if (!*left || !*right) return "";
-    uint32_t bits = bitxor_operand(left, file, line, column) ^
-                    bitxor_operand(right, file, line, column);
     int64_t result = bits <= INT32_MAX ? (int64_t)bits : (int64_t)bits - (INT64_C(1) << 32);
     char *out = allocate(11);
     snprintf(out, 12, "%" PRId64, result);
     return out;
+}
+
+const char *jbc_bitxor(const char *left, const char *right, const char *file, int line, int column)
+{
+    if (!*left || !*right) return "";
+    const char *message = "BITXOR requires numeric operands";
+    uint32_t lhs = decimal_word(left, message, file, line, column);
+    uint32_t rhs = decimal_word(right, message, file, line, column);
+    return signed_word_value(lhs ^ rhs);
+}
+
+const char *jbc_dtx(const char *value, const char *file, int line, int column)
+{
+    uint32_t bits = decimal_word(value, "DTX requires a numeric operand", file, line, column);
+    char *out = allocate(8);
+    snprintf(out, 9, "%" PRIX32, bits);
+    return out;
+}
+
+const char *jbc_xtd(const char *value)
+{
+    uint32_t bits = 0;
+    for (; *value; ++value) {
+        unsigned digit;
+        if (*value >= '0' && *value <= '9') digit = *value - '0';
+        else if (*value >= 'A' && *value <= 'F') digit = *value - 'A' + 10;
+        else if (*value >= 'a' && *value <= 'f') digit = *value - 'a' + 10;
+        else break;
+        bits = (uint32_t)(UINT64_C(16) * bits + digit);
+    }
+    return signed_word_value(bits);
 }
 
 const char *jbc_str(const char *text, const char *count, const char *file, int line, int column)

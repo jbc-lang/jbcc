@@ -231,6 +231,16 @@ operand and returns the result as a signed integer on every target.
 Nonempty, nonnumeric operands produce a source-located error.
 [BITXOR](https://jbc-lang.org/pages/bitxor.html).
 
+`DTX(number)` returns uppercase hexadecimal digits. `XTD(text)` reads
+hexadecimal digits in either case up to the first other character and
+returns zero if it reads no digits. It interprets the low 32 bits as
+a signed two's-complement integer, consistent with the guide's examples.
+jbcc provisionally truncates fractional DTX operands toward zero and
+formats the low 32 bits without leading zeros. It also uses the low
+32 bits for XTD inputs wider than eight digits. DTX reports an error
+for a nonnumeric operand.
+[DTX](https://jbc-lang.org/pages/dtx.html), [XTD](https://jbc-lang.org/pages/xtd.html).
+
 ABS returns the magnitude of a numeric expression. For example,
 `ABS(10 - 15)` returns `5`. jbcc reads decimal strings directly,
 preserving their significant digits, and truncates the result when an

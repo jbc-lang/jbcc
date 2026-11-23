@@ -2495,6 +2495,23 @@ EB.CREATE.FILE and EB.DELETE.FILE now pass strict C99 checking in byte
 mode. The total is 17,066 of 17,336 candidates, including all 17,064
 previous passes.
 
-- [ ] Investigate DTX and XTD hexadecimal conversion, starting with
+- [x] Investigate DTX and XTD hexadecimal conversion, starting with
   the DTX call in EB.GC.GET.CONSTRAINT. Check signed values, bit width,
   and invalid input against the guide and reference implementation.
+
+The reference compiler emits DTX_BBI with integer conversion when needed
+and XTD_IB with a jBC value. The guide shows uppercase DTX output and
+signed 32-bit XTD results, with parsing stopping at the first non-hex
+byte. jbcc provisionally truncates DTX fractions toward zero and keeps
+the low 32 bits of oversized operands in both directions. Native tests
+cover these choices, zero, negative numbers, signed boundaries,
+invalid text and source-located errors.
+
+EB.GC.GET.CONSTRAINT now passes strict C99 checking in byte mode.
+Of the same 17,336 candidates, 17,067 pass, including all 17,066
+previous passes. The raw scan also picked up a new editor swap file
+and rejected it. The ICONV call around DTX in EB.GC.GET.CONSTRAINT
+still requires runtime support for the MCXB mask.
+
+- [ ] Investigate KEYIN() in JGLOBUS.CONVERT and the reference grammar's
+  IN() spelling. Check how they interact with native INPUT and queued DATA.

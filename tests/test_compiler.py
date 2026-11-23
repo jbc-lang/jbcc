@@ -2338,6 +2338,34 @@ CRT '[':BITXOR('', 5):'] [':BITXOR('other', ''):']'
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
 
+    def test_hexadecimal_conversion_uses_32_bit_words(self):
+        source = self.work / 'hex.b'
+        source.write_text("""CRT DTX(0), DTX('171.9'), DTX(-2.9), DTX(2147483648)
+CRT DTX(4294967296), DTX('18446744073709551618')
+CRT XTD('7f'), XTD('2Bg7'), XTD('G2B'), XTD('')
+CRT XTD('80000000'), XTD('FFFFFFFF'), XTD('100000008')
+CRT XTD(DTX(-23)) + 1
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0\tAB\tFFFFFFFE\t80000000\n0\t2\n127\t43\t0\t0\n'
+                             b'-2147483648\t-1\t8\n-22\n', b''))
+
+    def test_hexadecimal_conversion_diagnostics(self):
+        source = self.work / 'hex.b'
+        for operand in ("'junk'", "''"):
+            with self.subTest(operand=operand):
+                source.write_text(f'CRT DTX({operand})\n')
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:5: DTX requires a numeric operand'.encode(), result.stderr)
+        for function, operands in (('DTX', ''), ('XTD', "'1', '2'")):
+            with self.subTest(function=function):
+                source.write_text(f'CRT {function}({operands})\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for '{function}'", result.stderr)
+
     def test_mod_requires_numeric_operands(self):
         source = self.work / 'mod.b'
         for name, args in [('MOD', "'x', 0"), ('MOD', "1, 'x'"), ('REM', "1, 'x'")]:
