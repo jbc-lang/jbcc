@@ -1242,6 +1242,13 @@ CRT UPCASE(''):LOWCASE('')
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: wrong argument count for 'ABS'", run.stderr)
 
+    def test_abss_diagnostics(self):
+        source = self.work / 'abss.b'
+        source.write_text("CRT ABSS('-2':@VM:'not numeric')\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:5: ABSS requires numeric elements'.encode(), run.stderr)
+
     def test_fmt_diagnostics(self):
         source = self.work / 'fmt.b'
         for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T']:

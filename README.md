@@ -159,6 +159,11 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
+`ABSS(array)` applies ABS to each nonempty element and preserves empty
+elements and array marks. jbcc provisionally uses the scalar ABS error
+behavior for nonnumeric elements, with a diagnostic at the ABSS call.
+[ABSS](https://jbc-lang.org/pages/abss.html).
+
 NEG reverses the sign of a numeric expression, including a comparison
 result. For example, `NEG(2 LT 3)` returns `-1`. jbcc applies explicit
 PRECISION as it does for ABS. For nonnumeric input, NEG writes a warning

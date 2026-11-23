@@ -1488,14 +1488,20 @@ const char *jbc_minimum(const char *source)
     return array_extreme(source, 0);
 }
 
-const char *jbc_abs(const char *value, const char *file, int line, int column)
+static const char *absolute_value(const char *value, const char *error,
+                                  const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(value, &n))
-        numeric_error(file, line, column, "ABS requires a numeric value");
+        numeric_error(file, line, column, error);
     limit_places(&n, jbc_precision);
     n.sign = 1;
     return fmt_decimal(n, n.places);
+}
+
+const char *jbc_abs(const char *value, const char *file, int line, int column)
+{
+    return absolute_value(value, "ABS requires a numeric value", file, line, column);
 }
 
 static const char *negate_decimal(struct decimal n)
@@ -2522,7 +2528,7 @@ const char *jbc_divs(const char *left, const char *right, int reuse_left, int re
     return array_arithmetic('/', left, right, reuse_left, reuse_right, file, line, column);
 }
 
-const char *jbc_negs(const char *source, const char *file, int line, int column)
+static const char *array_sign(const char *source, int absolute, const char *file, int line, int column)
 {
     if (!*source) return "";
     size_t marks = 0, length = strlen(source);
@@ -2530,12 +2536,16 @@ const char *jbc_negs(const char *source, const char *file, int line, int column)
     /* A decimal can gain a minus sign and a leading zero. */
     const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
     if (length > limit || marks + 1 > (limit - length) / 2)
-        numeric_error(file, line, column, "NEGS result too large");
+        numeric_error(file, line, column, absolute ? "ABSS result too large" : "NEGS result too large");
     char *out = allocate(length + 2 * (marks + 1)), *write = out;
     for (const char *item = items;;) {
-        const char *negated = *item ? negative_value(item, "NEGS", file, line, column) : "";
-        size_t bytes = strlen(negated);
-        memcpy(write, negated, bytes);
+        const char *value = "";
+        if (*item && absolute)
+            value = absolute_value(item, "ABSS requires numeric elements", file, line, column);
+        else if (*item)
+            value = negative_value(item, "NEGS", file, line, column);
+        size_t bytes = strlen(value);
+        memcpy(write, value, bytes);
         write += bytes;
 
         const char *end = item + strlen(item);
@@ -2546,6 +2556,16 @@ const char *jbc_negs(const char *source, const char *file, int line, int column)
     }
     free(items);
     return out;
+}
+
+const char *jbc_negs(const char *source, const char *file, int line, int column)
+{
+    return array_sign(source, 0, file, line, column);
+}
+
+const char *jbc_abss(const char *source, const char *file, int line, int column)
+{
+    return array_sign(source, 1, file, line, column);
 }
 
 static const char *compare_array_items(const char *left, const char *right, int reuse_left,

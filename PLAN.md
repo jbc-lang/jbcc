@@ -1672,6 +1672,16 @@ All 16,312 of the previous strict C99 passes still pass after adding
 `T` masks. A native fixture follows the T24 narrative call pattern and
 checks word breaks, padding, text marks, and value-mark preservation.
 
-- [ ] Implement ABSS using the runtime's decimal absolute value and
+- [x] Implement ABSS using the runtime's decimal absolute value and
   dynamic-array traversal. Check empty elements, marks, precision,
   and invalid input. Two T24 files first stop on a line containing ABSS.
+
+After ABSS, 16,314 of 17,336 candidates pass strict C99 checking.
+All 16,312 previous passes still pass, and both targeted files now
+pass. Native tests cover large magnitudes, empty elements, marks,
+PRECISION and invalid elements.
+
+- [ ] Implement SMUL for decimal-string multiplication. Check large
+  products, signs, fractional precision and the reference grammar's
+  optional precision argument. Two T24 files first stop on a line
+  containing SMUL.
