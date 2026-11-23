@@ -1135,6 +1135,16 @@ checking. All 15,474 previous passes still pass. Six additional units
 pass, including GET.ENV.JBASE and T24.BUILD.LIBRARIES. EBS.CREATE.FILE
 advances to a duplicate declaration of R.FILE.CONTROL.
 
-- [ ] Implement PUTENV(expression). EB.CATALOG.PATCH.JBASE and
+- [x] Implement PUTENV(expression). EB.CATALOG.PATCH.JBASE and
   SET.LIBRARIES.JBASE now reach it. Verify replacement, empty values,
   failure handling and visibility to GETENV and child processes.
+
+After PUTENV, 15,482 of 17,336 candidates pass strict C99 checking.
+EB.CATALOG.PATCH.JBASE and SET.LIBRARIES.JBASE now pass, along with
+all 15,480 previous passes. Native tests cover child-process inheritance,
+empty values, malformed assignments and short-circuit evaluation.
+
+- [ ] Recognize dynamic-array assignment with whitespace before the
+  selector. All 28 first diagnostics naming T.SEQU are appends such as
+  `T.SEQU <-1> = A+1` or `T.SEQU < - 1 > = A + 1`. Check the grammar
+  and test both spellings alongside less-than and greater-than comparisons.

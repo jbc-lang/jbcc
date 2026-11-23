@@ -154,6 +154,13 @@ a reference run. The reference parser also accepts `GETENV(name)`, which
 returns the value directly or an empty string for a missing name.
 [GETENV](https://jbc-lang.org/pages/getenv.html).
 
+`PUTENV(expression)` creates or replaces a variable in the running
+program’s environment. The first `=` separates the name from the value.
+For example, `PUTENV("MODE=")` leaves MODE present with an empty value.
+Success returns 1. An empty name, a missing `=`, or a host failure
+returns 0. Subsequent GETENV calls and children launched by EXECUTE or
+PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html).
+
 `EXECUTE expression` and `PERFORM expression` run the resulting command
 in the native host's default Bourne shell on POSIX. The child inherits
 standard input, output and error. The caller waits for it and continues

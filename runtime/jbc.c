@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -395,6 +395,22 @@ const char *jbc_getenv(const char *name, jbc_variable *out)
     assign_value(out, value);
     return found ? "1" : "0";
 }
+
+#ifdef JBC_PUTENV
+const char *jbc_putenv(const char *assignment)
+{
+    const char *equals = strchr(assignment, '=');
+    if (!equals || equals == assignment) return "0";
+    size_t length = (size_t)(equals - assignment);
+    char *name = malloc(length + 1);
+    if (!name) return "0";
+    memcpy(name, assignment, length);
+    name[length] = '\0';
+    int status = setenv(name, equals + 1, 1);
+    free(name);
+    return status == 0 ? "1" : "0";
+}
+#endif
 
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
 struct jbc_slots {

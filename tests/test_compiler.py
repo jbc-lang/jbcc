@@ -251,6 +251,7 @@ RETURN
                                   ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
                                   ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
                                   ('CRT GETENV("x", 1)\n', ':1:17: expected a name'),
+                                  ('CRT PUTENV("A", "B")\n', ":1:5: wrong argument count for 'PUTENV'"),
                                   ('CLOSE\n', ':1:6: expected a name'),
                                   ('CLOSE F,G ON ERROR NULL\n', ":1:11: unexpected 'ON'"),
                                   ('CRT DATE(1)\n', ':1:5:'),
@@ -1159,6 +1160,14 @@ CLOSESEQ F
         result = self.run_native(main, opener, closer, options=['--memory-file', 'F'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'2\n')
+
+    def test_putenv(self):
+        env = dict(os.environ, JBCC_TEST_PUTENV='inherited')
+        env.pop('JBCC_TEST_NEW_ENV', None)
+        result = self.run_native(ROOT / 'tests/io/putenv.b', env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'inherited\ntwo words=three\ntwo words=three\n'
+                         b'1:1[]\n0:0:0\n1[]\n[]\n1\ntwo words=three\n')
 
     def test_getenv(self):
         env = dict(os.environ, JBCC_TEST_VALUE='two words', JBCC_TEST_EMPTY='')
