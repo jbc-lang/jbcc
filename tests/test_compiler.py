@@ -446,6 +446,7 @@ NEXT I
                                   ("OPEN '', 'F', 'X' ELSE STOP\n", ':1:13: expected THEN or ELSE'),
                                   ("OPEN '',, 'X' ELSE STOP\n", ':1:9: expected a variable'),
                                   ('REWIND ON 2\n', ':1:12: expected THEN or ELSE'),
+                                  ('READT X\n', ':1:8: expected THEN or ELSE'),
                                   ("IF 1 THEN CRT 1\n  ELSE CRT Missing\n", ":2:12: unknown variable"),
                                   ("CRT 'done'\nELSE CRT 1\n", ":2:1: unexpected 'ELSE'"),
                                   ("DIM A(2)\nMATREAD A FROM 'id'\n LOCKED STOP ELSE STOP\n",
@@ -1037,6 +1038,17 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn(f'{source}:1:1: REWIND channel must be an integer from 0 to 9'.encode(),
+                              result.stderr)
+
+    def test_readt_invalid_channel(self):
+        source = self.work / 'readt.b'
+        for statement in ("READT X FROM 10", "READT UNIT(2.5) X"):
+            with self.subTest(statement=statement):
+                source.write_text(f"{statement} ELSE CRT 'unexpected branch'\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b'')
+                self.assertIn(f'{source}:1:1: READT channel must be an integer from 0 to 9'.encode(),
                               result.stderr)
 
     def test_smul_diagnostics(self):

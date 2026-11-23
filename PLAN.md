@@ -1710,6 +1710,15 @@ checking. Two targeted files now reach READT and two reach WRITET.
 Native tests cover both conditional arms, the unit and channel forms,
 and the no-media status. The runtime has no attached tape devices.
 
-- [ ] Implement READT for tape records. Check the guide and reference
+- [x] Implement READT for tape records. Check the guide and reference
   grammar for channel selection and failed reads, then reuse the
   no-media status from REWIND. Five T24 files first stop at READT.
+
+After READT, 16,319 of 17,336 candidates pass strict C99 checking.
+All 16,316 previous passes still pass. Three targeted files now pass,
+and the remaining two reach WRITET. Native tests check scalar and matrix
+destinations, channel selection, and no-media status.
+
+- [ ] Implement WRITET for tape records. Check the guide's ON and TO forms
+  and the reference grammar's UNIT and FROM forms. Verify the no-media
+  status and conditional arms. Four T24 files first stop at WRITET.

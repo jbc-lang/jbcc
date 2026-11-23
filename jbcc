@@ -1120,30 +1120,45 @@ class Compiler:
             self.assigned.add(target.word)
         return setting
 
-    def rewind_statement(self):
+    def tape_unit(self):
+        if self.word != 'UNIT':
+            return None
+        self.advance()
+        self.expect('(')
+        unit = self.expression()
+        self.expect(')')
+        return unit
+
+    def tape_channel(self, unit):
+        if self.word not in ('ON', 'FROM'):
+            return unit if unit is not None else '"0"'
+        self.advance()
+        if unit is None:
+            return self.expression()
+        # The reference generator uses UNIT in preference to ON or FROM.
+        before = self.assigned.copy()
+        self.emit("if (0) {")
+        self.depth += 1
+        self.emit(f"(void){self.expression()};")
+        self.depth -= 1
+        self.emit("}")
+        self.assigned = before
+        return unit
+
+    def tape_statement(self):
         opening = self.current
         self.advance()
-        channel = '"0"'
-        has_unit = self.word == 'UNIT'
-        if has_unit:
-            self.advance()
-            self.expect('(')
-            channel = self.expression()
-            self.expect(')')
-        if self.word in ('ON', 'FROM'):
-            self.advance()
-            if has_unit:
-                # The reference generator uses UNIT in preference to ON or FROM.
-                before = self.assigned.copy()
-                self.emit("if (0) {")
-                self.depth += 1
-                self.emit(f"(void){self.expression()};")
-                self.depth -= 1
-                self.emit("}")
-                self.assigned = before
-            else:
-                channel = self.expression()
-        self.conditional_arms(opening, f"jbc_rewind({channel}, {self.location(opening)})")
+        unit = self.tape_unit()
+        if opening.word == 'READT':
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            channel = self.tape_channel(unit)
+            self.assigned.add(target.word)
+            call = f"jbc_readt(&{slot}, {channel}, {self.location(opening)})"
+        else:
+            channel = self.tape_channel(unit)
+            call = f"jbc_rewind({channel}, {self.location(opening)})"
+        self.conditional_arms(opening, call)
 
     def sequential_statement(self):
         opening = self.current
@@ -2258,9 +2273,9 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word == 'REWIND' and self.word not in self.matrices
+        elif (self.word in ('READT', 'REWIND') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
-            self.rewind_statement()
+            self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
                             'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):

@@ -1084,6 +1084,14 @@ media, so every valid channel takes the no-media path with `SYSTEM(0)`
 set to 1. This leaves the file `STATUS()` value intact.
 [Rocket jBASE REWIND](https://docs.rocketsoftware.com/bundle/jbase_lib_62/page/topics/rewind_statement.html).
 
+`READT [UNIT(channel)] record [FROM channel]` requires a THEN or ELSE
+arm. The reference grammar accepts scalar and matrix-element destinations
+and the same channel forms and precedence as REWIND. With no attached media,
+jbcc sets `SYSTEM(0)` to 1 and takes ELSE when present. It provisionally
+clears the destination based on UniVerse's documented failed-read behavior.
+[jBASE READT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_READT.htm),
+[IBM UniVerse READT](https://www.ibm.com/docs/en/iis/11.3.0?topic=functions-readt-statement).
+
 `WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
 the retained prefix includes the line terminator. The next read sees EOF,
 and the next write starts at that same position. WEOFSEQ accepts `SETTING`,

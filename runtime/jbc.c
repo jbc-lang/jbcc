@@ -1014,14 +1014,28 @@ const char *jbc_status(void)
 
 static int last_system_error;
 
-int jbc_rewind(const char *channel, const char *file, int line, int column)
+static void tape_no_media(const char *channel, const char *statement,
+                          const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(channel, &n) || n.places || n.sign < 0 || n.digits > 1)
-        numeric_error(file, line, column, "REWIND channel must be an integer from 0 to 9");
+        numeric_error(file, line, column,
+                      jbc_concat(statement, " channel must be an integer from 0 to 9"));
 
     /* The runtime has no attached tape media. */
     last_system_error = 1;
+}
+
+int jbc_rewind(const char *channel, const char *file, int line, int column)
+{
+    tape_no_media(channel, "REWIND", file, line, column);
+    return 0;
+}
+
+int jbc_readt(jbc_variable *out, const char *channel, const char *file, int line, int column)
+{
+    tape_no_media(channel, "READT", file, line, column);
+    assign_value(out, "");
     return 0;
 }
 
