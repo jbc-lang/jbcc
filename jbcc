@@ -119,7 +119,7 @@ def angle_tokens(words):
 
 
 def is_label(name, colon):
-    return (name.kind in ('name', 'number') and name.word not in ('CRT', 'PRINT')
+    return (name.kind in ('name', 'number') and name.word not in ('CRT', 'DISPLAY', 'PRINT')
             and colon.word == ':' and colon.column == name.column + len(name.word))
 
 
@@ -1845,7 +1845,7 @@ class Compiler:
         opening = self.current
         location = self.location(opening)
         self.advance()
-        destination = 'JBC_SCREEN' if opening.word == 'CRT' else 'jbc_print_channel'
+        destination = 'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
         if opening.word == 'PRINT' and self.word == 'ON':
             self.uses_report = True
             self.advance()
@@ -2686,7 +2686,9 @@ class Compiler:
             self.report_statement()
         elif self.word == 'PRINTER' and self.following.word in ('ON', 'OFF', 'CLOSE', 'RESET'):
             self.printer_statement()
-        elif self.word in ('CRT', 'PRINT'):
+        elif (self.word in ('CRT', 'PRINT')
+              or (self.word == 'DISPLAY' and self.following.word not in ASSIGNMENT_PREFIXES
+                  and not (self.word in self.matrices and self.following.word == '('))):
             self.print_statement()
         elif self.word == '@' and self.following.word in RECORD_VARIABLES:
             self.advance()

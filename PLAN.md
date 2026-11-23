@@ -2080,6 +2080,15 @@ After CLEARFILE LOCKED, 16,414 of 17,336 candidates pass strict C99
 checking. Both units blocked at LOCKED now pass, and all previous
 passes still pass.
 
-- [ ] Implement DISPLAY as a CRT alias following the reference lexer.
+- [x] Implement DISPLAY as a CRT alias following the reference lexer.
   Verify terminal output and formatting through the alias. One T24
   unit stops at DISPLAY.
+
+After DISPLAY, 16,415 of 17,336 candidates pass strict C99 checking.
+ATP.DATA.POPULATE now passes and all previous passes still pass.
+Native tests cover formatting, tab separation, newline suppression
+and output routing with a printer active.
+
+- [ ] Investigate GET (ARG.) for program arguments. Check the reference
+  forms with and without an index and conditional arms, then verify
+  how they map to native argv. One T24 unit stops at GET (ARG.).

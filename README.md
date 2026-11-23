@@ -636,9 +636,11 @@ array gives an empty result with a valid mask. An empty or unsupported
 mask reports a source-located formatting error.
 [jBASE FMTS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_FMTS.htm).
 
-CRT writes to standard output. PRINT uses the current output device, initially
-standard output. Commas separate items with tabs.
-A final colon suppresses the newline. A bare PRINT or CRT emits a newline.
+CRT and its alias DISPLAY write to standard output even with PRINTER ON.
+PRINT uses the current output device, initially standard output. Commas
+separate items with tabs. A final colon suppresses the newline. An output
+statement with no arguments emits a newline.
+[CRT reference](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_crt.htm).
 
 `HEADING expression` puts a title on the first page and repeats it on
 page breaks. `PAGE` advances the page number and `PAGE n` sets it. A
