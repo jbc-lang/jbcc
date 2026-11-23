@@ -1595,7 +1595,17 @@ All 16,289 previous passes still pass. Four of the five targeted files
 now pass, and one reaches `@USERSTATS`. Native tests cover the lock
 counter reset, retained locks and diagnostics for unavailable keys.
 
-- [ ] Implement RECORDLOCKU using the in-memory record lock backend.
+- [x] Implement RECORDLOCKU using the in-memory record lock backend.
   Verify successful acquisition, contention, release and the new
   SYSTEM(1036) counter. Unsupported RECORDLOCKU is the first
   diagnostic in three T24 files.
+
+After RECORDLOCKU, 16,296 of 17,336 candidates pass strict C99 checking.
+All 16,293 previous passes still pass, and all three targeted files
+now pass. Native tests cover reservation of an unused key, default
+files, simulated contention, status, and release.
+
+- [ ] Implement the underscore length modifier in `INPUT X,1_` and
+  `INPUT X,1_:`. Check when input terminates, how excess bytes are
+  handled, and interaction with queued DATA. Nine T24 files first
+  stop at this modifier.

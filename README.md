@@ -233,7 +233,7 @@ Their record counts require a query backend.
 [jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/par2_PARAGRAPHS.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
-`SYSTEM(1036)` counts contention when an update read tries to lock a
+`SYSTEM(1036)` counts contention when an update read or RECORDLOCKU tries to lock a
 simulated foreign-locked record. `ASSIGN 0 TO SYSTEM(1036)` resets that
 process-wide count, following T24 usage. Assignments for other keys
 produce a source-located diagnostic, including the journaling request
@@ -1152,6 +1152,13 @@ release an owned lock on the affected key. Use `RELEASE F, Key` or
 Returning from a routine that opened a file into a local variable
 releases that process’s locks on the file. [READU](https://jbc-lang.org/pages/readu.html),
 [RELEASE](https://jbc-lang.org/pages/release.html), [RECORDLOCKED](https://jbc-lang.org/pages/recordlocked.html).
+
+`RECORDLOCKU F, key` acquires an update lock without reading a record.
+Supply just the key to use the default file. The reference compiler
+uses its update-lock and no-record flags, so an unused key can be
+reserved. The native backend supports `SETTING`, `ON ERROR`, `LOCKED`,
+`THEN` and `ELSE`. A simulated foreign lock takes `LOCKED` with status
+−2. Waiting for a simulated lock produces a source-located diagnostic.
 
 WRITEU writes a record to an explicit or default file and preserves an
 owned update lock. In the in-memory backend, writing an unlocked key

@@ -3061,6 +3061,13 @@ int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variab
     return file_result(found ? 0 : 128);
 }
 
+int jbc_recordlocku(const char *handle, const char *key, jbc_variable *setting)
+{
+    int status = lock_for_update(file_for(handle), key, setting);
+    if (!status && setting) assign_value(setting, "");
+    return file_result(status);
+}
+
 int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int rank,
                 const int *bounds, size_t storage_count, jbc_variable *setting, int update)
 {

@@ -1312,7 +1312,7 @@ class Compiler:
             self.assigned = before.copy()
             self.emit("} else {")
             self.depth += 1
-        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ'):
+        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ', 'RECORDLOCKU'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -1324,7 +1324,7 @@ class Compiler:
             elif opening.word != 'OPENSEQ':
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
-        if opening.word in ('WEOFSEQ', 'FLUSH') and self.word not in ('THEN', 'ELSE'):
+        if opening.word in ('WEOFSEQ', 'FLUSH', 'RECORDLOCKU') and self.word not in ('THEN', 'ELSE'):
             if setting == 'NULL':
                 self.emit(f'if ({status}) numeric_error({self.location(opening)}, "{opening.word} failed");')
         else:
@@ -2196,6 +2196,16 @@ class Compiler:
             self.advance()
             handle, key = ("NULL", "NULL") if self.word in OUTPUT_END or not self.word else self.file_key()
             self.emit(f"jbc_release_lock({handle}, {key});")
+        elif (self.word == 'RECORDLOCKU' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            opening = self.current
+            self.advance()
+            handle, key = self.file_key()
+            setting = self.file_setting()
+            status = f"lock_status_{self.temporaries}"
+            self.temporaries += 1
+            self.emit(f"int {status} = jbc_recordlocku({handle}, {key}, {setting});")
+            self.record_read_arms(opening, status, setting)
         elif (self.word == 'READU' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.readu_statement()

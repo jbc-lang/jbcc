@@ -1652,6 +1652,33 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:1: READU cannot wait for a simulated foreign lock'.encode(), run.stderr)
 
+    def test_recordlocku_reserves_key_and_reports_contention(self):
+        source = self.work / 'recordlocku.b'
+        source.write_text("""OPEN 'F' TO F ELSE STOP
+OPEN 'F' ELSE STOP
+RECORDLOCKU 'new'
+RECORDLOCKU F, 'new' SETTING S THEN CRT '[':S:']' ELSE STOP
+CRT RECORDLOCKED(F, 'new')
+READ R FROM F, 'new' THEN STOP ELSE CRT 'absent'
+RECORDLOCKU F, 'busy' SETTING S LOCKED CRT S:':':SYSTEM(1036)
+BAD = ''
+RECORDLOCKU BAD, 'new' SETTING S ON ERROR CRT S
+RELEASE F, 'new'
+CRT RECORDLOCKED(F, 'new'):':':RECORDLOCKED(F, 'busy')
+""")
+        run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'[]\n2\nabsent\n-2:1\n32768\n0:-2\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_recordlocku_unhandled_contention_reports_call_site(self):
+        source = self.work / 'recordlocku.b'
+        source.write_text("OPEN 'F' ELSE STOP\nRECORDLOCKU 'busy'\n")
+        run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:2:1: RECORDLOCKU cannot wait for a simulated foreign lock'.encode(),
+                      run.stderr)
+
     def test_assign_system_resets_blocked_record_lock_counter(self):
         source = self.work / 'assign-system.b'
         source.write_text("""OPEN 'F' TO F ELSE STOP
