@@ -327,10 +327,21 @@ with English month abbreviations. [TIMEDATE](https://jbc-lang.org/pages/timedate
 
 ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`
 and `D4`. For example, `ICONV('20121231', 'D')` returns `16437`, the
-number of days since 31 December 1967. Other masks and input formats
-produce a diagnostic at the call site. An impossible date also produces
+number of days since 31 December 1967. The `MT` and `MTS` input masks
+accept `H:MM` and `H:MM:SS` with an optional AM or PM suffix and return
+seconds since midnight. Unsupported masks and input formats produce a
+diagnostic at the call site. An impossible date also produces
 a diagnostic, a provisional choice pending a reference run.
 [ICONV](https://jbc-lang.org/pages/iconv.html).
+
+`ICONVS(array, mask)` applies the supported scalar conversions to
+each nonempty element and preserves field, value, and subvalue marks.
+Value-mark-separated masks run left to right. An empty array yields an
+empty string. An invalid element yields an empty result and `STATUS()`
+of 1. jbcc returns an empty result with status 2 for unsupported
+masks, and reports an empty mask at the call site. A successful
+conversion sets status 0.
+[ICONVS](https://jbc-lang.org/pages/iconvs.html), [MT conversion](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jql2_CONVERSION.MT.htm).
 
 For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s

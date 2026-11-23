@@ -2018,21 +2018,79 @@ const char *jbc_startup_time(const char *file, int line, int column)
     return time_from_clock(&startup_clock);
 }
 
-const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
+enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_TIME };
+
+static enum input_conversion input_mask(const char *mask)
 {
-    if (strcmp(mask, "D") && strcmp(mask, "D4")) {
-        fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
-        exit(EXIT_FAILURE);
+    if (!strcmp(mask, "D") || !strcmp(mask, "D4")) return ICONV_DATE;
+    if (!strcmp(mask, "MT") || !strcmp(mask, "MTS")) return ICONV_TIME;
+    return ICONV_UNSUPPORTED;
+}
+
+static const char *input_date(const char *value, const char **error)
+{
+    if (strspn(value, "0123456789") != 8 || value[8]) {
+        *error = "ICONV date requires YYYYMMDD";
+        return NULL;
     }
-    if (strspn(value, "0123456789") != 8 || value[8])
-        numeric_error(file, line, column, "ICONV date requires YYYYMMDD");
     int date = atoi(value);
     int year = date / 10000, month = date / 100 % 100, day = date % 100;
-    if (year == 0 || month < 1 || month > 12 || day < 1 || day > month_length(year, month))
-        numeric_error(file, line, column, "invalid ICONV calendar date");
+    if (year == 0 || month < 1 || month > 12 || day < 1 || day > month_length(year, month)) {
+        *error = "invalid ICONV calendar date";
+        return NULL;
+    }
     int day_of_year = day;
     for (int m = 1; m < month; ++m) day_of_year += month_length(year, m);
     return internal_date(year, day_of_year);
+}
+
+static const char *input_time(const char *value, const char **error)
+{
+    const char *p = value;
+    size_t width = strspn(p, "0123456789");
+    if (!width || width > 2 || p[width] != ':') goto invalid;
+    size_t hour = read_decimal_count(&p, p + width);
+    size_t minute, second = 0;
+    ++p;
+    width = strspn(p, "0123456789");
+    if (width != 2) goto invalid;
+    minute = read_decimal_count(&p, p + width);
+    if (*p == ':') {
+        ++p;
+        width = strspn(p, "0123456789");
+        if (width != 2) goto invalid;
+        second = read_decimal_count(&p, p + width);
+    }
+    while (*p == ' ') ++p;
+    if (!strcmp(p, "AM") || !strcmp(p, "PM")) {
+        if (!hour || hour > 12) goto invalid;
+        hour = hour % 12 + (*p == 'P' ? 12 : 0);
+    } else if (*p || hour > 23) goto invalid;
+    if (minute >= 60 || second >= 60) goto invalid;
+    return size_value(hour * 3600 + minute * 60 + second);
+
+invalid:
+    *error = "ICONV time requires a valid H:MM or H:MM:SS";
+    return NULL;
+}
+
+static const char *convert_input(const char *value, enum input_conversion conversion,
+                                 const char **error)
+{
+    return conversion == ICONV_TIME ? input_time(value, error) : input_date(value, error);
+}
+
+const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    enum input_conversion conversion = input_mask(mask);
+    if (conversion == ICONV_UNSUPPORTED) {
+        fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
+        exit(EXIT_FAILURE);
+    }
+    const char *error = NULL;
+    const char *result = convert_input(value, conversion, &error);
+    if (!result) numeric_error(file, line, column, error);
+    return result;
 }
 
 static const char *const month_names[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
@@ -2587,6 +2645,57 @@ static char *split_array_items(const char *array, size_t *marks)
         if (marks) ++*marks;
     }
     return copy;
+}
+
+static const char *convert_input_array(const char *source, enum input_conversion conversion,
+                                       const char *file, int line, int column)
+{
+    if (!*source) return source;
+    size_t marks = 0, length = strlen(source);
+    char *items = split_array_items(source, &marks);
+    /* A time such as 9:00 can grow by one byte when converted to seconds. */
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    if (length >= limit || marks >= limit - length)
+        numeric_error(file, line, column, "ICONVS result too large");
+    char *out = allocate(length + marks + 1), *write = out;
+    for (const char *item = items;;) {
+        const char *error = NULL;
+        const char *value = *item ? convert_input(item, conversion, &error) : item;
+        if (!value) {
+            free(items);
+            return NULL;
+        }
+        size_t bytes = strlen(value);
+        memcpy(write, value, bytes);
+        write += bytes;
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        *write++ = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
+const char *jbc_iconvs(const char *source, const char *mask, const char *file, int line, int column)
+{
+    if (!*mask) numeric_error(file, line, column, "ICONVS requires a conversion mask");
+    const char *codes = mask;
+    while (codes) {
+        enum input_conversion conversion = input_mask(take_field(&codes, 253));
+        if (conversion == ICONV_UNSUPPORTED) {
+            file_result(2);
+            return "";
+        }
+        source = convert_input_array(source, conversion, file, line, column);
+        if (!source) {
+            file_result(1);
+            return "";
+        }
+    }
+    file_result(0);
+    return source;
 }
 
 const char *jbc_fmts(const char *source, const char *mask, const char *file, int line, int column)

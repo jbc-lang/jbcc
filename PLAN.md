@@ -1784,6 +1784,15 @@ All 16,334 previous passes still pass. Two targeted files now pass,
 and the two ATM files reach ICONVS. Native tests check validation
 and immediate regular-file reads and EOF.
 
-- [ ] Implement ICONVS using scalar ICONV on dynamic-array elements.
+- [x] Implement ICONVS using scalar ICONV on dynamic-array elements.
   Check the guide's treatment of empty elements, marks, and conversion
   status. Four T24 first-diagnostic lines contain ICONVS calls.
+
+After ICONVS, 16,339 of 17,336 candidates pass strict C99 checking.
+All 16,336 previous passes still pass. Three ATM files now pass and
+LI.SECURED.ONLINE reaches OCONVS. Native tests cover the MT and MTS
+input conversions, empty elements, chained masks and statuses.
+
+- [ ] Implement OCONVS using scalar output conversion on dynamic-array
+  elements. Check which result and status the guide specifies for an
+  invalid element, and rerun LI.SECURED.ONLINE.

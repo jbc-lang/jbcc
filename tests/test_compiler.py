@@ -980,6 +980,8 @@ time_t test_clock(time_t *out)
         source = self.work / 'date.b'
         cases = [
             ("'20121231', 'MD2'", "unsupported ICONV mask 'MD2'"),
+            ("'24:00', 'MT'", "ICONV time requires a valid H:MM or H:MM:SS"),
+            ("'0:00 AM', 'MTS'", "ICONV time requires a valid H:MM or H:MM:SS"),
             ("'2012123', 'D'", "ICONV date requires YYYYMMDD"),
             ("'20121231x', 'D'", "ICONV date requires YYYYMMDD"),
             ("'19000229', 'D4'", "invalid ICONV calendar date"),
@@ -993,6 +995,13 @@ time_t test_clock(time_t *out)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+
+    def test_iconvs_empty_mask_diagnostic(self):
+        source = self.work / 'iconvs.b'
+        source.write_text("CRT ICONVS('', '')\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:5: ICONVS requires a conversion mask'.encode(), result.stderr)
 
     def test_oconv_diagnostics(self):
         source = self.work / 'date.b'
