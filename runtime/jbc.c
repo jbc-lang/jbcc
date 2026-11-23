@@ -234,6 +234,15 @@ static void numeric_error(const char *file, int line, int column, const char *me
     jbc_terminate(EXIT_FAILURE);
 }
 
+int jbc_transaction(int sync, const char *note, const char *file, int line, int column,
+                    const char *message)
+{
+    (void)sync;
+    (void)note;
+    numeric_error(file, line, column, message);
+    return 0;
+}
+
 const char *jbc_get_argument(const char *position, const char *file, int line, int column)
 {
     uintmax_t index = (uintmax_t)next_argument;

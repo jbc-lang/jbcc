@@ -1240,6 +1240,19 @@ class Compiler:
         call = f"jbc_callj({class_name}, {method}, {argument}, {result}, {self.location(opening)})"
         self.file_error_arm(opening, call, result)
 
+    def transaction_statement(self):
+        opening = self.current
+        self.advance()
+        sync = opening.word == 'TRANSTART' and self.word == 'SYNC'
+        if sync:
+            self.advance()
+        note = 'NULL'
+        if self.word not in OUTPUT_END and self.word not in ('', 'THEN'):
+            note = self.expression()
+        message = c_string(f"{opening.word} requires a transaction backend")
+        call = f"jbc_transaction({int(sync)}, {note}, {self.location(opening)}, {message})"
+        self.conditional_arms(opening, call)
+
     def tape_unit(self):
         if self.word != 'UNIT':
             return None
@@ -2539,6 +2552,10 @@ class Compiler:
         elif (self.word == 'CALLJ' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.callj_statement()
+        elif (self.word in ('TRANSTART', 'TRANSEND', 'TRANSABORT')
+              and self.following.word not in ASSIGNMENT_PREFIXES
+              and not (self.word in self.matrices and self.following.word == '(')):
+            self.transaction_statement()
         elif (self.word in ('STOP', 'ABORT') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.termination_statement(stops)

@@ -1822,6 +1822,35 @@ CRT Response
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f"{source}:1:36: expected 'SETTING'\n")
 
+    def test_transactions_report_missing_backend_at_the_call(self):
+        source = self.work / 'transactions.b'
+        statements = (
+            ('TRANSTART', "TRANSTART ELSE CRT 'failure'"),
+            ('TRANSTART', "TRANSTART SYNC THEN CRT 'success'"),
+            ('TRANSTART', "TRANSTART SYNC 'start':Note THEN CRT 'success' ELSE CRT 'failure'"),
+            ('TRANSEND', "TRANSEND Note THEN\n    CRT 'success'\nEND ELSE CRT 'failure'"),
+            ('TRANSABORT', "TRANSABORT 'rollback' ELSE CRT 'failure'"),
+        )
+        for keyword, statement in statements:
+            with self.subTest(statement=statement):
+                source.write_text(
+                    "Note = 'batch'\nIF 0 THEN TRANSABORT ELSE ABORT\nCRT Note\n"
+                    + statement + "\nCRT 'after'\n"
+                )
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, b'batch\n')
+                self.assertEqual(
+                    result.stderr, f'{source}:4:1: {keyword} requires a transaction backend\n'.encode()
+                )
+
+    def test_transactions_require_a_conditional_arm(self):
+        source = self.work / 'transactions.b'
+        source.write_text("TRANSTART SYNC\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{source}:1:15: expected THEN or ELSE\n')
+
     def test_weof_invalid_channel(self):
         source = self.work / 'weof.b'
         for operand in ('ON 10', 'UNIT(-1)', "FROM 'text'"):

@@ -316,6 +316,15 @@ location and exits if execution reaches the call, even when an error
 arm is present. Java invocation requires a JVM backend.
 [jBASE CALLJ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CALLJ.htm).
 
+`TRANSTART`, `TRANSEND`, and `TRANSABORT` accept an optional note expression
+and require a `THEN` or `ELSE` arm. `TRANSTART` also accepts `SYNC` before
+the note. When a native jbcc program reaches one of these statements,
+the runtime reports its source location and exits because transaction
+processing requires a backend. This applies to the in-memory file layer too.
+[TRANSTART](https://jbc-lang.org/pages/transtart.html),
+[TRANSEND](https://jbc-lang.org/pages/transend.html),
+[TRANSABORT](https://jbc-lang.org/pages/transabort.html).
+
 `@PATH` is the current account pathname in the jBASE guide. Native
 jbcc provisionally uses the process's absolute working directory as
 the account path. A failure to resolve it reports the source location.

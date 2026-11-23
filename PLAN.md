@@ -2144,7 +2144,19 @@ with an error arm, and verify that a skipped call has no effect.
 All seven units now pass strict C99 checking, bringing the total to
 16,424 of 17,336 candidates. All 16,417 previous passes still pass.
 
-- [ ] Investigate TRANSTART, TRANSEND and TRANSABORT in the guide and
+- [x] Investigate TRANSTART, TRANSEND and TRANSABORT in the guide and
   reference grammar. Add syntax support for the forms in EB.TRANS.JBASE
   and verify the runtime diagnostic when execution requires a transaction
   backend.
+
+The reference grammar requires a conditional arm and accepts an optional
+note for each statement. TRANSTART also takes SYNC. Native tests verify
+source-located diagnostics for reached calls and cover both inline and
+multiline conditional arms.
+EB.TRANS.JBASE now passes strict C99 checking, bringing the total to
+16,425 of 17,336 candidates. All 16,424 previous passes still pass.
+
+- [ ] Trace DIM declarations that reuse an existing COMMON matrix, starting
+  with R.NEW in AZ.DEPOSIT.REVERSAL. This is the first diagnostic in
+  107 units. Compare the reference compiler's fixed and dynamic dimension
+  modes before changing declaration handling.
