@@ -127,6 +127,30 @@ CRT 'done'
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: CREATE requires an OPENSEQ handle'.encode(), result.stderr)
 
+    def test_flush_sequential_file(self):
+        source = self.work / 'flush.b'
+        source.write_text("""OPENSEQ 'report' TO F THEN STOP
+FLUSH F SETTING S THEN STOP ELSE CRT S:':':STATUS()
+EXECUTE 'test ! -e report' RETURNING Check
+CRT Check
+WRITESEQ 'visible' TO F ELSE STOP
+FLUSH F SETTING S THEN CRT S:':':STATUS() ELSE STOP
+FLUSH F
+EXECUTE 'cat report'
+CLOSESEQ F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_flush_null_handle(self):
+        source = self.work / 'flush.b'
+        source.write_text("F = ''\nFLUSH F ELSE CRT 'failed'\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)
+
     def test_sequential_seek(self):
         path = self.work / 'data'
         path.write_bytes(b'abc\n12345\nlast\n')

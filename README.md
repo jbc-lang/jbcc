@@ -1004,6 +1004,12 @@ contention, following its existing lock convention.
 [WRITESEQ](https://jbc-lang.org/pages/writeseq.html) and
 [CLOSESEQ](https://jbc-lang.org/pages/closeseq.html).
 
+`FLUSH F` flushes the sequential stream and accepts `SETTING` and
+optional branch clauses. An unopened pending file takes ELSE with
+status 128 and stays absent. An empty handle produces a source-located
+error. Native writes already flush the stdio stream, and WRITESEQF also
+synchronizes the file to disk. [FLUSH](https://jbc-lang.org/pages/flush.html).
+
 ## In-memory file tests
 
 The test backend starts with empty files explicitly named at translation

@@ -1534,7 +1534,17 @@ All 16,261 previous passes still pass. Three of the five targeted files
 now pass, and the other two reach FLUSH and DATA. Native tests cover
 empty input, UTF-8, and single-byte array marks.
 
-- [ ] Implement FLUSH for sequential files. Verify visibility of writes
+- [x] Implement FLUSH for sequential files. Verify visibility of writes
   before closing the handle, THEN and ELSE branches, and the behavior
   before a file has been created. Unsupported FLUSH is the first
+  diagnostic in seven T24 files.
+
+After FLUSH, 16,271 of 17,336 candidates pass strict C99 checking.
+All 16,264 previous passes still pass, and all seven targeted files
+now pass. Native tests cover an external reader before CLOSESEQ,
+pending and empty handles, and status reporting.
+
+- [ ] Implement DATA for queued terminal input. Check FIFO order,
+  field-mark separation, fallback to terminal input, and how queued
+  input passes through EXECUTE. Unsupported DATA is the first
   diagnostic in seven T24 files.

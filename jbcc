@@ -1158,6 +1158,8 @@ class Compiler:
             call = f'jbc_seek({handle}, {offset}, {origin}, {self.location(opening)})'
         elif op == 'CREATE':
             call = f'jbc_createseq({self.expression()}, {self.location(opening)})'
+        elif op == 'FLUSH':
+            call = f'jbc_flushseq({self.expression()}, {self.location(opening)})'
         elif op == 'WEOFSEQ':
             target = self.identifier()
             if target.word in self.matrices:
@@ -1310,9 +1312,9 @@ class Compiler:
             elif opening.word != 'OPENSEQ':
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
-        if opening.word == 'WEOFSEQ' and self.word not in ('THEN', 'ELSE'):
+        if opening.word in ('WEOFSEQ', 'FLUSH') and self.word not in ('THEN', 'ELSE'):
             if setting == 'NULL':
-                self.emit(f'if ({status}) numeric_error({self.location(opening)}, "WEOFSEQ failed");')
+                self.emit(f'if ({status}) numeric_error({self.location(opening)}, "{opening.word} failed");')
         else:
             self.conditional_arms(opening, f"!{status}")
         for branch in reversed(branches):
@@ -2208,7 +2210,7 @@ class Compiler:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

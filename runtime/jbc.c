@@ -4152,6 +4152,14 @@ int jbc_seek(const char *token, const char *offset, const char *origin,
     return file_result(fseeko(file->stream, (off_t)target, SEEK_SET) ? file_error(errno) : 0);
 }
 
+int jbc_flushseq(const char *token, const char *source, int line, int column)
+{
+    if (!*token) numeric_error(source, line, column, "FLUSH requires an OPENSEQ handle");
+    struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return file_result(128);
+    return file_result(fflush(file->stream) ? file_error(errno) : 0);
+}
+
 int jbc_weofseq(const char *token)
 {
     struct sequential_file *file = *sequential_slot(token);
