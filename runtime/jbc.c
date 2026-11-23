@@ -3177,13 +3177,22 @@ const char *jbc_abss(const char *source, const char *file, int line, int column)
     return array_sign(source, 1, file, line, column);
 }
 
+enum array_order { ARRAY_LESS = 1, ARRAY_EQUAL = 2, ARRAY_GREATER = 4 };
+
+static int array_pair_matches(const char *left, const char *right, unsigned orders)
+{
+    int compare = jbc_compare(left, right, jbc_precision);
+    unsigned order = compare < 0 ? ARRAY_LESS : compare > 0 ? ARRAY_GREATER : ARRAY_EQUAL;
+    return (orders & order) != 0;
+}
+
 static const char *compare_array_items(const char *left, const char *right, int reuse_left,
-                                       int reuse_right, const char *equal, const char *unequal)
+                                       int reuse_right, unsigned orders, char unmatched)
 {
     struct array_cursor lhs = array_cursor(left, reuse_left, 1);
     struct array_cursor rhs = array_cursor(right, reuse_right, 1);
     if (lhs.mark == 256 && rhs.mark == 256)
-        return !*left || !*right ? "" : (jbc_compare(left, right, jbc_precision) ? unequal : equal);
+        return !*left || !*right ? "" : (array_pair_matches(left, right, orders) ? "1" : "0");
 
     size_t marks = 0;
     char *a = split_array_items(left, &marks);
@@ -3191,9 +3200,13 @@ static const char *compare_array_items(const char *left, const char *right, int 
     if (marks > (SIZE_MAX - 1) / 2) fail("array comparison result too large");
     char *out = allocate(2 * marks + 1), *write = out;
     for (;;) {
-        if (!lhs.present || !rhs.present) *write++ = *unequal;
-        else if (lhs.length && rhs.length)
-            *write++ = jbc_compare(a + (lhs.item - left), b + (rhs.item - right), jbc_precision) ? *unequal : *equal;
+        if (unmatched && (!lhs.present || !rhs.present)) {
+            *write++ = unmatched;
+        } else if ((!lhs.present || lhs.length) && (!rhs.present || rhs.length)) {
+            const char *value_left = lhs.present ? a + (lhs.item - left) : "";
+            const char *value_right = rhs.present ? b + (rhs.item - right) : "";
+            *write++ = array_pair_matches(value_left, value_right, orders) ? '1' : '0';
+        }
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         if (mark == 256) break;
         *write++ = (char)mark;
@@ -3208,12 +3221,32 @@ static const char *compare_array_items(const char *left, const char *right, int 
 
 const char *jbc_eqs(const char *left, const char *right, int reuse_left, int reuse_right)
 {
-    return compare_array_items(left, right, reuse_left, reuse_right, "1", "0");
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_EQUAL, '0');
 }
 
 const char *jbc_nes(const char *left, const char *right, int reuse_left, int reuse_right)
 {
-    return compare_array_items(left, right, reuse_left, reuse_right, "0", "1");
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_LESS | ARRAY_GREATER, '1');
+}
+
+const char *jbc_les(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_LESS | ARRAY_EQUAL, 0);
+}
+
+const char *jbc_lts(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_LESS, 0);
+}
+
+const char *jbc_ges(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_GREATER | ARRAY_EQUAL, 0);
+}
+
+const char *jbc_gts(const char *left, const char *right, int reuse_left, int reuse_right)
+{
+    return compare_array_items(left, right, reuse_left, reuse_right, ARRAY_GREATER, 0);
 }
 
 const char *jbc_fields(const char *source, const char *separator, const char *start,

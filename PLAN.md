@@ -2261,6 +2261,19 @@ are provisional pending a runtime comparison.
 All nine affected units now pass strict C99 checking, bringing the total
 to 16,553 of 17,336 candidates. All 16,544 previous passes still pass.
 
-- [ ] Investigate the element-wise comparison functions related to
+- [x] Investigate the element-wise comparison functions related to
   EQS and NES, starting with LES in AZ.GEN.CC.AMT. Check ordering,
   missing elements and REUSE against the guide and reference generator.
+
+LES, LTS, GES and GTS reuse the EQS/NES array traversal and compare
+missing elements as empty strings. jbcc provisionally leaves an
+explicitly empty element's result empty. The reference compiler
+accepts REUSE in either argument. Native tests verify mixed delimiters,
+numeric and text ordering, and single evaluation of the reused scalar.
+
+AZ.GEN.CC.AMT now passes strict C99 checking, bringing the total to
+16,554 of 17,336 candidates. All 16,553 previous passes still pass.
+
+- [ ] Investigate INDICES(file) in BUILD.DICTS.INDICES and the reference
+  parser's optional second operand. Establish what index metadata a
+  backend would need and how to diagnose a query without that backend.

@@ -1720,6 +1720,38 @@ CRT R<1>:':':R<2>
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
 
+    def test_ordered_array_comparisons(self):
+        source = self.work / 'compare.b'
+        bump = self.work / 'bump.b'
+        source.write_text("""DEFFUN BUMP(N)
+A = 2:@VM:10:@SM:'b':@VM:'':@FM:'cat'
+B = '02':@VM:3:@VM:'k':@VM:'':@VM:'last':@FM:'car'
+CRT LES(A,B)
+CRT LTS(A,B)
+CRT GES(A,B)
+CRT GTS(A,B)
+CRT LES(2,10):LTS(2,2):GES('z','a'):GTS(2,2)
+N = 1
+CRT LES(REUSE(BUMP(N)),1:@VM:2:@VM:4)
+CRT GTS(1:@VM:2:@VM:4,REUSE(N))
+CRT N
+CRT '[':GTS('',4):']'
+""")
+        bump.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        result = self.run_native(source, bump)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'1\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n0\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n'
+                             b'1\xfd1\xfc1\xfd\xfd\xfd0\xfe1\n0\xfd1\xfc1\xfd\xfd\xfd0\xfe1\n'
+                             b'1010\n0\xfd1\xfd1\n0\xfd0\xfd1\n2\n[]\n', b''))
+
+    def test_ordered_array_comparison_rejects_reuse_of_an_array(self):
+        source = self.work / 'compare.b'
+        source.write_text("CRT LES(1,REUSE('a':@FM:'b'))\n")
+        result = self.run_native(source)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(result.stderr, f'{source}:1:11: REUSE in LES requires a scalar\n'.encode())
+
     def test_compare_invalid_justification(self):
         source = self.work / 'compare.b'
         source.write_text("CRT COMPARE('left', 'right', 'X')\n")

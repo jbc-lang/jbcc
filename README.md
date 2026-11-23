@@ -1168,6 +1168,16 @@ that result position empty. A scalar occupies the first position.
 A direct `REUSE(scalar)` in either argument repeats it at every position.
 [EQS](https://jbc-lang.org/pages/eqs.html), [NES](https://jbc-lang.org/pages/nes.html).
 
+`LES`, `LTS`, `GES`, and `GTS` use the same array structure and scalar
+ordering. They test less than or equal, less than, greater than or equal,
+and greater than, respectively. Each ordered comparison supplies an
+empty string for a missing element and compares it with the available
+element. An explicitly empty element still leaves its result position
+empty under the provisional null rule. All four accept `REUSE(scalar)`
+in either argument.
+[jBASE LES](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_LES.htm),
+[UniVerse vector functions](https://docs.rocketsoftware.com/bundle/universebasicuser_ug_1221/page/sat1687881202320.html).
+
 `ADDS(left, right)` adds corresponding fields, values and subvalues
 using the same arithmetic and PRECISION as `+`. It copies an unmatched
 element unchanged and leaves a paired position empty if either element
