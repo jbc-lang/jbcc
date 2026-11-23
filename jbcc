@@ -2244,9 +2244,9 @@ class Compiler:
         if common and self.common_scalars.get(name) == block_name and self.word != '(':
             return
         matrix = self.matrices.get(name)
-        if (matrix and matrix.common_block is not None and self.word == '('
+        if (matrix and matrix.shape is not None and self.word == '('
                 and (not common or matrix.common_block == block_name)):
-            self.redeclare_common_matrix(token, matrix)
+            self.redeclare_matrix(token, matrix)
             return
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
@@ -2288,22 +2288,26 @@ class Compiler:
         return (f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
                 f"(const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)})")
 
-    def redeclare_common_matrix(self, token, matrix):
+    def redeclare_matrix(self, token, matrix):
         bounds = self.dimension_bounds()
         shape = tuple(bound if isinstance(bound, int) else None for bound in bounds)
+        block_name = matrix.common_block
+        kind = "local" if block_name is None else "COMMON"
+        message = f"incompatible {kind} matrix dimensions"
         if not compatible_dimensions(matrix.shape, shape):
-            self.error("incompatible COMMON matrix dimensions", token)
+            self.error(message, token)
         if None not in matrix.shape and None not in shape:
             return
 
         for expected, bound in zip(matrix.shape, bounds):
             if expected is not None and not isinstance(bound, int):
-                self.emit(f'if ({bound} != {expected}) numeric_error({self.location(token)}, '
-                          '"incompatible COMMON matrix dimensions");')
+                self.emit(f'if ({bound} != {expected}) numeric_error({self.location(token)}, {c_string(message)});')
         slot = f"frame->{matrix.field}"
-        block_name = matrix.common_block
-        member = self.commons[block_name].matrix_slots[token.word]
-        call = self.matrix_storage_call(slot, c_string(f"{block_name}:{member}"), bounds, token)
+        key = "NULL"
+        if block_name is not None:
+            member = self.commons[block_name].matrix_slots[token.word]
+            key = c_string(f"{block_name}:{member}")
+        call = self.matrix_storage_call(slot, key, bounds, token)
         self.emit(f"{slot} = {call};")
 
     def matrix_name(self):

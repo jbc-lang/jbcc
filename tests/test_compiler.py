@@ -3275,6 +3275,49 @@ PRINT X, Grid(1,2+N)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'2\t0\n2\t1\n2\t2\n')
 
+    def test_repeated_local_dim_reuses_storage_from_either_path(self):
+        caller = self.work / 'main.b'
+        routine = self.work / 'store.b'
+        caller.write_text('CALL STORE(1)\nCALL STORE(0)\n')
+        routine.write_text("""SUBROUTINE STORE(First)
+N = 2
+IF First THEN
+    DIM Rows(N,3)
+    Rows(2,3) = 'first'
+END ELSE
+    DIMENSION Rows(2,3)
+    Rows(2,3) = 'second'
+END
+DIM Rows(2,3)
+DIM Rows(N,3)
+CRT Rows(2,3)
+DIM Fixed(2)
+Fixed(2) = Rows(2,3)
+DIM Fixed(N)
+CRT Fixed(2)
+""")
+        result = self.run_native(caller, routine)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'first\nfirst\nsecond\nsecond\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_repeated_local_dim_rejects_changed_shape(self):
+        source = self.work / 'shape.b'
+        for bounds in ('3,2', '11'):
+            with self.subTest(bounds=bounds):
+                source.write_text(f'DIM A(2,3)\nDIM A({bounds})\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr, f'{source}:2:5: incompatible local matrix dimensions\n')
+
+        for initial, repeated in (('2', 'N'), ('N', '3')):
+            with self.subTest(initial=initial, repeated=repeated):
+                source.write_text(f'N = 2\nDIM A({initial})\nN = 3\nDIM A({repeated})\n')
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, f'{source}:4:5: incompatible local matrix dimensions\n'.encode())
+
     def test_local_dimension_errors(self):
         source = self.work / 'bad.b'
         cases = [

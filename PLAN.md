@@ -2175,7 +2175,24 @@ including all 16,425 previous passes. Of the 107 units previously blocked
 at these declarations, 61 pass, 42 report incompatible COMMON matrix
 dimensions, and four reach another diagnostic.
 
-- [ ] Trace repeated DIM declarations for local matrices, starting with
+- [x] Trace repeated DIM declarations for local matrices, starting with
   YR.LOCTAB in ARCHIVES.UPDATE.RUN. Check first execution through either
   declaration and verify how the reference generator handles later uses
   of the same local slot.
+
+The reference compiler diagnosed a repeated local DIM in fixed mode.
+In Prime mode it emitted two declarations against the same variable,
+marking the second as a redeclaration. jbcc keeps one local slot per
+invocation and provisionally requires compatible shapes. Native tests
+cover first execution through either declaration, preservation of
+contents, and compile-time and runtime shape mismatches.
+
+After this change, 16,531 of 17,336 candidates pass strict C99 checking,
+including all 16,486 previous passes. Of the 50 units whose result
+changed, 45 pass, including ARCHIVES.UPDATE.RUN. Three report
+incompatible local matrix dimensions and two reach another diagnostic.
+
+- [ ] Trace COMMON matrices whose later DIM supplies different bounds,
+  starting with R.ACCOUNT declared at 500 and dimensioned again at 210.
+  Establish which bounds apply and what happens to shared elements
+  before implementing a resize rule.

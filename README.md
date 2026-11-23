@@ -811,12 +811,14 @@ Local matrices belong to one invocation. Passing an element to CALL passes
 that slot by reference. For T24 sources, jbcc also accepts bounds such as
 `DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s
 `dimvar` rule in dynamic-array mode. The guide describes the constant-bound
-form. Each time execution reaches a runtime-sized declaration, jbcc
-evaluates its bounds. Within one invocation, re-entering it with the
-same shape preserves the elements. A changed shape or use after skipping
-the declaration raises a diagnostic. This re-entry policy is provisional
-pending a reference run. Unassigned reads and out-of-range subscripts produce
-runtime diagnostics.
+form. Each time execution reaches a declaration with expression bounds,
+jbcc evaluates them. A repeated DIM of a local matrix reuses its slot.
+For a runtime-sized matrix, the first declaration reached binds the
+bounds for that invocation. Subsequent declarations preserve the elements
+when the rank and bounds match. A shape mismatch or use before any
+runtime-sized declaration has executed raises a diagnostic. This policy
+is provisional pending a reference run. Unassigned reads and out-of-range
+subscripts produce runtime diagnostics.
 
 `MAT A = expression` evaluates the expression once and fills every slot,
 including index zero. `MAT A = MAT B` copies the values of a fully
