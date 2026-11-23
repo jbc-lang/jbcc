@@ -3338,6 +3338,25 @@ CRT A:'|':B:'|':C:'|':D:'|':E
         self.assertEqual(run.stdout, captured + status + status + captured + b'visible\n5\n0\n2\n143\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_exec_alias_runs_the_command_and_captures_results(self):
+        source = self.work / 'exec.b'
+        source.write_text(r"""EXEC = "printf 'output\n'; printf 'error\n' >&2; exit 7"
+EXEC EXEC SETTING Result CAPTURING Output
+CRT Output
+CRT Result
+CRT @SYSTEM.RETURN.CODE
+EXEC "printf 'visible\n'"
+CRT @SYSTEM.RETURN.CODE
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'output\xfe\n7\xfeerror\xfe\n7\nvisible\n0\n', b''))
+
+        source.write_text("EXEC ':' SETTING A RETURNING B\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:20: duplicate RETURNING clause', result.stderr)
+
     def test_execute_large_stdout_and_stderr(self):
         source = self.work / 'execute.b'
         source.write_text("""EXECUTE "awk 'BEGIN {for(i=0;i<65536;i++) print 1}' >&2; cat" RETURNING R CAPTURING O

@@ -2025,6 +2025,15 @@ all previous passes still pass. Native tests cover scalar FIELD and
 bracket syntax, multiple fields, multi-byte delimiters, empty fields,
 and missing occurrences.
 
-- [ ] Investigate EXEC as an EXECUTE alias. Check the reference
+- [x] Implement EXEC as an EXECUTE alias. Check the reference
   grammar's Prime and UniVerse forms and verify the existing native
   execution behavior through the alias. Two T24 units stop at EXEC.
+
+After EXEC, 16,382 of 17,336 candidates pass strict C99 checking.
+HOST.TO.DOS now passes, and SC.INTEGRITY.RUN reaches a later expression.
+All previous passes still pass. Native tests cover command output,
+exit status, capture and result clauses, and duplicate-clause diagnostics.
+
+- [ ] Investigate RANDOMIZE. Check the reference parser's forms and
+  whether the seed affects RND. Verify the resulting native behavior
+  and recheck the T24 unit blocked by this statement.

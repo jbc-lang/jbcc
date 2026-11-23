@@ -239,8 +239,10 @@ with its original stdin. This one-shot handoff is jbcc's native convention.
 [DATA](https://jbc-lang.org/pages/data.html).
 
 `EXECUTE expression` and `PERFORM expression` run the resulting command
-in the native host's default Bourne shell on POSIX. The default streams
-are inherited from the parent. The caller waits for the child and continues
+in the native host's default Bourne shell on POSIX. `EXEC` is an alias
+with the same clauses, following the reference grammar's Prime and
+UniVerse spelling. The default streams are inherited from the parent.
+The caller waits for the child and continues
 even if the command exits with a nonzero status. For example,
 `PERFORM './report today'` can invoke another jbcc-built executable.
 The native runtime also accepts the explicit `CHAR(255) : 's'` shell
