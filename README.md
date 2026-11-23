@@ -304,6 +304,12 @@ is unset or empty.
 [@TERMTYPE](https://jbc-lang.org/pages/@termtype.html),
 [jBASE terminal type](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/TERMINAL_TYPE.htm).
 
+`@SYS.BELL` and the reference compiler spelling `@SYS_BELL` return
+the bell sequence. jbcc provisionally uses the ASCII BEL byte
+(`CHAR(7)`) for both spellings. jBASE obtains the sequence from the
+terminal's `bel` capability.
+[jBASE terminfo capabilities](https://static.zumasys.com/jbase/r99/knowledgebase/howto/general/common/CreateTerminfo/usage.htm).
+
 `@WHO` and the login-name form of `SYSTEM(19)` return the same name.
 At startup jbcc uses the first nonempty value of `JBCLOGNAME` from the
 jBASE manual or `JBASICLOGNAME` from the jBC guide. Without either override,
