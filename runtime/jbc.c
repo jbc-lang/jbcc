@@ -2682,15 +2682,19 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     return record ? 0 : 128;
 }
 
-static int write_record_status(const char *handle, const char *key, const char *value, int keep_lock)
+static int write_record_status(const char *handle, const char *key, const char *value,
+                               int64_t field, int keep_lock)
 {
     struct memory_file *f = file_for(handle);
     if (!f) return 128;
     struct record_lock *lock = find_lock(f, key);
     if (lock && lock->foreign) return 32768;
-    if (lock && !keep_lock) release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
     struct memory_record *r = *link;
+    if (field) {
+        const char *current = r ? r->value : "";
+        value = array_part(current, strlen(current), &field, 1, 0, value, 0);
+    }
     if (!r) {
         r = calloc(1, sizeof *r);
         if (!r) fail("out of memory");
@@ -2699,20 +2703,35 @@ static int write_record_status(const char *handle, const char *key, const char *
         r->serial = ++f->serial;
         *link = r;
     }
+    char *copy = record_copy(value);
     free(r->value);
-    r->value = record_copy(value);
+    r->value = copy;
+    if (lock && !keep_lock) release_locks(f, key, 0);
     return 0;
 }
 
 int jbc_write_record(const char *handle, const char *key, const char *value)
 {
-    return write_record_status(handle, key, value, 0) == 0;
+    return write_record_status(handle, key, value, 0, 0) == 0;
 }
 
 int jbc_writeu(const char *handle, const char *key, const char *value, jbc_variable *setting)
 {
-    int status = write_record_status(handle, key, value, 1);
+    int status = write_record_status(handle, key, value, 0, 1);
     if (setting) assign_value(setting, status == 128 ? "128" : status ? "32768" : "");
+    return status == 0;
+}
+
+int jbc_write_field(const char *handle, const char *key, const char *field, const char *value,
+                    jbc_variable *setting, int keep_lock, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(field, &n) || n.sign <= 0 || n.places)
+        numeric_error(file, line, column, keep_lock ? "WRITEVU requires a positive integer field number"
+                                                    : "WRITEV requires a positive integer field number");
+    int64_t position = integer(field, file, line, column);
+    int status = write_record_status(handle, key, value, position, keep_lock);
+    if (setting) assign_value(setting, status ? size_value((size_t)status) : "");
     return status == 0;
 }
 
@@ -2721,7 +2740,7 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
                  const char *file, int line, int column)
 {
     const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
-    int status = write_record_status(handle, key, record, 0);
+    int status = write_record_status(handle, key, record, 0, 0);
     if (setting) {
         const char *result = status == 128 ? "128" : "32768";
         assign_value(setting, status ? result : jbc_dcount(record, "\376"));

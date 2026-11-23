@@ -1310,6 +1310,24 @@ CLOSESEQ F
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: WRITEU failed'.encode(), result.stderr)
 
+    def test_writev_and_writevu(self):
+        result = self.run_native(ROOT / 'tests/io/writev.b',
+                                 options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'0\t2\n0\none|two,extra|three|||six\n||new\n0\n'
+                                        b'32768\t-2\n32768\nmissing\n128\n')
+
+    def test_writev_field_number_diagnostics(self):
+        source = self.work / 'writev.b'
+        for op, field in [('WRITEV', "'bad'"), ('WRITEVU', '0'), ('WRITEV', '1.5'), ('WRITEVU', '-1')]:
+            with self.subTest(op=op, field=field):
+                source.write_text(f"{op} 'value' TO 'key',{field}\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:1: {op} requires a positive integer field number'.encode(),
+                              result.stderr)
+
     def test_matread(self):
         run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)

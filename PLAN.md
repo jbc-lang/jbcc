@@ -1255,6 +1255,16 @@ After WRITEU, 15,804 of 17,336 candidates pass strict C99 checking.
 All 15,800 previous passes still pass. All four WRITEU blockers now
 pass, including TK.DATA.CAPTURE.1, which previously stopped at READVU.
 
-- [ ] Implement WRITEV and WRITEVU for field updates. Verify that
+- [x] Implement WRITEV and WRITEVU for field updates. Verify that
   they preserve other fields, fill gaps with empty fields, and handle
   owned and foreign locks. WRITEV is the first blocker in six files.
+
+After WRITEV and WRITEVU, 15,810 of 17,336 candidates pass strict C99
+checking. All 15,804 previous passes still pass. All six WRITEV blockers
+now pass.
+
+- [ ] Implement `IF condition THEN value ELSE value` in expressions.
+  Check the reference grammar's resultant production and verify that
+  only the selected arm runs, including when the values are nested
+  in function arguments, array indices, or concatenations. The shared
+  I_GOSUB.MSK include uses this form in a concatenation.

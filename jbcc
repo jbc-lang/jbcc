@@ -1072,13 +1072,7 @@ class Compiler:
         target = self.identifier()
         out = self.variable_slot(target)
         self.expect('FROM')
-        key = self.expression()
-        self.expect(',')
-        field = self.expression()
-        handle = "jbc_default_file.value"
-        if self.word == ',':
-            self.advance()
-            handle, key, field = key, field, self.expression()
+        handle, key, field = self.field_file_key()
         setting = self.file_setting()
         status = f"readv_status_{self.temporaries}"
         self.temporaries += 1
@@ -1133,6 +1127,16 @@ class Compiler:
             self.advance()
             return key, self.expression()
         return "jbc_default_file.value", key
+
+    def field_file_key(self):
+        key = self.expression()
+        self.expect(',')
+        field = self.expression()
+        handle = "jbc_default_file.value"
+        if self.word == ',':
+            self.advance()
+            handle, key, field = key, field, self.expression()
+        return handle, key, field
 
     def readu_statement(self):
         opening = self.current
@@ -1359,6 +1363,14 @@ class Compiler:
             if self.word not in ('ON', 'TO'):
                 self.error(f"expected ON or TO after {op} value")
             self.advance()
+        if op in ('WRITEV', 'WRITEVU'):
+            handle, key, field = self.field_file_key()
+            setting = self.file_setting()
+            keep_lock = int(op == 'WRITEVU')
+            call = (f"jbc_write_field({handle}, {key}, {field}, {value}, {setting}, "
+                    f"{keep_lock}, {self.location(opening)})")
+            self.write_error_arm(opening, call, setting)
+            return
         handle, key = self.file_key()
         if op == 'WRITEU':
             setting = self.file_setting()
@@ -2057,7 +2069,7 @@ class Compiler:
         elif (self.word == 'STATUS' and self.following.kind == 'name'
               and self.word not in self.matrices):
             self.status_statement()
-        elif (self.word in ('READ', 'WRITE') or (self.word == 'WRITEU'
+        elif (self.word in ('READ', 'WRITE') or (self.word in ('WRITEU', 'WRITEV', 'WRITEVU')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES)):
             self.file_statement()
         elif self.word == 'BEGIN':

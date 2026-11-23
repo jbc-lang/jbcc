@@ -931,6 +931,15 @@ invalid descriptor or 32768 for a simulated foreign lock, and either
 failure takes ON ERROR when supplied. jbcc provisionally uses an empty
 status on success, as with READU. [WRITEU](https://jbc-lang.org/pages/writeu.html).
 
+WRITEV and WRITEVU replace a single field in an explicit or default file.
+For example, `WRITEV "value" TO F, Key, 7` changes field seven, fills any
+gap with empty fields, and creates the record if needed. Field numbers
+must be positive integers. WRITEV releases an owned update lock after
+writing. WRITEVU preserves an owned lock and leaves an unlocked key
+unlocked in this backend. Both use the same provisional success status
+and failure handling as WRITEU. [WRITEV](https://jbc-lang.org/pages/writev.html),
+[WRITEVU](https://jbc-lang.org/pages/writevu.html).
+
 DELETE removes a record by key. `DELETE F, Key` uses the descriptor F.
 `OPEN Name ELSE ...` sets the default descriptor for `DELETE Key`. A
 missing record counts as success. In this backend, `SETTING Code` receives
