@@ -2134,6 +2134,46 @@ CRT UPCASE(''):LOWCASE('')
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
 
+    def test_increment_and_decrement_statements(self):
+        source = self.work / 'step.b'
+        source.write_text("""Count = '4.5'
+Count++
+--Count
+IF Count = 4.5 THEN ++Count ELSE ABORT
+Count --
+CRT Count
+DIM A(2)
+A(1) = 0
+A(2) = 12
+I = 1
+A(I)++
+--A(I + 1)
+CRT A(1):':':A(2)
+PROGRAM = 1
+PROGRAM ++
+CRT PROGRAM
+CRT 4 - -2
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'4.5\n1:11\n2\n6\n', b''))
+
+    def test_increment_and_decrement_diagnostics(self):
+        source = self.work / 'step.b'
+        for program, message in [
+                ('Count++\n', "1:1: unassigned variable 'Count'"),
+                ("R = '1'\nR<1>++\n", '2:5: increment and decrement require a variable or matrix element')]:
+            with self.subTest(program=program):
+                source.write_text(program)
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:{message}', result.stderr)
+
+        source.write_text("Count = 9223372036854775807\nCount++\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:6: integer addition overflow'.encode(), result.stderr)
+
     def test_compound_division_by_zero(self):
         source = self.work / 'division.b'
         source.write_text('N = 7\nN /   = 0\n')

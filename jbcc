@@ -13,12 +13,13 @@ import sys
 import tempfile
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|=<|=>|\*\*|.)""")
+TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<arithmetic_assign>[+*/-][ \t]*=)|(?P<symbol>:=|=<|=>|\*\*|\+\+|--|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
-PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
+PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|:=|[+*/-][ \t]*=|\+\+|--)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
-ASSIGNMENT_PREFIXES = ASSIGNMENTS | {'[', '<'}
+STEP_OPERATORS = {'++', '--'}
+ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
                ">": ">", ">=": ">=", "=>": ">=", "GE": ">="}
@@ -2323,6 +2324,16 @@ class Compiler:
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
         return f"({matrix.base})[{index}]"
 
+    def step_statement(self, target, operator, slot):
+        scalar = target.word not in self.matrices
+        if scalar and target.word not in self.assigned and not self.has_unstructured_jumps:
+            self.assignment_error(f"unassigned variable '{target.word}'", target)
+        old = self.checked_read(slot, target)
+        value = self.arithmetic(operator, old, '"1"', operator.word[0])
+        self.emit(f"assign_value(&{slot}, {value});")
+        if scalar:
+            self.assigned.add(target.word)
+
     def statement(self, stops):
         if self.current.kind == 'program_header':
             self.advance()
@@ -2633,6 +2644,14 @@ class Compiler:
             self.advance()
             self.expect('=')
             self.emit(f"assign_value(&{slot}, {self.expression()});")
+        elif self.word in STEP_OPERATORS:
+            operator = self.current
+            self.advance()
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            if self.word in ('<', '['):
+                self.error("increment and decrement require a variable or matrix element")
+            self.step_statement(target, operator, slot)
         elif self.current.kind == 'name':
             start = self.current
             self.advance()
@@ -2646,6 +2665,12 @@ class Compiler:
                 start_pos, length = bounds if len(bounds) == 2 else ('NULL', bounds[0])
                 substring = f"{start_pos}, {length}, {location}"
             operator = self.current
+            if self.word in STEP_OPERATORS:
+                if indices or substring:
+                    self.error("increment and decrement require a variable or matrix element")
+                self.advance()
+                self.step_statement(start, operator, var or self.variable(start.word))
+                return
             if self.word not in ASSIGNMENTS:
                 self.error(f"unsupported statement '{start.word}'", start)
             self.advance()

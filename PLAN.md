@@ -2044,7 +2044,16 @@ parser discards the optional argument. Native tests cover all three
 forms, skipped argument evaluation, RND bounds and the diagnostic for
 an extra argument.
 
-- [ ] Investigate increment and decrement syntax. Start with the
-  postfix statement forms in the reference grammar. Check which
-  assignment targets are allowed and how the expression forms differ.
-  Two T24 units first stop at a postfix increment.
+- [x] Implement standalone increment and decrement statements. The
+  reference grammar allows prefix and postfix forms on scalar and
+  matrix element targets. Two T24 units first stop at postfix increment.
+
+After standalone increment and decrement, 16,396 of 17,336 candidates
+pass strict C99 checking. Thirteen new units pass and all previous
+passes still pass. EB.GET.RECORD.XML now reaches a spaced `: =`
+assignment. Native tests cover both spellings in each position, scalar
+and matrix targets, and diagnostics for invalid targets and overflow.
+
+- [ ] Implement increment and decrement in expressions. Verify the
+  guide's old-value and new-value examples, matrix element targets,
+  and evaluation order when the variable is used twice.

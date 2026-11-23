@@ -77,6 +77,12 @@ For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
 It also works on matrix elements, dynamic-array fields and substrings.
 [String variables](https://jbc-lang.org/pages/string_variables.html).
 
+Standalone `V++`, `V--`, `++V`, and `--V` change an assigned
+variable or matrix element by one. They use the same numeric coercion
+and overflow checks as compound assignment. The reference grammar
+uses scalar and matrix targets for these statements.
+[Numeric variables](https://jbc-lang.org/pages/numeric_variables.html).
+
 The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop
 boundaries reclaim temporary values that are no longer in use. Integer addition, subtraction and multiplication check signed 64-bit
 overflow. Division and fractional arithmetic use native long double,
