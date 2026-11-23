@@ -1677,6 +1677,47 @@ CRT 'after'
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:1:13: expected a name\n')
 
+    def test_concatenation_with_an_omitted_right_operand(self):
+        source = self.work / 'concat.b'
+        show = self.work / 'show.b'
+        source.write_text("""A = 'a':;* comment
+B = A::'b':
+IF B: EQ 'ab' THEN CALL SHOW(B:, ('c':))
+X = 2: * 3
+Y = 'num': -2
+CRT X:':':Y
+R<1:> = 'field':
+CRT R<1>:'!'
+""")
+        show.write_text("SUBROUTINE SHOW(Left, Right)\nCRT Left:':':Right\n")
+        result = self.run_native(source, show)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'ab:c\n6:num-2\nfield!\n', b''))
+
+    def test_omitted_concat_operand_suppresses_output_newline(self):
+        source = self.work / 'concat.b'
+        source.write_text("""CRT 'a'::'b'
+CRT 'c':::
+CRT 'd'
+PRINT ('e':), 'f'
+PRINT LEN('gh':)
+CRT 'i':, 'j'
+CRT 'k'
+CRT 'x':'y'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'abcd\ne\tf2i\tjk\nxy\n', b''))
+
+    def test_concatenation_requires_a_left_operand(self):
+        source = self.work / 'concat.b'
+        source.write_text("X = :'x'\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(
+            result.stderr, f'{source}:1:5: expected a variable, integer, string or parenthesized expression\n'
+        )
+
     def test_single_index_substring_assignment(self):
         source = self.work / 'suffix.b'
         source.write_text("""Text = 'abcde'

@@ -500,6 +500,7 @@ class Compiler:
         self.assigned = set()
         self.assignment_facts = {}
         self.statement_stops = set()
+        self.dangling_colons = 0
 
     @property
     def word(self):
@@ -927,6 +928,14 @@ class Compiler:
             return self.word in self.matrices
         return self.word in self.names
 
+    def missing_concat_operand(self):
+        if self.current.kind == 'array_close' or self.word in ('', ':', ',', ')', ']', ';', '\n'):
+            return True
+        if self.word in PRECEDENCE:
+            return self.word not in ('+', '-')
+        return (self.word in FORMAT_BOUNDARIES and self.word not in self.names
+                and self.word not in self.matrices and self.word not in self.functions)
+
     def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False,
                         reuse_left=False, format_stops=()):
         while self.current.kind not in ('array_open', 'array_close'):
@@ -942,6 +951,9 @@ class Compiler:
             if precedence < minimum or (operator == ':' and self.following.word in colon_stops):
                 break
             self.advance()
+            if operator == ':' and self.missing_concat_operand():
+                self.dangling_colons += 1
+                continue
             if operator in LOGICAL:
                 left = self.logical_expression(left, operator, colon_stops, locate_source, format_stops)
                 continue
@@ -2019,6 +2031,7 @@ class Compiler:
     def print_statement(self):
         opening = self.current
         location = self.location(opening)
+        colons_before = self.dangling_colons
         self.advance()
         destination = 'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
         if opening.word == 'PRINT' and self.word == 'ON':
@@ -2049,7 +2062,8 @@ class Compiler:
                     break
                 self.emit(f'jbc_output({destination}, "\\t", {location});')
                 self.advance()
-        self.emit(f'jbc_output({destination}, "\\n", {location});')
+        if self.dangling_colons == colons_before:
+            self.emit(f'jbc_output({destination}, "\\n", {location});')
 
     def begin_loop(self):
         self.loops += 1

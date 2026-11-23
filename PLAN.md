@@ -2324,7 +2324,22 @@ C99 checking. All 14 DPC.FILES cases and 192 other units now pass.
 All 16,753 previous passes still pass, and 13 remaining units reach
 different diagnostics.
 
-- [ ] Investigate missing concatenation operands in the reference
+- [x] Investigate missing concatenation operands in the reference
   lexer and generator. Trace trailing colons and doubled colons in T24,
   starting with AA.CREATE.NEW.DD.ITEM, and distinguish them from the
   trailing colon that suppresses a CRT newline.
+
+The reference parser returns the left value for `resultant ':'` and
+clears the output newline flag. Fixed and Prime compiler probes accepted
+trailing and doubled colons in expressions and rejected a leading colon.
+Native tests exercise nested expressions, CALL arguments, selectors and
+statement-wide newline suppression for CRT and PRINT.
+
+The byte-mode scan now has 17,007 of 17,336 candidates passing strict
+C99 checking. All 45 targeted units and three additional units now pass.
+All 16,959 previous passes still pass.
+
+- [ ] Investigate comparison spellings used by T24. The reference
+  preprocessor maps `#>` to LE, `#<` to GE and whitespace-prefixed
+  `><` to NE. Check their interaction with dynamic-array selectors
+  and trace space-separated comparison signs.
