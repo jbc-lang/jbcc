@@ -971,9 +971,23 @@ static void jbc_run_exit_callbacks(void)
 }
 #endif
 
+#if defined(JBC_SESSION) || defined(JBC_SEQUENTIAL)
+#include <unistd.h>
+
+static const char *working_directory(void)
+{
+    size_t length = 256;
+    for (;;) {
+        char *cwd = allocate(length);
+        if (getcwd(cwd, length)) return cwd;
+        if (errno != ERANGE || length > SIZE_MAX / 2) return NULL;
+        length *= 2;
+    }
+}
+#endif
+
 #ifdef JBC_SESSION
 #include <pwd.h>
-#include <unistd.h>
 
 static uintmax_t port_number;
 static int invalid_port_number;
@@ -1022,6 +1036,13 @@ const char *jbc_login_name(void)
 const char *jbc_account_name(void)
 {
     return account_override ? account_override : jbc_login_name();
+}
+
+const char *jbc_account_path(const char *file, int line, int column)
+{
+    const char *path = working_directory();
+    if (!path) numeric_error(file, line, column, "cannot resolve @PATH");
+    return path;
 }
 
 const char *jbc_process_id(void)
@@ -5068,14 +5089,8 @@ static int status_timestamp(jbc_variable *attrs, time_t stamp)
 static const char *sequential_path(const char *path)
 {
     if (*path == '/') return path;
-    size_t length = 256;
-    char *cwd;
-    for (;;) {
-        cwd = allocate(length);
-        if (getcwd(cwd, length)) break;
-        if (errno != ERANGE || length > SIZE_MAX / 2) return NULL;
-        length *= 2;
-    }
+    const char *cwd = working_directory();
+    if (!cwd) return NULL;
     const char *separator = strcmp(cwd, "/") ? "/" : "";
     return jbc_concat(jbc_concat(cwd, separator), path);
 }

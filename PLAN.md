@@ -1853,6 +1853,15 @@ two callers that include @RECORD code now pass. Native tests check
 assignment, record reads, and preservation across loop cleanup and
 subroutine calls. @ID and @RECORD hold independent values.
 
-- [ ] Implement @PATH for the current account path. Check how the
+- [x] Implement @PATH for the current account path. Check how the
   reference defines it and verify the native result from a different
   working directory. One T24 file first stops at @PATH.
+
+After @PATH, 16,357 of 17,336 candidates pass strict C99 checking.
+All 16,356 previous passes still pass. MWT.DUMP.FILE now passes.
+The native test checks a working directory longer than the starting
+buffer size and supplies unrelated HOME and PWD values.
+
+- [ ] Implement @LPTRHIGH using the current output device's line count.
+  Check terminal and printer behavior against the guide and the report
+  runtime. One T24 file first stops at @LPTRHIGH.

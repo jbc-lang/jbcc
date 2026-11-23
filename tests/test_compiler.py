@@ -3104,6 +3104,17 @@ CRT SYSTEM(24)
         with os.fdopen(read_fd, 'rb') as reader:
             self.assertEqual(subprocess.check_output([binary], stdin=reader), b'3\n3\n')
 
+    def test_account_path_uses_working_directory(self):
+        source = self.work / 'path.b'
+        source.write_text('CRT @PATH\n')
+        cwd = self.work.joinpath(*(['directory-' + 'x' * 60] * 4))
+        cwd.mkdir(parents=True)
+        env = dict(os.environ, HOME='/unused-home', PWD='/unused-pwd')
+        result = self.run_native(source, env=env, cwd=cwd)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, os.fsencode(cwd.resolve()) + b'\n')
+        self.assertEqual(result.stderr, b'')
+
     def test_tty_name_with_terminal_and_redirected_input(self):
         source = self.work / 'tty.b'
         source.write_text("CRT '[':@TTY:']'\nCRT @TTY[1,1]\n")

@@ -514,6 +514,10 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_terminal_name()"), locate_source)
+            if self.word == 'PATH':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary(f"jbc_account_path({self.location(target)})"), locate_source)
             if self.word == 'PID':
                 self.uses_session = True
                 self.advance()

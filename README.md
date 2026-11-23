@@ -282,6 +282,11 @@ debugger. When a native jbcc program reaches it, the runtime reports the
 source location and exits with an error because a jBC debugger is unavailable.
 [DEBUG](https://jbc-lang.org/pages/debug.html).
 
+`@PATH` is the current account pathname in the jBASE guide. Native
+jbcc provisionally uses the process's absolute working directory as
+the account path. A failure to resolve it reports the source location.
+[@PATH](https://jbc-lang.org/pages/@path.html).
+
 `@PID` returns the native process ID. `JBCPORTNO` can set the value of
 `@USERNO` independently.
 [@PID](https://jbc-lang.org/pages/@pid.html).
