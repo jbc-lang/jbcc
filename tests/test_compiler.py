@@ -4409,6 +4409,79 @@ CRT 'after'
                 self.assertIn(f'{source}:2:34: SLEEP'.encode(), run.stderr)
                 self.assertIn(message.encode(), run.stderr)
 
+    def test_keyin_shares_queued_and_piped_input(self):
+        source = self.work / 'keyin.b'
+        binary = self.work / 'keyin'
+        source.write_text("""PROMPT '>'
+DATA 'abc', 'd'
+CRT KEYIN()
+INPUT Tail
+CRT Tail
+CRT IN():SEQ(KEYIN())
+CRT KEYIN()
+INPUT Tail
+CRT Tail
+CRT '[':IN():']'
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        result = subprocess.run([binary], input=b'xyz\n', capture_output=True, timeout=5)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'a\n>bc\nd10\nx\n>yz\n[]\n', b''))
+
+    def test_keyin_reads_unedited_terminal_byte_and_restores_mode(self):
+        source = self.work / 'keyin.b'
+        binary = self.work / 'keyin'
+        source.write_text("CRT 'ready>'\nCRT SEQ(KEYIN())\n")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        original = termios.tcgetattr(slave)
+        original[3] |= termios.ICANON | termios.ECHO | termios.ISIG
+        original[6][termios.VERASE] = b'\x7f'
+        termios.tcsetattr(slave, termios.TCSANOW, original)
+
+        for value in (b'\x7f', b'\x00', None):
+            with self.subTest(value=value), subprocess.Popen(
+                    [binary], stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+                try:
+                    self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
+                    self.assertEqual(proc.stdout.readline(), b'ready>\n')
+                    deadline = time.monotonic() + 5
+                    while (mode := termios.tcgetattr(slave))[3] & termios.ICANON:
+                        self.assertLess(time.monotonic(), deadline, 'KEYIN did not enter noncanonical mode')
+                        time.sleep(0.01)
+                    self.assertFalse(mode[3] & termios.ECHO)
+                    self.assertTrue(mode[3] & termios.ISIG)
+                    if value is None:
+                        proc.terminate()
+                    else:
+                        os.write(master, value)
+                    stdout, stderr = proc.communicate(timeout=5)
+                    expected = {
+                        b'\x7f': (0, b'127\n', b''),
+                        b'\x00': (1, b'', f'{source}:2:9: KEYIN cannot store a NUL byte\n'.encode()),
+                        None: (-signal.SIGTERM, b'', b''),
+                    }
+                    self.assertEqual((proc.returncode, stdout, stderr), expected[value])
+                    actual = termios.tcgetattr(slave)
+                    actual[3] &= ~getattr(termios, 'PENDIN', 0)
+                    self.assertEqual(actual, original)
+                finally:
+                    if proc.poll() is None:
+                        proc.kill()
+
+    def test_keyin_function_diagnostics(self):
+        source = self.work / 'keyin.b'
+        for function in ('KEYIN', 'IN'):
+            with self.subTest(function=function):
+                source.write_text(f'CRT {function}(1)\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for '{function}'".encode(),
+                              result.stderr)
+
     def test_timed_input_restarts_after_each_byte(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-timeout.b', '-o', binary], check=True)

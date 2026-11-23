@@ -592,6 +592,14 @@ HUSH. The native runtime restores the host terminal mode after each read.
 and nonterminal stdin stay available for subsequent reads.
 [INPUTCLEAR](https://jbc-lang.org/pages/inputclear.html).
 
+`KEYIN()` and `IN()` read one byte without a prompt. The reference
+compiler generates the same operation for both spellings. jbcc reads
+queued DATA first and then standard input, sharing the same stream as
+INPUT. On terminals it temporarily disables editing and echo while
+preserving interrupt handling. jbcc returns an empty string at EOF
+and reports an error for a NUL byte.
+[KEYIN](https://jbc-lang.org/pages/keyin.html).
+
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
 `?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps

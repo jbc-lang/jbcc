@@ -2513,5 +2513,20 @@ previous passes. The raw scan also picked up a new editor swap file
 and rejected it. The ICONV call around DTX in EB.GC.GET.CONSTRAINT
 still requires runtime support for the MCXB mask.
 
-- [ ] Investigate KEYIN() in JGLOBUS.CONVERT and the reference grammar's
+- [x] Investigate KEYIN() in JGLOBUS.CONVERT and the reference grammar's
   IN() spelling. Check how they interact with native INPUT and queued DATA.
+
+Both forms generate KEYIN_BB in the reference compiler. The guide calls
+for a raw character read with system interrupt handling preserved.
+jbcc shares the DATA queue and standard input with INPUT. Native tests
+exercise both spellings, byte order, EOF, NUL diagnostics, and terminal
+mode restoration after a successful read, a NUL byte and a signal.
+
+JGLOBUS.CONVERT now passes strict C99 checking in byte mode. The total
+is 17,068 of 17,336 candidates, including all 17,067 previous passes.
+The editor swap file from the previous scan was absent. The negative
+INPUT length in JGLOBUS.CONVERT remains a runtime blocker.
+
+- [ ] Investigate the negative INPUT length in JGLOBUS.CONVERT and other
+  T24 callers. Check whether length -1 polls pending input without
+  consuming it and how the result relates to KEYIN() and SYSTEM(14).

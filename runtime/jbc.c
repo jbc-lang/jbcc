@@ -4525,10 +4525,16 @@ void jbc_sleep(const char *duration, const char *file, int line, int column)
 #include <sys/select.h>
 #include <unistd.h>
 
-/* Bounded and timed reads need each keystroke before the line is submitted. */
+/* Some input operations need each keystroke before the line is submitted. */
 static struct termios input_saved;
 static volatile sig_atomic_t input_modified;
 static int input_echo = -1;
+static const int input_signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
+
+struct input_mode {
+    struct sigaction saved[sizeof input_signals / sizeof *input_signals];
+    size_t handlers;
+};
 
 static struct sigaction saved_interrupt;
 static int break_key_disabled;
@@ -4578,12 +4584,81 @@ static void input_signal(int sig)
     raise(sig);
 }
 
+static const char *set_input_mode(struct input_mode *state, struct termios *mode)
+{
+    struct sigaction action = {0};
+    action.sa_handler = input_signal;
+    sigemptyset(&action.sa_mask);
+    for (; state->handlers < sizeof input_signals / sizeof *input_signals; ++state->handlers) {
+        size_t i = state->handlers;
+        int sig = input_signals[i];
+        if (sigaction(sig, NULL, &state->saved[i]) ||
+            (state->saved[i].sa_handler == SIG_DFL && sigaction(sig, &action, NULL)))
+            return "cannot protect input terminal settings";
+    }
+    mode->c_lflag &= ~(ICANON | ECHO | ECHONL);
+    mode->c_cc[VMIN] = 1;
+    mode->c_cc[VTIME] = 0;
+    input_modified = 1;
+    return tcsetattr(STDIN_FILENO, TCSANOW, mode) ? "cannot set input terminal mode" : NULL;
+}
+
+static const char *restore_input_mode(struct input_mode *state, const char *error)
+{
+    if (input_modified && tcsetattr(STDIN_FILENO, TCSANOW, &input_saved))
+        error = "cannot restore input terminal mode";
+    input_modified = 0;
+    while (state->handlers) {
+        --state->handlers;
+        sigaction(input_signals[state->handlers], &state->saved[state->handlers], NULL);
+    }
+    return error;
+}
+
+static ssize_t read_input_byte(unsigned char *c)
+{
+    if (!input_data) return read(STDIN_FILENO, c, 1);
+    *c = input_data->bytes[input_data->offset++];
+    if (input_data->offset == input_data->length) drop_input_chunk();
+    return 1;
+}
+
+const char *jbc_keyin(const char *file, int line, int column)
+{
+    if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before KEYIN");
+    struct input_mode state = {0};
+    const char *error = NULL;
+    if (!input_data && isatty(STDIN_FILENO)) {
+        if (tcgetattr(STDIN_FILENO, &input_saved))
+            numeric_error(file, line, column, "cannot read input terminal settings");
+        struct termios mode = input_saved;
+        mode.c_lflag &= ~IEXTEN;
+        mode.c_iflag &= ~(ICRNL | INLCR | IGNCR | ISTRIP);
+        error = set_input_mode(&state, &mode);
+    }
+
+    unsigned char c;
+    ssize_t count = 0;
+    if (!error) {
+        do {
+            count = read_input_byte(&c);
+        } while (count < 0 && errno == EINTR);
+        if (count < 0) error = "cannot read KEYIN input";
+    }
+    error = restore_input_mode(&state, error);
+    if (error) numeric_error(file, line, column, error);
+    if (!count) return "";
+    if (!c) numeric_error(file, line, column, "KEYIN cannot store a NUL byte");
+    char *value = allocate(1);
+    value[0] = (char)c;
+    value[1] = '\0';
+    return value;
+}
+
 int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, int discard_excess,
               const char *timeout_text, const char *file, int line, int column)
 {
-    const int signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
-    struct sigaction saved[sizeof signals / sizeof *signals];
-    size_t handlers = 0;
+    struct input_mode state = {0};
     int echo_fd = -1, edit = 0;
     const char *error = NULL;
     char *text = NULL;
@@ -4609,25 +4684,9 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
                 if (!tty || (echo_fd = open(tty, O_WRONLY | O_NOCTTY)) < 0)
                     numeric_error(file, line, column, "cannot echo terminal input");
             }
-            struct sigaction action = {0};
-            action.sa_handler = input_signal;
-            sigemptyset(&action.sa_mask);
-            for (; handlers < sizeof signals / sizeof *signals; ++handlers) {
-                int sig = signals[handlers];
-                if (sigaction(sig, NULL, &saved[handlers]) ||
-                    (saved[handlers].sa_handler == SIG_DFL && sigaction(sig, &action, NULL))) {
-                    error = "cannot protect input terminal settings";
-                    break;
-                }
-            }
             struct termios mode = input_saved;
             edit = (mode.c_lflag & ICANON) != 0;
-            mode.c_lflag &= ~(ICANON | ECHO | ECHONL);
-            mode.c_cc[VMIN] = 1;
-            mode.c_cc[VTIME] = 0;
-            input_modified = 1;
-            if (!error && tcsetattr(STDIN_FILENO, TCSANOW, &mode))
-                error = "cannot set input terminal mode";
+            error = set_input_mode(&state, &mode);
         }
     }
     if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
@@ -4643,13 +4702,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
             if (!ready) { timed_out = 1; break; }
         }
         unsigned char c;
-        ssize_t count = 1;
-        if (input_data) {
-            c = input_data->bytes[input_data->offset++];
-            if (input_data->offset == input_data->length) drop_input_chunk();
-        } else {
-            count = read(STDIN_FILENO, &c, 1);
-        }
+        ssize_t count = read_input_byte(&c);
         if (count < 0 && errno == EINTR) continue;
         if (count < 0) { error = "cannot read input"; break; }
         if (!count || (edit && c != _POSIX_VDISABLE && c == input_saved.c_cc[VEOF])) break;
@@ -4684,13 +4737,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
         (ended_line || (!discard_excess && limit_text && length == (uint64_t)limit))) {
         if (write(echo_fd, "\n", 1) != 1) error = "cannot echo terminal newline";
     }
-    if (input_modified && tcsetattr(STDIN_FILENO, TCSANOW, &input_saved))
-        error = "cannot restore input terminal mode";
-    input_modified = 0;
-    while (handlers) {
-        --handlers;
-        sigaction(signals[handlers], &saved[handlers], NULL);
-    }
+    error = restore_input_mode(&state, error);
     if (echo_fd >= 0) close(echo_fd);
     if (error) {
         free(text);
