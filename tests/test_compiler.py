@@ -4092,6 +4092,39 @@ CRT (After<18>-Before<18>):':':(After<19>-Before<19>):':':(After<20>-Before<20>)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'[]\n0:0:0\n2:7:1\n', b''))
 
+    def test_userstats_delete_and_clearfile_counters(self):
+        source = self.work / 'delete-stats.b'
+        source.write_text("""OPEN 'F' TO F ELSE ABORT
+OPEN 'Busy' TO Busy ELSE ABORT
+WRITE 'one' TO F,'first'
+WRITE 'two' TO F,'second'
+WRITE 'keep' TO Busy,'record'
+Before = @USERSTATS
+DELETE F,'first' ON ERROR ABORT
+CLEARFILE F ON ERROR ABORT
+After = @USERSTATS
+CRT Before<21>:':':Before<22>
+CRT After<21>:':':After<22>
+READ R FROM F,'first' THEN ABORT
+READ R FROM F,'second' THEN ABORT
+DELETE F,'missing' ON ERROR ABORT
+CLEARFILE F ON ERROR ABORT
+CRT @USERSTATS<21>:':':@USERSTATS<22>
+Bad = ''
+DELETE Bad,'first' ON ERROR NULL
+CLEARFILE Bad ON ERROR NULL
+DELETE Busy,'held' ON ERROR NULL
+CLEARFILE Busy ON ERROR ABORT LOCKED NULL
+X = DELETE('value',1)
+READ R FROM Busy,'record' THEN CRT R ELSE ABORT
+CRT @USERSTATS<21>:':':@USERSTATS<22>
+""")
+        result = self.run_native(source, options=['--memory-file', 'F', '--memory-file', 'Busy',
+                                                  '--memory-lock', 'Busy', 'held'],
+                                 env=dict(os.environ, JBCPORTNO='1'))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:0\n1:1\n2:2\nkeep\n2:2\n', b''))
+
     def test_userstats_reports_invalid_port_at_reference(self):
         source = self.work / 'stats.b'
         source.write_text('CRT @USERSTATS<1>\n')

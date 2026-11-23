@@ -2116,6 +2116,15 @@ Native tests compare snapshots around successful opens and reads.
 They cover each supported read variant, empty fields, missing records
 and foreign locks.
 
-- [ ] Add the DELETE and CLEARFILE counters to @USERSTATS. Check the
+- [x] Add the DELETE and CLEARFILE counters to @USERSTATS. Check the
   cases of a missing record and an already empty file, and verify
   counter deltas around successful operations and lock conflicts.
+
+The same 16,417 of 17,336 candidates pass strict C99 checking.
+Native tests verify that successful statements count even when there
+are no records to remove. Invalid descriptors and foreign locks leave
+the counters unchanged, and a blocked clear preserves the records.
+
+- [ ] Add the EXECUTE and INPUT counters to @USERSTATS. Check which
+  execution aliases share a counter and define how child exit status,
+  input timeout and end of input affect the totals.

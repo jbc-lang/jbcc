@@ -327,6 +327,10 @@ in-memory opens, record reads and record writes respectively. The read
 count includes READU, READV, READVU, MATREAD and MATREADU, and a field read
 of an existing record counts even when the field is empty. The write count
 includes WRITEV, WRITEU, WRITEVU and MATWRITE.
+Fields 21 and 22 count successful in-memory DELETE and CLEARFILE
+statements. Deleting a missing key or clearing an empty file still counts
+as one operation because the backend reports success. Invalid descriptors
+and lock conflicts leave both counters unchanged.
 Fields 41–43 hold the native invocation and the line and path where the
 snapshot was taken. Other fields are empty.
 [@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).

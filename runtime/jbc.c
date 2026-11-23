@@ -1021,6 +1021,7 @@ static const char *account_override;
 #ifdef JBC_USERSTATS
 static time_t session_started;
 static size_t record_open_count, record_read_count, record_write_count;
+static size_t record_delete_count, record_clear_count;
 #endif
 
 static const char *session_environment(const char *name)
@@ -1112,6 +1113,8 @@ const char *jbc_userstats(const char *file, int line, int column)
     attrs[18].value = size_value(record_open_count);
     attrs[19].value = size_value(record_read_count);
     attrs[20].value = size_value(record_write_count);
+    attrs[21].value = size_value(record_delete_count);
+    attrs[22].value = size_value(record_clear_count);
     attrs[41].value = jbc_command_line;
     attrs[42].value = size_value((size_t)line);
     attrs[43].value = file;
@@ -3655,6 +3658,7 @@ int jbc_clear_file(const char *handle, jbc_variable *setting)
     }
     clear_records(file);
     release_locks(file, NULL, 0);
+    count_userstat(&record_clear_count);
     return file_result(0);
 }
 
@@ -3676,6 +3680,7 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
         if (f->last_read == record) f->last_read = NULL;
         free_record(record);
     }
+    count_userstat(&record_delete_count);
     return file_succeeded(0);
 }
 
