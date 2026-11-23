@@ -1701,6 +1701,15 @@ All 16,314 previous passes still pass, and both targeted files now
 pass. Native tests reproduce the guide examples and check explicit
 precision, large operands and source-located diagnostics.
 
-- [ ] Implement REWIND for tape channels. Check the guide and the
+- [x] Implement REWIND for tape channels. Check the guide and the
   grammar's optional unit and channel forms, and exercise the documented
   no-media status and ELSE branch. Four T24 files first stop at REWIND.
+
+After REWIND, the same 16,316 of 17,336 candidates pass strict C99
+checking. Two targeted files now reach READT and two reach WRITET.
+Native tests cover both conditional arms, the unit and channel forms,
+and the no-media status. The runtime has no attached tape devices.
+
+- [ ] Implement READT for tape records. Check the guide and reference
+  grammar for channel selection and failed reads, then reuse the
+  no-media status from REWIND. Five T24 files first stop at READT.

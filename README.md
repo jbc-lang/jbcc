@@ -1076,6 +1076,14 @@ arm. Empty operands produce a source-located runtime error. jbcc takes
 ELSE for fractional offsets, invalid origins and positions outside the
 host file-offset range. [SEEK](https://jbc-lang.org/pages/seek.html).
 
+`REWIND [UNIT(channel)] [ON channel]` issues a tape rewind with a required
+THEN or ELSE arm. The channel defaults to 0 and must be an integer from
+0 through 9. The reference grammar accepts FROM in place of ON and gives
+UNIT precedence when both operands appear. jbcc has no attached tape
+media, so every valid channel takes the no-media path with `SYSTEM(0)`
+set to 1. This leaves the file `STATUS()` value intact.
+[Rocket jBASE REWIND](https://docs.rocketsoftware.com/bundle/jbase_lib_62/page/topics/rewind_statement.html).
+
 `WEOFSEQ F` truncates at the current byte position. After a `READSEQ`,
 the retained prefix includes the line terminator. The next read sees EOF,
 and the next write starts at that same position. WEOFSEQ accepts `SETTING`,

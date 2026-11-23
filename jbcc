@@ -1120,6 +1120,31 @@ class Compiler:
             self.assigned.add(target.word)
         return setting
 
+    def rewind_statement(self):
+        opening = self.current
+        self.advance()
+        channel = '"0"'
+        has_unit = self.word == 'UNIT'
+        if has_unit:
+            self.advance()
+            self.expect('(')
+            channel = self.expression()
+            self.expect(')')
+        if self.word in ('ON', 'FROM'):
+            self.advance()
+            if has_unit:
+                # The reference generator uses UNIT in preference to ON or FROM.
+                before = self.assigned.copy()
+                self.emit("if (0) {")
+                self.depth += 1
+                self.emit(f"(void){self.expression()};")
+                self.depth -= 1
+                self.emit("}")
+                self.assigned = before
+            else:
+                channel = self.expression()
+        self.conditional_arms(opening, f"jbc_rewind({channel}, {self.location(opening)})")
+
     def sequential_statement(self):
         opening = self.current
         op = opening.word
@@ -2233,6 +2258,9 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
+        elif (self.word == 'REWIND' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.rewind_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
                             'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):

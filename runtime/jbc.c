@@ -1012,6 +1012,19 @@ const char *jbc_status(void)
     return file_status_value(last_file_status);
 }
 
+static int last_system_error;
+
+int jbc_rewind(const char *channel, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(channel, &n) || n.places || n.sign < 0 || n.digits > 1)
+        numeric_error(file, line, column, "REWIND channel must be an integer from 0 to 9");
+
+    /* The runtime has no attached tape media. */
+    last_system_error = 1;
+    return 0;
+}
+
 static int last_command_code;
 
 const char *jbc_system_return_code(void)
@@ -4078,6 +4091,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
 #ifdef JBC_SESSION
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
+    if (!jbc_compare(code, "0", -1)) return size_value(last_system_error);
     if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
     if (!jbc_compare(code, "18", -1)) return jbc_port_number(file, line, column);
     if (!jbc_compare(code, "19", -1)) return jbc_login_name();
