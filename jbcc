@@ -1253,6 +1253,34 @@ class Compiler:
         call = f"jbc_transaction({int(sync)}, {note}, {self.location(opening)}, {message})"
         self.conditional_arms(opening, call)
 
+    def execute_statement(self, stops):
+        opening = self.current
+        self.advance()
+        self.uses_execute = True
+        clauses = ('CAPTURING', 'RETURNING', 'SETTING', 'RTNLIST')
+        command = self.expression(format_stops=clauses)
+        outputs = {}
+        assigned = []
+        while self.word in clauses:
+            clause = 'RETURNING' if self.word == 'SETTING' else self.word
+            if clause in outputs:
+                self.error(f"duplicate {clause} clause")
+            self.advance()
+            if clause == 'RTNLIST':
+                if not self.word or self.word in OUTPUT_END or self.word in stops or self.word in clauses:
+                    outputs[clause] = "&select_lists[0]"
+                    continue
+                if self.current.kind in ('number', 'string'):
+                    outputs[clause] = self.value_argument(self.primary())
+                    continue
+            target = self.identifier()
+            outputs[clause] = '&' + self.variable_slot(target)
+            assigned.append(target.word)
+        self.assigned.update(assigned)
+        self.emit(f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
+                  f"{outputs.get('RETURNING', 'NULL')}, {outputs.get('RTNLIST', 'NULL')}, "
+                  f"{self.location(opening)});")
+
     def tape_unit(self):
         if self.word != 'UNIT':
             return None
@@ -2670,23 +2698,7 @@ class Compiler:
                 self.advance()
         elif (self.word in ('EXECUTE', 'EXEC', 'PERFORM') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
-            opening = self.current
-            self.advance()
-            self.uses_execute = True
-            command = self.expression()
-            outputs = {}
-            assigned = []
-            while self.word in ('CAPTURING', 'RETURNING', 'SETTING'):
-                clause = 'CAPTURING' if self.word == 'CAPTURING' else 'RETURNING'
-                if clause in outputs:
-                    self.error(f"duplicate {clause} clause")
-                self.advance()
-                target = self.identifier()
-                outputs[clause] = '&' + self.variable_slot(target)
-                assigned.append(target.word)
-            self.assigned.update(assigned)
-            self.emit(f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
-                      f"{outputs.get('RETURNING', 'NULL')}, {self.location(opening)});")
+            self.execute_statement(stops)
         elif (self.word == 'HUSH' and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             opening = self.current

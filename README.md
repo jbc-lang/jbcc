@@ -276,6 +276,12 @@ runtime diagnostic. Alternate shells and field-mark-separated commands
 remain unsupported.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
+The command aliases accept `RTNLIST variable` and bare `RTNLIST` for the
+default select list, in any order with the other supported clauses. The
+reference grammar also accepts a constant operand. At runtime, a request
+for a select list requires a jBC command backend. The native shell runner
+reports the source location and exits before launching the command.
+
 `@SYSTEM.RETURN.CODE` and `SYSTEM(17)` read the exit status of the
 most recent native EXECUTE or PERFORM, including commands run by a
 called routine. The value updates with or without result clauses. It

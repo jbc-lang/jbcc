@@ -3722,7 +3722,8 @@ CRT O:
     def test_execute_result_diagnostics(self):
         source = self.work / 'execute.b'
         for clauses, repeated in [('SETTING A RETURNING B', 'RETURNING'),
-                                  ('CAPTURING A CAPTURING B', 'CAPTURING')]:
+                                  ('CAPTURING A CAPTURING B', 'CAPTURING'),
+                                  ('RTNLIST RTNLIST List', 'RTNLIST')]:
             source.write_text(f"EXECUTE ':' {clauses}\n")
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
             column = source.read_text().rindex(repeated) + 1
@@ -3732,6 +3733,32 @@ CRT O:
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: RETURNING cannot store a NUL byte'.encode(), run.stderr)
+
+    def test_execute_rtnlist_requires_backend_before_running_command(self):
+        source = self.work / 'select.b'
+        marker = self.work / 'child-ran'
+        for verb, clauses in (
+            ('EXECUTE', 'RTNLIST List CAPTURING Out'),
+            ('PERFORM', 'SETTING Status RTNLIST'),
+            ('EXEC', 'RTNLIST CAPTURING Out RETURNING Status'),
+            ('EXECUTE', 'CAPTURING Out RTNLIST Rows(1)'),
+            ('EXECUTE', 'RTNLIST 2'),
+            ('PERFORM', 'RTNLIST "7"'),
+        ):
+            with self.subTest(verb=verb, clauses=clauses):
+                source.write_text(f"""DIM Rows(2)
+RTNLIST = 'name'
+IF 0 THEN EXECUTE 'touch child-ran' RTNLIST ELSE CRT RTNLIST
+{verb} 'touch child-ran' {clauses}
+CRT 'after'
+""")
+                run = self.run_native(source, cwd=self.work)
+                self.assertEqual(run.returncode, 1, run.stderr)
+                self.assertEqual(run.stdout, b'name\n')
+                self.assertEqual(
+                    run.stderr, f'{source}:4:1: RTNLIST requires a jBC command backend\n'.encode()
+                )
+                self.assertFalse(marker.exists())
 
     def test_execute_child_program(self):
         child = self.work / 'child.b'

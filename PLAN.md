@@ -2218,7 +2218,19 @@ Growth probes likewise emitted bounds 2 and 5, using operations 7 and
   the elements preserved across shrink and grow, and the effect on MAT
   aliases. Keep the shape-mismatch diagnostic until those rules are known.
 
-- [ ] Investigate EXECUTE and PERFORM RTNLIST. Check the explicit and
+- [x] Investigate EXECUTE and PERFORM RTNLIST. Check the explicit and
   default output forms and report when the command backend cannot
   return a jBC select list. EBS.CREATE.FILE and WR.MANUAL.REP.INITIALISE
   first stop at RTNLIST.
+
+The guide documents explicit and default destinations. The reference
+compiler also accepted numeric and string constants in the operand
+position. jbcc accepts these forms in any order with the other supported
+clauses. Native tests verify that a reached RTNLIST reports the missing
+backend at the statement and the shell command never starts.
+Both blocked units now pass strict C99 checking, bringing the total to
+16,533 of 17,336 candidates. All 16,531 previous passes still pass.
+
+- [ ] Investigate jumps into FOR bodies in the reference generator and
+  the T24 corpus. Start with BL.BILL.CROSSVAL and check which counter,
+  bounds and step are available when the jump bypasses the header.

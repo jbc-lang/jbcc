@@ -4302,8 +4302,10 @@ static FILE *command_input(void)
 }
 
 void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *returning,
-                 const char *file, int line, int column)
+                 jbc_variable *return_list, const char *file, int line, int column)
 {
+    if (return_list)
+        numeric_error(file, line, column, "RTNLIST requires a jBC command backend");
     if ((unsigned char)command[0] == 255) {
         if (command[1] != 's')
             numeric_error(file, line, column, "unsupported EXECUTE shell selector");
