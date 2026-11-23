@@ -4951,12 +4951,14 @@ int jbc_openseq(const char *path, const char *name, int existing, int append,
     return file_result(status);
 }
 
+static const speed_t tty_rates[] = {B50, B75, B110, B134, B150, B200, B300, B600,
+                                    B1200, B1800, B2400, B4800, B9600, B19200, B38400};
+static const tcflag_t tty_data_sizes[] = {CS5, CS6, CS7, CS8};
+
 static const char *tty_baud_code(speed_t speed)
 {
-    static const speed_t rates[] = {B50, B75, B110, B134, B150, B200, B300, B600,
-                                    B1200, B1800, B2400, B4800, B9600, B19200, B38400};
-    for (size_t i = 0; i < sizeof rates / sizeof *rates; ++i)
-        if (rates[i] == speed) return size_value(i + 1);
+    for (size_t i = 0; i < sizeof tty_rates / sizeof *tty_rates; ++i)
+        if (tty_rates[i] == speed) return size_value(i + 1);
     return "";
 }
 
@@ -4971,13 +4973,8 @@ int jbc_ttyget(const char *token, jbc_variable *out)
     tcflag_t control = mode.c_cflag;
     tcflag_t local = mode.c_lflag;
     tcflag_t input = mode.c_iflag;
-    int bits;
-    switch (control & CSIZE) {
-        case CS5: bits = 5; break;
-        case CS6: bits = 6; break;
-        case CS7: bits = 7; break;
-        default: bits = 8; break;
-    }
+    int bits = 5;
+    while (bits < 8 && (control & CSIZE) != tty_data_sizes[bits - 5]) ++bits;
     int canonical = (local & ICANON) != 0;
     int minimum = canonical ? 0 : mode.c_cc[VMIN];
     int timeout_ms = canonical ? 0 : mode.c_cc[VTIME] * 100;
@@ -4994,6 +4991,116 @@ int jbc_ttyget(const char *token, jbc_variable *out)
              baud, bits, (control & CSTOPB) ? 2 : 1, parity,
              (local & ISIG) != 0, break_key);
     assign_value(out, strcpy(allocate(strlen(settings)), settings));
+    return file_result(0);
+}
+
+enum tty_setting {
+    TTY_UNSUPPORTED, TTY_MODE, TTY_MINIMUM, TTY_TIME, TTY_ECHO, TTY_BAUD,
+    TTY_DATA, TTY_STOP, TTY_PARITY, TTY_SIGNALS, TTY_BREAK, TTY_SETTING_COUNT
+};
+
+static int parse_tty_settings(const char *text, int settings[TTY_SETTING_COUNT])
+{
+    /* Rows are attribute positions and columns are value positions. */
+    static const enum tty_setting slots[11][5] = {
+        [0] = {TTY_MODE, TTY_MINIMUM, TTY_TIME},
+        [6] = {TTY_ECHO},
+        [9] = {TTY_UNSUPPORTED, TTY_BAUD, TTY_DATA, TTY_STOP, TTY_PARITY},
+        [10] = {TTY_SIGNALS, TTY_UNSUPPORTED, TTY_BREAK}
+    };
+    static const int maxima[TTY_SETTING_COUNT] = {
+        [TTY_MODE] = 1, [TTY_MINIMUM] = 255, [TTY_TIME] = 25500, [TTY_ECHO] = 1,
+        [TTY_BAUD] = sizeof tty_rates / sizeof *tty_rates, [TTY_DATA] = 8,
+        [TTY_STOP] = 2, [TTY_PARITY] = 2, [TTY_SIGNALS] = 1, [TTY_BREAK] = 2
+    };
+    for (int i = 0; i < TTY_SETTING_COUNT; ++i) settings[i] = -1;
+
+    size_t field = 0, value = 0;
+    int found = 0;
+    while (*text) {
+        const char *end = text + strcspn(text, "\376\375");
+        if (end != text) {
+            if (field >= sizeof slots / sizeof *slots ||
+                value >= sizeof *slots / sizeof **slots) return 0;
+            enum tty_setting slot = slots[field][value];
+            if (slot == TTY_UNSUPPORTED) return 0;
+            int n = 0;
+            while (text < end) {
+                if (*text < '0' || *text > '9') return 0;
+                n = n * 10 + (*text++ - '0');
+                if (n > maxima[slot]) return 0;
+            }
+            settings[slot] = n;
+            found = 1;
+        }
+        if (!*end) break;
+        if ((unsigned char)*end == 254) {
+            ++field;
+            value = 0;
+        } else ++value;
+        text = end + 1;
+    }
+    return found;
+}
+
+static void tty_set_flag(tcflag_t *flags, tcflag_t mask, int enabled)
+{
+    if (enabled) *flags |= mask;
+    else *flags &= ~mask;
+}
+
+int jbc_ttyset(const char *token, const char *text)
+{
+    const struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream) return file_result(128);
+    int fd = fileno(file->stream);
+    struct termios before;
+    if (tcgetattr(fd, &before) < 0) return file_result(file_error(errno));
+
+    int s[TTY_SETTING_COUNT];
+    if (!parse_tty_settings(text, s) || s[TTY_BAUD] == 0 ||
+        (s[TTY_DATA] >= 0 && s[TTY_DATA] < 5) || s[TTY_STOP] == 0 ||
+        (s[TTY_TIME] >= 0 && s[TTY_TIME] % 100)) return file_result(32768);
+
+    struct termios next = before;
+    if (s[TTY_MODE] >= 0) tty_set_flag(&next.c_lflag, ICANON, s[TTY_MODE] == 0);
+    int canonical = (next.c_lflag & ICANON) != 0;
+    if (canonical && (s[TTY_MINIMUM] > 0 || s[TTY_TIME] > 0)) return file_result(32768);
+    if (!canonical && s[TTY_MINIMUM] >= 0) next.c_cc[VMIN] = (cc_t)s[TTY_MINIMUM];
+    if (!canonical && s[TTY_TIME] >= 0) next.c_cc[VTIME] = (cc_t)(s[TTY_TIME] / 100);
+    if (s[TTY_ECHO] >= 0) tty_set_flag(&next.c_lflag, ECHO, s[TTY_ECHO]);
+    if (s[TTY_SIGNALS] >= 0) tty_set_flag(&next.c_lflag, ISIG, s[TTY_SIGNALS]);
+    if (s[TTY_BREAK] >= 0) {
+        tty_set_flag(&next.c_iflag, IGNBRK, s[TTY_BREAK] == 0);
+        tty_set_flag(&next.c_iflag, BRKINT, s[TTY_BREAK] == 1);
+    }
+    if (s[TTY_DATA] >= 0) next.c_cflag = (next.c_cflag & ~CSIZE) | tty_data_sizes[s[TTY_DATA] - 5];
+    if (s[TTY_STOP] >= 0) tty_set_flag(&next.c_cflag, CSTOPB, s[TTY_STOP] == 2);
+    if (s[TTY_PARITY] >= 0) {
+        tty_set_flag(&next.c_cflag, PARENB, s[TTY_PARITY] != 0);
+        tty_set_flag(&next.c_cflag, PARODD, s[TTY_PARITY] == 2);
+    }
+    if (s[TTY_BAUD] > 0) {
+        speed_t rate = tty_rates[s[TTY_BAUD] - 1];
+        if (cfsetispeed(&next, rate) || cfsetospeed(&next, rate)) return file_result(file_error(errno));
+    }
+
+    if (tcsetattr(fd, TCSANOW, &next) < 0) return file_result(file_error(errno));
+    /* POSIX allows success even when the driver applies only some settings. */
+    struct termios actual;
+    tcflag_t control_mask = CSIZE | CSTOPB | PARENB;
+    if (next.c_cflag & PARENB) control_mask |= PARODD;
+    if (tcgetattr(fd, &actual) < 0 ||
+        ((next.c_cflag ^ actual.c_cflag) & control_mask) ||
+        ((next.c_lflag ^ actual.c_lflag) & (ICANON | ECHO | ISIG)) ||
+        ((next.c_iflag ^ actual.c_iflag) & (IGNBRK | BRKINT)) ||
+        (!canonical && (next.c_cc[VMIN] != actual.c_cc[VMIN] ||
+                        next.c_cc[VTIME] != actual.c_cc[VTIME])) ||
+        (s[TTY_BAUD] > 0 && (cfgetispeed(&next) != cfgetispeed(&actual) ||
+                            cfgetospeed(&next) != cfgetospeed(&actual)))) {
+        (void)tcsetattr(fd, TCSANOW, &before);
+        return file_result(32768);
+    }
     return file_result(0);
 }
 

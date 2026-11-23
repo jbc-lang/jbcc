@@ -1974,6 +1974,20 @@ pseudo-terminal and verify the error branches for regular files and
 closed handles. The initial field mapping covers mode, echo, baud,
 data bits, stop bits, parity and selected signal options.
 
-- [ ] Investigate TTYSET for POSIX terminal handles. Check which edits
+- [x] Implement TTYSET for POSIX terminal handles. Check which edits
   the three blocked T24 units make, define handling for unsupported
   fields, and verify a TTYSET and TTYGET round trip on a pseudo-terminal.
+
+After TTYSET, 16,366 of 17,336 candidates pass strict C99 checking.
+Two new units pass, all previous passes still pass, and the third unit
+that stopped at TTYSET now reaches BREAK OFF.
+Native tests apply supported settings, read them back and restore them
+on a pseudo-terminal. They also verify that invalid requests and
+populated unsupported fields leave the terminal settings intact.
+The T24 callers also request control characters, carrier and newline
+flags, delay fill and signal flushing. Those fields still need a
+runtime mapping before those calls can succeed.
+
+- [ ] Investigate BREAK ON and BREAK OFF. Check the reference behavior
+  for terminal interrupts and how it fits the existing input runtime.
+  Verify it independently of loop BREAK, which uses the same keyword.

@@ -1305,6 +1305,11 @@ class Compiler:
             handle = self.expression()
             self.assigned.add(target.word)
             call = f'jbc_ttyget({handle}, &{slot})'
+        elif op == 'TTYSET':
+            value = self.temporary(self.expression())
+            self.expect('ON')
+            handle = self.expression()
+            call = f'jbc_ttyset({handle}, {value})'
         elif op == 'OSREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
@@ -2455,7 +2460,7 @@ class Compiler:
         elif (self.word in ('OPENSEQ', 'OPENDEV', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
                             'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT',
                             'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE', 'OSDELETE',
-                            'TTYGET')
+                            'TTYGET', 'TTYSET')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

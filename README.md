@@ -1158,6 +1158,20 @@ closed or pending handle returns 128. Errors clear the destination and
 take `ELSE` when supplied. Printer and tape channel forms remain
 unsupported. [TTYGET](https://www.ibm.com/docs/en/iis/11.7.0?topic=functions-ttyget-statement).
 
+`TTYSET Settings ON F [SETTING S]` applies the fields supported by
+`TTYGET` to a POSIX terminal. It accepts either conditional arm.
+Empty positions preserve the current setting. The initial mapping
+accepts line and noncanonical modes, numeric baud codes 1 through 15,
+and noncanonical timeouts in multiples of 100 milliseconds. In line
+mode, the terminal ignores the noncanonical byte count and timer.
+jbcc validates the full request before applying changes. An empty
+request, an unsupported populated position, an invalid value, or a
+regular file returns status 32768. A closed or pending handle returns
+128. If the driver applies only part of a request, jbcc attempts to
+restore the prior settings and reports status 32768. On success
+`SETTING` and `STATUS()` both report 0.
+[IBM BASIC Reference Guide](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
+
 `NOBUF F` disables stdio buffering on an open sequential handle. Call
 it after OPENSEQ or CREATE and before any operation on the stream. It
 also affects aliases of the handle, and repeating it after success is

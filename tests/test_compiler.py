@@ -775,6 +775,70 @@ TTYGET Settings FROM F SETTING S ELSE CRT S
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:17: expected 'FROM'", result.stderr)
 
+    def test_ttyset_round_trip_and_validation(self):
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        mode = termios.tcgetattr(slave)
+        mode[2] = (mode[2] & ~(termios.CSIZE | termios.CSTOPB | termios.PARENB)) | termios.CS8
+        mode[3] |= termios.ICANON | termios.ECHO
+        mode[4] = mode[5] = termios.B9600
+        termios.tcsetattr(slave, termios.TCSANOW, mode)
+        original = termios.tcgetattr(slave)
+        env = dict(os.environ, JBCC_TEST_PTY=os.ttyname(slave))
+        source = self.work / 'ttyset.b'
+        source.write_text("""OPENDEV GETENV('JBCC_TEST_PTY') TO F ELSE ABORT
+TTYGET Original FROM F ELSE ABORT
+Settings = Original
+Settings<1,1> = 1
+Settings<1,2> = 4
+Settings<1,3> = 300
+Settings<7,1> = 0
+Settings<10,2> = 12
+Settings<10,4> = 2
+TTYSET Settings ON F SETTING S THEN CRT S:':':STATUS() ELSE ABORT
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Settings THEN ABORT
+Bad = Settings
+Bad<7,1> = 1
+Bad<2,1> = 9
+TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+Bad = Settings
+Bad<1,3> = 301
+TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Settings THEN ABORT
+TTYSET Original ON F ELSE ABORT
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Original THEN ABORT
+CLOSESEQ F
+""")
+        result = self.run_native(source, env=env)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'0:0\n32768:32768\n32768\n', b''))
+        restored = termios.tcgetattr(slave)
+        local_mask = termios.ICANON | termios.ECHO | termios.ISIG
+        self.assertEqual(restored[:3], original[:3])
+        self.assertEqual(restored[3] & local_mask, original[3] & local_mask)
+        self.assertEqual(restored[4:6], original[4:6])
+
+    def test_ttyset_failure_arms_and_diagnostic(self):
+        (self.work / 'data').touch()
+        source = self.work / 'ttyset.b'
+        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
+TTYSET '1' ON F SETTING S THEN ABORT ELSE CRT S
+CLOSESEQ F
+TTYSET '1' ON F SETTING S ELSE CRT S:':':STATUS()
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'32768\n128:128\n', b''))
+
+        source.write_text("TTYSET '1' FROM F ELSE STOP\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:12: expected 'ON'", result.stderr)
+
     def test_sequential_routine_lifetime(self):
         (self.work / 'input').write_bytes(b'hello\n')
         source = self.work / 'main.b'
