@@ -399,6 +399,7 @@ NEXT I
                                   ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
                                   ('CRT 1 +\n', ':1:8:'),
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
+                                  ('INPUT X _\n', ':1:9: INPUT underscore requires a length'),
                                   ('@ID += 1\n', ":1:5: expected '='"),
                                   ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
@@ -2259,6 +2260,52 @@ END
         run = subprocess.run([binary], input=b'abcde\nx\nend', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
+
+    def test_input_underscore_discards_excess_in_queue_and_pipe(self):
+        source = self.work / 'input.b'
+        source.write_text("""PROMPT ''
+DATA 'queued':@FM:'next'
+INPUT A, 2_
+INPUT B
+INPUT C, 1_:
+INPUT D, 1:_
+INPUT E
+CRT A:'|':B:'|':C:'|':D:'|':E
+""")
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        run = subprocess.run([binary], input=b'first\nsecond\nlast', capture_output=True, timeout=5)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'qu|next|f|s|last\n')
+        self.assertEqual(run.stderr, b'')
+
+    def test_input_underscore_rings_bell_and_waits_for_enter(self):
+        source = self.work / 'input.b'
+        source.write_text("PROMPT '>'\nINPUT X,1_:\nCRT '[':X:']'\n")
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+
+        def read_until(marker):
+            data = bytearray()
+            while not data.endswith(marker):
+                self.assertTrue(select.select([master], [], [], 5)[0], data)
+                data.extend(os.read(master, 1024))
+            return bytes(data)
+
+        with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
+            try:
+                self.assertEqual(read_until(b'>'), b'>')
+                os.write(master, b'ab')
+                self.assertEqual(read_until(b'\a'), b'a\a')
+                os.write(master, b'\n')
+                self.assertEqual(read_until(b'\r\n'), b'[a]\r\n')
+                self.assertEqual(proc.wait(timeout=5), 0)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
 
     def test_plain_execute_and_perform(self):
         run = self.run_native(ROOT / 'tests/programs/execute.b')

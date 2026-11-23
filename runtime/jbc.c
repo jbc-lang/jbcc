@@ -3686,7 +3686,7 @@ static void input_signal(int sig)
     raise(sig);
 }
 
-int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
+int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, int discard_excess,
               const char *timeout_text, const char *file, int line, int column)
 {
     const int signals[] = {SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGPIPE};
@@ -3738,7 +3738,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     }
     if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
         error = "cannot write input prompt";
-    while (!error && (!limit_text || length < (uint64_t)limit)) {
+    while (!error && (discard_excess || !limit_text || length < (uint64_t)limit)) {
         if (!input_data && timeout_text) {
             fd_set readable;
             FD_ZERO(&readable);
@@ -3771,6 +3771,10 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
             }
             continue;
         }
+        if (discard_excess && length == (uint64_t)limit) {
+            if (echo_chars && write(echo_fd, "\a", 1) != 1) error = "cannot ring INPUT bell";
+            continue;
+        }
         if (c == 0) { error = "INPUT cannot store a NUL byte"; break; }
         if (length == capacity) {
             if (capacity > SIZE_MAX / 2) { error = "input line too long"; break; }
@@ -3783,7 +3787,7 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
         if (echo_chars && write(echo_fd, &c, 1) != 1) error = "cannot echo terminal input";
     }
     if (!error && echo_fd >= 0 && !suppress_newline &&
-        (ended_line || (limit_text && length == (uint64_t)limit))) {
+        (ended_line || (!discard_excess && limit_text && length == (uint64_t)limit))) {
         if (write(echo_fd, "\n", 1) != 1) error = "cannot echo terminal newline";
     }
     if (input_modified && tcsetattr(STDIN_FILENO, TCSANOW, &input_saved))

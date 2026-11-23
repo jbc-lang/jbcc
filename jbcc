@@ -2330,15 +2330,24 @@ class Compiler:
                 limit = 'NULL'
                 if self.word == ',':
                     self.advance()
-                    limit = self.expression(colon_stops=OUTPUT_END | {'FOR'})
+                    limit = self.expression(colon_stops=OUTPUT_END | {'FOR', '_'})
                 suppress = self.word == ':'
                 if suppress:
                     self.advance()
+                discard_excess = self.word == '_'
+                if discard_excess:
+                    if limit == 'NULL':
+                        self.error("INPUT underscore requires a length")
+                    self.advance()
+                    if not suppress and self.word == ':':
+                        suppress = True
+                        self.advance()
                 timeout = 'NULL'
                 if self.word == 'FOR':
                     self.advance()
                     timeout = self.expression()
-                call = f"jbc_input(&{slot}, {limit}, {int(suppress)}, {timeout}, {self.location(opening)})"
+                call = (f"jbc_input(&{slot}, {limit}, {int(suppress)}, {int(discard_excess)}, "
+                        f"{timeout}, {self.location(opening)})")
                 self.assigned.add(target.word)
                 if timeout == 'NULL':
                     self.emit(call + ";")

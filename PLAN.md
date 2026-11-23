@@ -1605,7 +1605,19 @@ All 16,293 previous passes still pass, and all three targeted files
 now pass. Native tests cover reservation of an unused key, default
 files, simulated contention, status, and release.
 
-- [ ] Implement the underscore length modifier in `INPUT X,1_` and
+- [x] Implement the underscore length modifier in `INPUT X,1_` and
   `INPUT X,1_:`. Check when input terminates, how excess bytes are
   handled, and interaction with queued DATA. Nine T24 files first
   stop at this modifier.
+
+After the INPUT underscore modifier, 16,304 of 17,336 candidates pass
+strict C99 checking. All 16,296 previous passes still pass. Seven of the
+nine files with an unexpected underscore now pass, along with LOAD.FILE,
+whose colon-before-underscore form originally reached an expression
+diagnostic. The other two reach REWIND. Native tests cover piped input,
+queued DATA, terminal bells and waiting for Enter.
+
+- [ ] Implement ECHO ON, ECHO OFF and its expression form. Verify
+  terminal behavior, interaction with HUSH, and the guide's SYSTEM
+  query for echo state. Unsupported ECHO is the first diagnostic
+  in two T24 files.

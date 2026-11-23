@@ -395,6 +395,14 @@ reaching the limit echoes a newline unless the statement ends in a colon.
 Provisionally, jbcc truncates fractional lengths toward zero. A zero
 length consumes no input, and a negative integer length raises an error.
 
+`INPUT Var, n_` keeps up to `n` bytes and consumes the rest of the line.
+With terminal echo enabled, excess bytes sound the bell. Enter ends
+the read and echoes a newline. Both `_:` and `:_` suppress that newline.
+Use a space before the underscore after a named length, as in
+`INPUT Var, Limit _`. The same line consumption applies to queued DATA
+and piped input.
+[jBASE INPUT](https://docs.rocketsoftware.com/bundle/jbase_lib_59/page/hpy1666031229329.html).
+
 `INPUT Var FOR n THEN ... ELSE ...` waits up to `n` tenths of a second
 for the first byte and restarts the interval after each byte. Enter or
 the length limit selects THEN. A timeout selects ELSE and assigns the
