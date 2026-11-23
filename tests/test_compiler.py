@@ -1558,6 +1558,24 @@ CLOSESEQ F
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, source.read_bytes())
 
+    def test_ascii_and_ebcdic(self):
+        (self.work / 'hello').write_bytes(bytes.fromhex('c8 85 93 93 96 40 91 c2 c3'))
+        data = bytes(range(1, 256))
+        (self.work / 'bytes').write_bytes(data)
+        result = self.run_native(ROOT / 'tests/io/ebcdic.b', cwd=self.work)
+        expected = (b'Hello jBC\n' + data.decode('cp037').encode('latin-1')
+                    + data.decode('latin-1').encode('cp037') + data + data + b'0\t0\n')
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
+
+    def test_ascii_and_ebcdic_argument_counts(self):
+        source = self.work / 'invalid.b'
+        for call, name in [('ASCII()', 'ASCII'), ("EBCDIC('a','b')", 'EBCDIC')]:
+            with self.subTest(call=call):
+                source.write_text(f'CRT {call}\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
+
     def test_seq_reads_block_bytes(self):
         source = self.work / 'decode.b'
         (self.work / 'input').write_bytes(b'\x01\xfeAB')

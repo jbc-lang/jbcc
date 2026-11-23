@@ -715,6 +715,14 @@ uses a character table in its ASCII/EBCDIC compatibility path and calls
 SEQ in UTF-8 mode. jbcc resolves it through DEFFUN and the linked function
 implementation. [T24 Programming Standards](https://www.acosani.it/infobasic/libri/T24%20Programming%20Standards.pdf).
 
+`ASCII(value)` converts IBM EBCDIC code page 037 bytes to ISO-8859-1
+bytes. `EBCDIC(value)` reverses that mapping. The guide describes a
+character table and gives an example that CP037 reproduces. It leaves
+the exact table unspecified, so this code page is provisional. The
+conversion operates on bytes, including high bytes and array marks.
+[ASCII](https://jbc-lang.org/pages/ascii.html), [EBCDIC](https://jbc-lang.org/pages/ebcdic.html),
+[CP037 mapping](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT).
+
 `QUOTE(text)` and `DQUOTE(text)` enclose the value in double quotes.
 `SQUOTE(text)` uses single quotes. Each function adds one quote at each
 end, preserving embedded quotes and array marks. The native snippet checks

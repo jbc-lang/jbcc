@@ -1333,6 +1333,18 @@ T24 SEQX function, which uses INDEX with a character table or calls
 SEQ in UTF-8 mode. TK.TELEKURS.1 already parsed the SEQX calls and first
 stops at ASCII on line 64.
 
-- [ ] Implement ASCII and EBCDIC byte conversions. Identify the
+- [x] Implement ASCII and EBCDIC byte conversions. Identify the
   reference character mapping, verify the guide's byte example and a
   round trip, and check TK.TELEKURS.1 again.
+
+After ASCII and EBCDIC, 16,131 of 17,336 candidates pass strict C99
+checking. All 16,129 previous passes still pass. TK.TELEKURS.1 and
+AUTOCASH.INTERFACE now pass. The guide's example works with IBM CP037.
+The exact reference table is unspecified, so jbcc provisionally uses
+CP037 and ISO-8859-1. Native tests verify both directions and round trips
+for every nonzero byte.
+
+- [ ] Implement SPACES for scalar counts and dynamic arrays. Check
+  delimiter preservation, zero counts, and the guide's empty-element
+  diagnostic. CONVERT.ASCII.EBCDIC first stops at SPACES(255) when
+  initializing the table used by SEQX.
