@@ -1351,6 +1351,25 @@ CLOSESEQ F
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: READVU {diagnostic}'.encode(), run.stderr)
 
+    def test_write_setting_and_on_error(self):
+        result = self.run_native(ROOT / 'tests/io/write-error.b',
+                                 options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'0\t0\ninserted\nthen\nelse\n32768\t-2\n'
+                                        b'no record\nbad 128\n128\nupdated\n')
+
+    def test_write_on_error_diagnostics(self):
+        source = self.work / 'write.b'
+        source.write_text("WRITE 'value' TO 'key' ON NULL\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:27: expected 'ERROR'", result.stderr)
+        source.write_text("WRITE 'value' TO 'key'\n")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f'{source}:1:1: WRITE failed'.encode(), run.stderr)
+
     def test_writeu(self):
         result = self.run_native(ROOT / 'tests/io/writeu.b',
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])

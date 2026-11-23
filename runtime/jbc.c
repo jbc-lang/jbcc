@@ -2710,15 +2710,11 @@ static int write_record_status(const char *handle, const char *key, const char *
     return 0;
 }
 
-int jbc_write_record(const char *handle, const char *key, const char *value)
+int jbc_write_record(const char *handle, const char *key, const char *value,
+                     jbc_variable *setting, int keep_lock)
 {
-    return write_record_status(handle, key, value, 0, 0) == 0;
-}
-
-int jbc_writeu(const char *handle, const char *key, const char *value, jbc_variable *setting)
-{
-    int status = write_record_status(handle, key, value, 0, 1);
-    if (setting) assign_value(setting, status == 128 ? "128" : status ? "32768" : "");
+    int status = write_record_status(handle, key, value, 0, keep_lock);
+    if (setting) assign_value(setting, status ? size_value((size_t)status) : "");
     return status == 0;
 }
 

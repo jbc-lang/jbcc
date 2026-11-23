@@ -1295,7 +1295,16 @@ After STOP and ABORT, 16,043 of 17,336 candidates pass strict C99
 checking. All 16,010 previous passes still pass. Of the 33 additional
 passes, 26 previously stopped at a STOP operand and seven at ABORT.
 
-- [ ] Add SETTING and ON ERROR to ordinary WRITE. Verify that failures
+- [x] Add SETTING and ON ERROR to ordinary WRITE. Verify that failures
   report the file status and enter the error arm, and that existing
   WRITE forms and lock release still work. WRITE with ON ERROR is
   the first blocker in 38 files.
+
+After WRITE status and error arms, 16,077 of 17,336 candidates pass
+strict C99 checking. All 16,043 previous passes still pass. Of the 38
+files previously blocked by WRITE with ON ERROR, 34 now pass and four
+reach later diagnostics.
+
+- [ ] Implement sequential block I/O with READBLK and WRITEBLK. Check
+  byte counts, file position, end of file, and writes without automatic
+  newlines. Verify the reference grammar's SETTING and conditional arms.
