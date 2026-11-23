@@ -1295,6 +1295,21 @@ CLOSESEQ F
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: READVU {diagnostic}'.encode(), run.stderr)
 
+    def test_writeu(self):
+        result = self.run_native(ROOT / 'tests/io/writeu.b',
+                                 options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.stdout, b'second\t0\t2\nupdated\t2\n0\n0\n0\n32768\t-2\n'
+                                        b'no record created\n128\nbad descriptor\nordinary write\n')
+
+    def test_writeu_unhandled_failure(self):
+        source = self.work / 'writeu.b'
+        source.write_text("WRITEU 'value' TO 'key'\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:1: WRITEU failed'.encode(), result.stderr)
+
     def test_matread(self):
         run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)

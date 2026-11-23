@@ -2682,13 +2682,13 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     return record ? 0 : 128;
 }
 
-static int write_record_status(const char *handle, const char *key, const char *value)
+static int write_record_status(const char *handle, const char *key, const char *value, int keep_lock)
 {
     struct memory_file *f = file_for(handle);
     if (!f) return 128;
     struct record_lock *lock = find_lock(f, key);
     if (lock && lock->foreign) return 32768;
-    if (lock) release_locks(f, key, 0);
+    if (lock && !keep_lock) release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
     struct memory_record *r = *link;
     if (!r) {
@@ -2706,7 +2706,14 @@ static int write_record_status(const char *handle, const char *key, const char *
 
 int jbc_write_record(const char *handle, const char *key, const char *value)
 {
-    return write_record_status(handle, key, value) == 0;
+    return write_record_status(handle, key, value, 0) == 0;
+}
+
+int jbc_writeu(const char *handle, const char *key, const char *value, jbc_variable *setting)
+{
+    int status = write_record_status(handle, key, value, 1);
+    if (setting) assign_value(setting, status == 128 ? "128" : status ? "32768" : "");
+    return status == 0;
 }
 
 int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, int rank,
@@ -2714,7 +2721,7 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
                  const char *file, int line, int column)
 {
     const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
-    int status = write_record_status(handle, key, record);
+    int status = write_record_status(handle, key, record, 0);
     if (setting) {
         const char *result = status == 128 ? "128" : "32768";
         assign_value(setting, status ? result : jbc_dcount(record, "\376"));

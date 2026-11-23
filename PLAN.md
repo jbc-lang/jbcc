@@ -1246,7 +1246,15 @@ After READVU, 15,800 of 17,336 candidates pass strict C99 checking.
 All 15,795 previous passes still pass. Five of the nine READVU blockers
 now pass. Three reach a diagnostic in I_GOSUB.MSK and one reaches WRITEU.
 
-- [ ] Implement WRITEU to update a record while preserving its lock.
+- [x] Implement WRITEU to update a record while preserving its lock.
   Verify that updating a locked record retains the lock, that WRITE
   or RELEASE can release it, and that SETTING and ON ERROR handle
   failures. WRITEU is the first blocker in four files.
+
+After WRITEU, 15,804 of 17,336 candidates pass strict C99 checking.
+All 15,800 previous passes still pass. All four WRITEU blockers now
+pass, including TK.DATA.CAPTURE.1, which previously stopped at READVU.
+
+- [ ] Implement WRITEV and WRITEVU for field updates. Verify that
+  they preserve other fields, fill gaps with empty fields, and handle
+  owned and foreign locks. WRITEV is the first blocker in six files.

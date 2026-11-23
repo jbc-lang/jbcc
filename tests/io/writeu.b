@@ -1,0 +1,22 @@
+OPEN 'F' TO F ELSE STOP
+OPEN 'F' ELSE STOP
+READVU R FROM 'new',1 ELSE NULL
+WRITEU 'first':@FM:'second' TO F,'new' SETTING S ON ERROR STOP
+READV R FROM 'new',2 THEN CRT R, LEN(S), RECORDLOCKED(F,'new') ELSE STOP
+WRITEU 'updated' ON 'new'
+READ R FROM 'new' THEN CRT R, RECORDLOCKED(F,'new') ELSE STOP
+RELEASE 'new'
+CRT RECORDLOCKED(F,'new')
+WRITEU 'unlocked' TO 'new'
+CRT RECORDLOCKED(F,'new')
+READU R FROM 'new' ELSE STOP
+WRITEU 'still locked' TO 'new'
+WRITE 'ordinary write' ON 'new'
+CRT RECORDLOCKED(F,'new')
+WRITEU 'blocked' TO F,'busy' SETTING S ON ERROR CRT S, RECORDLOCKED(F,'busy')
+READ R FROM 'busy' THEN STOP ELSE CRT 'no record created'
+BAD = 'F'
+WRITEU 'bad' TO BAD,'new' SETTING S
+CRT S
+WRITEU 'bad' TO BAD,'new' ON ERROR CRT 'bad descriptor'
+READ R FROM 'new' THEN CRT R ELSE STOP

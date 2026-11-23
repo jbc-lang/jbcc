@@ -923,6 +923,14 @@ Returning from a routine that opened a file into a local variable
 releases that process’s locks on the file. [READU](https://jbc-lang.org/pages/readu.html),
 [RELEASE](https://jbc-lang.org/pages/release.html), [RECORDLOCKED](https://jbc-lang.org/pages/recordlocked.html).
 
+WRITEU writes a record to an explicit or default file and preserves an
+owned update lock. In the in-memory backend, writing an unlocked key
+leaves it unlocked. A regular WRITE, MATWRITE, DELETE, or RELEASE can
+release the retained lock. WRITEU sets the optional status to 128 for an
+invalid descriptor or 32768 for a simulated foreign lock, and either
+failure takes ON ERROR when supplied. jbcc provisionally uses an empty
+status on success, as with READU. [WRITEU](https://jbc-lang.org/pages/writeu.html).
+
 DELETE removes a record by key. `DELETE F, Key` uses the descriptor F.
 `OPEN Name ELSE ...` sets the default descriptor for `DELETE Key`. A
 missing record counts as success. In this backend, `SETTING Code` receives

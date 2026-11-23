@@ -1357,9 +1357,13 @@ class Compiler:
         else:
             value = self.expression()
             if self.word not in ('ON', 'TO'):
-                self.error("expected ON or TO after WRITE value")
+                self.error(f"expected ON or TO after {op} value")
             self.advance()
         handle, key = self.file_key()
+        if op == 'WRITEU':
+            setting = self.file_setting()
+            self.write_error_arm(opening, f"jbc_writeu({handle}, {key}, {value}, {setting})", setting)
+            return
         if op == 'READ':
             call = f"jbc_read_record({handle}, {key}, &{self.variable(target)})"
             self.assigned.add(target)
@@ -2053,7 +2057,8 @@ class Compiler:
         elif (self.word == 'STATUS' and self.following.kind == 'name'
               and self.word not in self.matrices):
             self.status_statement()
-        elif self.word in ('READ', 'WRITE'):
+        elif (self.word in ('READ', 'WRITE') or (self.word == 'WRITEU'
+              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES)):
             self.file_statement()
         elif self.word == 'BEGIN':
             self.case_statement()
