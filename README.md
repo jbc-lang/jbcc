@@ -1441,6 +1441,14 @@ jbcc starts `@ID` as an empty string and clears it when a
 are provisional pending a reference run. [ITYPE](https://jbc-lang.org/pages/itype.html),
 [jBASE SSELECT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SSELECT.htm).
 
+`@RECORD` holds the current record text in a separate slot shared
+across routines. It supports whole-value assignment, dynamic-array
+extraction, and use as a destination for READ, READU, READV, or READVU.
+Reading into another variable leaves this slot intact. jbcc starts it
+as an empty string. A missing record read into it clears it, following
+the existing READ destination behavior.
+[ITYPE](https://jbc-lang.org/pages/itype.html).
+
 With an explicit string or dynamic array, SELECT makes a list of its fields
 in source order. Value and subvalue marks stay inside their fields. Leading,
 interior and trailing empty fields are entries. jbcc treats a completely

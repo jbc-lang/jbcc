@@ -484,6 +484,39 @@ NEXT I
         self.assertEqual(run.stdout, b'key-4\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_record_context_survives_collection_and_changes_only_on_explicit_writes(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'seed.b'
+        main.write_text("""CRT '[':@RECORD:']'
+@ID = 'initial'
+CALL SEED()
+CRT @ID:':':@RECORD<2>
+OPEN 'records' TO F ELSE ABORT
+WRITE 'one':@FM:'two' TO F, 'key' ELSE ABORT
+READ Other FROM F, 'key' ELSE ABORT
+CRT @ID:':':@RECORD<2>
+READ @RECORD FROM F, 'key' ELSE ABORT
+CRT @ID:':':@RECORD<2>
+SELECT 'next'
+READNEXT @ID ELSE ABORT
+CRT @ID:':':@RECORD<1>
+READV @RECORD FROM F, 'key', 2 ELSE ABORT
+CRT @ID:':':@RECORD
+READU @RECORD FROM F, 'key' ELSE ABORT
+CRT @ID:':':@RECORD<1>
+READ @RECORD FROM F, 'missing' THEN ABORT ELSE CRT @ID:':[':@RECORD:']'
+""")
+        routine.write_text("""SUBROUTINE SEED()
+FOR I = 1 TO 4
+    @RECORD = 'seed':@FM:I
+NEXT I
+""")
+        run = self.run_native(main, routine, options=['--memory-file', 'records'])
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, b'[]\ninitial:4\ninitial:4\ninitial:two\n'
+                         b'next:one\nnext:two\nnext:one\nnext:[]\n')
+        self.assertEqual(run.stderr, b'')
+
     def test_deletelist_requires_named_store(self):
         source = self.work / 'delete.b'
         source.write_text("DELETELIST 'batch'\n")
@@ -560,6 +593,8 @@ NEXT I
                                   ('INPUT X _\n', ':1:9: INPUT underscore requires a length'),
                                   ('@ID += 1\n', ":1:5: expected '='"),
                                   ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
+                                  ("READ @USERNO FROM 'key' ELSE ABORT\n",
+                                   ':1:7: expected @ID or @RECORD as a record read destination'),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT DROUND(1, 2, 3)\n", ":1:5: wrong argument count for 'DROUND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),

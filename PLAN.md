@@ -1843,6 +1843,16 @@ files pass, including T24.INITIALISE. Native tests verify that
 repeated includes still execute each time and preserve linked COMMON
 layout and matrix contents.
 
-- [ ] Investigate @RECORD. Trace how the reference runtime exposes
+- [x] Investigate @RECORD. Trace how the reference runtime exposes
   the current record and whether it shares state with @ID. Two T24
   files first stop at @RECORD.
+
+After @RECORD, 16,356 of 17,336 candidates pass strict C99 checking.
+All 16,352 previous passes still pass. The two targeted files and
+two callers that include @RECORD code now pass. Native tests check
+assignment, record reads, and preservation across loop cleanup and
+subroutine calls. @ID and @RECORD hold independent values.
+
+- [ ] Implement @PATH for the current account path. Check how the
+  reference defines it and verify the native result from a different
+  working directory. One T24 file first stops at @PATH.
