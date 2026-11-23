@@ -2353,6 +2353,46 @@ RETURN
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:2:12: duplicate declaration of 'A'", run.stderr)
 
+    def test_repeated_include_reuses_common_matrix_slots(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'check.b'
+        include = self.work / 'shared.inc'
+        include.write_text("COMMON /SHARED/ Rows(N,2), Fixed(2), Tail\nCount += 1\n")
+        main.write_text("""N = 3
+Count = 0
+$INSERT shared.inc
+Rows(3,2) = 'row'
+Fixed(2) = 'fixed'
+Tail = 'tail'
+$INSERT shared.inc
+CALL CHECK()
+CRT Rows(3,2):':':Fixed(2):':':Tail:':':Count
+""")
+        sub.write_text("""SUBROUTINE CHECK()
+COMMON /SHARED/ A(3,2), B(2), C
+A(3,2) := '!'
+B(2) := '!'
+C := '!'
+""")
+        result = self.run_native(main, sub)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'row!:fixed!:tail!:2\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_repeated_common_matrix_rejects_incompatible_dimensions(self):
+        source = self.work / 'bad.b'
+        source.write_text("COMMON /X/ A(2,3)\nCOMMON /X/ A(3,2)\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:2:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
+
+        for first in ("COMMON /X/ A(N,3)", "IF 0 THEN COMMON /X/ A(N,3)"):
+            with self.subTest(first=first):
+                source.write_text(f"N = 2\n{first}\nN = 2\nCOMMON /X/ A(3,N)\n")
+                result = self.run_native(source)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:4:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
+
     def test_runtime_common_dimensions(self):
         main = self.work / 'main.b'
         sub = self.work / 'change.b'

@@ -1828,6 +1828,21 @@ checking. T24.INITIALISE reaches a duplicate declaration of FWC in
 I_IO.EQUATE. Native tests cover linked callback lookup, registration
 order, value-mark arguments and runtime-controlled termination.
 
-- [ ] Trace the duplicate FWC declaration in the T24.INITIALISE
+- [x] Trace the duplicate FWC declaration in the T24.INITIALISE
   include chain. Check how the reference compiler handles the two
   declarations before changing COMMON or include behavior.
+
+T24.INITIALISE includes I_IO.EQUATE twice. The reference parser keeps
+the COMMON slot when a matrix is declared again in the same block.
+Its dynamic-dimension generator handles repeated declarations. jbcc
+reuses the slot and validates shape at compile time or runtime.
+
+After this change, 16,352 of 17,336 candidates pass strict C99
+checking. All 16,343 previous passes still pass. Nine additional
+files pass, including T24.INITIALISE. Native tests verify that
+repeated includes still execute each time and preserve linked COMMON
+layout and matrix contents.
+
+- [ ] Investigate @RECORD. Trace how the reference runtime exposes
+  the current record and whether it shares state with @ID. Two T24
+  files first stop at @RECORD.

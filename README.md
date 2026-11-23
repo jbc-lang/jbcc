@@ -763,11 +763,14 @@ statement. [INMAT](https://jbc-lang.org/pages/inmat.html).
 
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
-program. Repeating a scalar in the same block reuses its original slot,
-including across separate COMMON statements. This follows the reference
-parser’s `common_identifier` rule and its symbol-table allocation. The
-compiler checks the member count, rank, and known bounds
-across input files. For T24 declarations such as
+program. Repeating a scalar or a matrix in the same block within a
+compilation unit reuses its original slot, including when an include is
+expanded twice. This follows the reference parser’s `common_identifier`
+allocation rule and its dynamic-dimension generator. Repeated matrix
+declarations must agree on rank and bounds. jbcc checks constant bounds
+at compile time and expression bounds when the declaration executes.
+The compiler also checks member count, rank, and known bounds across
+input files. For T24 declarations such as
 `COMMON /CACHE/ Rows(Config<1>), Tail`, jbcc evaluates the bound when
 execution reaches the declaration. Each matrix has its own storage, so
 the scalar after it keeps the same position in every routine. Indices and
