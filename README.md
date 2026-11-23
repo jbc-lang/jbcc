@@ -610,7 +610,16 @@ the limit, INPUT returns immediately and leaves subsequent bytes,
 including any following LF, for the next read. With terminal echo enabled,
 reaching the limit echoes a newline unless the statement ends in a colon.
 Provisionally, jbcc truncates fractional lengths toward zero. A zero
-length consumes no input, and a negative integer length raises an error.
+length consumes no input, and a length below `-1` raises an error.
+
+`INPUT Var, -1` checks for pending input without prompting, waiting or
+consuming bytes. Following T24 usage and the UniVerse BASIC reference,
+jbcc provisionally assigns `1` if DATA or standard input has bytes
+available and `0` otherwise. On a terminal it can detect a key before
+Enter and restores the terminal mode after the check. With a `FOR`
+clause the poll is still immediate. Pending input selects THEN, and an
+empty buffer selects ELSE.
+[IBM BASIC Reference Guide, INPUT](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
 
 `INPUT Var, n_` keeps up to `n` bytes and consumes the rest of the line.
 With terminal echo enabled, excess bytes sound the bell. Enter ends

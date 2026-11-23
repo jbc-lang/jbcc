@@ -4623,6 +4623,45 @@ static ssize_t read_input_byte(unsigned char *c)
     return 1;
 }
 
+static const char *pending_stdin_bytes(int *bytes)
+{
+    *bytes = 0;
+    int result;
+    do {
+        result = ioctl(STDIN_FILENO, FIONREAD, bytes);
+    } while (result < 0 && errno == EINTR);
+    if (result < 0) {
+        /* Devices such as /dev/null have no input queue to inspect. */
+        if (errno != ENODEV && errno != ENOTTY && errno != EOPNOTSUPP)
+            return "cannot query pending input bytes";
+        *bytes = 0;
+    }
+    return NULL;
+}
+
+static int input_available(const char *file, int line, int column)
+{
+    if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before input poll");
+    if (input_data) return 1;
+
+    struct input_mode state = {0};
+    const char *error = NULL;
+    if (isatty(STDIN_FILENO)) {
+        if (tcgetattr(STDIN_FILENO, &input_saved))
+            numeric_error(file, line, column, "cannot read input terminal settings");
+        if (input_saved.c_lflag & ICANON) {
+            /* A canonical terminal can hide pending bytes until Enter. */
+            struct termios mode = input_saved;
+            error = set_input_mode(&state, &mode);
+        }
+    }
+    int bytes = 0;
+    if (!error) error = pending_stdin_bytes(&bytes);
+    error = restore_input_mode(&state, error);
+    if (error) numeric_error(file, line, column, error);
+    return bytes > 0;
+}
+
 const char *jbc_keyin(const char *file, int line, int column)
 {
     if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before KEYIN");
@@ -4665,9 +4704,14 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
     size_t length = 0, capacity = 0;
 
     int64_t limit = limit_text ? truncated(limit_text, file, line, column) : 0;
-    if (limit < 0) numeric_error(file, line, column, "negative INPUT length");
+    if (limit < -1) numeric_error(file, line, column, "negative INPUT length");
     int64_t ticks = timeout_text ? truncated(timeout_text, file, line, column) : 0;
     if (ticks < 0) numeric_error(file, line, column, "negative INPUT timeout");
+    if (limit == -1) {
+        int ready = input_available(file, line, column);
+        assign_value(out, ready ? "1" : "0");
+        return ready;
+    }
     struct timespec interval = {(time_t)(ticks / 10), (long)(ticks % 10) * 100000000L};
     if (interval.tv_sec != ticks / 10) numeric_error(file, line, column, "INPUT timeout too large");
     int echo_chars = 0, ended_line = 0, timed_out = 0;
@@ -4768,18 +4812,10 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
     if (!jbc_compare(code, "1036", -1)) return size_value(blocked_record_locks);
     if (jbc_compare(code, "14", -1))
         numeric_error(file, line, column, jbc_concat("unsupported SYSTEM key ", code));
-    int bytes = 0;
     fflush(stdout);
-    int result;
-    do {
-        result = ioctl(STDIN_FILENO, FIONREAD, &bytes);
-    } while (result < 0 && errno == EINTR);
-    if (result < 0) {
-        /* Devices such as /dev/null have no input queue to inspect. */
-        if (errno != ENODEV && errno != ENOTTY && errno != EOPNOTSUPP)
-            numeric_error(file, line, column, "cannot query pending input bytes");
-        bytes = 0;
-    }
+    int bytes;
+    const char *error = pending_stdin_bytes(&bytes);
+    if (error) numeric_error(file, line, column, error);
 
     uintmax_t pending = bytes > 0 ? (unsigned)bytes : 0;
     for (const struct input_chunk *chunk = input_data; chunk; chunk = chunk->next)

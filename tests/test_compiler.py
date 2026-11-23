@@ -4514,9 +4514,84 @@ CRT '[':IN():']'
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: negative INPUT timeout'.encode(), run.stderr)
 
+    def test_input_negative_one_polls_without_consuming_bytes(self):
+        source = self.work / 'input-poll.b'
+        binary = self.work / 'input-poll'
+        source.write_text("""DATA 'xy'
+Length = -1
+INPUT Ready, Length
+CRT Ready, SYSTEM(14)
+CRT KEYIN()
+INPUT Ready, -1 FOR 50 THEN CRT Ready, SYSTEM(14) ELSE ABORT
+INPUT Rest
+CRT Rest
+INPUT Ready, -1
+CRT Ready, SYSTEM(14)
+CRT KEYIN()
+INPUT Ready, -1
+CRT Ready, SYSTEM(14)
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(write_fd, 'wb') as writer:
+            writer.write(b'z')
+        with os.fdopen(read_fd, 'rb') as reader:
+            run = subprocess.run([binary], stdin=reader, capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'1\t4\nx\n1\t3\n?y\n1\t1\nz\n0\t0\n', b''))
+
+    def test_input_negative_one_polls_an_empty_open_pipe(self):
+        source = self.work / 'input-poll.b'
+        binary = self.work / 'input-poll'
+        source.write_text('INPUT Ready, -1 FOR 100 THEN ABORT ELSE CRT Ready\n')
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            try:
+                self.assertEqual(proc.wait(timeout=5), 0)
+                self.assertEqual((proc.stdout.read(), proc.stderr.read()), (b'0\n', b''))
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
+    def test_input_negative_one_detects_terminal_typeahead(self):
+        source = self.work / 'input-poll.b'
+        binary = self.work / 'input-poll'
+        source.write_text("""INPUT Ready, -1
+CRT Ready
+LOOP
+    INPUT Ready, -1
+UNTIL Ready DO
+    SLEEP .01
+REPEAT
+CRT Ready, KEYIN()
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        master, slave = os.openpty()
+        self.addCleanup(os.close, master)
+        self.addCleanup(os.close, slave)
+        original = termios.tcgetattr(slave)
+        original[3] |= termios.ICANON
+        termios.tcsetattr(slave, termios.TCSANOW, original)
+        with subprocess.Popen([binary], stdin=slave, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as proc:
+            try:
+                self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
+                self.assertEqual(proc.stdout.readline(), b'0\n')
+                os.write(master, b'q')
+                stdout, stderr = proc.communicate(timeout=5)
+                self.assertEqual((proc.returncode, stdout, stderr), (0, b'1\tq\n', b''))
+                actual = termios.tcgetattr(slave)
+                actual[3] &= ~getattr(termios, 'PENDIN', 0)
+                self.assertEqual(actual, original)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
     def test_input_length_diagnostics(self):
         source = self.work / 'input.b'
-        for limit, message in [('-1', 'negative INPUT length'), ("'x'", 'expected a numeric value')]:
+        for limit, message in [('-2', 'negative INPUT length'), ("'x'", 'expected a numeric value')]:
             with self.subTest(limit=limit):
                 source.write_text(f'INPUT X, {limit}\n')
                 run = self.run_native(source)

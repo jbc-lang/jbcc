@@ -2527,6 +2527,24 @@ is 17,068 of 17,336 candidates, including all 17,067 previous passes.
 The editor swap file from the previous scan was absent. The negative
 INPUT length in JGLOBUS.CONVERT remains a runtime blocker.
 
-- [ ] Investigate the negative INPUT length in JGLOBUS.CONVERT and other
+- [x] Investigate the negative INPUT length in JGLOBUS.CONVERT and other
   T24 callers. Check whether length -1 polls pending input without
   consuming it and how the result relates to KEYIN() and SYSTEM(14).
+
+JGLOBUS.CONVERT and EBS.AUTO.FUNCTION test the result before reading
+from the same stream. The reference compiler passes -1 to the ordinary
+INPUT macro, including with a FOR clause. The UniVerse BASIC guide
+specifies a non-consuming poll with a Boolean result. jbcc provisionally
+applies that behavior to length -1. The poll checks queued DATA and
+stdin using the same byte-count query as SYSTEM(14). On a canonical
+terminal it temporarily disables line editing to detect type-ahead.
+With FOR, the current result chooses the arm immediately.
+[IBM BASIC Reference Guide, INPUT](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
+
+Native tests cover an empty open pipe, queued DATA and terminal type-ahead
+followed by KEYIN. The 21 T24 units with a literal length of -1 already
+passed strict C99 checking. The corpus total stays at 17,068 of 17,336,
+with identical results for every file.
+
+- [ ] Investigate COUNTS in LD.SCHEDULES.CROSSVAL. Compare it with COUNT
+  and verify nonoverlapping matches, empty values and array mark handling.
