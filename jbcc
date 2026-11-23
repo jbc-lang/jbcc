@@ -2239,6 +2239,11 @@ class Compiler:
         elif self.word == 'EXIT' or (self.word == 'BREAK' and
                                      (self.following.word in (';', '\n') or self.following.word in stops)):
             self.exit_statement()
+        elif (self.word == 'DEBUG' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            opening = self.current
+            self.advance()
+            self.emit(f'numeric_error({self.location(opening)}, "DEBUG requires a jBC debugger");')
         elif (self.word in ('STOP', 'ABORT') and self.following.word not in ASSIGNMENT_PREFIXES
               and not (self.word in self.matrices and self.following.word == '(')):
             self.termination_statement(stops)

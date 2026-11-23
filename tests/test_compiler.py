@@ -449,6 +449,7 @@ NEXT I
                                   ('READT X\n', ':1:8: expected THEN or ELSE'),
                                   ("WRITET 'x'\n", ':1:11: expected THEN or ELSE'),
                                   ('WEOF\n', ':1:5: expected THEN or ELSE'),
+                                  ('DEBUG 1\n', ":1:7: unexpected '1'"),
                                   ("IF 1 THEN CRT 1\n  ELSE CRT Missing\n", ":2:12: unknown variable"),
                                   ("CRT 'done'\nELSE CRT 1\n", ":2:1: unexpected 'ELSE'"),
                                   ("DIM A(2)\nMATREAD A FROM 'id'\n LOCKED STOP ELSE STOP\n",
@@ -1065,6 +1066,19 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn((str(source) + diagnostic).encode(), result.stderr)
+
+    def test_debug_reports_location_only_when_reached(self):
+        source = self.work / 'debug.b'
+        source.write_text("""DEBUG = 'before'
+IF 0 THEN DEBUG
+CRT DEBUG
+IF 1 THEN DEBUG
+CRT 'after'
+""")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'before\n')
+        self.assertEqual(result.stderr, f'{source}:4:11: DEBUG requires a jBC debugger\n'.encode())
 
     def test_weof_invalid_channel(self):
         source = self.work / 'weof.b'

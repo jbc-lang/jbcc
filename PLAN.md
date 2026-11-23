@@ -1755,6 +1755,16 @@ All 16,328 previous passes still pass. JF.INITIALISE.CONNECTION now
 passes, and tSS reaches DEBUG. A native test compares the value with
 the launched process ID while JBCPORTNO supplies a separate port.
 
-- [ ] Implement DEBUG statement parsing and define the native behavior
+- [x] Implement DEBUG statement parsing and define the native behavior
   when no jBC debugger is available. Verify conditional execution
   and source-located diagnostics. Six T24 files first stop at DEBUG.
+
+After DEBUG, 16,334 of 17,336 candidates pass strict C99 checking.
+All 16,329 previous passes still pass. Five targeted files now pass,
+and ENQ.REAL.TIME.PUSH reaches NOBUF. Native verification checks the
+diagnostic only when execution reaches the statement.
+
+- [ ] Implement NOBUF for open sequential files. Check SETTING and
+  conditional arms against the reference grammar, and verify that
+  writes become visible before the handle closes. Three T24 files
+  first stop at NOBUF.
