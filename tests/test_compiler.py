@@ -680,6 +680,42 @@ OPENSEQ 'pipe' TO F SETTING S ON ERROR CRT S THEN STOP ELSE STOP
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'locked\n32768\n')
 
+    def test_opendev_regular_file_and_missing_file(self):
+        data = self.work / 'data'
+        data.write_bytes(b'first\nsecond\n')
+        source = self.work / 'opendev.b'
+        source.write_text("""OPENDEV 'data' TO F THEN CRT 'opened' ELSE ABORT
+READSEQ Line FROM F THEN CRT Line ELSE ABORT
+WRITESEQ 'change' TO F ELSE ABORT
+CLOSESEQ F
+OPENDEV 'missing' TO F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'opened\nfirst\n128:128\n', b''))
+        self.assertEqual(data.read_bytes(), b'first\nchange\n')
+        self.assertFalse((self.work / 'missing').exists())
+
+    def test_opendev_lock_fallback_and_fifo(self):
+        data = self.work / 'data'
+        data.touch()
+        os.mkfifo(self.work / 'pipe')
+        source = self.work / 'opendev.b'
+        source.write_text("""OPENDEV 'data' TO F SETTING S LOCKED CRT S THEN ABORT ELSE ABORT
+OPENDEV 'data' TO F THEN ABORT ELSE CRT 'busy'
+OPENDEV 'pipe' TO F SETTING S ON ERROR CRT S THEN ABORT ELSE ABORT
+""")
+        with data.open('rb') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'-2\nbusy\n32768\n', b''))
+
+        source.write_text("OPENDEV 'data' TO F\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:20: expected THEN or ELSE', result.stderr)
+
     def test_sequential_routine_lifetime(self):
         (self.work / 'input').write_bytes(b'hello\n')
         source = self.work / 'main.b'

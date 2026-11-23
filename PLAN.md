@@ -1953,6 +1953,17 @@ After OSDELETE, the same 16,364 of 17,336 candidates pass strict C99
 checking. Native tests cover explicit paths, working directory precedence,
 `JEDIFILEPATH` fallback, directories, status and error arms.
 
-- [ ] Implement OPENDEV for regular files using the reference lexer's
+- [x] Implement OPENDEV for regular files using the reference lexer's
   OPENSEQ alias. Check native file access and the LOCKED and ELSE arms,
   and identify what the device cases need from the runtime.
+
+After OPENDEV, the same 16,364 of 17,336 candidates pass strict C99
+checking. Both units that stopped at OPENDEV now reach TTYGET. Native
+tests cover file position, reads and writes, the missing-file branch,
+and lock contention with and without a LOCKED clause. The regular-file
+backend reports an I/O error for a named pipe.
+
+- [ ] Investigate TTYGET for terminal settings. Check the reference
+  grammar and the settings expected by the three blocked T24 units,
+  then verify the failure path on regular files and assess a
+  pseudo-terminal fixture for the supported settings.

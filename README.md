@@ -1136,6 +1136,14 @@ contents. Passing an empty value to CREATE gives a source-located error.
 The first `WRITESEQ` can also create the file. `OPENSEQ EXISTING` and
 `READONLY` disable deferred creation. [CREATE](https://jbc-lang.org/pages/create.html).
 
+`OPENDEV path TO F` uses the same grammar and regular-file handles as
+`OPENSEQ`, following the reference lexer. It starts at the beginning
+of the file by default. A missing path takes `ELSE` with status 128.
+Lock contention takes `LOCKED` when present or `ELSE` otherwise.
+Pipes and special devices currently return status 32768. Supporting
+them requires a stream backend that can handle non-seekable I/O
+and device timeouts. [OPENDEV](https://jbc-lang.org/pages/opendev.html).
+
 `NOBUF F` disables stdio buffering on an open sequential handle. Call
 it after OPENSEQ or CREATE and before any operation on the stream. It
 also affects aliases of the handle, and repeating it after success is

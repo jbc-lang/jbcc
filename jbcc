@@ -1223,7 +1223,7 @@ class Compiler:
         op = opening.word
         self.advance()
         self.uses_sequential = True
-        if op in ('OPENSEQ', 'OSOPEN'):
+        if op in ('OPENSEQ', 'OPENDEV', 'OSOPEN'):
             osopen = op == 'OSOPEN'
             existing = self.word == 'EXISTING'
             if existing:
@@ -1490,7 +1490,8 @@ class Compiler:
             self.depth += 1
         elif opening.word == 'OSREAD':
             self.emit(f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");')
-        if opening.word in ('READU', 'READVU', 'MATREADU', 'OPENSEQ', 'OSOPEN', 'RECORDLOCKU'):
+        sequential_open = opening.word in ('OPENSEQ', 'OPENDEV', 'OSOPEN')
+        if sequential_open or opening.word in ('READU', 'READVU', 'MATREADU', 'RECORDLOCKU'):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -1499,7 +1500,7 @@ class Compiler:
                 self.assigned = before.copy()
                 self.emit("} else {")
                 self.depth += 1
-            elif opening.word not in ('OPENSEQ', 'OSOPEN'):
+            elif not sequential_open:
                 self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
                           f'"{opening.word} cannot wait for a simulated foreign lock");')
         if opening.word in ('WEOFSEQ', 'FLUSH', 'NOBUF', 'RECORDLOCKU') and self.word not in ('THEN', 'ELSE'):
@@ -2444,7 +2445,7 @@ class Compiler:
         elif (self.word in ('READT', 'REWIND', 'WEOF', 'WRITET') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
-        elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
+        elif (self.word in ('OPENSEQ', 'OPENDEV', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
                             'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT',
                             'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE', 'OSDELETE')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
