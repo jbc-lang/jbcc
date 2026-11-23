@@ -246,8 +246,13 @@ class Preprocessor:
             directive_error(words[0], "missing EQUATE definition")
 
     def expand(self, words, stack=()):
-        for token in words:
+        for i, token in enumerate(words):
             if token.kind == 'name' and token.word in self.equates:
+                # The reference preprocessor skips EQUATE lookup for direct CALL names.
+                if ((i > 0 and words[i - 1].word == 'CALL')
+                        or (i > 1 and words[i - 1].kind == 'bang_prefix' and words[i - 2].word == 'CALL')):
+                    yield token
+                    continue
                 if token.word in stack:
                     directive_error(token, f"recursive EQUATE '{token.word}'")
                 yield from self.expand(self.equates[token.word], stack + (token.word,))

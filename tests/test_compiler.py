@@ -2542,6 +2542,27 @@ CRT ': ='
         self.assertEqual(run.stdout, b'6\t8\ndone\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_call_expands_equates_in_arguments_and_indirect_targets(self):
+        main = self.work / 'main.b'
+        direct = self.work / 'direct.b'
+        prefixed = self.work / 'prefixed.b'
+        include = self.work / 'I_NAMES'
+        include.write_text('EQU WORK TO 7, ALIAS TO ROUTE\n')
+        main.write_text("""$INSERT I_NAMES
+RouteValue = 'WORK'
+ROUTE = RouteValue
+CALL WORK(WORK)
+IF 1 THEN CALL !WORK(WORK + 1)
+CALL@ALIAS(WORK + 2)
+CALL @ ALIAS(WORK + 3)
+CRT WORK
+""")
+        direct.write_text("SUBROUTINE WORK(Value)\nCRT 'direct ':Value\n")
+        prefixed.write_text("SUBROUTINE !WORK(Value)\nCRT 'prefixed ':Value\n")
+        run = self.run_native(main, direct, prefixed)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
+
     def test_indirect_call_diagnostics(self):
         main = self.work / 'main.b'
         sub = self.work / 'update.b'

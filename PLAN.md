@@ -2353,7 +2353,21 @@ All 16 affected units now pass strict C99 checking in byte mode.
 The total is 17,023 of 17,336 candidates, with all 17,007 previous
 passes preserved.
 
-- [ ] Preserve direct CALL targets when a same-named EQUATE is in scope.
+- [x] Preserve direct CALL targets when a same-named EQUATE is in scope.
   Trace CONV.SW.SCHEDULE.PROCESSING and AC.PRINT.MASK, where the
   reported numeric token comes from an include. This affects 27 units.
   Check the reference preprocessor's direct and indirect CALL expansion rules.
+
+With no_equate_on_call enabled, the reference preprocessor inhibits
+EQUATE lookup for direct CALL names and expands the variable after CALL @.
+The reference probe verified a plain name, an exclamation-prefixed name
+and an indirect target. The native test uses a shared include and verifies
+expansion in the arguments and in ordinary expressions.
+
+All 27 affected units now pass strict C99 checking in byte mode.
+The total is 17,050 of 17,336 candidates, including all 17,023
+previous passes.
+
+- [ ] Investigate quoted and punctuated direct routine names. Check the
+  reference name reader for `CALL *name`, quoted targets, and matching
+  SUBROUTINE headers. Distinguish a routine-name prefix from a comment.

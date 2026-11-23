@@ -1032,9 +1032,12 @@ callee reads the status field, selects a CASE arm, and updates the output.
   A static subroutine name can start with `!`, as in the T24 call
   `CALL !HUSHIT(1)`. The prefix is part of the name when matching a CALL
   to a SUB or SUBROUTINE definition, following the reference compiler’s
-  direct call-name reader. In `CALL @Name(args)`, the value of Name selects
-  a subroutine supplied to jbcc. Lookup is case-sensitive. The target's
-  parameter count and scalar or MAT parameters are checked at runtime.
+  direct call-name reader. A direct CALL keeps its literal target when an
+  EQUATE shares the name. Arguments still expand EQUATEs. In
+  `CALL @Name(args)`, jbcc expands any EQUATE for Name, then uses the
+  resulting variable's value to select a linked subroutine. Lookup is
+  case-sensitive. jbcc checks the target's parameter count and scalar
+  or MAT parameters at runtime.
   For example, `Name = 'GET.STATUS'; CALL @Name(Rec, Answer)` can update
   Answer just like a direct call.
   A comma at the end of a line continues the argument list on the next
