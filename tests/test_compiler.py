@@ -1558,6 +1558,32 @@ CLOSESEQ F
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, source.read_bytes())
 
+    def test_seq_reads_block_bytes(self):
+        source = self.work / 'decode.b'
+        (self.work / 'input').write_bytes(b'\x01\xfeAB')
+        source.write_text("""OPENSEQ 'input' READONLY TO F ELSE ABORT
+READBLK Block FROM F,4 ELSE ABORT
+CRT SEQ(Block[1,1]) * 256 + SEQ(Block[2,1]), SEQ(Block[3,2])
+CLOSESEQ F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'510\t65\n', b''))
+
+    def test_seqx_resolves_as_external_function(self):
+        source = self.work / 'main.b'
+        function = self.work / 'seqx.b'
+        source.write_text("DEFFUN SEQX(S)\nCRT SEQX('b'), SEQ('b')\n")
+        function.write_text("FUNCTION SEQX(S)\nRETURN INDEX('abc',S,1)\n")
+        result = self.run_native(source, function)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'2\t98\n', b''))
+
+    def test_seq_wrong_argument_count(self):
+        source = self.work / 'invalid.b'
+        source.write_text("CRT SEQ('a','b')\n")
+        result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'SEQ'", result.stderr)
+
     def test_char_byte_range(self):
         source = self.work / 'char.b'
         source.write_text('CRT CHAR(1) : CHAR(254) : CHAR("255.0"):\n')

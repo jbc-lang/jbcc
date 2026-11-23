@@ -1323,6 +1323,16 @@ All 16,085 previous passes still pass. The 40 additional passes formerly
 stopped on a line containing STATUS(). Native tests exercise file I/O
 results. STATUS() for conversions still needs coverage.
 
-- [ ] Implement SEQ for first-byte values and investigate the SEQX
+- [x] Implement SEQ for first-byte values and investigate the SEQX
   spelling used by T24. Verify ASCII, high bytes, and extraction from a
-  READBLK buffer. TK.TELEKURS.1 now reaches SEQX while decoding a length.
+  READBLK buffer. TK.TELEKURS.1 calls SEQX while decoding a length.
+
+After SEQ, 16,129 of 17,336 candidates pass strict C99 checking. All
+16,125 previous passes still pass. The four new passes include the
+T24 SEQX function, which uses INDEX with a character table or calls
+SEQ in UTF-8 mode. TK.TELEKURS.1 already parsed the SEQX calls and first
+stops at ASCII on line 64.
+
+- [ ] Implement ASCII and EBCDIC byte conversions. Identify the
+  reference character mapping, verify the guide's byte example and a
+  round trip, and check TK.TELEKURS.1 again.

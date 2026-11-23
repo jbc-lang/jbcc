@@ -1,0 +1,3 @@
+CRT SEQ('Alpha'), SEQ(533), SEQ('')
+CRT SEQ(CHAR(1)), SEQ(CHAR(128)), SEQ(@FM), SEQ(@IM)
+CRT SEQ('š')

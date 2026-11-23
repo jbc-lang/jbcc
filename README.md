@@ -704,6 +704,17 @@ callee reads the status field, selects a CASE arm, and updates the output.
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
 
+`SEQ(value)` returns the unsigned value of the first byte of its string
+representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.
+jbcc provisionally returns 0 for an empty string. UTF-8 strings use the
+same byte rule in the current runtime.
+[jBASE SEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SEQ.htm).
+
+T24 declares `SEQX` as a function in `I_COMMON`. The corpus implementation
+uses a character table in its ASCII/EBCDIC compatibility path and calls
+SEQ in UTF-8 mode. jbcc resolves it through DEFFUN and the linked function
+implementation. [T24 Programming Standards](https://www.acosani.it/infobasic/libri/T24%20Programming%20Standards.pdf).
+
 `QUOTE(text)` and `DQUOTE(text)` enclose the value in double quotes.
 `SQUOTE(text)` uses single quotes. Each function adds one quote at each
 end, preserving embedded quotes and array marks. The native snippet checks

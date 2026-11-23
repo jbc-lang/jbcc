@@ -2785,6 +2785,11 @@ const char *jbc_char(const char *value, const char *file, int line, int column)
     return out;
 }
 
+const char *jbc_seq(const char *value)
+{
+    return size_value((unsigned char)*value);
+}
+
 static int64_t truncated(const char *value, const char *file, int line, int column)
 {
     struct decimal n;
