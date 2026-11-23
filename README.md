@@ -907,6 +907,13 @@ mark. For example, `BYTELEN('é')` is 2 for a UTF-8 literal. It uses the
 same byte-count operation as LEN in the current runtime.
 [BYTELEN](https://jbc-lang.org/pages/bytelen.html).
 
+`FOLD(text, width)` wraps text into fields separated by attribute
+marks. It prefers spaces as break points, trims spaces at line edges,
+and splits words longer than the width. A zero width folds at one byte,
+following the guide's example. jbcc provisionally measures width in
+bytes and folds each existing field independently.
+[jBASE FOLD](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_FOLD.htm).
+
 `COMPARE(left, right[, justification])` returns -1, 0 or 1 using
 bytewise string ordering. The default `L` compares from the left.
 For `R`, jbcc provisionally compares as if the shorter string had leading

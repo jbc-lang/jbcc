@@ -2115,6 +2115,49 @@ const char *jbc_len(const char *s)
     return size_value(strlen(s));
 }
 
+const char *jbc_fold(const char *text, const char *size, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(size, &n) || n.sign < 0 || n.places)
+        numeric_error(file, line, column, "FOLD width must be a nonnegative integer");
+    uintmax_t width = n.sign ? (uintmax_t)integer(size, file, line, column) : 1;
+    size_t length = strlen(text);
+    if (!length) return "";
+    /* Only a break within a word adds a byte without consuming a space. */
+    size_t extra = (size_t)((length - 1) / width);
+    if (extra > SIZE_MAX - length) numeric_error(file, line, column, "FOLD result too large");
+    char *out = allocate(length + extra), *write = out;
+    const char *field = text;
+    for (;;) {
+        const char *mark = strchr(field, 254);
+        const char *end = mark ? mark : field + strlen(field);
+        const char *start = field;
+        while (start < end && *start == ' ') ++start;
+        while (start < end) {
+            size_t remaining = (size_t)(end - start);
+            size_t take = remaining < width ? remaining : (size_t)width;
+            if (take < remaining && start[take] != ' ') {
+                size_t split = take;
+                while (split && start[split - 1] != ' ') --split;
+                if (split) take = split;
+            }
+            const char *next = start + take;
+            while (take && start[take - 1] == ' ') --take;
+            memcpy(write, start, take);
+            write += take;
+
+            start = next;
+            while (start < end && *start == ' ') ++start;
+            if (start < end) *write++ = (char)254;
+        }
+        if (!mark) break;
+        *write++ = (char)254;
+        field = mark + 1;
+    }
+    *write = '\0';
+    return out;
+}
+
 const char *jbc_not(const char *s)
 {
     return jbc_truth(s) ? "0" : "1";

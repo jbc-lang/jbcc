@@ -1646,6 +1646,15 @@ now pass as well. Native tests cover footer
 line reservation, outgoing page numbers, printer close, normal exit,
 and terminal pauses with and without the N option.
 
-- [ ] Implement FOLD for width-limited wrapping into attribute-marked
+- [x] Implement FOLD for width-limited wrapping into attribute-marked
   text. Check word boundaries, long words, whitespace and invalid widths.
   Two T24 files first stop on a line containing FOLD.
+
+After FOLD, 16,310 of 17,336 candidates pass strict C99 checking.
+All 16,308 previous passes still pass, and both targeted files now
+pass. Native tests cover word boundaries, long words, zero width,
+spaces and existing field marks.
+
+- [ ] Implement FMTS by applying FMT to each dynamic-array element.
+  Check mixed marks, empty elements, expanding output and malformed
+  masks. Two T24 files first stop on a line containing FMTS.

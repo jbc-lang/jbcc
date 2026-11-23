@@ -994,6 +994,15 @@ time_t test_clock(time_t *out)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
 
+    def test_fold_invalid_width(self):
+        source = self.work / 'fold.b'
+        for width in ("-1", "1.5", "'bad'"):
+            with self.subTest(width=width):
+                source.write_text(f"CRT FOLD('text', {width})\n")
+                run = self.run_native(source)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(f'{source}:1:5: FOLD width must be a nonnegative integer'.encode(), run.stderr)
+
     def test_dround_diagnostics(self):
         source = self.work / 'dround.b'
         for args, diagnostic in [
