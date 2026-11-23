@@ -259,6 +259,44 @@ NOBUF F
         self.assertEqual(result.stdout, b'128:128\n32768:32768\n')
         self.assertIn(f'{source}:7:1: NOBUF failed'.encode(), result.stderr)
 
+    def test_timeout_on_regular_sequential_file(self):
+        (self.work / 'data').write_bytes(b'line\nblock')
+        source = self.work / 'timeout.b'
+        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
+Alias = F
+TIMEOUT Alias, 60
+READSEQ Line FROM F THEN CRT Line ELSE ABORT
+TIMEOUT F, .5
+READBLK Block FROM Alias, 5 THEN CRT Block ELSE ABORT
+TIMEOUT F, 60
+READSEQ Line FROM F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+TIMEOUT Alias, 0
+CRT STATUS()
+READBLK Block FROM F, 1 SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+CLOSESEQ F
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'line\nblock\n128:128\n128\n128:128\n')
+        self.assertEqual(result.stderr, b'')
+
+    def test_timeout_diagnostics(self):
+        (self.work / 'data').write_bytes(b'line\n')
+        source = self.work / 'timeout.b'
+        for setup, operands, message in [
+                ('', "'', 1", 'requires an open sequential handle'),
+                ("OPENSEQ 'missing' TO F THEN ABORT\n", 'F, 1', 'requires an open sequential handle'),
+                ("OPENSEQ 'data' TO F ELSE ABORT\nCLOSESEQ F\n", 'F, 1',
+                 'requires an open sequential handle'),
+                *[("OPENSEQ 'data' TO F ELSE ABORT\n", f'F, {seconds}',
+                   'requires nonnegative decimal seconds') for seconds in ("''", "'text'", '-1')]]:
+            with self.subTest(setup=setup, operands=operands):
+                source.write_text(f'{setup}TIMEOUT {operands}\n')
+                result = self.run_native(source, cwd=self.work)
+                line = len(setup.splitlines()) + 1
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:{line}:1: TIMEOUT {message}'.encode(), result.stderr)
+
     def test_flush_null_handle(self):
         source = self.work / 'flush.b'
         source.write_text("F = ''\nFLUSH F ELSE CRT 'failed'\n")

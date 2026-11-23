@@ -4703,6 +4703,19 @@ int jbc_flushseq(const char *token, const char *source, int line, int column)
     return file_result(fflush(sequential_stream(file)) ? file_error(errno) : 0);
 }
 
+void jbc_timeout(const char *token, const char *seconds, const char *source, int line, int column)
+{
+    const struct sequential_file *file = *sequential_slot(token);
+    if (!file || !file->stream)
+        numeric_error(source, line, column, "TIMEOUT requires an open sequential handle");
+
+    struct decimal duration;
+    if (!parse_decimal(seconds, &duration) || duration.sign < 0)
+        numeric_error(source, line, column, "TIMEOUT requires nonnegative decimal seconds");
+
+    /* Regular files return data or EOF without waiting for incoming bytes. */
+}
+
 int jbc_nobuf(const char *token)
 {
     struct sequential_file *file = *sequential_slot(token);

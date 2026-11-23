@@ -1210,6 +1210,12 @@ class Compiler:
                 call = f'jbc_readblk({handle}, {size}, &{slot}, {self.location(opening)})'
             else:
                 call = f'jbc_readseq({handle}, &{slot})'
+        elif op == 'TIMEOUT':
+            handle = self.temporary(self.expression())
+            self.expect(',')
+            seconds = self.expression()
+            self.emit(f'jbc_timeout({handle}, {seconds}, {self.location(opening)});')
+            return
         elif op == 'SEEK':
             handle = self.expression()
             offset = origin = '"0"'
@@ -2296,7 +2302,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.tape_statement()
         elif (self.word in ('OPENSEQ', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF')
+                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT')
               and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
             self.sequential_statement()
         elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices

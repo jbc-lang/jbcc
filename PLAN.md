@@ -1774,7 +1774,16 @@ checking. Two targeted files reach TIMEOUT, and one reaches TTYGET.
 A native test checks read-ahead and write visibility while the handle
 is still open. Another checks statuses and the error location.
 
-- [ ] Investigate TIMEOUT for sequential reads. Check the time unit,
+- [x] Investigate TIMEOUT for sequential reads. Check the time unit,
   handle validation and timeout status against the guide. Verify how
   it applies to the regular-file backend. Four T24 files first stop
   at TIMEOUT.
+
+After TIMEOUT, 16,336 of 17,336 candidates pass strict C99 checking.
+All 16,334 previous passes still pass. Two targeted files now pass,
+and the two ATM files reach ICONVS. Native tests check validation
+and immediate regular-file reads and EOF.
+
+- [ ] Implement ICONVS using scalar ICONV on dynamic-array elements.
+  Check the guide's treatment of empty elements, marks, and conversion
+  status. Four T24 first-diagnostic lines contain ICONVS calls.

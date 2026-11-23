@@ -1075,6 +1075,13 @@ following the reference grammar. Without an arm or SETTING, a failure
 produces a source-located runtime error.
 [NOBUF](https://jbc-lang.org/pages/nobuf.html).
 
+`TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
+decimal seconds. A pending or closed handle and an invalid duration
+report an error at the statement. The regular-file backend completes
+READSEQ and READBLK with available bytes or EOF, so the requested
+timeout requires no timer there. EOF still yields status 128.
+[TIMEOUT](https://jbc-lang.org/pages/timeout.html).
+
 `READBLK Block FROM F, Size` reads a positive number of bytes at the
 current position, including line endings and field marks. A complete
 block takes THEN. Following the guide's EOF rule, jbcc provisionally
