@@ -384,7 +384,7 @@ class Compiler:
         self.loop_exit_assignments = {}
         self.loops = 0
         self.needs_sentence = False
-        self.uses_port_number = False
+        self.uses_session = False
         self.uses_math = False
         self.terminal = False
         self.uses_sequential = False
@@ -483,8 +483,12 @@ class Compiler:
             if self.word == 'SYSTEM.RETURN.CODE':
                 self.advance()
                 return self.postfix(self.temporary("jbc_system_return_code()"), locate_source)
+            if self.word == 'WHO':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_login_name()"), locate_source)
             if self.word in ('USERNO', 'USER_NO', 'UDTNO'):
-                self.uses_port_number = True
+                self.uses_session = True
                 self.advance()
                 value = self.temporary(f"jbc_port_number({self.location(target)})")
                 return self.postfix(value, locate_source)
@@ -619,7 +623,7 @@ class Compiler:
                 self.uses_putenv = True
             if word == "SYSTEM":
                 self.terminal = True
-                self.uses_port_number = True
+                self.uses_session = True
             if word in ("LN", "EXP", "SQRT", "PWR", "RND", "MATCHFIELD", "CHANGE", "DELETE", "EXTRACT", "TIMEDATE", "TIME", "DATE", "ICONV", "OCONV", "TRIM", "ABS", "NEG", "NEGS", "ADDS", "SUBS", "MULS", "DIVS", "DIV", "MOD", "SUM", "SUMMATION", "LEFT", "RIGHT", "SUBSTRINGS", "CHAR", "FIELD", "FIELDS", "FMT", "INDEX", "SPACE", "SPACES", "STR", "INT", "SIN", "COS", "SYSTEM"):
                 args.append(self.location(target))
             if word == 'LOWCASE':
@@ -2482,8 +2486,8 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
-            if self.uses_port_number:
-                lines.append("    jbc_init_port_number();")
+            if self.uses_session:
+                lines.append("    jbc_init_session();")
             if self.needs_sentence:
                 lines.append("    jbc_init_sentence(argc, argv);")
             for section, names in (('', memory_files), ('DICT', memory_dicts)):
@@ -2600,7 +2604,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     if len(programs) != 1:
         raise Diagnostic("expected one main program among the input files")
     programs[0].needs_sentence = any(unit.needs_sentence for unit in units)
-    programs[0].uses_port_number = any(unit.uses_port_number for unit in units)
+    programs[0].uses_session = any(unit.uses_session for unit in units)
     layouts = {}
     for unit in units:
         for name, block in unit.commons.items():
@@ -2645,8 +2649,8 @@ def runtime_features(units):
         flags.append("#define JBC_REPORT 1")
     if any(unit.terminal for unit in units):
         flags.append("#define JBC_TERMINAL 1")
-    if any(unit.uses_port_number for unit in units):
-        flags.append("#define JBC_PORT_NUMBER 1")
+    if any(unit.uses_session for unit in units):
+        flags.append("#define JBC_SESSION 1")
     return "\n".join(flags)
 
 

@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_PORT_NUMBER)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_SESSION)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -861,14 +861,20 @@ static const char *size_value(uintmax_t n)
     return out;
 }
 
-#ifdef JBC_PORT_NUMBER
+#ifdef JBC_SESSION
+#include <pwd.h>
 #include <unistd.h>
 
 static uintmax_t port_number;
 static int invalid_port_number;
+static const char *login_override;
 
-void jbc_init_port_number(void)
+void jbc_init_session(void)
 {
+    const char *login = getenv("JBCLOGNAME");
+    if (!login || !*login) login = getenv("JBASICLOGNAME");
+    if (login && *login) login_override = strcpy(allocate(strlen(login)), login);
+
     const char *value = getenv("JBCPORTNO");
     if (!value || !*value) {
         port_number = (uintmax_t)getpid();
@@ -885,6 +891,14 @@ const char *jbc_port_number(const char *file, int line, int column)
     if (invalid_port_number)
         numeric_error(file, line, column, "JBCPORTNO requires a single nonnegative decimal port number");
     return size_value(port_number);
+}
+
+const char *jbc_login_name(void)
+{
+    if (login_override) return login_override;
+    const struct passwd *user = getpwuid(getuid());
+    if (!user || !user->pw_name) return "";
+    return strcpy(allocate(strlen(user->pw_name)), user->pw_name);
 }
 #endif
 
@@ -3603,12 +3617,14 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline,
     return !timed_out;
 }
 
-#ifdef JBC_PORT_NUMBER
+#ifdef JBC_SESSION
 const char *jbc_system(const char *code, const char *file, int line, int column)
 {
     if (!jbc_compare(code, "17", -1)) return jbc_system_return_code();
     if (!jbc_compare(code, "18", -1)) return jbc_port_number(file, line, column);
-    if (jbc_compare(code, "14", -1)) numeric_error(file, line, column, "only SYSTEM(14), SYSTEM(17) and SYSTEM(18) are supported");
+    if (!jbc_compare(code, "19", -1)) return jbc_login_name();
+    if (jbc_compare(code, "14", -1))
+        numeric_error(file, line, column, "only SYSTEM(14), SYSTEM(17), SYSTEM(18) and SYSTEM(19) are supported");
     int bytes = 0;
     fflush(stdout);
     int result;

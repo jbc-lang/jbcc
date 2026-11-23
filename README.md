@@ -221,6 +221,14 @@ produce a diagnostic when the program requests the port number.
 [JBCPORTNO](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/env2_JBCPORTNO.htm),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`@WHO` and the login-name form of `SYSTEM(19)` return the same name.
+At startup jbcc uses the first nonempty value of `JBCLOGNAME` from the
+jBASE manual or `JBASICLOGNAME` from the jBC guide. Without either override,
+native builds look up the process's real user ID in the POSIX user
+database and return an empty string if the name is unavailable.
+[jBASE SYSTEM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SYSTEM.htm),
+[SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
+
 `SLEEP` pauses for one second. `SLEEP expression` accepts a nonnegative
 duration in seconds, including fractions such as `SLEEP .25`. Zero
 continues immediately. The native runtime truncates durations to whole

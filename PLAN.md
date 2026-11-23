@@ -1461,7 +1461,18 @@ previously blocked on `@USERNO`, 25 now pass and 10 reach other diagnostics.
 Native tests verify startup overrides, aliases, `SYSTEM(18)`, the process
 ID fallback and diagnostics for malformed settings.
 
-- [ ] Implement `@WHO` for the login name. Check its relationship to
+- [x] Implement `@WHO` for the login name. Check its relationship to
   `SYSTEM(19)` and the guide's login-name override before choosing the
   native fallback. Unsupported `@WHO` is the first diagnostic in 18 T24
   files.
+
+After `@WHO`, 16,223 of 17,336 candidates pass strict C99 checking.
+All 16,209 previous passes still pass. Of the 18 files blocked on
+`@WHO`, 14 now pass and four reach other diagnostics. Native tests
+check `SYSTEM(19)`, override precedence, startup capture and the
+POSIX user database fallback.
+
+- [ ] Implement `@LOGNAME` and `@ACCOUNT`. The reference compiler maps
+  both to the same account lookup. Cross-check jBC account naming and
+  test the native fallback. These names are the first diagnostic in
+  16 T24 files.

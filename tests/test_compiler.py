@@ -4,6 +4,7 @@ import math
 import re
 import select
 import os
+import pwd
 import shlex
 import subprocess
 import sys
@@ -2362,3 +2363,35 @@ CRT Changed:':':@USERNO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
                 self.assertIn(
                     f'{source}:2:5: JBCPORTNO requires a single nonnegative decimal port number'.encode(),
                     run.stderr)
+
+    def test_who_uses_startup_login_name(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'show.login.b'
+        main.write_text('CALL SHOW.LOGIN()\n')
+        routine.write_text("""SUBROUTINE SHOW.LOGIN()
+Changed = PUTENV('JBCLOGNAME=changed')
+CRT Changed:':':@WHO:':':SYSTEM(19)
+""")
+        for name, legacy, expected in [('MainAccount', 'Fallback', 'MainAccount'),
+                                       ('', 'GuideAccount', 'GuideAccount')]:
+            with self.subTest(name=name):
+                env = dict(os.environ, JBCLOGNAME=name, JBASICLOGNAME=legacy)
+                run = self.run_native(main, routine, env=env)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(run.stdout, f'1:{expected}:{expected}\n'.encode())
+                self.assertEqual(run.stderr, b'')
+
+    def test_who_defaults_to_posix_user_name(self):
+        source = self.work / 'who.b'
+        source.write_text('CRT @WHO\n')
+        env = dict(os.environ, USER='different', LOGNAME='different')
+        env.pop('JBCLOGNAME', None)
+        env.pop('JBASICLOGNAME', None)
+        try:
+            expected = os.fsencode(pwd.getpwuid(os.getuid()).pw_name)
+        except KeyError:
+            expected = b''
+        run = self.run_native(source, env=env)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, expected + b'\n')
+        self.assertEqual(run.stderr, b'')
