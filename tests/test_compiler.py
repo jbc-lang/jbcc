@@ -1003,6 +1003,13 @@ time_t test_clock(time_t *out)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: ICONVS requires a conversion mask'.encode(), result.stderr)
 
+    def test_oconvs_empty_mask_diagnostic(self):
+        source = self.work / 'oconvs.b'
+        source.write_text("CRT OCONVS('', '')\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:5: OCONVS requires a conversion mask'.encode(), result.stderr)
+
     def test_oconv_diagnostics(self):
         source = self.work / 'date.b'
         for args, message in [("0,'MTH'", "unsupported OCONV mask 'MTH'"),

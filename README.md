@@ -353,6 +353,15 @@ optional year width. The runtime accepts Gregorian years 1 through 9999
 and reports unsupported masks at the call site. [DATE](https://jbc-lang.org/pages/date.html),
 [OCONV](https://jbc-lang.org/pages/oconv.html).
 
+`OCONVS(array, mask)` applies the supported output masks to nonempty
+elements, preserving field, value, and subvalue marks. Value-mark-separated
+masks run left to right. If any stage fails for an element, jbcc returns
+that element's original text and sets `STATUS()` to 1 while converting
+the remaining elements. A successful call sets status 0. An unsupported
+mask yields an empty result with status 2, and an empty mask produces a
+diagnostic at the call site.
+[OCONVS](https://jbc-lang.org/pages/oconvs.html).
+
 STR repeats its entire first argument, including any embedded array marks.
 For example, `STR('ab', 3)` returns `ababab`. Empty input and zero
 repetitions produce an empty string. The guide specifies integer counts.

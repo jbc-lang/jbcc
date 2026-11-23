@@ -2107,47 +2107,78 @@ const char *jbc_timedate(const char *file, int line, int column)
     return out;
 }
 
-const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
+struct output_conversion {
+    char part, separator;
+    int width, european, name, seconds;
+};
+
+static int output_mask(const char *mask, struct output_conversion *conversion)
+{
+    *conversion = (struct output_conversion){.width = 4};
+    if (strncmp(mask, "MT", 2) == 0) {
+        const char *suffix = mask + 2;
+        conversion->part = 'T';
+        conversion->seconds = *suffix == 'S';
+        if (conversion->seconds) ++suffix;
+        return !*suffix || !strcmp(suffix, ":");
+    }
+
+    if (*mask != 'D') return 0;
+    const char *p = mask + 1;
+    if (*p && strchr("DMJQWY", *p)) conversion->part = *p++;
+    if ((!conversion->part || conversion->part == 'Y') && *p >= '0' && *p <= '4')
+        conversion->width = *p++ - '0';
+    if ((conversion->part == 'M' || conversion->part == 'W') && *p == 'A') {
+        conversion->name = 1;
+        ++p;
+    }
+    if (!conversion->part && *p && strchr("/-.", *p)) {
+        conversion->separator = *p++;
+        if (*p == 'E') {
+            conversion->european = 1;
+            ++p;
+        }
+    }
+    return !*p;
+}
+
+static const char *convert_output(const char *value, const struct output_conversion *conversion,
+                                  const char **error)
 {
     static const char *const weekdays[] = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
         "FRIDAY", "SATURDAY", "SUNDAY"};
 
-    if (strncmp(mask, "MT", 2) == 0) {
-        const char *suffix = mask + 2;
-        int with_seconds = *suffix == 'S';
-        if (with_seconds) ++suffix;
-        if (*suffix && strcmp(suffix, ":") != 0) goto unsupported;
-        struct decimal n;
-        if (!parse_decimal(value, &n) || n.places || n.sign < 0 || n.digits > 5)
-            numeric_error(file, line, column, "OCONV time requires whole seconds from 0 to 86399");
-        int seconds = (int)integer(value, file, line, column);
-        if (seconds > 86399)
-            numeric_error(file, line, column, "OCONV time requires whole seconds from 0 to 86399");
-        char *out = allocate(8);
-        snprintf(out, 9, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
-        if (!with_seconds) out[5] = '\0';
-        return out;
-    }
-
-    if (*mask != 'D') goto unsupported;
-    const char *p = mask + 1;
-    char part = 0, separator = 0;
-    int width = 4, european = 0, name = 0;
-    if (*p && strchr("DMJQWY", *p)) part = *p++;
-    if ((!part || part == 'Y') && *p >= '0' && *p <= '4') width = *p++ - '0';
-    if ((part == 'M' || part == 'W') && *p == 'A') { name = 1; ++p; }
-    if (!part && *p && strchr("/-.", *p)) {
-        separator = *p++;
-        if (*p == 'E') { european = 1; ++p; }
-    }
-    if (*p) goto unsupported;
-
     struct decimal n;
-    if (!parse_decimal(value, &n) || n.places)
-        numeric_error(file, line, column, "OCONV date requires an integer day count");
-    int64_t days = integer(value, file, line, column);
-    if (days < -JBC_DATE_EPOCH || days > 2933628)
-        numeric_error(file, line, column, "OCONV date outside years 1 through 9999");
+    if (conversion->part == 'T') {
+        if (parse_decimal(value, &n) && !n.places && n.sign >= 0 && n.digits <= 5) {
+            int seconds = atoi(value);
+            if (seconds <= 86399) {
+                char *out = allocate(8);
+                snprintf(out, 9, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
+                if (!conversion->seconds) out[5] = '\0';
+                return out;
+            }
+        }
+        *error = "OCONV time requires whole seconds from 0 to 86399";
+        return NULL;
+    }
+
+    if (!parse_decimal(value, &n) || n.places) {
+        *error = "OCONV date requires an integer day count";
+        return NULL;
+    }
+    errno = 0;
+    intmax_t days = strtoimax(value, NULL, 10);
+    if (errno || days > INT64_MAX || days < INT64_MIN) {
+        *error = "integer operand out of range";
+        return NULL;
+    }
+    if (days < -JBC_DATE_EPOCH || days > 2933628) {
+        *error = "OCONV date outside years 1 through 9999";
+        return NULL;
+    }
+    char part = conversion->part, separator = conversion->separator;
+    int width = conversion->width, european = conversion->european, name = conversion->name;
     int ordinal = (int)days + JBC_DATE_EPOCH;
     int weekday = ordinal % 7;
     int year = 1 + 400 * (ordinal / 146097);
@@ -2182,10 +2213,19 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     else
         snprintf(out, 12, "%02d %.3s%s%s", day, month_names[month], width ? " " : "", suffix);
     return out;
+}
 
-unsupported:
-    fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
-    exit(EXIT_FAILURE);
+const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    struct output_conversion conversion;
+    if (!output_mask(mask, &conversion)) {
+        fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
+        exit(EXIT_FAILURE);
+    }
+    const char *error = NULL;
+    const char *result = convert_output(value, &conversion, &error);
+    if (!result) numeric_error(file, line, column, error);
+    return result;
 }
 
 static char *trim_element(char *out, const char *text, const char *set, char mode)
@@ -2696,6 +2736,63 @@ const char *jbc_iconvs(const char *source, const char *mask, const char *file, i
     }
     file_result(0);
     return source;
+}
+
+const char *jbc_oconvs(const char *source, const char *mask, const char *file, int line, int column)
+{
+    if (!*mask) numeric_error(file, line, column, "OCONVS requires a conversion mask");
+
+    size_t count = 1;
+    for (const char *mark = mask; (mark = strchr(mark, 253)); ++mark) ++count;
+    struct output_conversion *conversions = calloc(count, sizeof *conversions);
+    if (!conversions) fail("out of memory");
+    const char *codes = mask;
+    for (size_t i = 0; i < count; ++i) {
+        if (!output_mask(take_field(&codes, 253), &conversions[i])) {
+            free(conversions);
+            file_result(2);
+            return "";
+        }
+    }
+
+    char *items = split_array_items(source, NULL);
+    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
+    size_t capacity = strlen(source), used = 0;
+    char *out = allocate(capacity);
+    int status = 0;
+    for (const char *item = items;;) {
+        const char *value = item;
+        for (size_t i = 0; *value && i < count; ++i) {
+            const char *error = NULL;
+            value = convert_output(value, &conversions[i], &error);
+            if (!value) {
+                value = item;
+                status = 1;
+                break;
+            }
+        }
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        size_t bytes = strlen(value), separator = mark != '\0';
+        if (bytes > limit - used || separator > limit - used - bytes)
+            numeric_error(file, line, column, "OCONVS result too large");
+        size_t required = used + bytes + separator;
+        if (required > capacity) {
+            capacity = required <= limit / 2 ? 2 * required : required;
+            char *larger = allocate(capacity);
+            memcpy(larger, out, used);
+            out = larger;
+        }
+        memcpy(out + used, value, bytes);
+        used += bytes;
+        out[used++] = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    free(conversions);
+    file_result(status);
+    return out;
 }
 
 const char *jbc_fmts(const char *source, const char *mask, const char *file, int line, int column)

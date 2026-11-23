@@ -1793,6 +1793,15 @@ All 16,336 previous passes still pass. Three ATM files now pass and
 LI.SECURED.ONLINE reaches OCONVS. Native tests cover the MT and MTS
 input conversions, empty elements, chained masks and statuses.
 
-- [ ] Implement OCONVS using scalar output conversion on dynamic-array
+- [x] Implement OCONVS using scalar output conversion on dynamic-array
   elements. Check which result and status the guide specifies for an
   invalid element, and rerun LI.SECURED.ONLINE.
+
+After OCONVS, the same 16,339 of 17,336 candidates pass strict C99
+checking. LI.SECURED.ONLINE now reaches REUSE as an infix multiplication
+operand. Native tests cover date and time masks, chained conversion,
+and preservation of invalid elements and array marks.
+
+- [ ] Investigate infix multiplication with REUSE. Check the reference
+  grammar and runtime generator, and test scalar reuse across the marks
+  of a dynamic array before rerunning LI.SECURED.ONLINE.
