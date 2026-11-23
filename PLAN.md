@@ -1871,6 +1871,14 @@ All 16,357 previous passes still pass, and ENQ.PRE.PROCESS now passes.
 Native verification checks terminal geometry, the redirected-output
 fallback and the selected printer unit.
 
-- [ ] Investigate @TERM.TYPE, @TERM_TYPE and @TERMTYPE. Compare the
+- [x] Investigate @TERM.TYPE, @TERM_TYPE and @TERMTYPE. Compare the
   guide, reference compiler and T24 spelling, and verify the native
   result with TERM set and unset. One T24 file first stops at @TERM.TYPE.
+
+After the terminal type aliases, 16,359 of 17,336 candidates pass
+strict C99 checking. All 16,358 previous passes still pass.
+TT.DEAL.SLIP.PRINT now passes. Native tests check populated, empty,
+and unset TERM values and a change made by PUTENV.
+
+- [ ] Implement @SYS.BELL and check the reference spelling @SYS_BELL.
+  Verify the bell byte in native output and rerun ONSITE.LIVE.RELEASE.

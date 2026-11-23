@@ -1050,6 +1050,12 @@ const char *jbc_process_id(void)
     return size_value((uintmax_t)getpid());
 }
 
+const char *jbc_terminal_type(void)
+{
+    const char *type = session_environment("TERM");
+    return type ? type : "";
+}
+
 const char *jbc_terminal_name(void)
 {
     const char *terminal = ttyname(STDIN_FILENO);

@@ -3151,6 +3151,25 @@ CRT SYSTEM(24)
         self.assertEqual(result.stdout, os.fsencode(cwd.resolve()) + b'\n')
         self.assertEqual(result.stderr, b'')
 
+    def test_terminal_type_aliases_follow_term(self):
+        source = self.work / 'terminal.b'
+        source.write_text("""CRT '[':@TERM.TYPE:'] [':@TERM_TYPE:'] [':@TERMTYPE:']'
+Changed = PUTENV('TERM=vt220')
+CRT Changed:':':@TERM.TYPE:':':@TERM_TYPE:':':@TERMTYPE
+""")
+        for term in ('xterm-256color', '', None):
+            with self.subTest(term=term):
+                env = dict(os.environ)
+                if term is None:
+                    env.pop('TERM', None)
+                else:
+                    env['TERM'] = term
+                result = self.run_native(source, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                name = term or ''
+                self.assertEqual(result.stdout, f'[{name}] [{name}] [{name}]\n1:vt220:vt220:vt220\n'.encode())
+                self.assertEqual(result.stderr, b'')
+
     def test_tty_name_with_terminal_and_redirected_input(self):
         source = self.work / 'tty.b'
         source.write_text("CRT '[':@TTY:']'\nCRT @TTY[1,1]\n")

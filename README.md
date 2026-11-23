@@ -297,6 +297,13 @@ name, jbcc provisionally returns `phantom`, following the check used
 by T24's PRO.
 [jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
 
+`@TERM.TYPE`, `@TERM_TYPE`, and `@TERMTYPE` expose the terminal type
+using the T24, reference compiler, and guide spellings. Native jbcc
+provisionally reads `TERM` at each use and returns an empty string if it
+is unset or empty.
+[@TERMTYPE](https://jbc-lang.org/pages/@termtype.html),
+[jBASE terminal type](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/TERMINAL_TYPE.htm).
+
 `@WHO` and the login-name form of `SYSTEM(19)` return the same name.
 At startup jbcc uses the first nonempty value of `JBCLOGNAME` from the
 jBASE manual or `JBASICLOGNAME` from the jBC guide. Without either override,
