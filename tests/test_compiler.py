@@ -1131,6 +1131,8 @@ NEXT I
                                   ("CRT PWR(2)\n", ":1:5: wrong argument count for 'PWR'"),
                                   ("CRT SUMMATION(1, 2)\n", ":1:5: wrong argument count for 'SUMMATION'"),
                                   ("CRT TRIMS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMS'"),
+                                  ("CRT TRIMBS()\n", ":1:5: wrong argument count for 'TRIMBS'"),
+                                  ("CRT TRIMFS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMFS'"),
                                   ("CRT REM(1)\n", ":1:5: wrong argument count for 'REM'"),
                                   ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
                                   ("CRT LEFT('x')\n", ":1:5: wrong argument count for 'LEFT'"),
@@ -2497,6 +2499,20 @@ CRT UPCASE(''):LOWCASE('')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+
+    def test_trim_array_ends_preserve_internal_whitespace_and_marks(self):
+        source = self.work / 'trim-array.b'
+        source.write_text("""Tab = CHAR(9)
+Text = @FM:Tab:'  a  b ':Tab:@VM:' ':Tab:@SM:' x ':@FM
+CRT TRIMBS(Text)
+CRT TRIMFS(Text)
+CRT '[':TRIMBS(''):'] [':TRIMFS(''):']'
+CRT '[':TRIMS(Tab:'  q  ':Tab):']'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'\xfe\t  a  b\xfd\xfc x\xfe\n'
+                             b'\xfea  b \t\xfd\xfcx \xfe\n[] []\n[\t q \t]\n', b''))
 
     def test_find_diagnostics(self):
         source = self.work / 'find.b'

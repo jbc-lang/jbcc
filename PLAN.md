@@ -2677,5 +2677,21 @@ E.MB.TRADES.TODAY now passes strict C99 checking in byte mode.
 The total is 17,083 of 17,336 candidates, including all 17,082
 previous passes.
 
-- [ ] Investigate TRIMBS and TRIMFS, starting with E.DISP.DE.O.MSG.
+- [x] Investigate TRIMBS and TRIMFS, starting with E.DISP.DE.O.MSG.
   Verify per-element trimming, empty values and preservation of array marks.
+
+The reference compiler emits separate one-argument operations.
+The guide describes directional trimming for each element, and the
+jBASE function index explicitly includes tabs. jbcc reuses its array
+trim with leading or trailing whitespace mode. Tests cover both
+directions, mixed spaces and tabs, empty elements, and the existing
+default TRIMS behavior.
+[jBASE statement and function index](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/JBC1.htm).
+
+E.DISP.DE.O.MSG now passes strict C99 checking in byte mode.
+The total is 17,084 of 17,336 candidates, including all 17,083
+previous passes.
+
+- [ ] Investigate UTF8 in CONVERT.SYSTEM.UTF8.JBASE. Check its
+  Latin-1 conversion against the guide and compare the inverse LATIN1
+  operation, including malformed input and array marks.

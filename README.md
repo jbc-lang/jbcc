@@ -554,6 +554,11 @@ Both preserve tabs and interior spaces. They use the same runtime as
 `TRIM(text, " ", "L")` and `TRIM(text, " ", "T")`, respectively.
 [TRIMF](https://jbc-lang.org/pages/trimf.html), [TRIMB](https://jbc-lang.org/pages/trimb.html).
 
+`TRIMBS(array)` removes trailing spaces and tabs from each element.
+`TRIMFS(array)` removes leading spaces and tabs. Both preserve
+interior whitespace, empty elements, and field, value, and subvalue
+marks. [jBASE statement and function index](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/JBC1.htm).
+
 MAXIMUM and MINIMUM compare numeric elements across field, value, and
 subvalue marks. An empty element counts as zero. Nonnumeric elements are
 skipped, and jbcc provisionally returns zero when all elements are

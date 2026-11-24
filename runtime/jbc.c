@@ -2470,15 +2470,16 @@ const char *jbc_trim(const char *text, const char *character, const char *mode,
     return out;
 }
 
-const char *jbc_trims(const char *source)
+const char *jbc_trim_array(const char *source, char mode)
 {
     char *out = strcpy(allocate(strlen(source)), source);
+    const char *set = mode == 'R' ? " " : " \t";
     char *write = out, *item = out;
     for (;;) {
         char *end = item + strcspn(item, "\376\375\374");
         char mark = *end;
         *end = '\0';
-        write = trim_element(write, item, " ", 'R');
+        write = trim_element(write, item, set, mode);
         *write++ = mark;
         if (!mark) return out;
         item = end + 1;
