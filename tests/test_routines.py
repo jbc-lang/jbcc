@@ -3,6 +3,8 @@ import shlex
 import subprocess
 import sys
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -35,7 +37,17 @@ def test_conditional_expression_calls(compiler):
     assert expected_text('conditional-expression-calls.stderr', main=main) in run.stderr
 
 
-def test_callonexit_dispatches_linked_callbacks(compiler, subtests):
+@pytest.mark.parametrize(
+    'case_number, ending, status',
+    [
+        pytest.param(1, '', 0, id='case-1'),
+        pytest.param(2, 'STOP', 0, id='stop'),
+        pytest.param(3, 'EXIT(7)', 7, id='exit-7'),
+        pytest.param(4, 'ABORT', 1, id='abort'),
+        pytest.param(5, 'DEBUG', 1, id='debug'),
+    ],
+)
+def test_callonexit_dispatches_linked_callbacks(compiler, case_number, ending, status):
     save = ROOT / 'tests/routines/exit-callbacks/save.b'
     show = ROOT / 'tests/routines/exit-callbacks/show.b'
     wrong = ROOT / 'tests/routines/exit-callbacks/wrong.b'
@@ -49,16 +61,14 @@ CRT CALLONEXIT('WRONG') > 0
 CRT CALLONEXIT('') > 0
 CRT 'main'
 """
-    for case_number, (ending, status) in enumerate((('', 0), ('STOP', 0), ('EXIT(7)', 7), ('ABORT', 1), ('DEBUG', 1)), 1):
-        with subtests.test(ending=ending):
-            source = ROOT / 'tests/routines/callonexit-dispatches-linked-callbacks' / f'exit_{case_number}.b'
-            result = compiler.run_native(source, save, show, wrong)
-            assert result.returncode == status, result.stderr
-            assert result.stdout == expected_bytes('callonexit-dispatches-linked-callbacks.stdout')
-            if ending == 'DEBUG':
-                assert expected_bytes('callonexit-dispatches-linked-callbacks.stderr') in result.stderr
-            else:
-                assert result.stderr == b''
+    source = ROOT / 'tests/routines/callonexit-dispatches-linked-callbacks' / f'exit_{case_number}.b'
+    result = compiler.run_native(source, save, show, wrong)
+    assert result.returncode == status, result.stderr
+    assert result.stdout == expected_bytes('callonexit-dispatches-linked-callbacks.stdout')
+    if ending == 'DEBUG':
+        assert expected_bytes('callonexit-dispatches-linked-callbacks.stderr') in result.stderr
+    else:
+        assert result.stderr == b''
 
 
 def test_external_subroutine(compiler):
@@ -144,20 +154,29 @@ def test_callc_subroutine_exists_checks_linked_subroutines(compiler):
     )
 
 
-def test_callc_subroutine_exists_requires_two_arguments(compiler, subtests):
-    for case_number, (arguments, marker, message) in enumerate((
-        ("'WORKER'", ')', expected_text('callc-subroutine-exists-requires-two-arguments.stderr')),
-        ("'WORKER', Info, 0", ', 0', expected_text('callc-subroutine-exists-requires-two-arguments_2.stderr')),
-    ), 1):
-        with subtests.test(arguments=arguments):
-            statement = f'CRT CALLC JBASESubroutineExist({arguments})'
-            source = ROOT / 'tests/routines/callc-subroutine-exists-requires-two-arguments' / f'main_{case_number}.b'
-            result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert result.returncode != 0
-            assert (
-                expected_text('callc-subroutine-exists-requires-two-arguments_3.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message)
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'case_number, arguments, marker, message_fixture',
+    [
+        pytest.param(1, "'WORKER'", ')', 'callc-subroutine-exists-requires-two-arguments.stderr', id='worker'),
+        pytest.param(
+            2,
+            "'WORKER', Info, 0",
+            ', 0',
+            'callc-subroutine-exists-requires-two-arguments_2.stderr',
+            id='worker-info-0',
+        ),
+    ],
+)
+def test_callc_subroutine_exists_requires_two_arguments(compiler, case_number, arguments, marker, message_fixture):
+    message = expected_text(message_fixture)
+    statement = f'CRT CALLC JBASESubroutineExist({arguments})'
+    source = ROOT / 'tests/routines/callc-subroutine-exists-requires-two-arguments' / f'main_{case_number}.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode != 0
+    assert (
+        expected_text('callc-subroutine-exists-requires-two-arguments_3.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message)
+        in result.stderr
+    )
 
 
 def test_call_expands_equates_in_arguments_and_indirect_targets(compiler):
@@ -239,20 +258,23 @@ def test_indirect_call_through_matrix_element(compiler):
     )
 
 
-def test_indirect_matrix_call_uses_normal_matrix_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('main_1.b', expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics.stderr')),
-        ('main_2.b', expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/indirect-matrix-call-uses-normal-matrix-diagnostics' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode == 1
-            assert result.stdout == b''
-            assert (
-                result.stderr
-                == expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics_3.stderr', source=source, message=message).encode()
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('main_1.b', 'indirect-matrix-call-uses-normal-matrix-diagnostics.stderr', id='main-1'),
+        pytest.param('main_2.b', 'indirect-matrix-call-uses-normal-matrix-diagnostics_2.stderr', id='main-2'),
+    ],
+)
+def test_indirect_matrix_call_uses_normal_matrix_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/routines/indirect-matrix-call-uses-normal-matrix-diagnostics' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode == 1
+    assert result.stdout == b''
+    assert (
+        result.stderr
+        == expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics_3.stderr', source=source, message=message).encode()
+    )
 
 
 def test_multiline_call(compiler):
@@ -321,48 +343,54 @@ def test_matrix_parameter_diagnostics(compiler):
         assert message.encode() in run.stderr
 
 
-def test_function_diagnostics(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('main_1.b', 'function-diagnostics.stderr', id='main-1'),
+        pytest.param('main_2.b', 'function-diagnostics_2.stderr', id='main-2'),
+        pytest.param('main_3.b', 'function-diagnostics_3.stderr', id='main-3'),
+        pytest.param('main_4.b', 'function-diagnostics_4.stderr', id='main-4'),
+    ],
+)
+def test_function_diagnostics(compiler, fixture_name, message_fixture):
     definition = ROOT / 'tests/routines/DOUBLE.IT'
-    for fixture_name, message in (
-        ('main_1.b', expected_text('function-diagnostics.stderr')),
-        ('main_2.b', expected_text('function-diagnostics_2.stderr')),
-        ('main_3.b', expected_text('function-diagnostics_3.stderr')),
-        ('main_4.b', expected_text('function-diagnostics_4.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            main = ROOT / 'tests/routines/function-diagnostics' / fixture_name
-            run = subprocess.run([CLI, main, definition, '-o', compiler.c], capture_output=True, text=True)
-            assert run.returncode != 0
-            assert str(main) + message in run.stderr
+    message = expected_text(message_fixture)
+    main = ROOT / 'tests/routines/function-diagnostics' / fixture_name
+    run = subprocess.run([CLI, main, definition, '-o', compiler.c], capture_output=True, text=True)
+    assert run.returncode != 0
+    assert str(main) + message in run.stderr
 
 
-def test_bad_routine_references(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('main_1.b', 'bad-routine-references.stderr', id='main-1'),
+        pytest.param('main_2.b', 'bad-routine-references_2.stderr', id='main-2'),
+        pytest.param('main_3.b', 'bad-routine-references_3.stderr', id='main-3'),
+        pytest.param('main_4.b', 'bad-routine-references_4.stderr', id='main-4'),
+        pytest.param('main_5.b', 'bad-routine-references_5.stderr', id='main-5'),
+        pytest.param('main_6.b', 'bad-routine-references_6.stderr', id='main-6'),
+        pytest.param('main_7.b', 'bad-routine-references_7.stderr', id='main-7'),
+        pytest.param('main_8.b', 'bad-routine-references_8.stderr', id='main-8'),
+        pytest.param('main_9.b', 'bad-routine-references_9.stderr', id='main-9'),
+        pytest.param('main_10.b', 'bad-routine-references_10.stderr', id='main-10'),
+        pytest.param('main_11.b', 'bad-routine-references_11.stderr', id='main-11'),
+        pytest.param('main_12.b', 'bad-routine-references_12.stderr', id='main-12'),
+        pytest.param('main_13.b', 'bad-routine-references_13.stderr', id='main-13'),
+        pytest.param('main_14.b', 'bad-routine-references_9.stderr', id='main-14'),
+        pytest.param('main_15.b', 'bad-routine-references_14.stderr', id='main-15'),
+        pytest.param('main_16.b', 'bad-routine-references_5.stderr', id='main-16'),
+        pytest.param('main_17.b', 'bad-routine-references_15.stderr', id='main-17'),
+        pytest.param('main_18.b', 'bad-routine-references_16.stderr', id='main-18'),
+    ],
+)
+def test_bad_routine_references(compiler, fixture_name, message_fixture):
     sub = ROOT / 'tests/routines/bad-routine-references/sub.b'
-    for fixture_name, message in (
-        ('main_1.b', expected_text('bad-routine-references.stderr')),
-        ('main_2.b', expected_text('bad-routine-references_2.stderr')),
-        ('main_3.b', expected_text('bad-routine-references_3.stderr')),
-        ('main_4.b', expected_text('bad-routine-references_4.stderr')),
-        ('main_5.b', expected_text('bad-routine-references_5.stderr')),
-        ('main_6.b', expected_text('bad-routine-references_6.stderr')),
-        ('main_7.b', expected_text('bad-routine-references_7.stderr')),
-        ('main_8.b', expected_text('bad-routine-references_8.stderr')),
-        ('main_9.b', expected_text('bad-routine-references_9.stderr')),
-        ('main_10.b', expected_text('bad-routine-references_10.stderr')),
-        ('main_11.b', expected_text('bad-routine-references_11.stderr')),
-        ('main_12.b', expected_text('bad-routine-references_12.stderr')),
-        ('main_13.b', expected_text('bad-routine-references_13.stderr')),
-        ('main_14.b', expected_text('bad-routine-references_9.stderr')),
-        ('main_15.b', expected_text('bad-routine-references_14.stderr')),
-        ('main_16.b', expected_text('bad-routine-references_5.stderr')),
-        ('main_17.b', expected_text('bad-routine-references_15.stderr')),
-        ('main_18.b', expected_text('bad-routine-references_16.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            main = ROOT / 'tests/routines/bad-routine-references' / fixture_name
-            run = subprocess.run([CLI, main, sub, '-o', compiler.c], text=True, capture_output=True)
-            assert run.returncode != 0
-            assert message in run.stderr
+    message = expected_text(message_fixture)
+    main = ROOT / 'tests/routines/bad-routine-references' / fixture_name
+    run = subprocess.run([CLI, main, sub, '-o', compiler.c], text=True, capture_output=True)
+    assert run.returncode != 0
+    assert message in run.stderr
 
 
 def test_multi_unit_program_requires_package_aware_linkage(compiler):
