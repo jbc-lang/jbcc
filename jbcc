@@ -1217,7 +1217,9 @@ class Compiler:
         self.expect('IN')
         target = self.identifier()
         slot = self.variable_slot(target)
-        if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
+        scalar = target.word not in self.matrices
+        if (scalar and target.word not in self.assigned and target.word not in self.maybe_assigned
+                and not self.has_unstructured_jumps):
             self.assignment_error(f"unassigned variable '{target.word}'", target)
         indices = self.array_indices() if self.current.kind == 'array_open' else None
         value = self.checked_read(slot, target)
@@ -1230,6 +1232,8 @@ class Compiler:
         if indices:
             value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
         self.emit(f"assign_value(&{slot}, {value});")
+        if scalar:
+            self.assigned.add(target.word)
 
     def array_update_function(self):
         target = self.current

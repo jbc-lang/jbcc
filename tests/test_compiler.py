@@ -2667,6 +2667,31 @@ CRT Value
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: CHANGE requires integer occurrence arguments".encode(), run.stderr)
 
+    def test_string_mutations_check_conditionally_assigned_targets(self):
+        source = self.work / 'mutate.b'
+        binary = self.work / 'mutate'
+        for statement, expected in (
+            ("CONVERT 'a' TO 'x' IN Value", b'left\txxbb!\n'),
+            ("CHANGE 'aa' TO 'x' IN Value<2>", b'left\txbb!\n'),
+        ):
+            with self.subTest(statement=statement):
+                source.write_text("""GET(ARG.) Key
+LOCATE Key IN 'found' SETTING Pos THEN
+    Value = 'left':@FM:'aabb'
+END
+""" + statement + """
+Value := '!'
+CRT Value<1>, Value<2>
+""")
+                subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                               env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+                found = subprocess.run([binary, 'found'], capture_output=True, timeout=5)
+                self.assertEqual((found.returncode, found.stdout, found.stderr), (0, expected, b''))
+                missing = subprocess.run([binary, 'missing'], capture_output=True, timeout=5)
+                column = statement.index('Value') + 1
+                self.assertEqual((missing.returncode, missing.stdout, missing.stderr),
+                                 (1, b'', f"{source}:5:{column}: unassigned variable 'Value'\n".encode()))
+
     def test_neg_substitutes_zero(self):
         source = self.work / 'neg.b'
         source.write_text("CRT NEG('qwert') + 2\nCRT 'continued'\n")

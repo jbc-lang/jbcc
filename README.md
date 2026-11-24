@@ -1226,8 +1226,10 @@ jBC tables in the guide. [RAISE](https://jbc-lang.org/pages/raise.html),
 `CONVERT from TO to IN target` maps each input byte once. A source byte
 without a corresponding replacement is deleted, so `CONVERT '-' TO '' IN S`
 removes every hyphen. The target may be a scalar, a matrix element, or a
-selected dynamic-array component. The function form uses the default jBASE
-argument order, `CONVERT(text, from, to)`, and returns a new value.
+selected dynamic-array component. CONVERT and CHANGE check conditionally
+assigned scalar targets at runtime before updating them. The function
+form of CONVERT uses the default jBASE argument order,
+`CONVERT(text, from, to)`, and returns a new value.
 jbcc uses the first mapping for a repeated source byte, a provisional
 choice pending a reference run. [CONVERT](https://jbc-lang.org/pages/convert.html).
 

@@ -2816,7 +2816,25 @@ LC.MT1798.HDR.FORMAT and COPY.RE.BAL.DIFFERENCE.IMPORT now pass strict
 C99 checking in byte mode. The total is 17,175 of 17,336 candidates,
 including all 17,173 previous passes.
 
-- [ ] Investigate CONVERT targets assigned on only some paths, starting
+- [x] Investigate CONVERT targets assigned on only some paths, starting
   with SCENARIO.LIST in AM.SCE.PREVIEW.FXO and AM.SCE.PREVIEW.SOO.
   Check successful conversion and the diagnostic when LOCATE leaves the
   target unassigned.
+
+The reference compiler emits in-place CONVERT and CHANGE operations
+after a LOCATE arm that may initialize their target. jbcc now accepts
+the same assignment pattern and checks the target at runtime before
+updating it. A successful update establishes the assignment for later
+statements. Native tests cover a scalar conversion, an indexed CHANGE
+and the diagnostic at the target when LOCATE misses.
+[CONVERT](https://jbc-lang.org/pages/convert.html),
+[CHANGE](https://jbc-lang.org/pages/change.html).
+
+Both scenario preview routines now pass strict C99 checking in byte
+mode. The total is 17,177 of 17,336 candidates, including all 17,175
+previous passes.
+
+- [ ] Investigate conditionally assigned REMOVE sources in
+  ARC.RECORDS.SELECT, COLLATERAL.LIMIT.EOD and MB.TEXT.CASE.CONVERSION.
+  Check extraction and cursor advancement when the source is assigned
+  and the runtime diagnostic when the assignment path is skipped.
