@@ -1120,6 +1120,8 @@ NEXT I
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ("CRT BYTELEN()\n", ":1:5: wrong argument count for 'BYTELEN'"),
+                                  ("CRT UTF8()\n", ":1:5: wrong argument count for 'UTF8'"),
+                                  ("CRT LATIN1('a', 'b')\n", ":1:5: wrong argument count for 'LATIN1'"),
                                   ("CRT LENDP()\n", ":1:5: wrong argument count for 'LENDP'"),
                                   ("CRT LENDP('a', 'b')\n", ":1:5: wrong argument count for 'LENDP'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
@@ -3780,6 +3782,35 @@ CRT RECORDLOCKED(F, 'busy')
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
+
+    def test_utf8_and_latin1_round_trip_all_nonzero_bytes(self):
+        source = self.work / 'encoding.b'
+        data = bytes(range(1, 256))
+        (self.work / 'input').write_bytes(data)
+        source.write_text("""OPENSEQ 'input' READONLY TO F ELSE ABORT
+READBLK Block FROM F, 255 ELSE ABORT
+Encoded = UTF8(Block)
+CRT Encoded:
+CRT LATIN1(Encoded):
+CRT UTF8(@FM):
+CRT LATIN1('é'):
+CRT LEN(UTF8('')), LEN(LATIN1(''))
+""", encoding='utf-8')
+        result = self.run_native(source, cwd=self.work)
+        expected = data.decode('latin-1').encode('utf-8') + data + b'\xc3\xbe\xe90\t0\n'
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
+
+    def test_latin1_rejects_malformed_and_unrepresentable_utf8(self):
+        source = self.work / 'encoding.b'
+        for expression in ('CHAR(194)', "CHAR(195):'x'", 'CHAR(192):CHAR(128)', '@FM', "'Ā'"):
+            with self.subTest(expression=expression):
+                source.write_text(f'CRT LATIN1({expression})\n', encoding='utf-8')
+                result = self.run_native(source)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, b'')
+                self.assertEqual(result.stderr, (
+                    f'{source}:1:5: LATIN1 requires UTF-8 representable in ISO-8859-1\n'.encode()
+                ))
 
     def test_seq_reads_block_bytes(self):
         source = self.work / 'decode.b'

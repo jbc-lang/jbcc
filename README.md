@@ -1184,6 +1184,15 @@ conversion operates on bytes, including high bytes and array marks.
 [ASCII](https://jbc-lang.org/pages/ascii.html), [EBCDIC](https://jbc-lang.org/pages/ebcdic.html),
 [CP037 mapping](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT).
 
+`UTF8(value)` encodes ISO-8859-1 bytes as UTF-8, including bytes used
+as array marks in jBC values. For example, `UTF8(@FM)` emits the two
+bytes for U+00FE. `LATIN1(value)` decodes UTF-8 characters in the range
+U+0001 through U+00FF back to bytes. jbcc provisionally reports a
+source-located error for malformed UTF-8 or an unrepresentable
+character. Both functions operate on the supplied runtime value,
+independently of the source encoding flag.
+[UTF8](https://jbc-lang.org/pages/utf8.html), [LATIN1](https://jbc-lang.org/pages/latin1.html), [jBASE CHAR](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CHAR.htm).
+
 `QUOTE(text)` and `DQUOTE(text)` enclose the value in double quotes.
 `SQUOTE(text)` uses single quotes. Each function adds one quote at each
 end, preserving embedded quotes and array marks. The native snippet checks

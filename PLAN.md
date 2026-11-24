@@ -2692,6 +2692,20 @@ E.DISP.DE.O.MSG now passes strict C99 checking in byte mode.
 The total is 17,084 of 17,336 candidates, including all 17,083
 previous passes.
 
-- [ ] Investigate UTF8 in CONVERT.SYSTEM.UTF8.JBASE. Check its
+- [x] Investigate UTF8 in CONVERT.SYSTEM.UTF8.JBASE. Check its
   Latin-1 conversion against the guide and compare the inverse LATIN1
   operation, including malformed input and array marks.
+
+The reference compiler uses separate UTF8_BBB and LATIN1_BBB calls.
+The guide describes ISO-8859-1 conversion, and the jBASE CHAR reference
+explicitly shows UTF8 converting a field mark into encoded text.
+jbcc round-trips every nonzero byte and provisionally diagnoses
+malformed UTF-8 and characters outside ISO-8859-1 at the call site.
+[jBASE CHAR](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CHAR.htm).
+
+CONVERT.SYSTEM.UTF8.JBASE now passes strict C99 checking in byte mode.
+The total is 17,085 of 17,336 candidates, including all 17,084
+previous passes.
+
+- [ ] Investigate GROUP in syTransaction.getMarketValue. Compare its
+  delimiter, count and out-of-range behavior with FIELD.

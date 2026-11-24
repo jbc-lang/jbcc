@@ -2546,6 +2546,47 @@ const char *jbc_ebcdic(const char *value)
     return translate_bytes(value, latin1_to_cp037);
 }
 
+const char *jbc_utf8(const char *value)
+{
+    const unsigned char *bytes = (const unsigned char *)value;
+    size_t length = strlen(value), extra = 0;
+    for (size_t i = 0; i < length; ++i)
+        if (bytes[i] >= 0x80) ++extra;
+    if (extra > SIZE_MAX - length) fail("UTF8 result is too large");
+    char *out = allocate(length + extra);
+    unsigned char *write = (unsigned char *)out;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = bytes[i];
+        if (c < 0x80) {
+            *write++ = c;
+        } else {
+            *write++ = 0xc0 | (c >> 6);
+            *write++ = 0x80 | (c & 0x3f);
+        }
+    }
+    *write = 0;
+    return out;
+}
+
+const char *jbc_latin1(const char *value, const char *file, int line, int column)
+{
+    char *out = allocate(strlen(value));
+    unsigned char *write = (unsigned char *)out;
+    const unsigned char *read = (const unsigned char *)value;
+    while (*read) {
+        if (*read < 0x80) {
+            *write++ = *read++;
+        } else if ((*read == 0xc2 || *read == 0xc3) && read[1] >= 0x80 && read[1] <= 0xbf) {
+            *write++ = (unsigned char)(((*read & 0x03) << 6) | (read[1] & 0x3f));
+            read += 2;
+        } else {
+            numeric_error(file, line, column, "LATIN1 requires UTF-8 representable in ISO-8859-1");
+        }
+    }
+    *write = 0;
+    return out;
+}
+
 const char *jbc_convert(const char *text, const char *from, const char *to)
 {
     if (!*from || !*text) return text;
