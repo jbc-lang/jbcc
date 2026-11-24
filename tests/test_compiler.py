@@ -3851,34 +3851,9 @@ CRT 'done'
         ])
 
     def test_corpus_api_coverage_counts_parsed_calls_by_form(self):
-        corpus = self.work / 'corpus'
-        corpus.mkdir()
-        spec = self.work / 'spec'
-        spec.mkdir()
-        (spec / 'functions.md').write_text(
-            '| `ABS` | `FUNC_PARM1` | [ABS](https://jbc-lang.org/pages/abs.html) |\n'
-            '| `BITOR` | `FUNC_PARM2` | — |\n'
-            '| `ENCRYPT` | `FUNC_PARM3` | — |\n'
-        )
-        (spec / 'header-functions.md').write_text(
-            '| 1 | `DEFC CExample(INT)` | — | — |\n'
-            '| 2 | `DEFC Unused(INT)` | — | — |\n'
-        )
-        (corpus / 'I_EXAMPLE').write_text(
-            "EQUATE Mask TO BITOR(1, 4)\nDEFC CExample(INT)\nDEFC Unused(INT)\n"
-        )
-        (corpus / 'main.b').write_text("""$INSERT I_EXAMPLE
-* ABS(1)
-CRT 'ABS(2)'
-DIM ABS(2)
-MAT ABS = 0
-CRT ABS(1)
-CRT Mask, Mask
-CRT CExample(1), ENCRYPT('x', '', 4), ENCRYPT('x', '', 1)
-""")
-        (corpus / 'other.b').write_text("$INSERT I_EXAMPLE\nCRT Mask\n")
-        (corpus / 'rejected.b').write_text("$INSERT I_EXAMPLE\nCRT Mask\nMAT Missing = 0\n")
-        command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus, '--api-catalogue', spec]
+        fixture = ROOT / 'tests/corpus/api-coverage'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'corpus',
+                   '--api-catalogue', fixture / 'spec']
         report = json.loads(subprocess.check_output(command, text=True))
         entries = {(api['kind'], api['name']): api for api in report['api_coverage']['apis']}
         self.assertEqual(entries['expression', 'ABS']['guide'], 'https://jbc-lang.org/pages/abs.html')

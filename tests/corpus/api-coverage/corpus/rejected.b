@@ -1,0 +1,3 @@
+$INSERT I_EXAMPLE
+CRT Mask
+MAT Missing = 0

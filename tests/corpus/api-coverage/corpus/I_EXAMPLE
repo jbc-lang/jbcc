@@ -1,0 +1,3 @@
+EQUATE Mask TO BITOR(1, 4)
+DEFC CExample(INT)
+DEFC Unused(INT)
