@@ -33,6 +33,8 @@ Use `--defer-unassigned-reads` for legacy code that reads a scalar before
 jbcc can establish an assignment. This opt-in turns that compile-time
 diagnostic into a warning. If execution reaches the read, the runtime
 requires an assigned value. Unknown function calls remain compile errors.
+Compound assignments such as `+=` and `:=` also check the target's old
+value at runtime under this option.
 
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
@@ -1886,7 +1888,11 @@ DELETE removes a record by key. `DELETE F, Key` uses the descriptor F.
 `OPEN Name ELSE ...` sets the default descriptor for `DELETE Key`. A
 missing record counts as success. In this backend, `SETTING Code` receives
 0 on success or 128 for an invalid descriptor. `ON ERROR` runs on failure.
-A failed DELETE with neither clause terminates with the source location.
+An optional `LOCKED` arm handles simulated foreign record locks. It keeps
+the lock in place and reports `-2` via `STATUS()` and `SETTING`, matching
+jbcc's CLEARFILE convention. Without that arm, contention is an error
+with status `32768`. A failed DELETE with neither `ON ERROR` nor
+`SETTING` terminates with the source location.
 [DELETE](https://jbc-lang.org/pages/delete.html).
 
 CLEARFILE removes every record from the selected in-memory file. Its

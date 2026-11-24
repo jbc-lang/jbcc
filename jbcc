@@ -724,14 +724,18 @@ class Compiler:
         if self.pending_assignment_error is None:
             self.pending_assignment_error = (message, token)
 
+    def unassigned_read(self, token, message, *, possible_function=False):
+        if self.defer_unassigned_reads and not possible_function:
+            self.assignment_error(f"read of '{token.word}' before assignment is deferred to runtime",
+                                  token, warn=True)
+        else:
+            self.assignment_error(message, token)
+
     def read_variable(self, token, *, possible_function=False):
         if (token.word not in self.assigned and token.word not in self.maybe_assigned
                 and not self.has_unstructured_jumps):
-            if self.defer_unassigned_reads and not possible_function:
-                self.assignment_error(f"read of '{token.word}' before assignment is deferred to runtime",
-                                      token, warn=True)
-            else:
-                self.assignment_error(f"unknown variable or unsupported function '{token.word}'", token)
+            self.unassigned_read(token, f"unknown variable or unsupported function '{token.word}'",
+                                 possible_function=possible_function)
         var = self.variable(token.word)
         return self.checked_read(var, token)
 
@@ -1552,7 +1556,7 @@ class Compiler:
         self.advance()
         handle, key = self.file_key()
         setting = self.file_setting()
-        self.file_error_arm(opening, f"jbc_delete_record({handle}, {key}, {setting})", setting)
+        self.file_error_and_lock_arms(opening, f"jbc_delete_record({handle}, {key}, {setting})", setting)
 
     def clearfile_statement(self):
         opening = self.current
@@ -1565,8 +1569,11 @@ class Compiler:
             else:
                 handle = self.read_variable(target)
         setting = self.file_setting()
+        self.file_error_and_lock_arms(opening, f"jbc_clear_file({handle}, {setting})", setting)
+
+    def file_error_and_lock_arms(self, opening, call, setting):
         before = self.assigned.copy()
-        self.emit(f"switch (jbc_clear_file({handle}, {setting})) {{")
+        self.emit(f"switch ({call}) {{")
         self.emit("case 0: break;")
         self.emit("default: {")
         if self.word == 'ON':
@@ -1575,7 +1582,7 @@ class Compiler:
             self.clause(opening, {'LOCKED', 'ELSE', '\n'})
             self.assigned = before.copy()
         elif setting == "NULL":
-            self.emit(f'    numeric_error({self.location(opening)}, "CLEARFILE failed");')
+            self.emit(f'    numeric_error({self.location(opening)}, "{opening.word} failed");')
         self.emit("    break;")
         self.emit("}")
         if self.word == 'LOCKED':
@@ -3449,7 +3456,7 @@ class Compiler:
             if compound:
                 if (not matrix and start.word not in self.assigned and start.word not in self.maybe_assigned
                         and not self.has_unstructured_jumps):
-                    self.assignment_error(f"unassigned variable '{start.word}'", start)
+                    self.unassigned_read(start, f"unassigned variable '{start.word}'")
                 previous = self.checked_read(var, start)
             if indices and (substring or compound):
                 text = self.temporary(f"jbc_array({previous}, {indices}, NULL)")

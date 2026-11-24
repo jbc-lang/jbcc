@@ -3317,7 +3317,26 @@ routines needs separate checks with their dependencies or focused fixtures.
   `e` followed by subtraction, and warns that `e` is unassigned.
   Keep exponent syntax out of the lexer pending evidence of an R07
   compiler mode that reads these as scientific constants.
-- [ ] Extend `--defer-unassigned-reads` to compound assignments. All five
-  remaining unassigned-variable diagnostics occur on `+=` or `:=`.
-  Preserve the strict diagnostic and verify that the opt-in still checks
-  the old value at runtime.
+- [x] Extend `--defer-unassigned-reads` to compound assignments. Five
+  R07 routines stop at reads of the old value in `+=` or `:=`. The
+  native fixture verifies the strict diagnostic, the opt-in warnings and
+  the runtime error when the statement is reached.
+- [x] Support `DELETE … LOCKED` as used by `CONV.SWAP.BALANCES.G8.2`.
+  The reference emits separate error and lock branches. The in-memory
+  fixture checks lock preservation, status reporting, invalid descriptors
+  and successful deletion using the same lock convention as CLEARFILE.
+
+The full R07 scan now passes strict C99 checks for 15,009 of 15,030
+units. Five passes came from the compound-assignment change and one from
+`DELETE … LOCKED`. Every previous pass is preserved.
+
+- [ ] Implement `NUMS` for `TU.PR.MODIFIER`. The reference emits the
+  documented dynamic-array numeric test at the failing call.
+- [ ] Resolve the remaining R07 include dependencies. The reference also
+  reports seven include errors with the two extracted BP folders on
+  its search path. The R07.003 archive lacks `I_F.LA.PARAMETER`, which
+  six units need. A temporary copy of `COMPARE.DB.JBASE` passes with
+  its absolute include redirected to the extracted `JBC.h`.
+- [ ] Apply the existing leading-dot correction for `STEST.AZ.PD.DATES.CHK`
+  to the R07 path when corpus source fixes are enabled. A temporary copy
+  with that same correction passes the C99 check.

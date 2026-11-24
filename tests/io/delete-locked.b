@@ -1,0 +1,12 @@
+OPEN 'Records' TO F ELSE ABORT
+WRITE 'value' TO F, 'free'
+DELETE F, 'busy' SETTING Code ON ERROR ABORT LOCKED
+    CRT 'locked ':Code:':':STATUS()
+END
+CRT RECORDLOCKED(F, 'busy')
+Bad = ''
+DELETE Bad, 'free' SETTING Code ON ERROR CRT 'error ':Code:':':STATUS() LOCKED ABORT
+READ R FROM F, 'free' THEN CRT R ELSE ABORT
+DELETE F, 'free' SETTING Code ON ERROR ABORT LOCKED ABORT
+CRT 'deleted ':Code:':':STATUS()
+READ R FROM F, 'free' THEN ABORT ELSE CRT 'gone'

@@ -3389,6 +3389,12 @@ CLOSESEQ F
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: DELETE failed'.encode(), run.stderr)
 
+    def test_delete_locked_dispatch(self):
+        source = ROOT / 'tests/io/delete-locked.b'
+        run = self.run_native(source, options=['--memory-file', 'Records', '--memory-lock', 'Records', 'busy'])
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'locked -2:-2\n-2\nerror 128:128\nvalue\ndeleted 0:0\ngone\n', b''))
+
     def test_clearfile(self):
         run = self.run_native(ROOT / 'tests/io/clearfile.b',
                               options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])
@@ -3770,6 +3776,27 @@ CRT 'done'
             with self.subTest(flag=flag):
                 run = subprocess.run([binary], capture_output=True, timeout=5,
                                      env=dict(os.environ, JBCC_TEST_DEFERRED_READ=flag))
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+
+    def test_deferred_compound_assignment_checks_previous_value_when_reached(self):
+        source = ROOT / 'tests/programs/deferred-compound-assignment.b'
+        binary = self.work / 'program'
+        command = [CLI, '--exe', source, '-o', binary]
+        strict = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual((strict.returncode, strict.stderr),
+                         (1, f"{source}:3:5: unassigned variable 'Count'\n"))
+        deferred = subprocess.run([*command, '--defer-unassigned-reads'], capture_output=True, text=True, check=True)
+        self.assertEqual(deferred.stderr.splitlines(), [
+            f"{source}:3:5: warning: read of 'Count' before assignment is deferred to runtime",
+            f"{source}:6:5: warning: read of 'Text' before assignment is deferred to runtime",
+        ])
+        for mode, expected in (
+            ('skip', (0, b'done\n', b'')),
+            ('add', (1, b'', f"{source}:3:5: unassigned variable 'Count'\n".encode())),
+            ('append', (1, b'', f"{source}:6:5: unassigned variable 'Text'\n".encode())),
+        ):
+            with self.subTest(mode=mode):
+                run = subprocess.run([binary, mode], capture_output=True, timeout=5)
                 self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
     def test_deferred_reads_still_reject_unknown_functions(self):

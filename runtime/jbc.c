@@ -3890,11 +3890,12 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
 {
     struct memory_file *f = file_for(handle);
     if (setting) assign_value(setting, f ? "0" : "128");
-    if (!f) return file_succeeded(128);
+    if (!f) return file_result(128);
     struct record_lock *lock = find_lock(f, key);
     if (lock && lock->foreign) {
         if (setting) assign_value(setting, "32768");
-        return file_succeeded(32768);
+        file_result(32768);
+        return JBC_LOCKED;
     }
     release_locks(f, key, 0);
     struct memory_record **link = record_link(f, key);
@@ -3905,7 +3906,7 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
         free_record(record);
     }
     count_userstat(&record_delete_count);
-    return file_succeeded(0);
+    return file_result(0);
 }
 
 int jbc_read_record(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
