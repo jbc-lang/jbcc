@@ -4,6 +4,8 @@ import sqlite3
 import subprocess
 import sys
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -43,63 +45,100 @@ def test_itype_requires_backend_only_when_evaluation_is_reached(compiler):
     )
 
 
-def test_xml_transforms_require_a_backend_when_reached(compiler, subtests):
-    for fixture_name, call in (
-        ('xml_1.b', "XMLTOXML('<doc/>', '', Code)"),
-        ('xml_2.b', "XMLTODYN('<array/>', '', Codes(1))"),
-        ('xml_3.b', "XMLTODYN('<array/>', '')"),
-        ('xml_4.b', "DYNTOXML('a':@FM:'b', '', Code)"),
-        ('xml_5.b', "DYNTOXML('a':@FM:'b', '', Codes(1))"),
-        ('xml_6.b', "DYNTOXML('a':@FM:'b', '')"),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/xml-transforms-require-a-backend-when-reached' / fixture_name
-            result = compiler.run_native(source)
-            name = call.split('(', 1)[0]
-            assert (
-                (result.returncode, result.stdout, result.stderr)
-                == (1,
-                     expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'),
-                     expected_text('xml-transforms-require-a-backend-when-reached.stderr', source=source, value_2=name).encode())
-            )
+@pytest.mark.parametrize(
+    'fixture_name, call',
+    [
+        pytest.param('xml_1.b', "XMLTOXML('<doc/>', '', Code)", id='xml-1'),
+        pytest.param('xml_2.b', "XMLTODYN('<array/>', '', Codes(1))", id='xml-2'),
+        pytest.param('xml_3.b', "XMLTODYN('<array/>', '')", id='xml-3'),
+        pytest.param('xml_4.b', "DYNTOXML('a':@FM:'b', '', Code)", id='xml-4'),
+        pytest.param('xml_5.b', "DYNTOXML('a':@FM:'b', '', Codes(1))", id='xml-5'),
+        pytest.param('xml_6.b', "DYNTOXML('a':@FM:'b', '')", id='xml-6'),
+    ],
+)
+def test_xml_transforms_require_a_backend_when_reached(compiler, fixture_name, call):
+    source = ROOT / 'tests/programs/xml-transforms-require-a-backend-when-reached' / fixture_name
+    result = compiler.run_native(source)
+    name = call.split('(', 1)[0]
+    assert (
+        (result.returncode, result.stdout, result.stderr)
+        == (1,
+             expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'),
+             expected_text('xml-transforms-require-a-backend-when-reached.stderr', source=source, value_2=name).encode())
+    )
 
 
-def test_xml_transform_argument_diagnostics(compiler, subtests):
-    for case_number, (call, marker, message) in enumerate((
-        ("XMLTODYN('<array/>')", ')', expected_text('xml-transform-argument-diagnostics.stderr')),
-        ("XMLTOXML('<doc/>', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
-        ("XMLTODYN('<array/>', '', Code<1>)", '<1>', expected_text('xml-transform-argument-diagnostics_3.stderr')),
-        ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', expected_text('xml-transform-argument-diagnostics_3.stderr')),
-        ("DYNTOXML('a', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
-    ), 1):
-        with subtests.test(call=call):
-            statement = f'CRT {call}'
-            source = ROOT / 'tests/programs/xml-transform-argument-diagnostics' / f'xml_{case_number}.b'
-            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
-            assert result.returncode != 0
-            assert (
-                expected_text('xml-transform-argument-diagnostics_4.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message)
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'case_number, call, marker, message_fixture',
+    [
+        pytest.param(
+            1,
+            "XMLTODYN('<array/>')",
+            ')',
+            'xml-transform-argument-diagnostics.stderr',
+            id='xmltodyn-array',
+        ),
+        pytest.param(
+            2,
+            "XMLTOXML('<doc/>', '', 0)",
+            '0',
+            'xml-transform-argument-diagnostics_2.stderr',
+            id='xmltoxml-doc-0',
+        ),
+        pytest.param(
+            3,
+            "XMLTODYN('<array/>', '', Code<1>)",
+            '<1>',
+            'xml-transform-argument-diagnostics_3.stderr',
+            id='xmltodyn-array-code-1',
+        ),
+        pytest.param(
+            4,
+            "XMLTOXML('<doc/>', '', Code, Extra)",
+            ', Extra',
+            'xml-transform-argument-diagnostics_3.stderr',
+            id='xmltoxml-doc-code-extra',
+        ),
+        pytest.param(
+            5,
+            "DYNTOXML('a', '', 0)",
+            '0',
+            'xml-transform-argument-diagnostics_2.stderr',
+            id='dyntoxml-a-0',
+        ),
+    ],
+)
+def test_xml_transform_argument_diagnostics(compiler, case_number, call, marker, message_fixture):
+    message = expected_text(message_fixture)
+    statement = f'CRT {call}'
+    source = ROOT / 'tests/programs/xml-transform-argument-diagnostics' / f'xml_{case_number}.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    assert result.returncode != 0
+    assert (
+        expected_text('xml-transform-argument-diagnostics_4.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message)
+        in result.stderr
+    )
 
 
-def test_indices_requires_backend_only_when_a_query_is_reached(compiler, subtests):
-    for fixture_name in (
-        'indices_1.b',
-        'indices_2.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/indices-requires-backend-only-when-a-query-is-reached' / fixture_name
-            result = compiler.run_native(source, options=('--memory-file', 'BOOKS'))
-            assert result.returncode == 1
-            assert (
-                result.stdout
-                == expected_bytes('indices-requires-backend-only-when-a-query-is-reached.stdout')
-            )
-            assert (
-                result.stderr
-                == expected_text('indices-requires-backend-only-when-a-query-is-reached.stderr', source=source).encode()
-            )
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('indices_1.b', id='indices-1'),
+        pytest.param('indices_2.b', id='indices-2'),
+    ],
+)
+def test_indices_requires_backend_only_when_a_query_is_reached(compiler, fixture_name):
+    source = ROOT / 'tests/programs/indices-requires-backend-only-when-a-query-is-reached' / fixture_name
+    result = compiler.run_native(source, options=('--memory-file', 'BOOKS'))
+    assert result.returncode == 1
+    assert (
+        result.stdout
+        == expected_bytes('indices-requires-backend-only-when-a-query-is-reached.stdout')
+    )
+    assert (
+        result.stderr
+        == expected_text('indices-requires-backend-only-when-a-query-is-reached.stderr', source=source).encode()
+    )
 
 
 def test_indices_requires_a_file_variable(compiler):
@@ -138,24 +177,25 @@ def test_callj_requires_setting(compiler):
     assert result.stderr == expected_text('callj-requires-setting.stderr', source=source)
 
 
-def test_transactions_report_missing_backend_at_the_call(compiler, subtests):
-    statements = (
-        ('TRANSTART', "TRANSTART ELSE CRT 'failure'"),
-        ('TRANSTART', "TRANSTART SYNC THEN CRT 'success'"),
-        ('TRANSTART', "TRANSTART SYNC 'start':Note THEN CRT 'success' ELSE CRT 'failure'"),
-        ('TRANSEND', "TRANSEND Note THEN\n    CRT 'success'\nEND ELSE CRT 'failure'"),
-        ('TRANSABORT', "TRANSABORT 'rollback' ELSE CRT 'failure'"),
+@pytest.mark.parametrize(
+    'case_number, keyword',
+    [
+        pytest.param(1, 'TRANSTART', id='transtart-1'),
+        pytest.param(2, 'TRANSTART', id='transtart-2'),
+        pytest.param(3, 'TRANSTART', id='transtart-3'),
+        pytest.param(4, 'TRANSEND', id='transend'),
+        pytest.param(5, 'TRANSABORT', id='transabort'),
+    ],
+)
+def test_transactions_report_missing_backend_at_the_call(compiler, case_number, keyword):
+    source = ROOT / 'tests/programs/transactions-report-missing-backend-at-the-call' / f'transactions_{case_number}.b'
+    result = compiler.run_native(source)
+    assert result.returncode == 1, result.stderr
+    assert result.stdout == expected_bytes('transactions-report-missing-backend-at-the-call.stdout')
+    assert (
+        result.stderr
+        == expected_text('transactions-report-missing-backend-at-the-call.stderr', source=source, keyword=keyword).encode()
     )
-    for case_number, (keyword, statement) in enumerate(statements, 1):
-        with subtests.test(statement=statement):
-            source = ROOT / 'tests/programs/transactions-report-missing-backend-at-the-call' / f'transactions_{case_number}.b'
-            result = compiler.run_native(source)
-            assert result.returncode == 1, result.stderr
-            assert result.stdout == expected_bytes('transactions-report-missing-backend-at-the-call.stdout')
-            assert (
-                result.stderr
-                == expected_text('transactions-report-missing-backend-at-the-call.stderr', source=source, keyword=keyword).encode()
-            )
 
 
 def test_transactions_require_a_conditional_arm(compiler):
@@ -215,17 +255,20 @@ def test_defc_declarations_and_runtime_diagnostics(compiler, subtests):
                 )
 
 
-def test_defc_rejects_invalid_types_and_argument_counts(compiler, subtests):
-    for fixture_name, diagnostic in (
-        ('foreign_1.b', expected_text('defc-rejects-invalid-types-and-argument-counts.stderr')),
-        ('foreign_2.b', expected_text('defc-rejects-invalid-types-and-argument-counts_2.stderr')),
-        ('foreign_3.b', expected_text('defc-rejects-invalid-types-and-argument-counts_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/defc-rejects-invalid-types-and-argument-counts' / fixture_name
-            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
-            assert result.returncode == 1
-            assert result.stderr == f'{source}{diagnostic}\n'
+@pytest.mark.parametrize(
+    'fixture_name, diagnostic_fixture',
+    [
+        pytest.param('foreign_1.b', 'defc-rejects-invalid-types-and-argument-counts.stderr', id='foreign-1'),
+        pytest.param('foreign_2.b', 'defc-rejects-invalid-types-and-argument-counts_2.stderr', id='foreign-2'),
+        pytest.param('foreign_3.b', 'defc-rejects-invalid-types-and-argument-counts_3.stderr', id='foreign-3'),
+    ],
+)
+def test_defc_rejects_invalid_types_and_argument_counts(compiler, fixture_name, diagnostic_fixture):
+    diagnostic = expected_text(diagnostic_fixture)
+    source = ROOT / 'tests/programs/defc-rejects-invalid-types-and-argument-counts' / fixture_name
+    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert result.stderr == f'{source}{diagnostic}\n'
 
 
 def test_corpus_reports_deferred_reads_in_includes():
