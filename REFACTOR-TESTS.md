@@ -245,13 +245,13 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Arguments and invocation strings (7)
 
-- [ ] `test_invocation_sentence`
-- [ ] `test_command_system_variable_uses_the_invocation_in_a_subroutine`
-- [ ] `test_sentence_function_reads_invocation_in_a_subroutine`
-- [ ] `test_sentence_function_preserves_get_argument_cursor`
-- [ ] `test_sentence_function_diagnostics`
-- [ ] `test_get_argument_preserves_argv_and_shares_cursor_across_routines`
-- [ ] `test_get_argument_failures_and_diagnostics`
+- [x] `test_invocation_sentence`
+- [x] `test_command_system_variable_uses_the_invocation_in_a_subroutine`
+- [x] `test_sentence_function_reads_invocation_in_a_subroutine`
+- [x] `test_sentence_function_preserves_get_argument_cursor`
+- [x] `test_sentence_function_diagnostics`
+- [x] `test_get_argument_preserves_argv_and_shares_cursor_across_routines`
+- [x] `test_get_argument_failures_and_diagnostics`
 
 ## Terminal input, echo and polling (18)
 

@@ -1,0 +1,1 @@
+CRT SENTENCE(1, 2)

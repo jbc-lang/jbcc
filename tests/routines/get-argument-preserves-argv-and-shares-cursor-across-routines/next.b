@@ -1,0 +1,4 @@
+SUBROUTINE GET.MORE
+DIM Args(2)
+GET(ARG., 2) Args(1) ELSE ABORT
+GET(ARG., 0) Args(2) THEN CRT '[':Args(1):'] [':Args(2):']' ELSE ABORT

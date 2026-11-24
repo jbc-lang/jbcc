@@ -3817,12 +3817,10 @@ CRT {function}('text', '', {method})
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
 
     def test_invocation_sentence(self):
-        source = self.work / 'caller.b'
         routine = ROOT / 'tests/routines/get.sentence.b'
         binary = self.work / 'invocation'
-        for direct_read in (False, True):
-            source.write_text(('CRT @SENTENCE<1>\n' if direct_read else '') +
-                              'CALL GET.SENTENCE(S, A)\nCRT S\nCRT A\n')
+        for case_number, direct_read in enumerate((False, True), 1):
+            source = ROOT / 'tests/routines/invocation-sentence' / f'caller_{case_number}.b'
             subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
             for args, sentence, first in [
                     ([], b'./invocation', b''),
@@ -3833,14 +3831,9 @@ CRT {function}('text', '', {method})
                     self.assertEqual(run.stdout, (sentence + b'\n') * (1 + direct_read) + first + b'\n')
 
     def test_command_system_variable_uses_the_invocation_in_a_subroutine(self):
-        source = self.work / 'caller.b'
-        routine = self.work / 'command.b'
         binary = self.work / 'invocation'
-        source.write_text("COMMAND = 'SHOW.COMMAND'\nCALL @COMMAND\n")
-        routine.write_text("""SUBROUTINE SHOW.COMMAND()
-CRT @COMMAND
-CRT '[':@COMMAND[' ',2,99]:']'
-""")
+        source = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/caller.b'
+        routine = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/command.b'
         subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
         for args, tail in (([], b''), (['first', 'two words', '', 'last'], b'first two words  last')):
             with self.subTest(args=args):
@@ -3850,19 +3843,9 @@ CRT '[':@COMMAND[' ',2,99]:']'
                                  (0, sentence + b'\n[' + tail + b']\n', b''))
 
     def test_sentence_function_reads_invocation_in_a_subroutine(self):
-        source = self.work / 'caller.b'
-        routine = self.work / 'show.b'
         binary = self.work / 'invocation'
-        source.write_text('CALL SHOW.ARGS\n')
-        routine.write_text("""SUBROUTINE SHOW.ARGS
-CRT SENTENCE()
-CRT SENTENCE('')
-CRT SENTENCE(0)
-FOR I = 1 TO 4
-    CRT '[':SENTENCE(I):']'
-NEXT I
-CRT '[':SENTENCE(-1):'] [':SENTENCE(999999999999999999999999):']'
-""")
+        source = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/caller.b'
+        routine = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/show.b'
         subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True)
         for args in ([], ['first', 'two words', '', 'last']):
             with self.subTest(args=args):
@@ -3892,50 +3875,31 @@ CRT '[':SENTENCE(-1):'] [':SENTENCE(999999999999999999999999):']'
                 self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected, b''))
 
     def test_sentence_function_preserves_get_argument_cursor(self):
-        source = self.work / 'args.b'
         binary = self.work / 'args'
-        source.write_text("""GET(ARG.) First THEN CRT First ELSE ABORT
-CRT SENTENCE(3)[1,2]
-GET(ARG.) Second THEN CRT Second ELSE ABORT
-""")
+        source = ROOT / 'tests/routines/sentence-function-preserves-get-argument-cursor.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary, 'one', 'two', 'three'], capture_output=True, timeout=5)
         self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'one\nth\ntwo\n', b''))
 
     def test_sentence_function_diagnostics(self):
-        source = self.work / 'sentence.b'
-        source.write_text('CRT SENTENCE(1, 2)\n')
+        source = ROOT / 'tests/routines/sentence-function-diagnostics/sentence.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'SENTENCE'".encode(), result.stderr)
-        for position in ('1.5', "'word'"):
-            with self.subTest(position=position):
-                source.write_text(f'CRT SENTENCE({position})\n')
+        for fixture_name in (
+            'sentence-variant-2_1.b',
+            'sentence-variant-2_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/sentence-function-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: SENTENCE requires an integer index'.encode(), run.stderr)
 
     def test_get_argument_preserves_argv_and_shares_cursor_across_routines(self):
-        source = self.work / 'args.b'
-        routine = self.work / 'next.b'
         binary = self.work / 'args'
-        source.write_text("""GET (ARG.) First THEN CRT First ELSE ABORT
-CALL GET.MORE
-Keep = 'previous'
-GET(ARG., 99) Keep ELSE CRT Keep
-GET(ARG.) Next THEN
-    CRT Next
-END ELSE ABORT
-GET(ARG.) Exhausted THEN ABORT
-CRT '[':Exhausted:']'
-GET(ARG., 1) Again
-CRT Again
-""")
-        routine.write_text("""SUBROUTINE GET.MORE
-DIM Args(2)
-GET(ARG., 2) Args(1) ELSE ABORT
-GET(ARG., 0) Args(2) THEN CRT '[':Args(1):'] [':Args(2):']' ELSE ABORT
-""")
+        source = ROOT / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/args.b'
+        routine = ROOT / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/next.b'
         subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         result = subprocess.run([binary, 'first', 'two words', '', 'last'],
@@ -3944,21 +3908,15 @@ GET(ARG., 0) Args(2) THEN CRT '[':Args(1):'] [':Args(2):']' ELSE ABORT
                          (0, b'first\n[two words] []\nprevious\nlast\n[]\nfirst\n', b''))
 
     def test_get_argument_failures_and_diagnostics(self):
-        source = self.work / 'args.b'
-        source.write_text("""Value = 'previous'
-GET(ARG.) Value
-CRT '[':Value:']'
-GET(ARG., -1) Value ELSE CRT 'missing'
-GET(ARG., '18446744073709551616') Value ELSE CRT 'missing'
-""")
+        source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'[]\nmissing\nmissing\n', b''))
-        source.write_text("GET(ARG., 1.5) Value\n")
+        source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: GET (ARG.) requires an integer index'.encode(), result.stderr)
-        source.write_text("GET(ARG.,) Value\n")
+        source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-3.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a variable', result.stderr)
