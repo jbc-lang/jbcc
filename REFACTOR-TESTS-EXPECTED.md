@@ -390,31 +390,31 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Terminal input, echo and polling (25)
 
-- [ ] `test_data_queues_input_and_hands_it_to_commands` — stdout (exact)
-- [ ] `test_cleardata_discards_the_queue_and_preserves_standard_input` — stdout (exact)
-- [ ] `test_cursor_coordinate_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_input_from_pipe` — stdout (exact), stderr (fragment)
-- [ ] `test_positioned_input_writes_cursor_before_prompt` — stdout (exact)
-- [ ] `test_length_limited_input_from_pipe` — stdout (exact)
-- [ ] `test_inputclear_discards_only_terminal_typeahead` — stdout (exact), PTY
-- [ ] `test_input_underscore_discards_excess_in_queue_and_pipe` — stdout (exact)
-- [ ] `test_input_underscore_rings_bell_and_waits_for_enter` — stdout (exact), PTY
-- [ ] `test_keyin_shares_queued_and_piped_input` — stdout (exact)
-- [ ] `test_keyin_reads_unedited_terminal_byte_and_restores_mode` — stdout (exact), PTY
-- [ ] `test_keyin_function_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_timed_input_restarts_after_each_byte` — stdout (exact)
-- [ ] `test_timed_input_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_input_negative_one_polls_without_consuming_bytes` — stdout (exact)
-- [ ] `test_input_negative_one_polls_an_empty_open_pipe` — stdout (exact)
-- [ ] `test_input_negative_one_detects_terminal_typeahead` — stdout (exact), PTY
-- [ ] `test_input_length_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_hush_nonnumeric_operand` — stderr (fragment, interpolated)
-- [ ] `test_break_key_controls_terminal_interrupts` — stdout (fragment), PTY
-- [ ] `test_echo_controls_terminal_input_and_system24` — stdout (exact), PTY
-- [ ] `test_hush_terminal_input_and_printer` — stdout (exact), PTY
-- [ ] `test_input_terminal_echo` — stdout (exact), PTY
-- [ ] `test_banner` — stdout (exact)
-- [ ] `test_system14_input_queue` — stdout (exact)
+- [x] `test_data_queues_input_and_hands_it_to_commands` — stdout (exact)
+- [x] `test_cleardata_discards_the_queue_and_preserves_standard_input` — stdout (exact)
+- [x] `test_cursor_coordinate_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_input_from_pipe` — stdout (exact), stderr (fragment)
+- [x] `test_positioned_input_writes_cursor_before_prompt` — stdout (exact)
+- [x] `test_length_limited_input_from_pipe` — stdout (exact)
+- [x] `test_inputclear_discards_only_terminal_typeahead` — stdout (exact), PTY
+- [x] `test_input_underscore_discards_excess_in_queue_and_pipe` — stdout (exact)
+- [x] `test_input_underscore_rings_bell_and_waits_for_enter` — stdout (exact), PTY
+- [x] `test_keyin_shares_queued_and_piped_input` — stdout (exact)
+- [x] `test_keyin_reads_unedited_terminal_byte_and_restores_mode` — stdout (exact), PTY
+- [x] `test_keyin_function_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_timed_input_restarts_after_each_byte` — stdout (exact)
+- [x] `test_timed_input_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_input_negative_one_polls_without_consuming_bytes` — stdout (exact)
+- [x] `test_input_negative_one_polls_an_empty_open_pipe` — stdout (exact)
+- [x] `test_input_negative_one_detects_terminal_typeahead` — stdout (exact), PTY
+- [x] `test_input_length_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_hush_nonnumeric_operand` — stderr (fragment, interpolated)
+- [x] `test_break_key_controls_terminal_interrupts` — stdout (fragment), PTY
+- [x] `test_echo_controls_terminal_input_and_system24` — stdout (exact), PTY
+- [x] `test_hush_terminal_input_and_printer` — stdout (exact), PTY
+- [x] `test_input_terminal_echo` — stdout (exact), PTY
+- [x] `test_banner` — stdout (exact)
+- [x] `test_system14_input_queue` — stdout (exact)
 
 ## Session identity and environment (10)
 

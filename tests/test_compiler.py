@@ -455,7 +455,7 @@ class CompilerTest(NativeCompilerTest):
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         result = subprocess.run([binary], input=b'fallback\n', capture_output=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'item-1:item-2:ab:c[]:next\nchild-1|child-2||:0\ndirect\nfallback\n')
+        self.assertEqual(result.stdout, expected_bytes('data-queues-input-and-hands-it-to-commands.stdout'))
         self.assertEqual(result.stderr, b'')
     def test_sequential_seek(self):
         path = self.work / 'data'
@@ -641,7 +641,7 @@ class CompilerTest(NativeCompilerTest):
                         self.c, '-o', binary], check=True)
         result = subprocess.run([binary], input=b'pipe\n', capture_output=True, timeout=5)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'first:pipe:fresh:variable\n', b''))
+                         (0, expected_bytes('cleardata-discards-the-queue-and-preserves-standard-input.stdout'), b''))
 
     def test_record_id_survives_loop_collection_and_return(self):
         main = ROOT / 'tests/routines/record-id/main.b'
@@ -3760,17 +3760,17 @@ CRT 'main'
 
     def test_cursor_coordinate_diagnostics(self):
         for fixture_name, message in (
-            ('cursor_1.b', 'expected a numeric value'),
-            ('cursor_2.b', 'negative cursor coordinate'),
-            ('cursor_3.b', 'negative cursor coordinate'),
-            ('cursor_4.b', 'unsupported one-argument @ code'),
-            ('cursor_5.b', 'unsupported one-argument @ code'),
+            ('cursor_1.b', expected_text('cursor-coordinate-diagnostics.stderr')),
+            ('cursor_2.b', expected_text('cursor-coordinate-diagnostics_2.stderr')),
+            ('cursor_3.b', expected_text('cursor-coordinate-diagnostics_2.stderr')),
+            ('cursor_4.b', expected_text('cursor-coordinate-diagnostics_3.stderr')),
+            ('cursor_5.b', expected_text('cursor-coordinate-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/cursor-coordinate-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('cursor-coordinate-diagnostics_4.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_invocation_sentence(self):
         routine = ROOT / 'tests/routines/get.sentence.b'
@@ -3883,10 +3883,10 @@ CRT 'main'
         first = b'  ' + b'x' * 512 + b'  '
         run = subprocess.run([binary], input=first + b'\n\nlast', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'?"' + first + b'"\nline2> ""\n"last"\n""\n')
+        self.assertEqual(run.stdout, expected_bytes('input-from-pipe.stdout'))
         run = subprocess.run([binary], input=b'a\0b\n', capture_output=True, timeout=5)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(b'input.b:2:1: INPUT cannot store a NUL byte', run.stderr)
+        self.assertIn(expected_bytes('input-from-pipe.stderr'), run.stderr)
 
     def test_positioned_input_writes_cursor_before_prompt(self):
         source = ROOT / 'tests/io/input-positioned.b'
@@ -3894,14 +3894,14 @@ CRT 'main'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary], input=b'first\nsecond\n', capture_output=True, timeout=5)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'\x1b[4;3Hvalue> [first]\n\x1b[1;1Hnext> [second]\n', b''))
+                         (0, expected_bytes('positioned-input-writes-cursor-before-prompt.stdout'), b''))
 
     def test_length_limited_input_from_pipe(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-limit.b', '-o', binary], check=True)
         run = subprocess.run([binary], input=b'abcde\nx\nend', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'abc|de||x||end\n')
+        self.assertEqual(run.stdout, expected_bytes('length-limited-input-from-pipe.stdout'))
 
     def test_inputclear_discards_only_terminal_typeahead(self):
         binary = self.work / 'input'
@@ -3922,7 +3922,7 @@ CRT 'main'
                 subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
                 run = subprocess.run([binary], input=b'pipe\n', capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, b'queued\n>pipe\n')
+                self.assertEqual(run.stdout, expected_bytes('inputclear-discards-only-terminal-typeahead.stdout'))
                 self.assertEqual(run.stderr, b'')
 
                 master, slave = os.openpty()
@@ -3935,9 +3935,9 @@ CRT 'main'
                 self.assertTrue(select.select([slave], [], [], 5)[0])
                 with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
                     try:
-                        self.assertEqual(read_until(master, b'>'), b'queued\r\n>')
+                        self.assertEqual(read_until(master, b'>'), expected_bytes('inputclear-discards-only-terminal-typeahead_2.stdout'))
                         os.write(master, b'fresh\n')
-                        self.assertEqual(read_until(master, b'\r\n'), b'fresh\r\n')
+                        self.assertEqual(read_until(master, b'\r\n'), expected_bytes('inputclear-discards-only-terminal-typeahead_3.stdout'))
                         self.assertEqual(proc.wait(timeout=5), 0)
                     finally:
                         if proc.poll() is None:
@@ -3949,7 +3949,7 @@ CRT 'main'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary], input=b'first\nsecond\nlast', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'qu|next|f|s|last\n')
+        self.assertEqual(run.stdout, expected_bytes('input-underscore-discards-excess-in-queue-and-pipe.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_input_underscore_rings_bell_and_waits_for_enter(self):
@@ -3969,11 +3969,11 @@ CRT 'main'
 
         with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
             try:
-                self.assertEqual(read_until(b'>'), b'>')
+                self.assertEqual(read_until(b'>'), expected_bytes('input-underscore-rings-bell-and-waits-for-enter.stdout'))
                 os.write(master, b'ab')
-                self.assertEqual(read_until(b'\a'), b'a\a')
+                self.assertEqual(read_until(b'\a'), expected_bytes('input-underscore-rings-bell-and-waits-for-enter_2.stdout'))
                 os.write(master, b'\n')
-                self.assertEqual(read_until(b'\r\n'), b'[a]\r\n')
+                self.assertEqual(read_until(b'\r\n'), expected_bytes('input-underscore-rings-bell-and-waits-for-enter_3.stdout'))
                 self.assertEqual(proc.wait(timeout=5), 0)
             finally:
                 if proc.poll() is None:
@@ -4116,7 +4116,7 @@ CRT 'main'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         result = subprocess.run([binary], input=b'xyz\n', capture_output=True, timeout=5)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'a\n>bc\nd10\nx\n>yz\n[]\n', b''))
+                         (0, expected_bytes('keyin-shares-queued-and-piped-input.stdout'), b''))
 
     def test_keyin_reads_unedited_terminal_byte_and_restores_mode(self):
         binary = self.work / 'keyin'
@@ -4136,7 +4136,7 @@ CRT 'main'
                     [binary], stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
                 try:
                     self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
-                    self.assertEqual(proc.stdout.readline(), b'ready>\n')
+                    self.assertEqual(proc.stdout.readline(), expected_bytes('keyin-reads-unedited-terminal-byte-and-restores-mode.stdout'))
                     deadline = time.monotonic() + 5
                     while (mode := termios.tcgetattr(slave))[3] & termios.ICANON:
                         self.assertLess(time.monotonic(), deadline, 'KEYIN did not enter noncanonical mode')
@@ -4167,7 +4167,7 @@ CRT 'main'
                 source = ROOT / 'tests/io/keyin-function-diagnostics' / f'keyin_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for '{function}'".encode(),
+                self.assertIn(expected_text('keyin-function-diagnostics.stderr', source=source, function=function).encode(),
                               result.stderr)
 
     def test_timed_input_restarts_after_each_byte(self):
@@ -4176,18 +4176,18 @@ CRT 'main'
         for data in (b'x\n', b'x'):
             run = subprocess.run([binary], input=data, capture_output=True, timeout=5)
             self.assertEqual(run.returncode, 0, run.stderr)
-            self.assertEqual(run.stdout, b'?complete [x]\n')
+            self.assertEqual(run.stdout, expected_bytes('timed-input-restarts-after-each-byte.stdout'))
         with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
             try:
                 self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
-                self.assertEqual(proc.stdout.read(1), b'?')
+                self.assertEqual(proc.stdout.read(1), expected_bytes('timed-input-restarts-after-each-byte_2.stdout'))
                 for byte in (b'a', b'b', b'c'):
                     proc.stdin.write(byte)
                     proc.stdin.flush()
                     if byte != b'c':
                         time.sleep(0.6)
                 self.assertEqual(proc.wait(timeout=5), 0)
-                self.assertEqual(proc.stdout.read(), b'complete [abc]\n')
+                self.assertEqual(proc.stdout.read(), expected_bytes('timed-input-restarts-after-each-byte_3.stdout'))
             finally:
                 proc.kill()
 
@@ -4195,11 +4195,11 @@ CRT 'main'
         source = ROOT / 'tests/io/timed-input-diagnostics/input.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:14: expected THEN or ELSE'.encode(), run.stderr)
+        self.assertIn(expected_text('timed-input-diagnostics.stderr', source=source).encode(), run.stderr)
         source = ROOT / 'tests/io/timed-input-diagnostics/input-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: negative INPUT timeout'.encode(), run.stderr)
+        self.assertIn(expected_text('timed-input-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_input_negative_one_polls_without_consuming_bytes(self):
         binary = self.work / 'input-poll'
@@ -4212,7 +4212,7 @@ CRT 'main'
         with os.fdopen(read_fd, 'rb') as reader:
             run = subprocess.run([binary], stdin=reader, capture_output=True, timeout=5)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'1\t4\nx\n1\t3\n?y\n1\t1\nz\n0\t0\n', b''))
+                         (0, expected_bytes('input-negative-one-polls-without-consuming-bytes.stdout'), b''))
 
     def test_input_negative_one_polls_an_empty_open_pipe(self):
         binary = self.work / 'input-poll'
@@ -4222,7 +4222,7 @@ CRT 'main'
                               stderr=subprocess.PIPE) as proc:
             try:
                 self.assertEqual(proc.wait(timeout=5), 0)
-                self.assertEqual((proc.stdout.read(), proc.stderr.read()), (b'0\n', b''))
+                self.assertEqual((proc.stdout.read(), proc.stderr.read()), (expected_bytes('input-negative-one-polls-an-empty-open-pipe.stdout'), b''))
             finally:
                 if proc.poll() is None:
                     proc.kill()
@@ -4241,10 +4241,10 @@ CRT 'main'
                               stderr=subprocess.PIPE) as proc:
             try:
                 self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
-                self.assertEqual(proc.stdout.readline(), b'0\n')
+                self.assertEqual(proc.stdout.readline(), expected_bytes('input-negative-one-detects-terminal-typeahead.stdout'))
                 os.write(master, b'q')
                 stdout, stderr = proc.communicate(timeout=5)
-                self.assertEqual((proc.returncode, stdout, stderr), (0, b'1\tq\n', b''))
+                self.assertEqual((proc.returncode, stdout, stderr), (0, expected_bytes('input-negative-one-detects-terminal-typeahead_2.stdout'), b''))
                 actual = termios.tcgetattr(slave)
                 actual[3] &= ~getattr(termios, 'PENDIN', 0)
                 self.assertEqual(actual, original)
@@ -4254,20 +4254,20 @@ CRT 'main'
 
     def test_input_length_diagnostics(self):
         for fixture_name, message in (
-            ('input_1.b', 'negative INPUT length'),
-            ('input_2.b', 'expected a numeric value'),
+            ('input_1.b', expected_text('input-length-diagnostics.stderr')),
+            ('input_2.b', expected_text('input-length-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/input-length-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('input-length-diagnostics_3.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_hush_nonnumeric_operand(self):
         source = ROOT / 'tests/io/hush-nonnumeric-operand.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:1: HUSH requires a numeric operand'.encode(), result.stderr)
+        self.assertIn(expected_text('hush-nonnumeric-operand.stderr', source=source).encode(), result.stderr)
 
     def test_break_key_controls_terminal_interrupts(self):
         source = ROOT / 'tests/io/break-key-controls-terminal-interrupts.b'
@@ -4299,9 +4299,9 @@ CRT 'main'
                 self.assertEqual(received, expected)
 
             try:
-                expect_output(b'off>')
+                expect_output(expected_bytes('break-key-controls-terminal-interrupts.stdout'))
                 os.write(master, b'\x03ok\n')
-                expect_output(b'ok\non>')
+                expect_output(expected_bytes('break-key-controls-terminal-interrupts_2.stdout'))
                 os.write(master, b'\x03')
                 self.assertEqual(proc.wait(timeout=5), -signal.SIGINT)
                 self.assertEqual(proc.stderr.read(), b'')
@@ -4327,11 +4327,11 @@ CRT 'main'
 
         with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
             try:
-                self.assertEqual(read_until(b'>'), b'1\r\n0\r\n>')
+                self.assertEqual(read_until(b'>'), expected_bytes('echo-controls-terminal-input-and-system24.stdout'))
                 os.write(master, b'secret\n')
-                self.assertEqual(read_until(b'>'), b'6\r\n0:1\r\n>')
+                self.assertEqual(read_until(b'>'), expected_bytes('echo-controls-terminal-input-and-system24_2.stdout'))
                 os.write(master, b'visible\n')
-                self.assertEqual(read_until(b'1\r\n0\r\n'), b'visible\r\n1\r\n0\r\n')
+                self.assertEqual(read_until(b'1\r\n0\r\n'), expected_bytes('echo-controls-terminal-input-and-system24_3.stdout'))
                 self.assertEqual(proc.wait(timeout=5), 0)
                 actual = termios.tcgetattr(slave)
                 actual[3] &= ~getattr(termios, 'PENDIN', 0)
@@ -4359,7 +4359,7 @@ CRT 'main'
                 while not output.endswith(b'?'):
                     self.assertTrue(select.select([master], [], [], 5)[0], output)
                     output.extend(os.read(master, 1024))
-                self.assertEqual(output, b'6\r\n?')
+                self.assertEqual(output, expected_bytes('hush-terminal-input-and-printer.stdout'))
                 self.assertTrue(termios.tcgetattr(slave)[3] & termios.ECHO)
                 os.write(master, b'ok\n')
                 self.assertEqual(proc.wait(timeout=5), 0)
@@ -4391,27 +4391,27 @@ CRT 'main'
 
         with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
             try:
-                self.assertEqual(read_until(b'?'), b'?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo.stdout'))
                 os.write(master, b'ax')
-                self.assertEqual(read_until(b'x'), b'ax')
+                self.assertEqual(read_until(b'x'), expected_bytes('input-terminal-echo_2.stdout'))
                 os.write(master, original[6][termios.VERASE] + b'b\n')
-                self.assertEqual(read_until(b'?'), b'\b \bb[ab]\r\n?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo_3.stdout'))
                 os.write(master, b'c\n')
-                self.assertEqual(read_until(b'?'), b'c\r\nc\r\n?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo_4.stdout'))
                 os.write(master, b'xy')
-                self.assertEqual(read_until(b'?'), b'xy\r\nxy\r\n?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo_5.stdout'))
                 os.write(master, b'z')
-                self.assertEqual(read_until(b'?'), b'zz\r\n?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo_6.stdout'))
                 os.write(master, b'ab')
                 self.assertEqual(proc.wait(timeout=5), 0)
-                self.assertEqual(read_until(b'""\r\n'), b'ab[ab]\r\n?""\r\n')
+                self.assertEqual(read_until(b'""\r\n'), expected_bytes('input-terminal-echo_7.stdout'))
                 check_mode_restored()
             finally:
                 proc.kill()
 
         with subprocess.Popen([binary], stdin=slave, stdout=slave, stderr=slave) as proc:
             try:
-                self.assertEqual(read_until(b'?'), b'?')
+                self.assertEqual(read_until(b'?'), expected_bytes('input-terminal-echo.stdout'))
                 proc.terminate()
                 proc.wait(timeout=5)
                 check_mode_restored()
@@ -4423,7 +4423,7 @@ CRT 'main'
         binary = self.work / 'banner'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         home = b'\x1b[H\n'
-        blank = home + (b' ' * 79 + b'\n') * 24
+        blank = expected_bytes('banner.stdout')
         with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as process:
             try:
@@ -4461,14 +4461,14 @@ CRT 'main'
                         self.c, '-o', binary], check=True)
         with open(os.devnull, 'rb') as empty:
             result = subprocess.run([binary], stdin=empty, capture_output=True, timeout=5)
-            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\n8\n8\n12:6\n0\n', b''))
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('system14-input-queue.stdout'), b''))
         # Preload the pipe before starting the program. Polling leaves its bytes queued.
         read_fd, write_fd = os.pipe()
         with os.fdopen(write_fd, 'wb') as writer:
             writer.write(b'abc')
         with os.fdopen(read_fd, 'rb') as reader:
             result = subprocess.run([binary], stdin=reader, capture_output=True, timeout=5)
-            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'3\n11\n11\n12:9\n3\n', b''))
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('system14-input-queue_2.stdout'), b''))
 
     def test_account_path_uses_working_directory(self):
         source = ROOT / 'tests/programs/account-path-uses-working-directory.b'
