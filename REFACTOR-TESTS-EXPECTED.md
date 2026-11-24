@@ -361,9 +361,9 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Corpus scanning and reporting (3)
 
-- [ ] `test_corpus_can_summarize_next_name_mismatch_warnings` — stderr (exact, fragment, interpolated)
-- [ ] `test_corpus_api_coverage_counts_parsed_calls_by_form` — stdout (fragment)
-- [ ] `test_corpus_checks_external_arities_and_reports_the_linkage_conflict` — stderr (exact, interpolated)
+- [x] `test_corpus_can_summarize_next_name_mismatch_warnings` — stderr (exact, fragment, interpolated)
+- [x] `test_corpus_api_coverage_counts_parsed_calls_by_form` — stdout (fragment)
+- [x] `test_corpus_checks_external_arities_and_reports_the_linkage_conflict` — stderr (exact, interpolated)
 
 ## Command execution and piped output (9)
 

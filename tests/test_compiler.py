@@ -3070,10 +3070,10 @@ CRT 'main'
         self.assertEqual(report['files']['good.b']['status'], 'translated')
         self.assertEqual(report['files']['bad.b']['status'], 'rejected')
         for source in (good, bad):
-            self.assertIn(f'{source}:3:6: warning: NEXT Other closes FOR I', verbose.stderr)
+            self.assertIn(expected_text('corpus-can-summarize-next-name-mismatch-warnings.stderr', source=source), verbose.stderr)
         self.assertEqual(quiet.stderr.splitlines(), [
-            f'{good}:4:1: warning: CONTINUE outside a loop ignored',
-            'Suppressed 2 FOR/NEXT name mismatch warnings.',
+            expected_text('corpus-can-summarize-next-name-mismatch-warnings_2.stderr', good=good),
+            expected_text('corpus-can-summarize-next-name-mismatch-warnings_3.stderr'),
         ])
 
     def test_corpus_api_coverage_counts_parsed_calls_by_form(self):
@@ -3097,8 +3097,8 @@ CRT 'main'
         report_path = self.work / 'coverage.json'
         report_path.write_text(json.dumps(report))
         markdown = subprocess.check_output([sys.executable, ROOT / 'tools/api_coverage.py', report_path], text=True)
-        self.assertIn('| Expression calls | 3 | 2 | 1 |', markdown)
-        self.assertIn('| `ENCRYPT` | method 4 (Base64) | — | 1 | backend required |', markdown)
+        self.assertIn(expected_text('corpus-api-coverage-counts-parsed-calls-by-form.stdout'), markdown)
+        self.assertIn(expected_text('corpus-api-coverage-counts-parsed-calls-by-form_2.stdout'), markdown)
 
     def test_corpus_uses_t24_catalog_kinds_for_selected_extract(self):
         fixture = ROOT / 'tests/corpus/file-catalog'
@@ -3246,7 +3246,7 @@ CRT 'main'
         definition.write_text('SUBROUTINE Report(Value)\nCRT Value\n')
         result = subprocess.run([CLI, source, definition, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f"{source}:2:6: wrong argument count for 'Report'\n")
+        self.assertEqual(result.stderr, expected_text('corpus-checks-external-arities-and-reports-the-linkage-conflict.stderr', source=source))
 
         source.write_text('SUBROUTINE Recur(MAT A)\nCALL Recur\n')
         report = json.loads(subprocess.check_output(command, text=True))
