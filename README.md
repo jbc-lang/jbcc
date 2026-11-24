@@ -50,7 +50,7 @@ just run tests/snippets/coercion.b
 just banner
 just quine
 just routine
-just corpus ~/Downloads/t24 > /tmp/jbcc-corpus.json
+just corpus ../t24-extract/201001-R10 > /tmp/jbcc-corpus.json
 ```
 
 ## Implemented subset
@@ -2161,8 +2161,10 @@ the local T24 sources to valid C99, expanding include fragments wherever
 they are used. The latest counts and the next language feature are in
 [the compiler plan](PLAN.md).
 
+The commands below use `201001-R10` in a sibling `t24-extract` checkout.
+
 ```sh
-python3 tools/check_corpus.py ~/Downloads/t24 -j 8 > /tmp/jbcc-corpus.json
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -j 8 > /tmp/jbcc-corpus.json
 ```
 
 The checker visits regular files recursively. It counts `I_` files as include
@@ -2182,7 +2184,7 @@ The checker accepts the same source encoding option as the compiler.
 For legacy T24 sources with those headers, run
 
 ```sh
-python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 
@@ -2216,7 +2218,7 @@ and test references to the JSON report. The report uses paths from your
 local checkout and corpus.
 
 ```sh
-python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
   -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
   --quiet-next-warnings --api-catalogue ../temenos-documentation/spec > /tmp/jbcc-api-coverage.json
 python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
