@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -72,16 +74,19 @@ def test_stop_and_abort_from_main(compiler, subtests):
             )
 
 
-def test_stop_and_abort_from_routine(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name, status, message_fixture',
+    [
+        pytest.param('finish_1.b', 0, 'stop-and-abort-from-routine.stderr', id='finish-1'),
+        pytest.param('finish_2.b', 1, 'stop-and-abort-from-routine_2.stderr', id='finish-2'),
+    ],
+)
+def test_stop_and_abort_from_routine(compiler, fixture_name, status, message_fixture):
     main = ROOT / 'tests/routines/stop-and-abort/main.b'
-    for fixture_name, status, message in (
-        ('finish_1.b', 0, expected_bytes('stop-and-abort-from-routine.stderr')),
-        ('finish_2.b', 1, expected_bytes('stop-and-abort-from-routine_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            sub = ROOT / 'tests/programs/stop-and-abort-from-routine' / fixture_name
-            run = compiler.run_native(main, sub)
-            assert (run.returncode, run.stdout, run.stderr) == (status, b'', message)
+    message = expected_bytes(message_fixture)
+    sub = ROOT / 'tests/programs/stop-and-abort-from-routine' / fixture_name
+    run = compiler.run_native(main, sub)
+    assert (run.returncode, run.stdout, run.stderr) == (status, b'', message)
 
 
 def test_stop_missing_message_argument(compiler):
@@ -105,29 +110,34 @@ def test_mismatched_next_counter(compiler):
     assert run.stdout == expected_bytes('mismatched-next-counter.stdout')
 
 
-def test_loop_exit_control_flow_diagnostics(compiler, subtests):
+@pytest.mark.parametrize(
+    'case_number, keyword',
+    [
+        pytest.param(1, 'EXIT', id='exit'),
+        pytest.param(2, 'BREAK', id='break'),
+    ],
+)
+def test_loop_exit_control_flow_diagnostics(compiler, case_number, keyword):
     binary = compiler.work / 'program'
-    for case_number, keyword in enumerate(('EXIT', 'BREAK'), 1):
-        with subtests.test(keyword=keyword):
-            source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit_{case_number}.b'
-            run = compiler.run_native(source)
-            assert (
-                (run.returncode, run.stdout, run.stderr)
-                == (1,
-                     b'',
-                     expected_text('loop-exit-control-flow-diagnostics.stderr', source=source).encode())
-            )
-            source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit-variant-2_{case_number}.b'
-            build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
-            assert build.returncode == 0, build.stderr
-            assert (
-                expected_text('loop-exit-control-flow-diagnostics_2.stderr', source=source, keyword=keyword)
-                in build.stderr
-            )
-            assert (
-                subprocess.check_output([binary])
-                == expected_bytes('loop-exit-control-flow-diagnostics.stdout')
-            )
+    source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit_{case_number}.b'
+    run = compiler.run_native(source)
+    assert (
+        (run.returncode, run.stdout, run.stderr)
+        == (1,
+             b'',
+             expected_text('loop-exit-control-flow-diagnostics.stderr', source=source).encode())
+    )
+    source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit-variant-2_{case_number}.b'
+    build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
+    assert build.returncode == 0, build.stderr
+    assert (
+        expected_text('loop-exit-control-flow-diagnostics_2.stderr', source=source, keyword=keyword)
+        in build.stderr
+    )
+    assert (
+        subprocess.check_output([binary])
+        == expected_bytes('loop-exit-control-flow-diagnostics.stdout')
+    )
 
 
 def test_scalar_reads_after_loop_check_earlier_iterations(compiler, subtests):
@@ -250,26 +260,41 @@ def test_spaced_concatenating_assignment_requires_initial_value(compiler):
     )
 
 
-def test_compound_assignment_checks_conditionally_assigned_target(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name, expected_fixture',
+    [
+        pytest.param(
+            'compound_1.b',
+            'compound-assignment-checks-conditionally-assigned-target.stdout',
+            id='compound-1',
+        ),
+        pytest.param(
+            'compound_2.b',
+            'compound-assignment-checks-conditionally-assigned-target_2.stdout',
+            id='compound-2',
+        ),
+        pytest.param(
+            'compound_3.b',
+            'compound-assignment-checks-conditionally-assigned-target_3.stdout',
+            id='compound-3',
+        ),
+    ],
+)
+def test_compound_assignment_checks_conditionally_assigned_target(compiler, fixture_name, expected_fixture):
     binary = compiler.work / 'compound'
-    for fixture_name, expected in (
-        ('compound_1.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target.stdout')),
-        ('compound_2.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target_2.stdout')),
-        ('compound_3.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target_3.stdout')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/compound-assignment-checks-conditionally-assigned-target' / fixture_name
-            subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
-                           env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-            hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
-            assert (hit.returncode, hit.stdout, hit.stderr) == (0, expected, b'')
-            miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-            assert (
-                (miss.returncode, miss.stdout, miss.stderr)
-                == (1,
-                     b'',
-                     expected_text('compound-assignment-checks-conditionally-assigned-target.stderr', source=source).encode())
-            )
+    expected = expected_bytes(expected_fixture)
+    source = ROOT / 'tests/programs/compound-assignment-checks-conditionally-assigned-target' / fixture_name
+    subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                   env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+    hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
+    assert (hit.returncode, hit.stdout, hit.stderr) == (0, expected, b'')
+    miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
+    assert (
+        (miss.returncode, miss.stdout, miss.stderr)
+        == (1,
+             b'',
+             expected_text('compound-assignment-checks-conditionally-assigned-target.stderr', source=source).encode())
+    )
 
 
 def test_indexed_jump_selector(compiler):
@@ -426,18 +451,20 @@ def test_common_storage(compiler):
     assert expected_text('common-storage.stderr') in result.stderr
 
 
-def test_conflicting_common_declarations(compiler, subtests):
-    for fixture_name in (
-        'conflict_1.b',
-        'conflict_2.b',
-        'conflict_3.b',
-        'conflict_4.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/conflicting-common-declarations' / fixture_name
-            run = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert run.returncode != 0
-            assert expected_text('conflicting-common-declarations.stderr', source=source) in run.stderr
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('conflict_1.b', id='conflict-1'),
+        pytest.param('conflict_2.b', id='conflict-2'),
+        pytest.param('conflict_3.b', id='conflict-3'),
+        pytest.param('conflict_4.b', id='conflict-4'),
+    ],
+)
+def test_conflicting_common_declarations(compiler, fixture_name):
+    source = ROOT / 'tests/routines/conflicting-common-declarations' / fixture_name
+    run = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert run.returncode != 0
+    assert expected_text('conflicting-common-declarations.stderr', source=source) in run.stderr
 
 
 def test_common_member_keeps_first_slot_when_dimensioned_later(compiler):
@@ -500,42 +527,46 @@ def test_dim_rejects_a_common_matrix_rank_change(compiler):
     assert result.stderr == expected_text('dim-rejects-a-common-matrix-rank-change.stderr', source=source)
 
 
-def test_common_matrix_subscript_mismatches_report_when_reached(compiler, subtests):
-    for fixture_name in (
-        'subscripts_1.b',
-        'subscripts_2.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/common-matrix-subscript-mismatches-report-when-reached' / fixture_name
-            result = compiler.run_native(source)
-            assert (
-                (result.returncode, result.stdout)
-                == (1,
-                     expected_bytes('common-matrix-subscript-mismatches-report-when-reached.stdout'))
-            )
-            assert (
-                result.stderr
-                == expected_text('common-matrix-subscript-mismatches-report-when-reached.stderr', source=source).encode()
-            )
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('subscripts_1.b', id='subscripts-1'),
+        pytest.param('subscripts_2.b', id='subscripts-2'),
+    ],
+)
+def test_common_matrix_subscript_mismatches_report_when_reached(compiler, fixture_name):
+    source = ROOT / 'tests/routines/common-matrix-subscript-mismatches-report-when-reached' / fixture_name
+    result = compiler.run_native(source)
+    assert (
+        (result.returncode, result.stdout)
+        == (1,
+             expected_bytes('common-matrix-subscript-mismatches-report-when-reached.stdout'))
+    )
+    assert (
+        result.stderr
+        == expected_text('common-matrix-subscript-mismatches-report-when-reached.stderr', source=source).encode()
+    )
 
 
-def test_dim_reports_a_reached_common_matrix_resize(compiler, subtests):
-    for fixture_name in (
-        'shape_1.b',
-        'shape_2.b',
-        'shape_3.b',
-        'shape_4.b',
-        'shape_5.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/dim-reports-a-reached-common-matrix-resize' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode == 1, result.stderr
-            assert result.stdout == b''
-            assert (
-                result.stderr
-                == expected_text('dim-reports-a-reached-common-matrix-resize.stderr', source=source).encode()
-            )
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('shape_1.b', id='shape-1'),
+        pytest.param('shape_2.b', id='shape-2'),
+        pytest.param('shape_3.b', id='shape-3'),
+        pytest.param('shape_4.b', id='shape-4'),
+        pytest.param('shape_5.b', id='shape-5'),
+    ],
+)
+def test_dim_reports_a_reached_common_matrix_resize(compiler, fixture_name):
+    source = ROOT / 'tests/routines/dim-reports-a-reached-common-matrix-resize' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode == 1, result.stderr
+    assert result.stdout == b''
+    assert (
+        result.stderr
+        == expected_text('dim-reports-a-reached-common-matrix-resize.stderr', source=source).encode()
+    )
 
 
 def test_runtime_common_dimensions(compiler):
@@ -618,55 +649,61 @@ def test_repeated_local_dim_rejects_changed_rank(compiler):
     assert result.stderr == expected_text('repeated-local-dim-rejects-changed-rank.stderr', source=source)
 
 
-def test_repeated_local_dim_reports_reached_resize(compiler, subtests):
-    for fixture_name in (
-        'shape_1.b',
-        'shape_2.b',
-        'shape_3.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/repeated-local-dim-reports-reached-resize' / fixture_name
-            result = compiler.run_native(source)
-            assert (
-                (result.returncode, result.stdout)
-                == (1,
-                     expected_bytes('repeated-local-dim-reports-reached-resize.stdout'))
-            )
-            assert (
-                result.stderr
-                == expected_text('repeated-local-dim-reports-reached-resize.stderr', source=source).encode()
-            )
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('shape_1.b', id='shape-1'),
+        pytest.param('shape_2.b', id='shape-2'),
+        pytest.param('shape_3.b', id='shape-3'),
+    ],
+)
+def test_repeated_local_dim_reports_reached_resize(compiler, fixture_name):
+    source = ROOT / 'tests/routines/repeated-local-dim-reports-reached-resize' / fixture_name
+    result = compiler.run_native(source)
+    assert (
+        (result.returncode, result.stdout)
+        == (1,
+             expected_bytes('repeated-local-dim-reports-reached-resize.stdout'))
+    )
+    assert (
+        result.stderr
+        == expected_text('repeated-local-dim-reports-reached-resize.stderr', source=source).encode()
+    )
 
 
-def test_local_dimension_errors(compiler, subtests):
-    cases = [
-        ("N = 1.5\nDIM A(N)", expected_text('local-dimension-errors.stderr')),
-        ("N = 50000\nDIM A(N,N)", expected_text('local-dimension-errors_2.stderr')),
-        ("N = 2\nIF 0 THEN DIM A(N)\nMAT A = 0", expected_text('local-dimension-errors_3.stderr')),
-        ("FOR N = 1 TO 2\nDIM A(N)\nNEXT", expected_text('local-dimension-errors_4.stderr')),
-        ("N = 2\nDIM A(N)\nN = 3\nA(N) = 1", expected_text('local-dimension-errors_5.stderr')),
-    ]
-    for case_number, (program, location) in enumerate(cases, 1):
-        with subtests.test(program=program):
-            source = ROOT / 'tests/routines/local-dimension-errors' / f'bad_{case_number}.b'
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (str(source) + location).encode() in run.stderr
+@pytest.mark.parametrize(
+    'case_number, location_fixture',
+    [
+        pytest.param(1, 'local-dimension-errors.stderr', id='n-1.5-dim-a-n'),
+        pytest.param(2, 'local-dimension-errors_2.stderr', id='n-50000-dim-a-n-n'),
+        pytest.param(3, 'local-dimension-errors_3.stderr', id='n-2-if-0-then-dim-a-n-mat-a-0'),
+        pytest.param(4, 'local-dimension-errors_4.stderr', id='for-n-1-to-2-dim-a-n-next'),
+        pytest.param(5, 'local-dimension-errors_5.stderr', id='n-2-dim-a-n-n-3-a-n-1'),
+    ],
+)
+def test_local_dimension_errors(compiler, case_number, location_fixture):
+    location = expected_text(location_fixture)
+    source = ROOT / 'tests/routines/local-dimension-errors' / f'bad_{case_number}.b'
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (str(source) + location).encode() in run.stderr
 
 
-def test_runtime_common_dimension_errors(compiler, subtests):
-    cases = [
-        ("N = 1.5\nCOMMON A(N)", expected_text('runtime-common-dimension-errors.stderr')),
-        ("N = 50000\nCOMMON A(N,N)", expected_text('runtime-common-dimension-errors_2.stderr')),
-        ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", expected_text('runtime-common-dimension-errors_3.stderr')),
-        ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", expected_text('runtime-common-dimension-errors_4.stderr')),
-    ]
-    for case_number, (program, location) in enumerate(cases, 1):
-        with subtests.test(program=program):
-            source = ROOT / 'tests/routines/runtime-common-dimension-errors' / f'bad_{case_number}.b'
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (str(source) + location).encode() in run.stderr
+@pytest.mark.parametrize(
+    'case_number, location_fixture',
+    [
+        pytest.param(1, 'runtime-common-dimension-errors.stderr', id='n-1.5-common-a-n'),
+        pytest.param(2, 'runtime-common-dimension-errors_2.stderr', id='n-50000-common-a-n-n'),
+        pytest.param(3, 'runtime-common-dimension-errors_3.stderr', id='n-2-if-0-then-common-a-n-mat-a-0'),
+        pytest.param(4, 'runtime-common-dimension-errors_4.stderr', id='for-n-1-to-2-common-a-n-next'),
+    ],
+)
+def test_runtime_common_dimension_errors(compiler, case_number, location_fixture):
+    location = expected_text(location_fixture)
+    source = ROOT / 'tests/routines/runtime-common-dimension-errors' / f'bad_{case_number}.b'
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (str(source) + location).encode() in run.stderr
 
 
 def test_common_runtime_shape_across_routines(compiler):
@@ -718,20 +755,35 @@ def test_scalar_reads_after_case_are_checked_at_runtime(compiler, subtests):
             assert (run.returncode, run.stdout, run.stderr) == expected
 
 
-def test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms(compiler, subtests):
-    for fixture_name, location in (
-        ('case_1.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms.stderr')),
-        ('case_2.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_2.stderr')),
-        ('case_3.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/case-assignment-diagnostics-exclude-unreachable-and-sibling-arms' / fixture_name
-            result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert result.returncode != 0
-            assert (
-                expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_4.stderr', source=source, location=location)
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, location_fixture',
+    [
+        pytest.param(
+            'case_1.b',
+            'case-assignment-diagnostics-exclude-unreachable-and-sibling-arms.stderr',
+            id='case-1',
+        ),
+        pytest.param(
+            'case_2.b',
+            'case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_2.stderr',
+            id='case-2',
+        ),
+        pytest.param(
+            'case_3.b',
+            'case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_3.stderr',
+            id='case-3',
+        ),
+    ],
+)
+def test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms(compiler, fixture_name, location_fixture):
+    location = expected_text(location_fixture)
+    source = ROOT / 'tests/programs/case-assignment-diagnostics-exclude-unreachable-and-sibling-arms' / fixture_name
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode != 0
+    assert (
+        expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_4.stderr', source=source, location=location)
+        in result.stderr
+    )
 
 
 def test_scalar_reads_after_for_are_checked_at_runtime(compiler, subtests):
@@ -755,64 +807,79 @@ def test_scalar_reads_after_for_are_checked_at_runtime(compiler, subtests):
             assert (run.returncode, run.stdout, run.stderr) == expected
 
 
-def test_for_reads_check_values_from_earlier_iterations(compiler, subtests):
+@pytest.mark.parametrize(
+    'case_number, branch',
+    [
+        pytest.param(
+            1,
+            "IF I = 1 THEN Value = 'first' ELSE Value := ':' : I",
+            id='if-i-1-then-value-first-else-value-i',
+        ),
+        pytest.param(
+            2,
+            "IF I # 1 THEN Value := ':' : I ELSE Value = 'first'",
+            id='if-i-1-then-value-i-else-value-first',
+        ),
+    ],
+)
+def test_for_reads_check_values_from_earlier_iterations(compiler, case_number, branch):
     binary = compiler.work / 'iteration'
-    for case_number, branch in enumerate((
-        "IF I = 1 THEN Value = 'first' ELSE Value := ':' : I",
-        "IF I # 1 THEN Value := ':' : I ELSE Value = 'first'",
-    ), 1):
-        with subtests.test(branch=branch):
-            source = ROOT / 'tests/programs/for-reads-check-values-from-earlier-iterations' / f'iteration_{case_number}.b'
-            subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
-                           env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-            hit = subprocess.run([binary, '1'], capture_output=True, timeout=5)
-            assert (
-                (hit.returncode, hit.stdout, hit.stderr)
-                == (0,
-                     expected_bytes('for-reads-check-values-from-earlier-iterations.stdout'),
-                     b'')
-            )
-            miss = subprocess.run([binary, '2'], capture_output=True, timeout=5)
-            column = branch.index('Value :=') + 1
-            assert (
-                (miss.returncode, miss.stdout, miss.stderr)
-                == (1,
-                     b'',
-                     expected_text('for-reads-check-values-from-earlier-iterations.stderr', source=source, column=column).encode())
-            )
+    source = ROOT / 'tests/programs/for-reads-check-values-from-earlier-iterations' / f'iteration_{case_number}.b'
+    subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                   env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+    hit = subprocess.run([binary, '1'], capture_output=True, timeout=5)
+    assert (
+        (hit.returncode, hit.stdout, hit.stderr)
+        == (0,
+             expected_bytes('for-reads-check-values-from-earlier-iterations.stdout'),
+             b'')
+    )
+    miss = subprocess.run([binary, '2'], capture_output=True, timeout=5)
+    column = branch.index('Value :=') + 1
+    assert (
+        (miss.returncode, miss.stdout, miss.stderr)
+        == (1,
+             b'',
+             expected_text('for-reads-check-values-from-earlier-iterations.stderr', source=source, column=column).encode())
+    )
 
 
-def test_for_reads_without_an_initializer_are_compile_errors(compiler, subtests):
-    for fixture_name, column in (
-        ('iteration_1.b', 5),
-        ('iteration_2.b', 1),
-        ('iteration_3.b', 9),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/for-reads-without-an-initializer-are-compile-errors' / fixture_name
-            result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert result.returncode != 0
-            assert (
-                expected_text('for-reads-without-an-initializer-are-compile-errors.stderr', source=source, column=column)
-                in result.stderr
-            )
-            assert (
-                expected_text('for-reads-without-an-initializer-are-compile-errors_2.stderr')
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, column',
+    [
+        pytest.param('iteration_1.b', 5, id='iteration-1'),
+        pytest.param('iteration_2.b', 1, id='iteration-2'),
+        pytest.param('iteration_3.b', 9, id='iteration-3'),
+    ],
+)
+def test_for_reads_without_an_initializer_are_compile_errors(compiler, fixture_name, column):
+    source = ROOT / 'tests/programs/for-reads-without-an-initializer-are-compile-errors' / fixture_name
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode != 0
+    assert (
+        expected_text('for-reads-without-an-initializer-are-compile-errors.stderr', source=source, column=column)
+        in result.stderr
+    )
+    assert (
+        expected_text('for-reads-without-an-initializer-are-compile-errors_2.stderr')
+        in result.stderr
+    )
 
 
-def test_assignment_probe_does_not_initialize(compiler, subtests):
-    for fixture_name, location in (
-        ('probe_1.b', expected_text('assignment-probe-does-not-initialize.stderr')),
-        ('probe_2.b', expected_text('assignment-probe-does-not-initialize_2.stderr')),
-        ('probe_3.b', expected_text('assignment-probe-does-not-initialize_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/assignment-probe-does-not-initialize' / fixture_name
-            result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert result.returncode != 0
-            assert str(source) + location in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name, location_fixture',
+    [
+        pytest.param('probe_1.b', 'assignment-probe-does-not-initialize.stderr', id='probe-1'),
+        pytest.param('probe_2.b', 'assignment-probe-does-not-initialize_2.stderr', id='probe-2'),
+        pytest.param('probe_3.b', 'assignment-probe-does-not-initialize_3.stderr', id='probe-3'),
+    ],
+)
+def test_assignment_probe_does_not_initialize(compiler, fixture_name, location_fixture):
+    location = expected_text(location_fixture)
+    source = ROOT / 'tests/programs/assignment-probe-does-not-initialize' / fixture_name
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode != 0
+    assert str(source) + location in result.stderr
 
 
 def test_matrix_assignment_diagnostics(compiler):
