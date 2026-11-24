@@ -3530,6 +3530,14 @@ CRT X
                         directory / 'DOUBLE.IT', '-o', binary], check=True)
         self.assertEqual(subprocess.check_output([binary]), b'43\n')
 
+    def test_deffun_call_as_statement_discards_return_and_updates_argument(self):
+        main = self.work / 'main.b'
+        function = self.work / 'function.b'
+        main.write_text('DEFFUN Log.Event()\nCount = 4\nLog.Event(Count)\nCRT Count\n')
+        function.write_text('FUNCTION Log.Event(Count)\nCount += 1\nRETURN 99\n')
+        result = self.run_native(main, function)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'5\n', b''))
+
     def test_function_arguments_and_returns(self):
         main = self.work / 'main.b'
         inc = self.work / 'INC'
@@ -4561,6 +4569,17 @@ Last := '!'
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
 
+    def test_common_matrix_subscript_mismatches_report_when_reached(self):
+        source = self.work / 'subscripts.b'
+        for opening, reference in (('A(3)', 'A(1,2)'), ('A(2,3)', 'A(1)')):
+            with self.subTest(reference=reference):
+                source.write_text(f'COMMON /X/ {opening}\nIF 0 THEN CRT {reference}\n'
+                                  f'CRT "before"\n{reference} = 7\n')
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                self.assertEqual(result.stderr,
+                                 f'{source}:4:1: COMMON matrix subscript count is unsupported\n'.encode())
+
     def test_dim_reports_a_reached_common_matrix_resize(self):
         source = self.work / 'shape.b'
         for initial, redeclared in (('2', '3'), ('3', '2'), ('2,3', '3,2'), ('2', 'N'), ('N', '3')):
@@ -4710,22 +4729,22 @@ CRT Fixed(2)
         self.assertEqual(result.stdout, b'first\nfirst\nsecond\nsecond\n')
         self.assertEqual(result.stderr, b'')
 
-    def test_repeated_local_dim_rejects_changed_shape(self):
+    def test_repeated_local_dim_rejects_changed_rank(self):
         source = self.work / 'shape.b'
-        for bounds in ('3,2', '11'):
-            with self.subTest(bounds=bounds):
-                source.write_text(f'DIM A(2,3)\nDIM A({bounds})\n')
-                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
-                self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stderr, f'{source}:2:5: incompatible local matrix dimensions\n')
+        source.write_text('DIM A(2,3)\nDIM A(11)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{source}:2:5: incompatible local matrix dimensions\n')
 
-        for initial, repeated in (('2', 'N'), ('N', '3')):
+    def test_repeated_local_dim_reports_reached_resize(self):
+        source = self.work / 'shape.b'
+        for initial, repeated in (('2,3', '3,2'), ('2', 'N'), ('N', '3')):
             with self.subTest(initial=initial, repeated=repeated):
-                source.write_text(f'N = 2\nDIM A({initial})\nN = 3\nDIM A({repeated})\n')
+                source.write_text(f'N = 2\nDIM A({initial})\nN = 3\n'
+                                  f'IF 0 THEN DIM A({repeated})\nCRT "before"\nDIM A({repeated})\n')
                 result = self.run_native(source)
-                self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertEqual(result.stdout, b'')
-                self.assertEqual(result.stderr, f'{source}:4:5: incompatible local matrix dimensions\n'.encode())
+                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                self.assertEqual(result.stderr, f'{source}:6:5: local matrix resize is unsupported\n'.encode())
 
     def test_local_dimension_errors(self):
         source = self.work / 'bad.b'

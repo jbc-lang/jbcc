@@ -791,9 +791,11 @@ const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
     return out;
 }
 
-size_t jbc_matrix_index(int rank, const int *bounds, const char **indices,
+size_t jbc_matrix_index(int rank, const int *bounds, int count, const char **indices,
                  const char *file, int line, int column)
 {
+    if (rank != count)
+        numeric_error(file, line, column, "COMMON matrix subscript count is unsupported");
     size_t offset = 0;
     for (int i = 0; i < rank; ++i) {
         struct decimal n;

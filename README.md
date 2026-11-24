@@ -964,10 +964,11 @@ form. Each time execution reaches a declaration with expression bounds,
 jbcc evaluates them. A repeated DIM of a local matrix reuses its slot.
 For a runtime-sized matrix, the first declaration reached binds the
 bounds for that invocation. Subsequent declarations preserve the elements
-when the rank and bounds match. A shape mismatch or use before any
-runtime-sized declaration has executed raises a diagnostic. This policy
-is provisional pending a reference run. Unassigned reads and out-of-range
-subscripts produce runtime diagnostics.
+when the rank and bounds match. A rank change is a compile-time error.
+Executing a declaration that would change the bounds or using a
+runtime-sized matrix before its declaration has executed reports an
+error. Unassigned reads and out-of-range subscripts also produce runtime
+diagnostics.
 
 `MAT A = expression` evaluates the expression once and fills every slot,
 including index zero. `MAT A = MAT B` copies the values of a fully
@@ -1038,6 +1039,10 @@ to bounds in resize-enabled emulation. jbcc translates a DIM with the
 same rank and reports a source-located error if execution would change
 the bounds. A rank change is a compile-time error.
 [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
+
+Prime mode emits array accesses with fewer or more subscripts than the
+COMMON declaration supplies. jbcc translates these accesses and reports a
+source-located error if execution reaches one.
 
 The compiler also checks member count, rank, and known bounds across
 input files. For T24 declarations such as
@@ -2113,7 +2118,8 @@ own cursor across calls. [REMOVE in the jBASE manual](https://static.zumasys.com
 
 Declare a function before its first use with `DEFFUN DOUBLE.IT()`. Parameter
 names in a declaration are optional. The compiler checks each call against
-the supplied `FUNCTION` definition. As with `CALL`, scalar variables and
+the supplied `FUNCTION` definition. A standalone call such as
+`DOUBLE.IT(N)` discards the result. As with `CALL`, scalar variables and
 matrix elements are passed by reference and expressions use temporary slots.
 Pass a whole matrix with `CALL UPDATE(MAT Rows)` or `F(MAT Rows)`, and
 declare the receiving parameter with `MAT` in SUBROUTINE or FUNCTION.

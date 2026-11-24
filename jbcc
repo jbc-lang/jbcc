@@ -828,16 +828,7 @@ class Compiler:
             slot = self.matrix_slot(target)
             return self.variable_expression(target, slot, locate_source)
         elif word in self.functions and self.following.word == '(':
-            target = self.identifier()
-            args, kinds = self.call_arguments()
-            declared = self.functions[word]
-            if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
-                self.error(f"arguments disagree with DEFFUN for '{word}'", target)
-            self.calls.append((target, kinds, True))
-            args = direct_arguments(target.word, args, kinds)
-            result = self.temporary("NULL")
-            self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
-            return self.postfix(result, locate_source)
+            return self.postfix(self.function_call(), locate_source)
         elif word in self.c_functions and self.following.word == '(':
             return self.postfix(self.temporary(self.c_function_call()), locate_source)
         elif word == 'GETENV' and self.following.word == '(':
@@ -2525,6 +2516,18 @@ class Compiler:
         self.uses_subroutine_exists = True
         return f"jbc_subroutine_exists({name}, {info})"
 
+    def function_call(self):
+        target = self.identifier()
+        args, kinds = self.call_arguments()
+        declared = self.functions[target.word]
+        if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
+            self.error(f"arguments disagree with DEFFUN for '{target.word}'", target)
+        self.calls.append((target, kinds, True))
+        args = direct_arguments(target.word, args, kinds)
+        result = self.temporary("NULL")
+        self.emit(f"{routine_symbol(target.word)}({', '.join(['&' + result] + args)});")
+        return result
+
     def c_function_declaration(self):
         self.expect('DEFC')
         if self.word in C_FUNCTION_TYPES:
@@ -2779,7 +2782,7 @@ class Compiler:
                 return
         if (matrix and not pending and matrix.shape is not None and self.word == '('
                 and (not common or matrix.common_block == block_name)):
-            self.redeclare_matrix(token, matrix, resize=not common and matrix.common_block is not None)
+            self.redeclare_matrix(token, matrix, resize=not common)
             return
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
@@ -2839,7 +2842,7 @@ class Compiler:
 
         mismatch = 'NULL'
         if resize:
-            message = "COMMON matrix resize is unsupported"
+            message = f"{kind} matrix resize is unsupported"
             mismatch = c_string(message)
         for expected, bound in zip(matrix.shape, bounds):
             if expected is not None and expected != bound:
@@ -2946,11 +2949,11 @@ class Compiler:
         if matrix.shape is None:
             self.emit(f'if ({rank} != {len(subscripts)}) numeric_error({self.location(token)}, '
                       '"wrong number of MAT parameter subscripts");')
-        elif len(subscripts) != rank:
+        elif len(subscripts) != rank and matrix.common_block is None:
             self.error(f"expected {rank} subscripts for '{token.word}'", token)
         index = f"index_{self.temporaries}"
         self.temporaries += 1
-        self.emit(f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, "
+        self.emit(f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, {len(subscripts)}, "
                   f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
         return f"({matrix.base})[{index}]"
 
@@ -3337,6 +3340,9 @@ class Compiler:
             self.emit(f"jbc_set_user_root({self.expression()}, {self.location(target)});")
         elif self.word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
             self.emit(f"(void){self.subroutine_exists_call()};")
+        elif (self.word in self.functions and self.following.word == '('
+              and not self.uses_matrix(self.word, self.following.word)):
+            self.function_call()
         elif self.word in self.c_functions and self.following.word == '(':
             self.emit(f"(void){self.c_function_call()};")
         elif self.word in STEP_OPERATORS:

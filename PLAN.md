@@ -3027,7 +3027,7 @@ so the probe cannot establish which element is selected.
 
 - [ ] Verify excess and omitted matrix subscripts with the vendor
   runtime in Prime emulation. Check the first and second subscripts
-  independently before revising the rank diagnostic.
+  independently to determine which element is selected.
 
 - [x] Investigate JBASECOREDUMP in FATAL.ERROR.
 
@@ -3216,3 +3216,29 @@ all 17,263 previous passes.
 
 - [ ] Implement Base64 for ENCRYPT and DECRYPT, including how the runtime
   should handle decoded bytes that contain NUL.
+
+- [x] Translate the remaining matrix operations and standalone DEFFUN calls.
+
+Prime-mode reference generation emits COMMON accesses with the supplied
+subscripts, including both an omitted and an excess subscript in reduced
+probes. jbcc checks the count before indexing and reports a diagnostic
+when execution reaches a mismatch. Same-rank local DIM declarations also
+translate, with a diagnostic when execution would resize an array. The
+Logger insert declares the functions used as standalone statements in
+the two delivery interfaces. jbcc emits the existing function call and
+discards its result, preserving by-reference argument updates.
+
+The scan with the PB201214 Linux headers passes 17,327 of 17,336 candidates.
+Fourteen additional units pass and all 17,313 previous passes are preserved.
+
+- [ ] Decide how to handle the remaining T24 source diagnostics.
+  The reference emits local reads for PROGRAM.NAME, YACCNO, RR.DATES,
+  FILE.NAME and FM, which jbcc cannot establish as assigned at those
+  sites. Two reporting routines call FATAL.ERROR with inconsistent
+  arity. The remaining two files use .AZ.SLS.TYPE.I as an array selector
+  and 1ST.RECORD as an assignment target. In the reference output the
+  leading-dot selector becomes a string constant, and 1ST.RECORD becomes
+  a scalar store on assignment and a format expression when read.
+  Temporary source probes pass strict C99 checking after removing the
+  leading dot in STEST.AZ.PD.DATES.CHK, renaming 1ST.RECORD to FIRST.RECORD
+  in TK.VALIDATE.SYSGEN.FILES, or using @FM in LIST.DATA.
