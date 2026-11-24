@@ -2332,6 +2332,8 @@ class Compiler:
         if bare_exits is not None:
             exits = bare_exits if exits is None else exits & bare_exits
         if exits is not None:
+            # A later iteration can exit before revisiting an assignment.
+            self.maybe_assigned.update((self.assigned - exits) & self.names.keys())
             self.assigned = exits
 
     def identifier(self):

@@ -2850,7 +2850,24 @@ checking in byte mode. The total is 17,179 of 17,336 candidates,
 including all 17,177 previous passes. ARC.RECORDS.SELECT reaches its
 first read of R.ARC.RECORDS.SEL after REPEAT.
 
-- [ ] Investigate scalar reads after LOOP, starting with R.ARC.RECORDS.SEL
+- [x] Investigate scalar reads after LOOP, starting with R.ARC.RECORDS.SEL
   in ARC.RECORDS.SELECT. Check what is assigned when a guard exits
   before the body reaches the assignment, and when a later iteration
   exits after the assignment has already run.
+
+The reference compiler accepts a read after a LOOP whose guard can
+skip the assignment on the first iteration. It also accepts a read
+after an unconditional early EXIT preceding an assignment. jbcc now
+keeps possible assignments from the loop body and checks them at the
+read. Native tests cover a first-iteration exit, a later exit that sees
+the previous value, multiple guards, and the runtime diagnostic for an
+early EXIT or BREAK. [LOOP](https://jbc-lang.org/pages/loop.html).
+
+ARC.RECORDS.SELECT and four other units now pass strict C99 checking
+in byte mode. The total is 17,184 of 17,336 candidates, including all
+17,179 previous passes.
+
+- [ ] Investigate compound assignments to conditionally assigned
+  scalars, starting with REQ.ID in MB.E.STMT.ENT.DETAIL and YFLD in
+  CONV.LOCAL.TABLE.G12.2. Check the read of the previous value when
+  the initializing branch runs or is skipped.

@@ -1364,14 +1364,39 @@ NEXT I
         for keyword in ('EXIT', 'BREAK'):
             with self.subTest(keyword=keyword):
                 source.write_text(f"LOOP\nIF 1 THEN {keyword}\nX = 2\nUNTIL 1 REPEAT\nPRINT X\n")
-                build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
-                self.assertNotEqual(build.returncode, 0)
-                self.assertIn(f"{source}:5:7: unknown variable", build.stderr)
+                run = self.run_native(source)
+                self.assertEqual((run.returncode, run.stdout, run.stderr),
+                                 (1, b'', f"{source}:5:7: unassigned variable 'X'\n".encode()))
                 source.write_text(f"  {keyword}\nPRINT 'after'\n")
                 build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
                 self.assertEqual(build.returncode, 0, build.stderr)
                 self.assertIn(f'{source}:1:3: warning: {keyword} outside a loop ignored', build.stderr)
                 self.assertEqual(subprocess.check_output([binary]), b'after\n')
+
+    def test_scalar_reads_after_loop_check_earlier_iterations(self):
+        source = self.work / 'loop.b'
+        binary = self.work / 'loop'
+        source.write_text("""GET(ARG.) Limit
+Count = 0
+LOOP
+WHILE Count < Limit
+    Count += 1
+    Last = Count
+UNTIL Limit = 2
+REPEAT
+IF Limit # -1 THEN CRT Last
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        for limit, expected in (
+            ('-1', (0, b'', b'')),
+            ('0', (1, b'', f"{source}:9:24: unassigned variable 'Last'\n".encode())),
+            ('2', (0, b'1\n', b'')),
+            ('3', (0, b'3\n', b'')),
+        ):
+            with self.subTest(limit=limit):
+                run = subprocess.run([binary, limit], capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
     def test_continue_outside_loop(self):
         source = self.work / 'continue.b'
