@@ -26,7 +26,7 @@ verify collection before moving to the next group.
 
 - [x] Compiler diagnostics, preprocessing, and source encoding.
 - [x] Built-ins, arithmetic, strings, and dynamic arrays.
-- [ ] Control flow, variable assignment, matrices, and `COMMON`.
+- [x] Control flow, variable assignment, matrices, and `COMMON`.
 - [ ] Routine calls, functions, linkage, and the compiler driver.
 - [ ] Corpus reporting and external backend diagnostics.
 - [ ] File I/O, record operations, saved lists, and locks.
