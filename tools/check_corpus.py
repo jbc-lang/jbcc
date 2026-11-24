@@ -12,6 +12,11 @@ import shutil
 import subprocess
 import sys
 
+if __package__:
+    from .api_coverage import Coverage, read_catalogues, record_calls
+else:
+    from api_coverage import Coverage, read_catalogues, record_calls
+
 ROOT = Path(__file__).resolve().parents[1]
 COMPILER = runpy.run_path(str(ROOT / "jbcc"))
 RUNTIME = (ROOT / "runtime/jbc.c").read_text()
@@ -61,11 +66,12 @@ def group(message):
 
 
 def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
-          t24_source_fixes=False, quiet_next_warnings=False):
+          t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False):
     path = root / relative
     fixes = []
+    calls = []
     if path.name.startswith("I_"):
-        return relative, "include fragment", "", [], fixes, 0
+        return relative, "include fragment", "", [], fixes, 0, calls
     suppressed_next_warnings = 0
 
     def count_next_warning(_message):
@@ -77,7 +83,8 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
         unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
                                        separate_external_arities=True,
                                        defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
-                                       next_warning=count_next_warning if quiet_next_warnings else None)
+                                       next_warning=count_next_warning if quiet_next_warnings else None,
+                                       api_call=record_calls(calls) if collect_apis else None)
         externals = {}
         first_signatures = {}
         linkage_diagnostic = ""
@@ -115,16 +122,16 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings
+            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls
         warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
-        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings
+        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail, [], fixes, suppressed_next_warnings
+        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings
+        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls
     except OSError as error:
-        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings
+        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls
 
 
 def main():
@@ -140,24 +147,34 @@ def main():
                         help="apply the known T24 source fixes in memory and include them in the report")
     parser.add_argument("--quiet-next-warnings", action="store_true",
                         help="replace individual FOR/NEXT name mismatch warnings with a total on stderr")
+    parser.add_argument("--api-catalogue", type=Path, metavar="SPEC_DIR",
+                        help="include API coverage using the jbc-language spec directory")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
         parser.error("expected a corpus directory and a positive job count")
     if not shutil.which("cc"):
         parser.error("cc is required to check generated C")
+    coverage = None
+    if options.api_catalogue is not None:
+        try:
+            coverage = Coverage(read_catalogues(options.api_catalogue), root)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
     scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
                    defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes,
-                   quiet_next_warnings=options.quiet_next_warnings)
+                   quiet_next_warnings=options.quiet_next_warnings, collect_apis=coverage is not None)
     counts = Counter()
     blockers = Counter()
     files = {}
     suppressed_next_warnings = 0
     with ProcessPoolExecutor(max_workers=options.j) as pool:
-        for name, status, diagnostic, warnings, fixes, suppressed in pool.map(scan, paths, chunksize=16):
+        for name, status, diagnostic, warnings, fixes, suppressed, calls in pool.map(scan, paths, chunksize=16):
             suppressed_next_warnings += suppressed
             counts[status] += 1
+            if coverage is not None:
+                coverage.add_unit(name, status, calls)
             files[name] = {"status": status}
             if fixes:
                 files[name]["source_fixes"] = fixes
@@ -171,8 +188,23 @@ def main():
                 blockers[group(reason) if status == "rejected" else status] += 1
     if options.quiet_next_warnings:
         print(f"Suppressed {suppressed_next_warnings} FOR/NEXT name mismatch warnings.", file=sys.stderr)
-    print(json.dumps(dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files),
-                     indent=2))
+    report = dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files)
+    if coverage is not None:
+        for path in sorted((ROOT / "tests/snippets").glob("*.b")):
+            calls = []
+            name = str(path.relative_to(ROOT))
+            try:
+                COMPILER["compile_unit"](path, [], api_call=record_calls(calls))
+            except (COMPILER["Diagnostic"], UnicodeError, OSError) as error:
+                coverage.fixture_scan_failures.append({"file": name, "diagnostic": str(error)})
+                continue
+            coverage.add_snippet(name, calls)
+        report["api_coverage"] = coverage.report({
+            "corpus": str(root), "includes": [str(path.resolve()) for path in options.includes],
+            "source_encoding": options.source_encoding, "defer_unassigned_reads": options.defer_unassigned_reads,
+            "t24_source_fixes": options.t24_source_fixes,
+        })
+    print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":

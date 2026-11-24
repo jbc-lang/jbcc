@@ -2356,14 +2356,16 @@ CRT Response
         source = self.work / 'crypt.b'
         for function in ('ENCRYPT', 'DECRYPT'):
             with self.subTest(function=function):
-                source.write_text(f"""IF 0 THEN CRT {function}('text', '', 4)
+                for method in (4, 5):
+                    with self.subTest(method=method):
+                        source.write_text(f"""IF 0 THEN CRT {function}('text', '', {method})
 CRT 'before'
-CRT {function}('text', '', 5)
+CRT {function}('text', '', {method})
 """)
-                result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
-                self.assertEqual(result.stderr,
-                                 f'{source}:3:5: {function} requires a backend for this method\n'.encode())
+                        result = self.run_native(source)
+                        self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                        self.assertEqual(result.stderr,
+                                         f'{source}:3:5: {function} requires a backend for this method\n'.encode())
 
                 source.write_text(f"CRT {function}('text', '')\n")
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
@@ -3847,6 +3849,55 @@ CRT 'done'
             f'{good}:4:1: warning: CONTINUE outside a loop ignored',
             'Suppressed 2 FOR/NEXT name mismatch warnings.',
         ])
+
+    def test_corpus_api_coverage_counts_parsed_calls_by_form(self):
+        corpus = self.work / 'corpus'
+        corpus.mkdir()
+        spec = self.work / 'spec'
+        spec.mkdir()
+        (spec / 'functions.md').write_text(
+            '| `ABS` | `FUNC_PARM1` | [ABS](https://jbc-lang.org/pages/abs.html) |\n'
+            '| `BITOR` | `FUNC_PARM2` | — |\n'
+            '| `ENCRYPT` | `FUNC_PARM3` | — |\n'
+        )
+        (spec / 'header-functions.md').write_text(
+            '| 1 | `DEFC CExample(INT)` | — | — |\n'
+            '| 2 | `DEFC Unused(INT)` | — | — |\n'
+        )
+        (corpus / 'I_EXAMPLE').write_text(
+            "EQUATE Mask TO BITOR(1, 4)\nDEFC CExample(INT)\nDEFC Unused(INT)\n"
+        )
+        (corpus / 'main.b').write_text("""$INSERT I_EXAMPLE
+* ABS(1)
+CRT 'ABS(2)'
+DIM ABS(2)
+MAT ABS = 0
+CRT ABS(1)
+CRT Mask, Mask
+CRT CExample(1), ENCRYPT('x', '', 4), ENCRYPT('x', '', 1)
+""")
+        (corpus / 'other.b').write_text("$INSERT I_EXAMPLE\nCRT Mask\n")
+        (corpus / 'rejected.b').write_text("$INSERT I_EXAMPLE\nCRT Mask\nMAT Missing = 0\n")
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus, '--api-catalogue', spec]
+        report = json.loads(subprocess.check_output(command, text=True))
+        entries = {(api['kind'], api['name']): api for api in report['api_coverage']['apis']}
+        self.assertEqual(entries['expression', 'ABS']['guide'], 'https://jbc-lang.org/pages/abs.html')
+        self.assertEqual(entries['expression', 'ABS']['nominal_arity'], 1)
+        self.assertFalse(any(form['occurrences'] for form in entries['expression', 'ABS']['forms']))
+        self.assertEqual(entries['defc', 'Unused']['forms'], [])
+        bitor, = entries['expression', 'BITOR']['forms']
+        expected = {'arity': 2, 'occurrences': 4, 'units': 3, 'c99_checked_units': 2}
+        self.assertEqual({k: bitor[k] for k in expected}, expected)
+        self.assertEqual(bitor['example'], {'unit': 'main.b', 'file': 'I_EXAMPLE', 'line': 1, 'column': 16})
+        native, = entries['defc', 'CExample']['forms']
+        self.assertEqual((native['occurrences'], native['jbcc_support']), (1, 'backend required'))
+        forms = {form['variant']: form['jbcc_support'] for form in entries['expression', 'ENCRYPT']['forms']}
+        self.assertEqual(forms, {'method 1 (ROT13)': 'ROT13 implemented', 'method 4 (Base64)': 'backend required'})
+        report_path = self.work / 'coverage.json'
+        report_path.write_text(json.dumps(report))
+        markdown = subprocess.check_output([sys.executable, ROOT / 'tools/api_coverage.py', report_path], text=True)
+        self.assertIn('| Expression calls | 3 | 2 | 1 |', markdown)
+        self.assertIn('| `ENCRYPT` | method 4 (Base64) | — | 1 | backend required |', markdown)
 
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = self.work / 'main.b'

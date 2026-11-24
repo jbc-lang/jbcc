@@ -607,13 +607,14 @@ class ForAssignments(NamedTuple):
 
 class Compiler:
     def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False,
-                 defer_unassigned_reads=False, next_warning=None):
+                 defer_unassigned_reads=False, next_warning=None, api_call=None):
         self.path = path
         self.unit = unit
         self.encoding = encoding
         self.separate_external_arities = separate_external_arities
         self.defer_unassigned_reads = defer_unassigned_reads
         self.next_warning = next_warning
+        self.api_call = api_call
         self.warnings = []
         self.routine = None
         self.is_function = False
@@ -738,6 +739,10 @@ class Compiler:
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
 
+    def record_api_call(self, token, arity, kind='expression', form=None):
+        if self.api_call is not None:
+            self.api_call(token, arity, kind, form)
+
     def primary(self, locate_source=False):
         word = self.word
         if word in STEP_OPERATORS:
@@ -766,6 +771,7 @@ class Compiler:
                     self.advance()
                     row = self.expression()
                 self.expect(')')
+                self.record_api_call(target, 1 if row == "NULL" else 2)
                 cursor = self.temporary(f"jbc_cursor({col}, {row}, {self.location(target)})")
                 return self.postfix(cursor, locate_source)
             if self.word == 'SYSTEM.RETURN.CODE':
@@ -847,6 +853,7 @@ class Compiler:
         elif word in self.c_functions and self.following.word == '(':
             return self.postfix(self.temporary(self.c_function_call()), locate_source)
         elif word == 'GETENV' and self.following.word == '(':
+            opening = self.current
             self.advance()
             self.advance()
             name = self.expression()
@@ -857,6 +864,7 @@ class Compiler:
                 target = self.identifier()
                 output = '&' + self.variable_slot(target)
             self.expect(')')
+            self.record_api_call(opening, 2 if target else 1)
             value = self.temporary(f'jbc_getenv({name}, {output})')
             if target and target.word not in self.matrices:
                 self.assigned.add(target.word)
@@ -885,9 +893,11 @@ class Compiler:
                 self.advance()
                 index = self.expression()
             self.expect(')')
+            self.record_api_call(opening, 1 if index == 'NULL' else 2)
             call = f"jbc_indices({handle}, {index}, {self.location(opening)})"
             return self.postfix(self.temporary(call), locate_source)
         elif word == 'INMAT' and self.following.word == '(':
+            opening = self.current
             self.advance()
             self.expect('(')
             args = "0, NULL"
@@ -895,16 +905,19 @@ class Compiler:
                 matrix = self.checked_matrix(self.matrix_name())
                 args = f"{matrix.rank}, {matrix.limits}"
             self.expect(')')
+            self.record_api_call(opening, 0 if args == "0, NULL" else 1)
             return self.postfix(self.temporary(f"jbc_inmat({args})"), locate_source)
         elif word == 'READNEXT' and (self.following.kind == 'name' or self.following.word == '@'):
             call = self.readnext_call()
             return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
         elif word in ('ASSIGNED', 'UNASSIGNED') and self.following.word == '(':
+            opening = self.current
             self.advance()
             self.expect('(')
             target = self.identifier()
             slot = self.variable_slot(target)
             self.expect(')')
+            self.record_api_call(opening, 1)
             assigned = word == 'ASSIGNED'
             comparison = '!=' if assigned else '=='
             value = self.temporary(f'{slot}.value {comparison} NULL ? "1" : "0"')
@@ -941,6 +954,12 @@ class Compiler:
                 self.error("expected ')' after function arguments")
             if len(args) not in BUILTINS[word]:
                 self.error(f"wrong argument count for '{word}'", target)
+            if self.api_call is not None:
+                form = None
+                if word in ('ENCRYPT', 'DECRYPT'):
+                    method = re.fullmatch(r'"([0-9]{1,4})"', args[2])
+                    form = f"method {method[1]}" if method else "computed method"
+                self.record_api_call(target, len(args), form=form)
             args.extend(str(reuse[i]) for i in reuse_positions)
             if word in ('DELETE', 'EXTRACT'):
                 indices = args[1:]
@@ -1116,6 +1135,7 @@ class Compiler:
         self.expect('(')
         scalar = self.expression()
         self.expect(')')
+        self.record_api_call(wrapper, 1)
         if context is None:
             context = REUSE_OPERATORS.get(self.word, ('an infix expression', None))[0]
         message = c_string(f"REUSE in {context} requires a scalar")
@@ -1381,6 +1401,7 @@ class Compiler:
             self.expect(';')
         value = self.expression()
         self.expect(')')
+        self.record_api_call(target, len(indices) + 2)
         positions = ", ".join(indices)
         inserting = int(target.word == 'INSERT')
         return self.temporary(f"jbc_update_array({source}, {value}, (const char *[]){{{positions}}}, "
@@ -1417,6 +1438,7 @@ class Compiler:
         return self.variable_slot(source)
 
     def remove_expression(self):
+        opening = self.current
         self.advance()
         self.expect('(')
         token = self.current
@@ -1435,6 +1457,7 @@ class Compiler:
         status = self.identifier()
         setting = self.variable_slot(status)
         self.expect(')')
+        self.record_api_call(opening, 2)
         if status.word not in self.matrices:
             self.assigned.add(status.word)
         return self.temporary(f"jbc_remove(NULL, {source}, &{setting}, "
@@ -2517,19 +2540,24 @@ class Compiler:
         self.expect(',')
         output, name = self.scalar_argument()
         self.expect(')')
+        self.record_api_call(opening, 3)
         value = self.temporary(f"jbc_ioctl({handle}, {command}, {output}, {self.location(opening)})")
         if name is not None:
             self.assignment_facts[value, True] = {name}
         return value
 
     def subroutine_exists_call(self):
+        opening = self.current
         self.advance()
+        function = self.current
         self.expect('JBASESubroutineExist')
         self.expect('(')
         name = self.expression()
         self.expect(',')
         info, target = self.scalar_argument()
         self.expect(')')
+        self.record_api_call(opening, 2, form=function.word)
+        self.record_api_call(function, 2)
         if target is not None:
             self.assigned.add(target)
         self.uses_subroutine_exists = True
@@ -2599,6 +2627,7 @@ class Compiler:
         self.expect(')')
         if index != len(types):
             self.error(f"too few arguments for DEFC '{target.word}'", target)
+        self.record_api_call(target, index, kind='defc')
         reason = c_string(f"C function '{target.word}' requires the jBASE C runtime")
         return f"(numeric_error({self.location(target)}, {reason}), (const char *)NULL)"
 
@@ -2616,6 +2645,7 @@ class Compiler:
             if target.word not in self.matrices:
                 self.assigned.add(target.word)
         self.expect(')')
+        self.record_api_call(opening, 2 if status == 'NULL' else 3)
         reason = c_string(f"{opening.word} requires an XML backend")
         return self.temporary(f"jbc_xml_transform({value}, {stylesheet}, {status}, {reason}, {self.location(opening)})")
 
@@ -3801,10 +3831,10 @@ def render_subroutine_exists(units):
 
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
-                 defer_unassigned_reads=False, source_filter=None, next_warning=None):
+                 defer_unassigned_reads=False, source_filter=None, next_warning=None, api_call=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
-                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning)
+                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call)
     unit.parse(list(Preprocessor(directories, encoding, source_filter=source_filter).read(path)))
     return unit
 

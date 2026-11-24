@@ -2207,6 +2207,26 @@ Linking its external dependencies and verifying its behavior require separate
 tests. UTF-8 decoding failures are counted separately and identify the
 source or include that could not be decoded.
 
+### API coverage
+
+[COVERAGE.md](COVERAGE.md) summarizes recognized expression and `DEFC` calls
+against the documentation repo's catalogues. Run the scan with
+`--api-catalogue` to add guide references, forms, counts, source examples,
+and test references to the JSON report. The report uses paths from your
+local checkout and corpus.
+
+```sh
+python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/include \
+  -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
+  --quiet-next-warnings --api-catalogue ../temenos-documentation/spec > /tmp/jbcc-api-coverage.json
+python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
+```
+
+Calls counted after include and equate expansion can appear in several
+translation units. The JSON tracks occurrences and C99-checked units
+separately. Its snippet references identify source that contains a call.
+Reviewed runtime assertions are recorded independently.
+
 ## Test corpus
 
 ```sh
