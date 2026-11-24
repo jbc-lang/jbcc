@@ -1412,20 +1412,7 @@ IF Limit # -1 THEN CRT Last
 
     def test_loop_control_does_not_use_the_gosub_callers_loop(self):
         # The 201015.001 reference emits no jump for either statement here.
-        source = self.work / 'gosub-loop-control.b'
-        source.write_text('''FOR I = 1 TO 2
-    GOSUB Work
-    CRT 'caller ':I
-NEXT I
-STOP
-Work:
-    IF I = 1 THEN CONTINUE
-    IF I = 2 THEN
-        EXIT
-    END
-    CRT 'body ':I
-    RETURN
-''')
+        source = ROOT / 'tests/programs/gosub-loop-control.b'
         binary = self.work / 'program'
         build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
         self.assertEqual(build.returncode, 0, build.stderr)

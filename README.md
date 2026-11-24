@@ -2276,7 +2276,9 @@ Put self-contained, single-source success cases in `tests/snippets/` as
 by unittest and pytest. The runner invokes the CLI, compiles with strict
 C99 warnings, and checks for exit zero, byte-for-byte stdout and empty
 stderr. Python tests cover diagnostics, multiple sources, runtime setup
-and side effects.
+and side effects. Keep their static jBC source in checked-in `.b` files
+as well. Generate source in Python when the test needs to construct or
+vary it.
 The expected outputs are project expectations. The conversion and printing
 rules draw on the guide's [string variables](https://jbc-lang.org/pages/string_variables.html),
 [numeric variables](https://jbc-lang.org/pages/numeric_variables.html) and
