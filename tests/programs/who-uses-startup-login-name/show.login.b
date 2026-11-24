@@ -1,0 +1,3 @@
+SUBROUTINE SHOW.LOGIN()
+Changed = PUTENV('JBCLOGNAME=changed')
+CRT Changed:':':@WHO:':':SYSTEM(19)

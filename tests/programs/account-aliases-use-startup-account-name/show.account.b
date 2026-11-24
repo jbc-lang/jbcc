@@ -1,0 +1,3 @@
+SUBROUTINE SHOW.ACCOUNT()
+Changed = PUTENV('JBCLOGNAME=changed') + PUTENV('LOGNAME=changed')
+CRT Changed:':':@LOGNAME:':':@ACCOUNT:':':@WHO

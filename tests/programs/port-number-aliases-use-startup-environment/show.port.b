@@ -1,0 +1,4 @@
+SUBROUTINE SHOW.PORT()
+Changed = PUTENV('JBCPORTNO=99')
+Code = 18
+CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)

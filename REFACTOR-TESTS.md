@@ -276,19 +276,19 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Session identity and environment (13)
 
-- [ ] `test_account_path_uses_working_directory`
-- [ ] `test_terminal_type_aliases_follow_term`
-- [ ] `test_tty_name_with_terminal_and_redirected_input`
-- [ ] `test_port_number_aliases_use_startup_environment`
-- [ ] `test_pid_uses_native_process_id_with_port_override`
-- [ ] `test_user_root_is_shared_with_linked_routines_and_userstats`
-- [ ] `test_user_root_limit_counts_bytes`
-- [ ] `test_port_number_defaults_to_process_id`
-- [ ] `test_invalid_port_number_reports_call_site`
-- [ ] `test_who_uses_startup_login_name`
-- [ ] `test_who_defaults_to_posix_user_name`
-- [ ] `test_account_aliases_use_startup_account_name`
-- [ ] `test_account_defaults_to_posix_user_name`
+- [x] `test_account_path_uses_working_directory`
+- [x] `test_terminal_type_aliases_follow_term`
+- [x] `test_tty_name_with_terminal_and_redirected_input`
+- [x] `test_port_number_aliases_use_startup_environment`
+- [x] `test_pid_uses_native_process_id_with_port_override`
+- [x] `test_user_root_is_shared_with_linked_routines_and_userstats`
+- [x] `test_user_root_limit_counts_bytes`
+- [x] `test_port_number_defaults_to_process_id`
+- [x] `test_invalid_port_number_reports_call_site`
+- [x] `test_who_uses_startup_login_name`
+- [x] `test_who_defaults_to_posix_user_name`
+- [x] `test_account_aliases_use_startup_account_name`
+- [x] `test_account_defaults_to_posix_user_name`
 
 ## User statistics (5)
 

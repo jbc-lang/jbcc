@@ -4517,8 +4517,7 @@ CRT {function}('text', '', {method})
             self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'3\n11\n11\n12:9\n3\n', b''))
 
     def test_account_path_uses_working_directory(self):
-        source = self.work / 'path.b'
-        source.write_text('CRT @PATH\n')
+        source = ROOT / 'tests/programs/account-path-uses-working-directory.b'
         cwd = self.work.joinpath(*(['directory-' + 'x' * 60] * 4))
         cwd.mkdir(parents=True)
         env = dict(os.environ, HOME='/unused-home', PWD='/unused-pwd')
@@ -4528,11 +4527,7 @@ CRT {function}('text', '', {method})
         self.assertEqual(result.stderr, b'')
 
     def test_terminal_type_aliases_follow_term(self):
-        source = self.work / 'terminal.b'
-        source.write_text("""CRT '[':@TERM.TYPE:'] [':@TERM_TYPE:'] [':@TERMTYPE:']'
-Changed = PUTENV('TERM=vt220')
-CRT Changed:':':@TERM.TYPE:':':@TERM_TYPE:':':@TERMTYPE
-""")
+        source = ROOT / 'tests/programs/terminal-type-aliases-follow-term.b'
         for term in ('xterm-256color', '', None):
             with self.subTest(term=term):
                 env = dict(os.environ)
@@ -4547,8 +4542,7 @@ CRT Changed:':':@TERM.TYPE:':':@TERM_TYPE:':':@TERMTYPE
                 self.assertEqual(result.stderr, b'')
 
     def test_tty_name_with_terminal_and_redirected_input(self):
-        source = self.work / 'tty.b'
-        source.write_text("CRT '[':@TTY:']'\nCRT @TTY[1,1]\n")
+        source = ROOT / 'tests/programs/tty-name-with-terminal-and-redirected-input.b'
         binary = self.work / 'tty'
         subprocess.run([CLI, source, '-o', self.c], check=True)
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
@@ -4566,14 +4560,8 @@ CRT Changed:':':@TERM.TYPE:':':@TERM_TYPE:':':@TERMTYPE
                 self.assertEqual(run.stderr, b'')
 
     def test_port_number_aliases_use_startup_environment(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'show.port.b'
-        main.write_text('CALL SHOW.PORT()\n')
-        routine.write_text("""SUBROUTINE SHOW.PORT()
-Changed = PUTENV('JBCPORTNO=99')
-Code = 18
-CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
-""")
+        main = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/main.b'
+        routine = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/show.port.b'
         for setting, port in [('00042', '42'), ('0', '0')]:
             with self.subTest(setting=setting):
                 run = self.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
@@ -4582,8 +4570,7 @@ CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
                 self.assertEqual(run.stderr, b'')
 
     def test_pid_uses_native_process_id_with_port_override(self):
-        source = self.work / 'pid.b'
-        source.write_text("CRT @PID\nCRT @USERNO\n")
+        source = ROOT / 'tests/programs/pid-uses-native-process-id-with-port-override.b'
         binary = self.work / 'pid'
         subprocess.run([CLI, source, '-o', self.c], check=True)
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
@@ -4596,27 +4583,14 @@ CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
             self.assertEqual(stderr, b'')
 
     def test_user_root_is_shared_with_linked_routines_and_userstats(self):
-        source = self.work / 'main.b'
-        routine = self.work / 'publish.b'
-        source.write_text("""CRT '[':@USER.ROOT:']'
-Before = @USERSTATS
-CALL PUBLISH
-Saved = @USER.ROOT
-Published = @USERSTATS
-@USER.ROOT = 'updated'
-CRT '[':Before<28>:']', LEN(Saved), LEN(Published<28>), @USERSTATS<28>
-CRT Saved = Published<28>
-@USER.ROOT = ''
-CRT '[':@USER.ROOT:']:[':@USERSTATS<28>:']'
-""")
-        routine.write_text("SUBROUTINE PUBLISH\n@USER.ROOT = STR('x',61):'é'\n", encoding='utf-8')
+        source = ROOT / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/main.b'
+        routine = ROOT / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/publish.b'
         run = self.run_native(source, routine, env=dict(os.environ, JBCPORTNO='1'))
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'[]\n[]\t63\t63\tupdated\n1\n[]:[]\n', b''))
 
     def test_user_root_limit_counts_bytes(self):
-        source = self.work / 'oversize.b'
-        source.write_text("@USER.ROOT = STR('x',62):'é'\n", encoding='utf-8')
+        source = ROOT / 'tests/programs/user-root-limit-counts-bytes.b'
         run = self.run_native(source)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (1, b'', f"{source}:1:1: @USER.ROOT accepts at most 63 bytes\n".encode()))
@@ -4771,8 +4745,7 @@ CRT '[':Ended:'] ':@USERSTATS<24>
         self.assertIn(f'{source}:1:5: JBCPORTNO requires'.encode(), result.stderr)
 
     def test_port_number_defaults_to_process_id(self):
-        source = self.work / 'port.b'
-        source.write_text('CRT @USERNO\nCRT @USER.NO\n')
+        source = ROOT / 'tests/programs/port-number-defaults-to-process-id.b'
         binary = self.work / 'port'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         env = dict(os.environ)
@@ -4789,8 +4762,7 @@ CRT '[':Ended:'] ':@USERSTATS<24>
                     self.assertEqual(stderr, b'')
 
     def test_invalid_port_number_reports_call_site(self):
-        source = self.work / 'port.b'
-        source.write_text("CRT SYSTEM(17)\nCRT @USERNO\n")
+        source = ROOT / 'tests/programs/invalid-port-number-reports-call-site.b'
         for setting in ('12-15', '42,43', '-1', '12.25', '9' * 80):
             with self.subTest(setting=setting):
                 run = self.run_native(source, env=dict(os.environ, JBCPORTNO=setting))
@@ -4801,13 +4773,8 @@ CRT '[':Ended:'] ':@USERSTATS<24>
                     run.stderr)
 
     def test_who_uses_startup_login_name(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'show.login.b'
-        main.write_text('CALL SHOW.LOGIN()\n')
-        routine.write_text("""SUBROUTINE SHOW.LOGIN()
-Changed = PUTENV('JBCLOGNAME=changed')
-CRT Changed:':':@WHO:':':SYSTEM(19)
-""")
+        main = ROOT / 'tests/programs/who-uses-startup-login-name/main.b'
+        routine = ROOT / 'tests/programs/who-uses-startup-login-name/show.login.b'
         for name, legacy, expected in [('MainAccount', 'Fallback', 'MainAccount'),
                                        ('', 'GuideAccount', 'GuideAccount')]:
             with self.subTest(name=name):
@@ -4818,8 +4785,7 @@ CRT Changed:':':@WHO:':':SYSTEM(19)
                 self.assertEqual(run.stderr, b'')
 
     def test_who_defaults_to_posix_user_name(self):
-        source = self.work / 'who.b'
-        source.write_text('CRT @WHO\n')
+        source = ROOT / 'tests/programs/who-defaults-to-posix-user-name.b'
         env = dict(os.environ, USER='different', LOGNAME='different')
         env.pop('JBCLOGNAME', None)
         env.pop('JBASICLOGNAME', None)
@@ -4833,13 +4799,8 @@ CRT Changed:':':@WHO:':':SYSTEM(19)
         self.assertEqual(run.stderr, b'')
 
     def test_account_aliases_use_startup_account_name(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'show.account.b'
-        main.write_text('CALL SHOW.ACCOUNT()\n')
-        routine.write_text("""SUBROUTINE SHOW.ACCOUNT()
-Changed = PUTENV('JBCLOGNAME=changed') + PUTENV('LOGNAME=changed')
-CRT Changed:':':@LOGNAME:':':@ACCOUNT:':':@WHO
-""")
+        main = ROOT / 'tests/programs/account-aliases-use-startup-account-name/main.b'
+        routine = ROOT / 'tests/programs/account-aliases-use-startup-account-name/show.account.b'
         for override, unix_name, account, login in [
                 ('Pseudo', 'Unix', 'Pseudo', 'Pseudo'),
                 ('', 'Unix', 'Unix', 'GuideLogin'),
@@ -4853,8 +4814,7 @@ CRT Changed:':':@LOGNAME:':':@ACCOUNT:':':@WHO
                 self.assertEqual(run.stderr, b'')
 
     def test_account_defaults_to_posix_user_name(self):
-        source = self.work / 'account.b'
-        source.write_text('CRT @LOGNAME\nCRT @ACCOUNT\n')
+        source = ROOT / 'tests/programs/account-defaults-to-posix-user-name.b'
         env = dict(os.environ)
         for name in ('JBCLOGNAME', 'LOGNAME', 'JBASICLOGNAME'):
             env.pop(name, None)
