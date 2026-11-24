@@ -718,6 +718,13 @@ joins all arguments with one space. Embedded spaces and empty arguments
 are preserved, and shell quoting is already removed by the time the
 program starts.
 
+`@PARASENTENCE` returns the invoking paragraph or sentence. A native
+launcher can provide that text through `JBCC_PARASENTENCE`, which jbcc
+reads at startup. When the value is empty or unset, `@PARASENTENCE`
+returns the same invocation as `@SENTENCE`. Both are available in
+called routines, and later environment changes leave the startup text
+intact.
+
 `SENTENCE()` and `SENTENCE('')` return the full invocation. `SENTENCE(0)`
 returns the program name, and positive integer positions select individual
 arguments starting at 1. Indexed reads preserve argument boundaries,

@@ -4839,6 +4839,23 @@ CRT '[':SENTENCE(-1):'] [':SENTENCE(999999999999999999999999):']'
                 self.assertEqual((run.returncode, run.stdout, run.stderr),
                                  (0, ('\n'.join(expected) + '\n').encode(), b''))
 
+    def test_parasentence_uses_launch_context_or_invocation(self):
+        sources = ROOT / 'tests/routines'
+        binary = self.work / 'invocation'
+        subprocess.run([CLI, '--exe', sources / 'parasentence-main.b',
+                        sources / 'show-parasentence.b', '-o', binary], check=True)
+        for supplied in (None, '', 'NIGHTLY  REPORT'):
+            with self.subTest(supplied=supplied):
+                env = dict(os.environ)
+                env.pop('JBCC_PARASENTENCE', None)
+                if supplied is not None:
+                    env['JBCC_PARASENTENCE'] = supplied
+                invocation = './invocation two words'
+                expected = f"[{supplied or invocation}]\n[{invocation}]\n".encode() * 2
+                run = subprocess.run(['./invocation', 'two words'], cwd=self.work, env=env,
+                                     capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected, b''))
+
     def test_sentence_function_preserves_get_argument_cursor(self):
         source = self.work / 'args.b'
         binary = self.work / 'args'

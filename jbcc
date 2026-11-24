@@ -857,6 +857,11 @@ class Compiler:
                 self.needs_arguments = True
                 self.advance()
                 return self.postfix("jbc_command_line", locate_source)
+            if self.word == 'PARASENTENCE':
+                self.uses_session = True
+                self.needs_arguments = True
+                self.advance()
+                return self.postfix("jbc_para_sentence()", locate_source)
             if self.word not in SYSTEM_CONSTANTS:
                 if self.current.kind in ('name', 'system_name'):
                     self.error(f"unsupported system variable '@{self.word}'")

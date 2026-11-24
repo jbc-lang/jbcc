@@ -1064,6 +1064,7 @@ static uintmax_t port_number;
 static int invalid_port_number;
 static const char *login_override;
 static const char *account_override;
+static const char *paragraph_sentence;
 static char user_root[64];
 
 #ifdef JBC_USERSTATS
@@ -1088,6 +1089,7 @@ void jbc_init_session(void)
     account_override = login_override;
     if (!login_override) login_override = session_environment("JBASICLOGNAME");
     if (!account_override) account_override = session_environment("LOGNAME");
+    paragraph_sentence = session_environment("JBCC_PARASENTENCE");
 
     const char *value = getenv("JBCPORTNO");
     if (!value || !*value) {
@@ -1098,6 +1100,11 @@ void jbc_init_session(void)
     errno = 0;
     port_number = strtoumax(value, &end, 10);
     invalid_port_number = errno || *end || *value < '0' || *value > '9';
+}
+
+const char *jbc_para_sentence(void)
+{
+    return paragraph_sentence ? paragraph_sentence : jbc_command_line;
 }
 
 const char *jbc_port_number(const char *file, int line, int column)

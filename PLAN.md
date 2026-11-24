@@ -3396,6 +3396,17 @@ units also pass with their established scan options.
   through `RECORDLOCKED` is an in-memory backend convention.
   The full R07 scan passes strict C99 checks for 15,025 of 15,030 units
   with the source fixes and include stub enabled. All previous passes hold.
-- [ ] Investigate `@PARASENTENCE` for `DE.CC.GENERIC`. The guide defines
-  it as the sentence or paragraph that invoked the process. Determine
-  how to expose that context in a standalone jbcc program.
+- [x] Support `@PARASENTENCE` for `DE.CC.GENERIC`. The reference emits
+  `ATFUNC_BI(12)`. In PB201214 Linux, the corresponding
+  `JLibEATFUNC_BI` branch tries `PROCREAD` and falls back to the full
+  invocation. Standalone jbcc programs take paragraph context from
+  `JBCC_PARASENTENCE` at startup and share the same fallback. The native
+  fixture checks a called routine, unset and empty values, whitespace
+  preservation and stability across environment changes. The full R07
+  scan passes strict C99 checks for 15,026 of 15,030 units with the
+  source fixes and include stub enabled. All previous passes hold.
+- [ ] Investigate the two-subscript access to the one-dimensional local
+  matrix `CR.REC` in `MG.EOD.REDEFINE.CONTRACT.RATES`. The reference
+  accepts the source and passes both subscripts to `DYNARRAY_BB`.
+  Establish the behavior of the second subscript before changing jbcc
+  or adding a corpus workaround.
