@@ -229,9 +229,9 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Corpus scanning and reporting (3)
 
-- [ ] `test_corpus_reports_deferred_reads_in_includes`
-- [ ] `test_corpus_can_summarize_next_name_mismatch_warnings`
-- [ ] `test_corpus_report_can_preserve_source_bytes`
+- [x] `test_corpus_reports_deferred_reads_in_includes`
+- [x] `test_corpus_can_summarize_next_name_mismatch_warnings`
+- [x] `test_corpus_report_can_preserve_source_bytes`
 
 ## Command execution and piped output (7)
 

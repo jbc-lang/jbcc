@@ -2974,9 +2974,8 @@ CRT {function}('text', '', {method})
         self.assertEqual(result.stderr, f"{source}:1:5: unknown variable or unsupported function 'Missing'\n")
 
     def test_corpus_reports_deferred_reads_in_includes(self):
-        (self.work / 'main.b').write_text('$INSERT I_EXAMPLE\n')
-        (self.work / 'I_EXAMPLE').write_text("FOR I = 1 TO 2\nCRT Missing\nNEXT I\n")
-        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        corpus = ROOT / 'tests/corpus/deferred-include-reads'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
         strict = json.loads(subprocess.check_output(command, text=True))
         self.assertEqual(strict['files']['main.b'], {
             'status': 'rejected',
@@ -3095,12 +3094,10 @@ CRT {function}('text', '', {method})
         self.assertIn('bad:1:5:', data['files']['bad']['diagnostic'])
 
     def test_corpus_can_summarize_next_name_mismatch_warnings(self):
-        good = self.work.resolve() / 'good.b'
-        bad = self.work.resolve() / 'bad.b'
-        loop = 'FOR I = 1 TO 1\nCRT I\nNEXT Other\n'
-        good.write_text(loop + 'CONTINUE\n')
-        bad.write_text(loop + 'MAT Missing = 0\n')
-        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work, '-j', '2']
+        corpus = ROOT / 'tests/corpus/next-name-warnings'
+        good = corpus / 'good.b'
+        bad = corpus / 'bad.b'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus, '-j', '2']
         verbose = subprocess.run(command, capture_output=True, text=True, check=True)
         quiet = subprocess.run(command + ['--quiet-next-warnings'], capture_output=True, text=True, check=True)
         report = json.loads(quiet.stdout)
@@ -3252,9 +3249,8 @@ CRT {function}('text', '', {method})
         self.assertFalse(self.c.exists())
 
     def test_corpus_report_can_preserve_source_bytes(self):
-        (self.work / 'main.b').write_text('$INSERT I_SHARED\nCRT Value\n')
-        (self.work / 'I_SHARED').write_bytes(b"Value = '\xfd'\n")
-        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        corpus = ROOT / 'tests/corpus/legacy-include-bytes'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
         report = json.loads(subprocess.check_output(command, text=True))
         self.assertEqual(report['counts'], {'encoding': 1, 'include fragment': 1})
         self.assertEqual(report['files']['main.b'],
