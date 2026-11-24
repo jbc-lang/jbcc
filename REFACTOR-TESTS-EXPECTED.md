@@ -367,15 +367,15 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Command execution and piped output (9)
 
-- [ ] `test_plain_execute_and_perform` — stdout (exact), stderr (exact)
-- [ ] `test_capturing` — stdout (exact), stderr (exact)
-- [ ] `test_capture_from_pipe` — stderr (fragment, interpolated)
-- [ ] `test_exec_rejects_duplicate_returning_clause` — stderr (fragment, interpolated)
-- [ ] `test_execute_large_stdout_and_stderr` — stdout (exact)
-- [ ] `test_execute_result_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_execute_rtnlist_requires_backend_before_running_command` — stdout (exact), stderr (exact, interpolated)
-- [ ] `test_execute_child_program` — stdout (exact)
-- [ ] `test_execute_command_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_plain_execute_and_perform` — stdout (exact), stderr (exact)
+- [x] `test_capturing` — stdout (exact), stderr (exact)
+- [x] `test_capture_from_pipe` — stderr (fragment, interpolated)
+- [x] `test_exec_rejects_duplicate_returning_clause` — stderr (fragment, interpolated)
+- [x] `test_execute_large_stdout_and_stderr` — stdout (exact)
+- [x] `test_execute_result_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_execute_rtnlist_requires_backend_before_running_command` — stdout (exact), stderr (exact, interpolated)
+- [x] `test_execute_child_program` — stdout (exact)
+- [x] `test_execute_command_diagnostics` — stderr (fragment, interpolated)
 
 ## Arguments and invocation strings (8)
 

@@ -3982,14 +3982,14 @@ CRT 'main'
     def test_plain_execute_and_perform(self):
         run = self.run_native(ROOT / 'tests/programs/execute.b')
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'before\nchild\nsecond\nafter\n')
-        self.assertEqual(run.stderr, b'stderr\n')
+        self.assertEqual(run.stdout, expected_bytes('plain-execute-and-perform.stdout'))
+        self.assertEqual(run.stderr, expected_bytes('plain-execute-and-perform.stderr'))
 
     def test_capturing(self):
         run = self.run_native(ROOT / 'tests/programs/capturing.b')
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'one\xfe\xfethree\xfe\nunterminated\n[]\n')
-        self.assertEqual(run.stderr, b'diagnostic\n')
+        self.assertEqual(run.stdout, expected_bytes('capturing.stdout'))
+        self.assertEqual(run.stderr, expected_bytes('capturing.stderr'))
 
     def test_capture_from_pipe(self):
         source = ROOT / 'tests/programs/capture-from-pipe.b'
@@ -4001,13 +4001,13 @@ CRT 'main'
         self.assertEqual(run.stdout, payload.replace(b'\n', b'\xfe'))
         run = subprocess.run([binary], input=b'one\x00two', capture_output=True, timeout=5)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: CAPTURING cannot store a NUL byte'.encode(), run.stderr)
+        self.assertIn(expected_text('capture-from-pipe.stderr', source=source).encode(), run.stderr)
 
     def test_exec_rejects_duplicate_returning_clause(self):
         source = ROOT / 'tests/programs/exec-rejects-duplicate-returning-clause.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:20: duplicate RETURNING clause', result.stderr)
+        self.assertIn(expected_text('exec-rejects-duplicate-returning-clause.stderr', source=source), result.stderr)
 
     def test_execute_large_stdout_and_stderr(self):
         source = ROOT / 'tests/programs/execute-large-stdout-and-stderr.b'
@@ -4016,7 +4016,7 @@ CRT 'main'
         payload = b'x' * (256 * 1024)
         run = subprocess.run([binary], input=payload, timeout=5, capture_output=True)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\xfe' + b'1\xfe' * 65536 + b'\n' + payload)
+        self.assertEqual(run.stdout, expected_bytes('execute-large-stdout-and-stderr.stdout') + b'1\xfe' * 65536 + b'\n' + payload)
         self.assertEqual(run.stderr, b'')
 
     def test_execute_result_diagnostics(self):
@@ -4029,11 +4029,11 @@ CRT 'main'
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
             column = source.read_text().rindex(repeated) + 1
             self.assertNotEqual(run.returncode, 0)
-            self.assertIn(f'{source}:1:{column}: duplicate {repeated} clause'.encode(), run.stderr)
+            self.assertIn(expected_text('execute-result-diagnostics.stderr', source=source, column=column, repeated=repeated).encode(), run.stderr)
         source = ROOT / 'tests/programs/execute-result-diagnostics/execute-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: RETURNING cannot store a NUL byte'.encode(), run.stderr)
+        self.assertIn(expected_text('execute-result-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_execute_rtnlist_requires_backend_before_running_command(self):
         marker = self.work / 'child-ran'
@@ -4049,9 +4049,9 @@ CRT 'main'
                 source = ROOT / 'tests/programs/execute-rtnlist-requires-backend-before-running-command' / fixture_name
                 run = self.run_native(source, cwd=self.work)
                 self.assertEqual(run.returncode, 1, run.stderr)
-                self.assertEqual(run.stdout, b'name\n')
+                self.assertEqual(run.stdout, expected_bytes('execute-rtnlist-requires-backend-before-running-command.stdout'))
                 self.assertEqual(
-                    run.stderr, f'{source}:4:1: RTNLIST requires a jBC command backend\n'.encode()
+                    run.stderr, expected_text('execute-rtnlist-requires-backend-before-running-command.stderr', source=source).encode()
                 )
                 self.assertFalse(marker.exists())
 
@@ -4064,19 +4064,19 @@ CRT 'main'
         subprocess.run([CLI, '--exe', main, sub, '-o', binary], check=True)
         run = subprocess.run([binary], cwd=self.work, input=b'hello\n', capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'child read hello\nreturned 4\n')
+        self.assertEqual(run.stdout, expected_bytes('execute-child-program.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_execute_command_diagnostics(self):
         for fixture_name, message in (
-            ('command_1.b', 'unsupported EXECUTE shell selector'),
-            ('command_2.b', 'field-mark-separated EXECUTE commands are unsupported'),
+            ('command_1.b', expected_text('execute-command-diagnostics.stderr')),
+            ('command_2.b', expected_text('execute-command-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/execute-command-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('execute-command-diagnostics_3.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_matchfield_invalid_field(self):
         for fixture_name in (
