@@ -3883,8 +3883,13 @@ CRT 'done'
         missing = 'GLOBUS.BP/LA.FIXTURE.b'
         compare = 'GLOBUS.BP/COMPARE.DB.JBASE'
         dates = 'GLOBUS.BP/STEST.AZ.PD.DATES.CHK'
+        rates = 'GLOBUS.BP/MG.EOD.REDEFINE.CONTRACT.RATES'
         self.assertIn("include file 'I_F.LA.PARAMETER' not found", baseline[missing]['diagnostic'])
         self.assertEqual(baseline[dates]['status'], 'rejected')
+        self.assertEqual(baseline[rates], {
+            'status': 'rejected',
+            'diagnostic': f"{rates}:5:14: expected 1 subscripts for 'CR.REC'",
+        })
 
         options = ['--t24-source-fixes', '--stub-r07-la-parameter']
         report = json.loads(subprocess.check_output(command + options, text=True))['files']
@@ -3898,6 +3903,10 @@ CRT 'done'
             'status': 'translated',
             'source_fixes': [dict(file=dates, line=3, column=16,
                                   before='.AZ.SLS.TYPE.I', after='AZ.SLS.TYPE.I')],
+        })
+        self.assertEqual(report[rates], {
+            'status': 'translated',
+            'source_fixes': [dict(file=rates, line=5, column=34, before=',1', after='')],
         })
 
         with_real_include = command + options + ['-I', fixture / 'real-includes']

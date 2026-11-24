@@ -3405,8 +3405,19 @@ units also pass with their established scan options.
   preservation and stability across environment changes. The full R07
   scan passes strict C99 checks for 15,026 of 15,030 units with the
   source fixes and include stub enabled. All previous passes hold.
-- [ ] Investigate the two-subscript access to the one-dimensional local
-  matrix `CR.REC` in `MG.EOD.REDEFINE.CONTRACT.RATES`. The reference
-  accepts the source and passes both subscripts to `DYNARRAY_BB`.
-  Establish the behavior of the second subscript before changing jbcc
-  or adding a corpus workaround.
+- [x] Handle the extra subscript on the one-dimensional local matrix
+  `CR.REC` in `MG.EOD.REDEFINE.CONTRACT.RATES`. The reference emits a
+  rank-one declaration and passes both subscripts to `DYNARRAY_BB`.
+  The PB201214 Linux accessor checks another bound slot when it receives
+  a second subscript. The corpus workaround follows the single-subscript
+  access on nearby lines and removes only the surplus `,1` under
+  `--t24-source-fixes`. The fixture checks the ordinary rank diagnostic,
+  the successful opt-in scan and the reported edit. The full R07 scan
+  passes strict C99 checks for 15,027 of 15,030 units with source fixes
+  and the include stub enabled. All previous passes hold, and all
+  18,362 extracted files still match the catalog hashes.
+- [ ] Investigate the UniVerse transaction forms in `EB.TRANS`.
+  The jBASE equivalents are commented alongside them. Verify their
+  branch behavior, including the bare `TRANSACTION ABORT`, before
+  mapping them to jbcc's transaction statements.
+  [Rocket UniVerse BASIC User Guide](https://docs-be.rocketsoftware.com/bundle/UniVerse_BASICUserGuide_V1135/raw/resource/enus/UniVerse_BASICUserGuide_V1135.pdf).

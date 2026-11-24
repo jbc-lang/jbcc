@@ -2284,10 +2284,12 @@ normal search path takes precedence. The stub supplies no field positions.
 Each affected unit has an `include_stubs` entry in the JSON, and its
 translation result provides no runtime validation of the missing layout.
 
-Add `--t24-source-fixes` to apply the two R07 workarounds in memory.
+Add `--t24-source-fixes` to apply the R07 workarounds in memory.
 `COMPARE.DB.JBASE` uses the extracted `GLOBUS.BP/JBC.h` in place of the
 absolute installation path. `STEST.AZ.PD.DATES.CHK` has its leading-dot
-selector corrected as in R10. The JSON records both edits.
+selector corrected as in R10. `MG.EOD.REDEFINE.CONTRACT.RATES` uses the
+same one-subscript `CR.REC(CR.EVENT.DATE)` access as the surrounding code.
+The JSON records each edit.
 
 Render the R07 API report with:
 

@@ -39,14 +39,22 @@ T24_SOURCE_FIXES = {
     ),
 }
 
-R07_JBC_INCLUDE_FIX = (
-    re.compile(r"^[ \t]*\$INCLUDE[ \t]+(?P<edit>/usr/jbc/include/JBC\.h)(?=[ \t]*(?:;|$))", re.M),
-    "JBC.h",
-)
+R07_SOURCE_FIXES = {
+    "STEST.AZ.PD.DATES.CHK": T24_SOURCE_FIXES["STEST.AZ.PD.DATES.CHK"],
+    "COMPARE.DB.JBASE": (
+        re.compile(r"^[ \t]*\$INCLUDE[ \t]+(?P<edit>/usr/jbc/include/JBC\.h)(?=[ \t]*(?:;|$))", re.M),
+        "JBC.h",
+    ),
+    "MG.EOD.REDEFINE.CONTRACT.RATES": (
+        re.compile(r"^[ \t]*CHECK\.DATE[ \t]*=[ \t]*CR\.REC\(CR\.EVENT\.DATE"
+                   r"(?P<edit>,[ \t]*1)(?=\)<1,[ \t]*I>)", re.M),
+        "",
+    ),
+}
 
 
 def fix_t24_source(path, source, *, root, fixes):
-    if path.name not in T24_SOURCE_FIXES and path.name != "COMPARE.DB.JBASE":
+    if path.name not in T24_SOURCE_FIXES and path.name not in R07_SOURCE_FIXES:
         return source
     try:
         relative = path.resolve().relative_to(root)
@@ -55,11 +63,9 @@ def fix_t24_source(path, source, *, root, fixes):
     rule = None
     if relative == Path(path.name):
         rule = T24_SOURCE_FIXES.get(path.name)
-    elif root.name == "200707-R07":
-        if relative == Path("GLOBUS.BP/STEST.AZ.PD.DATES.CHK"):
-            rule = T24_SOURCE_FIXES[path.name]
-        elif relative == Path("GLOBUS.BP/COMPARE.DB.JBASE") and (root / "GLOBUS.BP/JBC.h").is_file():
-            rule = R07_JBC_INCLUDE_FIX
+    elif root.name == "200707-R07" and relative.parent == Path("GLOBUS.BP"):
+        if path.name != "COMPARE.DB.JBASE" or (root / "GLOBUS.BP/JBC.h").is_file():
+            rule = R07_SOURCE_FIXES.get(path.name)
     if rule is None:
         return source
     pattern, replacement = rule
