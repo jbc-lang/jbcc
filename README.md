@@ -6,6 +6,10 @@ stubbed, and development and testing take place mainly on macOS. The
 translator is written in Python 3 and emits standalone C99 that the system C
 compiler can build into a native executable.
 
+jbcc is an independent, from-scratch reimplementation of the jBASE compiler.
+Its parser supports the jBC grammar exercised by the T24 source corpus.
+Parts of the jBASE runtime are still to be implemented.
+
 ## What is jBC?
 
 jBC is a dialect of BASIC developed for the jBASE MultiValue database
