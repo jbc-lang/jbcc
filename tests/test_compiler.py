@@ -2585,16 +2585,14 @@ CRT 'main'
         env.pop('JBCC_TEST_NEW_ENV', None)
         result = self.run_native(ROOT / 'tests/io/putenv.b', env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'inherited\ntwo words=three\ntwo words=three\n'
-                         b'1:1[]\n0:0:0\n1[]\n[]\n1\ntwo words=three\n')
+        self.assertEqual(result.stdout, expected_bytes('putenv.stdout'))
 
     def test_getenv(self):
         env = dict(os.environ, JBCC_TEST_VALUE='two words', JBCC_TEST_EMPTY='')
         env.pop('JBCC_TEST_ABSENT', None)
         result = self.run_native(ROOT / 'tests/io/getenv.b', env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'two words\ntwo words\n1[]\n0[]\n[]\n1:two words\n'
-                         b'JBCC_TEST_VALUE:1:two words\n0\ntwo words\n')
+        self.assertEqual(result.stdout, expected_bytes('getenv.stdout'))
 
     def test_open_sections(self):
         run = self.run_native(ROOT / 'tests/io/open-sections.b',
@@ -4492,7 +4490,7 @@ CRT 'main'
                 result = self.run_native(source, env=env)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 name = term or ''
-                self.assertEqual(result.stdout, f'[{name}] [{name}] [{name}]\n1:vt220:vt220:vt220\n'.encode())
+                self.assertEqual(result.stdout, expected_text('terminal-type-aliases-follow-term.stdout', value_1=name).encode())
                 self.assertEqual(result.stderr, b'')
 
     def test_tty_name_with_terminal_and_redirected_input(self):
@@ -4506,11 +4504,11 @@ CRT 'main'
         self.addCleanup(os.close, master)
         self.addCleanup(os.close, slave)
         terminal = os.fsencode(os.ttyname(slave))
-        for stdin, expected in ((slave, terminal), (subprocess.DEVNULL, b'phantom')):
+        for stdin, expected in ((slave, terminal), (subprocess.DEVNULL, expected_bytes('tty-name-with-terminal-and-redirected-input_2.stdout'))):
             with self.subTest(stdin=stdin):
                 run = subprocess.run([binary], stdin=stdin, capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, b'[' + expected + b']\n' + expected[:1] + b'\n')
+                self.assertEqual(run.stdout, expected_bytes('tty-name-with-terminal-and-redirected-input.stdout') + expected + expected_bytes('tty-name-with-terminal-and-redirected-input_3.stdout') + expected[:1] + b'\n')
                 self.assertEqual(run.stderr, b'')
 
     def test_port_number_aliases_use_startup_environment(self):
@@ -4533,7 +4531,7 @@ CRT 'main'
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
             stdout, stderr = proc.communicate(timeout=5)
             self.assertEqual(proc.returncode, 0, stderr)
-            self.assertEqual(stdout, f'{proc.pid}\n0\n'.encode())
+            self.assertEqual(stdout, expected_text('pid-uses-native-process-id-with-port-override.stdout', value_1=proc.pid).encode())
             self.assertEqual(stderr, b'')
 
     def test_user_root_is_shared_with_linked_routines_and_userstats(self):
@@ -4547,7 +4545,7 @@ CRT 'main'
         source = ROOT / 'tests/programs/user-root-limit-counts-bytes.b'
         run = self.run_native(source)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (1, b'', f"{source}:1:1: @USER.ROOT accepts at most 63 bytes\n".encode()))
+                         (1, b'', expected_text('user-root-limit-counts-bytes.stderr', source=source).encode()))
 
     def test_userstats_native_snapshot_and_record_writes(self):
         binary = self.work / 'stats'
@@ -4639,21 +4637,21 @@ CRT 'main'
             with self.subTest(setting=setting):
                 run = self.run_native(source, env=dict(os.environ, JBCPORTNO=setting))
                 self.assertNotEqual(run.returncode, 0)
-                self.assertEqual(run.stdout, b'0\n')
+                self.assertEqual(run.stdout, expected_bytes('invalid-port-number-reports-call-site.stdout'))
                 self.assertIn(
-                    f'{source}:2:5: JBCPORTNO requires a single nonnegative decimal port number'.encode(),
+                    expected_text('invalid-port-number-reports-call-site.stderr', source=source).encode(),
                     run.stderr)
 
     def test_who_uses_startup_login_name(self):
         main = ROOT / 'tests/programs/who-uses-startup-login-name/main.b'
         routine = ROOT / 'tests/programs/who-uses-startup-login-name/show.login.b'
-        for name, legacy, expected in [('MainAccount', 'Fallback', 'MainAccount'),
-                                       ('', 'GuideAccount', 'GuideAccount')]:
+        for name, legacy, expected in [('MainAccount', 'Fallback', expected_text('who-uses-startup-login-name.stdout')),
+                                       ('', 'GuideAccount', expected_text('who-uses-startup-login-name_2.stdout'))]:
             with self.subTest(name=name):
                 env = dict(os.environ, JBCLOGNAME=name, JBASICLOGNAME=legacy)
                 run = self.run_native(main, routine, env=env)
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, f'1:{expected}:{expected}\n'.encode())
+                self.assertEqual(run.stdout, expected_text('who-uses-startup-login-name_3.stdout', expected=expected).encode())
                 self.assertEqual(run.stderr, b'')
 
     def test_who_defaults_to_posix_user_name(self):
@@ -4682,7 +4680,7 @@ CRT 'main'
                            JBASICLOGNAME='GuideLogin')
                 run = self.run_native(main, routine, env=env)
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, f'2:{account}:{account}:{login}\n'.encode())
+                self.assertEqual(run.stdout, expected_text('account-aliases-use-startup-account-name.stdout', account=account, login=login).encode())
                 self.assertEqual(run.stderr, b'')
 
     def test_account_defaults_to_posix_user_name(self):

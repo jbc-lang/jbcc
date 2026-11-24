@@ -418,16 +418,16 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Session identity and environment (10)
 
-- [ ] `test_putenv` — stdout (exact)
-- [ ] `test_getenv` — stdout (exact)
-- [ ] `test_terminal_type_aliases_follow_term` — stdout (exact, interpolated)
-- [ ] `test_tty_name_with_terminal_and_redirected_input` — stdout (exact, interpolated)
-- [ ] `test_port_number_aliases_use_startup_environment` — stdout (exact)
-- [ ] `test_pid_uses_native_process_id_with_port_override` — stdout (exact, interpolated)
-- [ ] `test_user_root_limit_counts_bytes` — stderr (exact, interpolated)
-- [ ] `test_invalid_port_number_reports_call_site` — stdout (exact), stderr (fragment, interpolated)
-- [ ] `test_who_uses_startup_login_name` — stdout (exact, interpolated)
-- [ ] `test_account_aliases_use_startup_account_name` — stdout (exact, interpolated)
+- [x] `test_putenv` — stdout (exact)
+- [x] `test_getenv` — stdout (exact)
+- [x] `test_terminal_type_aliases_follow_term` — stdout (exact, interpolated)
+- [x] `test_tty_name_with_terminal_and_redirected_input` — stdout (exact, interpolated)
+- [x] `test_port_number_aliases_use_startup_environment` — stdout (exact)
+- [x] `test_pid_uses_native_process_id_with_port_override` — stdout (exact, interpolated)
+- [x] `test_user_root_limit_counts_bytes` — stderr (exact, interpolated)
+- [x] `test_invalid_port_number_reports_call_site` — stdout (exact), stderr (fragment, interpolated)
+- [x] `test_who_uses_startup_login_name` — stdout (exact, interpolated)
+- [x] `test_account_aliases_use_startup_account_name` — stdout (exact, interpolated)
 
 ## User statistics (6)
 
