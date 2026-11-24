@@ -3386,6 +3386,16 @@ units also pass with their established scan options.
   numbered destinations, an empty default and `SETTING`. The R07 scan
   passes strict C99 checks for 15,024 of 15,030 units with the source fixes
   and include stub enabled. All previous passes hold.
-- [ ] Support `FILELOCK` and `FILEUNLOCK` together for
+- [x] Support `FILELOCK` and `FILEUNLOCK` together for
   `RE.STAT.LINE.CHANGE.RUN`. The routine acquires a file lock before
   updating records and releases it on both normal and error paths.
+  The guide and local Prime compiler establish the descriptor and
+  clause forms. The in-memory fixture verifies default and explicit
+  descriptors, simulated foreign contention, close and error handling,
+  and independent ownership of file and record locks. Lock visibility
+  through `RECORDLOCKED` is an in-memory backend convention.
+  The full R07 scan passes strict C99 checks for 15,025 of 15,030 units
+  with the source fixes and include stub enabled. All previous passes hold.
+- [ ] Investigate `@PARASENTENCE` for `DE.CC.GENERIC`. The guide defines
+  it as the sentence or paragraph that invoked the process. Determine
+  how to expose that context in a standalone jbcc program.

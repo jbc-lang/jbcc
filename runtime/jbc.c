@@ -3442,6 +3442,7 @@ struct memory_file {
     struct memory_record *records, *last_read;
     struct record_lock *locks;
     size_t serial;
+    int file_locked;
     char list_token;
     const char *section;
     char name[];
@@ -3480,6 +3481,13 @@ static void release_locks(struct memory_file *f, const char *key, int include_fo
             link = &lock->next;
         }
     }
+}
+
+static int has_foreign_record_lock(const struct memory_file *file)
+{
+    for (const struct record_lock *lock = file->locks; lock; lock = lock->next)
+        if (lock->foreign) return 1;
+    return 0;
 }
 
 static struct record_lock *find_lock(struct memory_file *f, const char *key)
@@ -3571,6 +3579,7 @@ void jbc_close_local_files(const void *scope)
         struct opened_file *p = *link;
         if (p->scope == scope) {
             release_locks(p->file, NULL, 0);
+            p->file->file_locked = 0;
             *link = p->next;
             free(p);
         } else link = &p->next;
@@ -3610,6 +3619,7 @@ int jbc_close_file(jbc_variable *slot)
         link = &p->next;
     }
     release_locks(f, NULL, 0);
+    f->file_locked = 0;
     assign_value(slot, NULL);
     return file_succeeded(0);
 }
@@ -3899,18 +3909,38 @@ int jbc_clear_file(const char *handle, jbc_variable *setting)
     struct memory_file *file = file_for(handle);
     if (setting) assign_value(setting, file ? "" : "128");
     if (!file) return file_result(128);
-    for (struct record_lock *lock = file->locks; lock; lock = lock->next) {
-        if (lock->foreign) {
-            /* Keep the original error status unless a LOCKED arm handles it. */
-            if (setting) assign_value(setting, "32768");
-            file_result(32768);
-            return JBC_LOCKED;
-        }
+    if (has_foreign_record_lock(file)) {
+        /* Keep the original error status unless a LOCKED arm handles it. */
+        if (setting) assign_value(setting, "32768");
+        file_result(32768);
+        return JBC_LOCKED;
     }
     clear_records(file);
     release_locks(file, NULL, 0);
     count_userstat(&record_clear_count);
     return file_result(0);
+}
+
+int jbc_filelock(const char *handle, jbc_variable *setting)
+{
+    struct memory_file *file = file_for(handle);
+    if (setting) assign_value(setting, file ? "0" : "128");
+    if (!file) return file_result(128);
+    if (has_foreign_record_lock(file)) {
+        if (setting) assign_value(setting, "32768");
+        file_result(32768);
+        return JBC_LOCKED;
+    }
+    file->file_locked = 1;
+    return file_result(0);
+}
+
+int jbc_fileunlock(const char *handle)
+{
+    struct memory_file *file = file_for(handle);
+    if (!file) return file_succeeded(128);
+    file->file_locked = 0;
+    return file_succeeded(0);
 }
 
 int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting)
@@ -3949,6 +3979,7 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out, jbc_
 const char *jbc_recordlocked(const char *handle, const char *key)
 {
     struct memory_file *f = file_for(handle);
+    if (f && f->file_locked) return "2";
     struct record_lock *lock = f ? find_lock(f, key) : NULL;
     return !lock ? "0" : lock->foreign ? "-2" : "2";
 }

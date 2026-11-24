@@ -3395,6 +3395,13 @@ CLOSESEQ F
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'locked -2:-2\n-2\nerror 128:128\nvalue\ndeleted 0:0\ngone\n', b''))
 
+    def test_file_lock_and_unlock(self):
+        source = ROOT / 'tests/io/file-lock.b'
+        options = ['--memory-file', 'Free', '--memory-file', 'Busy', '--memory-lock', 'Busy', 'held']
+        run = self.run_native(source, options=options)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'0\t0\t2\n2\n0\t2\t0\n0\n0\nvalue\n-2\t-2\t-2\n32768\t32768\n128\n128\n', b''))
+
     def test_clearfile(self):
         run = self.run_native(ROOT / 'tests/io/clearfile.b',
                               options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])

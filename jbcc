@@ -1572,15 +1572,27 @@ class Compiler:
     def clearfile_statement(self):
         opening = self.current
         self.advance()
-        handle = "jbc_default_file.value"
-        if self.word not in OUTPUT_END and self.word not in ('', 'SETTING', 'ON', 'LOCKED'):
-            target = self.identifier()
-            if target.word in self.matrices:
-                handle = self.checked_read(self.matrix_slot(target), target)
-            else:
-                handle = self.read_variable(target)
+        handle = self.optional_file_handle()
         setting = self.file_setting()
         self.file_error_and_lock_arms(opening, f"jbc_clear_file({handle}, {setting})", setting)
+
+    def optional_file_handle(self):
+        if self.word in OUTPUT_END or self.word in ('', 'SETTING', 'ON', 'LOCKED'):
+            return "jbc_default_file.value"
+        target = self.identifier()
+        if target.word in self.matrices:
+            return self.checked_read(self.matrix_slot(target), target)
+        return self.read_variable(target)
+
+    def file_lock_statement(self):
+        opening = self.current
+        self.advance()
+        handle = self.optional_file_handle()
+        if opening.word == 'FILEUNLOCK':
+            self.file_error_arm(opening, f"jbc_fileunlock({handle})", 'NULL')
+        else:
+            setting = self.file_setting()
+            self.file_error_and_lock_arms(opening, f"jbc_filelock({handle}, {setting})", setting)
 
     def file_error_and_lock_arms(self, opening, call, setting):
         before = self.assigned.copy()
@@ -3208,6 +3220,9 @@ class Compiler:
                 self.delete_statement()
             else:
                 self.clearfile_statement()
+        elif (self.word in ('FILELOCK', 'FILEUNLOCK') and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.file_lock_statement()
         elif (self.word == 'RELEASE' and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             opening = self.current

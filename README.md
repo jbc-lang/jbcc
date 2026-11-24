@@ -1845,6 +1845,16 @@ argument also cancels its pending cleanup when the opening routine returns.
 Lock lifetime varies by jBASE version and configuration.
 [jBASE record locking](https://static.zumasys.com/jbase/r99/knowledgebase/howto/general/common/RecordLocking.htm).
 
+`FILELOCK` and `FILEUNLOCK` use an explicit descriptor or the default
+file. In the in-memory backend, a simulated foreign record lock prevents
+acquisition. A `LOCKED` arm handles that conflict with status `-2`.
+Without that arm, the conflict takes the error path with status `32768`.
+`ON ERROR` handles invalid descriptors, which report status `128`.
+`FILELOCK` also accepts `SETTING`. The in-memory lock is owned by the
+program and appears as an owned lock in `RECORDLOCKED`. Closing the file
+or using `FILEUNLOCK` clears it. `FILEUNLOCK` leaves record locks in place.
+[FILELOCK](https://jbc-lang.org/pages/filelock.html), [FILEUNLOCK](https://jbc-lang.org/pages/fileunlock.html).
+
 READU acquires an update lock on a key in an explicit or default file.
 An existing record takes THEN. A missing record takes ELSE and keeps the
 lock so the caller can create it. Re-reading an owned key succeeds if the
