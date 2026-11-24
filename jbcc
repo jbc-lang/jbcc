@@ -994,7 +994,7 @@ class Compiler:
             return False
         if self.following.word == '(':
             return self.word in self.matrices
-        return self.word in self.names
+        return self.word in self.names or self.has_unstructured_jumps
 
     def missing_concat_operand(self):
         if self.current.kind == 'array_close' or self.word in ('', ':', ',', ')', ']', ';', '\n'):

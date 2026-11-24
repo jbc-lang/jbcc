@@ -2564,6 +2564,33 @@ CRT UPCASE(''):LOWCASE('')
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: ABSS requires numeric elements'.encode(), run.stderr)
 
+    def test_implicit_format_uses_a_mask_initialized_by_gosub(self):
+        source = self.work / 'format.b'
+        source.write_text("""GOSUB INIT.MASK
+IF 'Y ' = 'Y' Mask THEN CRT 'matched' ELSE ABORT
+CRT '[':'Y' Mask:']'
+STOP
+INIT.MASK:
+Mask = '2L'
+RETURN
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'matched\n[Y ]\n', b''))
+
+    def test_implicit_format_reports_uninitialized_mask_at_read(self):
+        source = self.work / 'format.b'
+        source.write_text("""IF 0 THEN GOSUB INIT.MASK
+CRT 'Y' Mask
+STOP
+INIT.MASK:
+Mask = '2L'
+RETURN
+""")
+        run = self.run_native(source)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"{source}:2:9: unassigned variable 'Mask'".encode(), run.stderr)
+
     def test_fmt_diagnostics(self):
         source = self.work / 'fmt.b'
         for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T']:

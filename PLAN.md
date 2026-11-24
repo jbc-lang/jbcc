@@ -2626,6 +2626,23 @@ PATCH.RELEASE.RUN now passes strict C99 checking in byte mode. The
 total is 17,078 of 17,336 candidates, including all 17,077 previous
 passes.
 
-- [ ] Investigate the adjacent operands in the IF condition in
+- [x] Investigate the adjacent operands in the IF condition in
   POPULATE.BAL.MVMT. Check how the reference parser treats identifier
   formatting when the format variable is initialized by a GOSUB.
+
+The reference compiler passes the adjacent operands to FMT on the
+right-hand side of the comparison. jbcc now accepts a forward scalar
+mask in routines with jumps and uses the existing runtime check for an
+unassigned value. Native tests cover comparison precedence, padding,
+and runtime failure when the initializing GOSUB is skipped.
+
+POPULATE.BAL.MVMT and AA.PAYMENT.SCHEDULE.REDEEM now pass strict C99
+checking in byte mode, bringing the total to 17,080 of 17,336 candidates.
+The second unit also appears to omit a statement separator. A reduced
+reference probe compiles that shape as a formatted comparison assigned
+to the first variable. All 17,078 previous passes retain identical
+generated statements. The C99 check establishes translation only.
+
+- [ ] Investigate EREPLACE in EB.RUN.RULE and TEC.POPULATE.EVENT.LIST.
+  Compare optional limits and the start occurrence with the existing
+  CHANGE function and the reference lexer.
