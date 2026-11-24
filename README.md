@@ -10,6 +10,9 @@ jbcc is an independent, from-scratch reimplementation of the jBASE compiler.
 Its parser supports the jBC grammar exercised by the T24 source corpus.
 Parts of the jBASE runtime are still to be implemented.
 
+The [jBC language reference repository](https://github.com/jbc-lang/jbc-language)
+maintains the programmer’s guide, grammar, and function catalogue.
+
 ## What is jBC?
 
 jBC is a dialect of BASIC developed for the jBASE MultiValue database
