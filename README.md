@@ -2379,15 +2379,28 @@ Reviewed runtime assertions are recorded independently.
 
 ## Test corpus
 
+Run the full suite with Python's standard library.
+
 ```sh
+just test
+# Or run unittest directly.
 python3 -B -m unittest discover -s tests -v
 ```
 
-With uv installed, the same suite can run in parallel.
+With uv installed, run the same suite in parallel. The recipe defaults to
+automatic worker selection. Pass a worker count and any pytest filters
+after it.
 
 ```sh
+just test-parallel
+just test-parallel 4 -k executable_mode
+# Or run pytest directly.
 uvx --with pytest-xdist pytest -n auto
 ```
+
+Use a full run after changing the compiler, C runtime, or fixtures.
+The tests exercise these files through subprocesses, so Python
+test-selection caches alone cannot establish coverage for such changes.
 
 Put self-contained, single-source success cases in `tests/snippets/` as
 `.b` and `.stdout` pairs. Each pair is discovered as an individual test
