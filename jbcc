@@ -169,6 +169,7 @@ def lex_line(line, n, path, words, parentheses):
     first_on_line = len(words)
     statement_start = 0
     offset = 0
+    nul = line.find('\0')
     while offset < len(line):
         match = TOKEN.match(line, offset)
         offset = match.end()
@@ -219,6 +220,8 @@ def lex_line(line, n, path, words, parentheses):
                                 or words[statement_start].word == 'CASE')
             if starts_statement and not line.startswith(':', offset):
                 name, offset = routine_name_at(line, offset, n, path, call)
+        if 0 <= nul < offset:
+            source_nul_error(path, n, nul)
         words.append(Token(word, kind, n, match.start() + 1, path))
         if name:
             words.append(name)
@@ -257,6 +260,10 @@ def branch_continuations(lines):
 
 def directive_error(token, message):
     raise Diagnostic(f"{token.path}:{token.line}:{token.column}: {message}")
+
+
+def source_nul_error(path, line, offset):
+    raise Diagnostic(f"{path}:{line}:{offset + 1}: NUL bytes in source are unsupported")
 
 
 def split_statements(tokens):
@@ -393,8 +400,6 @@ class Preprocessor:
             raise SourceEncodingError(
                 f"{path}:{len(lines)}:{len(lines[-1]) + 1}: invalid UTF-8 at byte 0x{byte:02x}"
             ) from error
-        if '\0' in source:
-            raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
         words = []
         parentheses = 0
         conditions = []
@@ -410,7 +415,11 @@ class Preprocessor:
                 continue
             include = INCLUDE.fullmatch(line)
             if include and not words:
-                name = next(group for group in include.groups() if group is not None)
+                group = include.lastindex
+                name = include[group]
+                nul = name.find('\0')
+                if nul >= 0:
+                    source_nul_error(path, n, include.start(group) + nul)
                 if self.encoding == 'latin-1':
                     name = os.fsdecode(name.encode(self.encoding))
                 for directory in (path.parent, *self.directories):

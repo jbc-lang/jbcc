@@ -4169,6 +4169,29 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'1\n\xc3\xa9\x80\xfe\xfc\n', b''))
 
+    def test_source_nul_is_ignored_in_comments(self):
+        source = self.work / 'main.b'
+        include = self.work / 'I_VALUE'
+        include.write_bytes(b"* full comment\0tail\nValue = 2; * trailing comment\0tail\n")
+        source.write_bytes(b"$INSERT I_VALUE; * include comment\0tail\n"
+                           b"#ifdef MISSING\nCRT 'ignored\0text'\n#endif\n"
+                           b"REM comment\0tail\nCRT Value\n")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'2\n', b''))
+
+    def test_source_nul_reports_its_location_in_active_text(self):
+        source = self.work / 'main.b'
+        include = self.work / 'I_VALUE'
+        source.write_text('$INSERT I_VALUE\n')
+        for line in (b"Value = 1\0 + 2", b"CRT 'before\0after'",
+                     b"CALL 'show\0name'", b'$INSERT "I_OTHER\0NAME"'):
+            with self.subTest(line=line):
+                include.write_bytes(b'* first line\n' + line + b'\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr,
+                                 f'{include}:2:{line.index(0) + 1}: NUL bytes in source are unsupported\n')
+
     def test_default_source_encoding_reports_invalid_utf8_in_an_include(self):
         source = self.work / 'main.b'
         include = self.work / 'I_SHARED'

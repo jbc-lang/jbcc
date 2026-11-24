@@ -3134,6 +3134,19 @@ after DIM.
 Both T24 routines now pass strict C99 checking in byte mode. The total
 is 17,223 of 17,336 candidates, including all 17,221 previous passes.
 
-- [ ] Investigate the NUL byte in a trailing source comment in
+- [x] Investigate the NUL byte in a trailing source comment in
   START.TRANSACTION. Check the reference lexer and preserve the
   diagnostic for a NUL byte in active source text.
+
+Reference probes emit subsequent statements after full-line or trailing
+comments containing NUL. jbcc validates the text consumed as tokens and
+include paths, so the diagnostic gives the exact source location. Native
+tests cover full-line, trailing and include comments, inactive code, and
+diagnostics in an included file.
+
+START.TRANSACTION now passes strict C99 checking in byte mode. The
+total is 17,224 of 17,336, including all 17,223 previous passes.
+
+- [ ] Trace the missing vendor includes for the corpus. Check for an
+  original jportB.h that matches the available JBC.h and identify which
+  diagnostics it reveals in the 38 dependent units.

@@ -26,6 +26,8 @@ legacy input. This mode preserves the original bytes in string literals,
 including single-byte jBC delimiters, and accepts legacy punctuation in
 comments. It applies to every source and include in the invocation.
 A UTF-8 decoding diagnostic identifies the failing file and position.
+The lexer skips NUL bytes in comments and inactive source lines. NUL
+bytes in active code, literals or include paths report a source location.
 
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
