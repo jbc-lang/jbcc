@@ -1202,6 +1202,14 @@ the sum exceeds the native unsigned integer range. The guide's example
 with CHAR(0) requires embedded NUL support.
 [CHECKSUM](https://jbc-lang.org/pages/checksum.html).
 
+`XMLTOXML(xml, xsl[, result])` and `XMLTODYN(xml, xsl[, result])` accept an
+optional writable result code variable or matrix element. Use an empty
+stylesheet argument to request XMLTODYN's generic conversion. When
+execution reaches either function, jbcc reports the source location
+because XML conversion requires a backend.
+[XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
+[XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
+
 `SEQ(value)` returns the unsigned value of the first byte of its string
 representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.
 jbcc provisionally returns 0 for an empty string. UTF-8 strings use the

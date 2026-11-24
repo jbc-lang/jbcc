@@ -1822,6 +1822,38 @@ CRT 'after'
                          (1, b'before\n',
                           f'{source}:6:5: ITYPE requires a compiled dictionary backend\n'.encode()))
 
+    def test_xml_transforms_require_a_backend_when_reached(self):
+        source = self.work / 'xml.b'
+        for call, status in (
+            ("XMLTOXML('<doc/>', '', Code)", 'Code'),
+            ("XMLTODYN('<array/>', '', Codes(1))", 'Codes(1)'),
+            ("XMLTODYN('<array/>', '')", 'Value'),
+        ):
+            with self.subTest(call=call):
+                source.write_text("DIM Codes(1)\n"
+                                  "IF 0 THEN CRT XMLTOXML('<skip/>', '', Skipped)\n"
+                                  "CRT ASSIGNED(Skipped)\n"
+                                  f"Value = {call}\nCRT {status}\n")
+                result = self.run_native(source)
+                name = call.split('(', 1)[0]
+                self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                 (1, b'0\n', f'{source}:4:9: {name} requires an XML backend\n'.encode()))
+
+    def test_xml_transform_argument_diagnostics(self):
+        source = self.work / 'xml.b'
+        for call, marker, message in (
+            ("XMLTODYN('<array/>')", ')', "expected ','"),
+            ("XMLTOXML('<doc/>', '', 0)", '0', 'expected a name'),
+            ("XMLTODYN('<array/>', '', Code<1>)", '<1>', "expected ')'"),
+            ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', "expected ')'"),
+        ):
+            with self.subTest(call=call):
+                statement = f'CRT {call}'
+                source.write_text(statement + '\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
+
     def test_indices_requires_backend_only_when_a_query_is_reached(self):
         source = self.work / 'indices.b'
         for query in ('INDICES(File)', "INDICES(Handles(1), 'BY.':'TITLE')"):

@@ -2950,7 +2950,23 @@ routines, clearing, snapshots and the 63-byte boundary with UTF-8.
 VALIDATE.SIGN.ON now passes strict C99 checking in byte mode. The total
 is 17,193 of 17,336 candidates, including all 17,192 previous passes.
 
-- [ ] Investigate XMLTOXML and XMLTODYN in the T24 corpus. Start with
+- [x] Investigate XMLTOXML and XMLTODYN in the T24 corpus. Start with
   DW.XML.TRANSFORM, EB.TRANSFORM.XML and OS.UPLOAD.EUS.FILE. Verify the
   writable result arguments and the behavior when no XML backend is
   available.
+
+The reference grammar accepts two expressions and an optional writable
+result code. A reference compiler probe accepts a matrix element as the
+result and rejects a literal or a dynamic-array selector. jbcc lowers
+both forms and reports a source-located error when an XML call is
+reached. Native tests cover skipped calls, both result target forms
+and malformed operands.
+[XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
+[XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
+
+All three T24 callers now pass strict C99 checking in byte mode. The
+total is 17,196 of 17,336 candidates, including all 17,193 previous passes.
+
+- [ ] Investigate CALLC JBASESubroutineExist in CHECK.ROUTINE.EXIST.
+  Check the reference signature and status argument, then decide how
+  it can query the subroutines linked into a native jbcc executable.

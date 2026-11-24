@@ -6011,6 +6011,16 @@ const char *jbc_itype(const char *descriptor, const char *file, int line, int co
     return "";
 }
 
+const char *jbc_xml_transform(const char *xml, const char *stylesheet, jbc_variable *status,
+                              const char *reason, const char *file, int line, int column)
+{
+    (void)xml;
+    (void)stylesheet;
+    (void)status;
+    numeric_error(file, line, column, reason);
+    return "";
+}
+
 const char *jbc_indices(const char *handle, const char *index, const char *file, int line, int column)
 {
     (void)handle;

@@ -825,6 +825,8 @@ class Compiler:
             return self.postfix(value, locate_source)
         elif word == 'IOCTL' and self.following.word == '(':
             return self.postfix(self.ioctl_expression(), locate_source)
+        elif word in ('XMLTOXML', 'XMLTODYN') and self.following.word == '(':
+            return self.postfix(self.xml_transform_expression(), locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
             return self.postfix(self.remove_expression(), locate_source)
         elif word == 'INDICES' and self.following.word == '(':
@@ -2463,6 +2465,23 @@ class Compiler:
             self.assignment_facts[value, True] = {name}
         return value
 
+    def xml_transform_expression(self):
+        opening = self.identifier()
+        self.expect('(')
+        xml = self.expression()
+        self.expect(',')
+        stylesheet = self.expression()
+        status = 'NULL'
+        if self.word == ',':
+            self.advance()
+            target = self.identifier()
+            status = '&' + self.variable_slot(target)
+            if target.word not in self.matrices:
+                self.assigned.add(target.word)
+        self.expect(')')
+        reason = c_string(f"{opening.word} requires an XML backend")
+        return self.temporary(f"jbc_xml_transform({xml}, {stylesheet}, {status}, {reason}, {self.location(opening)})")
+
     def call_arguments(self):
         args = []
         kinds = []
@@ -3292,7 +3311,8 @@ class Compiler:
     def parse(self, tokens):
         self.has_expression_writes = any(
             t.kind == 'symbol' and t.word in STEP_OPERATORS
-            or t.kind == 'name' and t.word in ('GETENV', 'IOCTL', 'REMOVE') and tokens[i + 1].word == '('
+            or t.kind == 'name' and t.word in ('GETENV', 'IOCTL', 'REMOVE', 'XMLTOXML', 'XMLTODYN')
+            and tokens[i + 1].word == '('
             for i, t in enumerate(tokens)
         )
         self.has_unstructured_jumps = any(
