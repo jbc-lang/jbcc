@@ -915,28 +915,28 @@ class CompilerTest(NativeCompilerTest):
         sub = ROOT / 'tests/routines/exit-status/finish.b'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 23, run.stderr)
-        self.assertEqual(run.stdout, b'done\n')
+        self.assertEqual(run.stdout, expected_bytes('exit-status-from-subroutine.stdout'))
         sub = ROOT / 'tests/routines/exit-status/finish-invalid-value.b'
         run = self.run_native(main, sub)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{sub}:2:1: expected a numeric value'.encode(), run.stderr)
+        self.assertIn(expected_text('exit-status-from-subroutine.stderr', sub=sub).encode(), run.stderr)
 
     def test_stop_and_abort_from_main(self):
         for fixture_name, status, message in (
-            ('main_1.b', 0, b'cannot read file\n'),
+            ('main_1.b', 0, expected_bytes('stop-and-abort-from-main.stderr')),
             ('main_2.b', 1, b''),
-            ('main_3.b', 1, b'ABORT [201] file 3\n'),
+            ('main_3.b', 1, expected_bytes('stop-and-abort-from-main_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/stop-and-abort-from-main' / fixture_name
                 run = self.run_native(source)
-                self.assertEqual((run.returncode, run.stdout, run.stderr), (status, b'before\n', message))
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (status, expected_bytes('stop-and-abort-from-main.stdout'), message))
 
     def test_stop_and_abort_from_routine(self):
         main = ROOT / 'tests/routines/stop-and-abort/main.b'
         for fixture_name, status, message in (
-            ('finish_1.b', 0, b'STOP [201] data\n'),
-            ('finish_2.b', 1, b'missing data\n'),
+            ('finish_1.b', 0, expected_bytes('stop-and-abort-from-routine.stderr')),
+            ('finish_2.b', 1, expected_bytes('stop-and-abort-from-routine_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 sub = ROOT / 'tests/programs/stop-and-abort-from-routine' / fixture_name
@@ -947,7 +947,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/stop-missing-message-argument.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:10: expected a variable", result.stderr)
+        self.assertIn(expected_text('stop-missing-message-argument.stderr', source=source), result.stderr)
 
     def test_mismatched_next_counter(self):
         source = ROOT / 'tests/programs/mismatched-next.b'
@@ -955,12 +955,12 @@ class CompilerTest(NativeCompilerTest):
         build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
         self.assertEqual(build.returncode, 0, build.stderr)
         self.assertEqual(build.stderr.splitlines(), [
-            f'{source}:4:10: warning: NEXT Outer closes FOR Inner',
-            f'{source}:6:6: warning: NEXT Unused closes FOR Outer',
+            expected_text('mismatched-next-counter.stderr', source=source),
+            expected_text('mismatched-next-counter_2.stderr', source=source),
         ])
         run = subprocess.run([binary], capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'1.1\n1.3\ninner 5\n2.1\n2.3\ninner 5\nouter 3\n')
+        self.assertEqual(run.stdout, expected_bytes('mismatched-next-counter.stdout'))
 
     def test_loop_exit_control_flow_diagnostics(self):
         binary = self.work / 'program'
@@ -969,12 +969,12 @@ class CompilerTest(NativeCompilerTest):
                 source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit_{case_number}.b'
                 run = self.run_native(source)
                 self.assertEqual((run.returncode, run.stdout, run.stderr),
-                                 (1, b'', f"{source}:5:7: unassigned variable 'X'\n".encode()))
+                                 (1, b'', expected_text('loop-exit-control-flow-diagnostics.stderr', source=source).encode()))
                 source = ROOT / 'tests/programs/loop-exit-control-flow-diagnostics' / f'exit-variant-2_{case_number}.b'
                 build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
                 self.assertEqual(build.returncode, 0, build.stderr)
-                self.assertIn(f'{source}:1:3: warning: {keyword} outside a loop ignored', build.stderr)
-                self.assertEqual(subprocess.check_output([binary]), b'after\n')
+                self.assertIn(expected_text('loop-exit-control-flow-diagnostics_2.stderr', source=source, keyword=keyword), build.stderr)
+                self.assertEqual(subprocess.check_output([binary]), expected_bytes('loop-exit-control-flow-diagnostics.stdout'))
 
     def test_scalar_reads_after_loop_check_earlier_iterations(self):
         source = ROOT / 'tests/programs/loop-scalar-read.b'
@@ -983,9 +983,9 @@ class CompilerTest(NativeCompilerTest):
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         for limit, expected in (
             ('-1', (0, b'', b'')),
-            ('0', (1, b'', f"{source}:9:24: unassigned variable 'Last'\n".encode())),
-            ('2', (0, b'1\n', b'')),
-            ('3', (0, b'3\n', b'')),
+            ('0', (1, b'', expected_text('scalar-reads-after-loop-check-earlier-iterations.stderr', source=source).encode())),
+            ('2', (0, expected_bytes('scalar-reads-after-loop-check-earlier-iterations.stdout'), b'')),
+            ('3', (0, expected_bytes('scalar-reads-after-loop-check-earlier-iterations_2.stdout'), b'')),
         ):
             with self.subTest(limit=limit):
                 run = subprocess.run([binary, limit], capture_output=True, timeout=5)
@@ -996,8 +996,8 @@ class CompilerTest(NativeCompilerTest):
         binary = self.work / 'program'
         build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
         self.assertEqual(build.returncode, 0, build.stderr)
-        self.assertIn(f'{source}:3:3: warning: CONTINUE outside a loop ignored', build.stderr)
-        self.assertEqual(subprocess.check_output([binary]), b'2\n')
+        self.assertIn(expected_text('continue-outside-loop.stderr', source=source), build.stderr)
+        self.assertEqual(subprocess.check_output([binary]), expected_bytes('continue-outside-loop.stdout'))
 
     def test_loop_control_does_not_use_the_gosub_callers_loop(self):
         # The 201015.001 reference emits no jump for either statement here.
@@ -1006,12 +1006,12 @@ class CompilerTest(NativeCompilerTest):
         build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
         self.assertEqual(build.returncode, 0, build.stderr)
         self.assertEqual(build.stderr.splitlines(), [
-            f'{source}:7:19: warning: CONTINUE outside a loop ignored',
-            f'{source}:9:9: warning: EXIT outside a loop ignored',
+            expected_text('loop-control-does-not-use-the-gosub-callers-loop.stderr', source=source),
+            expected_text('loop-control-does-not-use-the-gosub-callers-loop_2.stderr', source=source),
         ])
         run = subprocess.run([binary], capture_output=True, timeout=5)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'body 1\ncaller 1\nbody 2\ncaller 2\n', b''))
+                         (0, expected_bytes('loop-control-does-not-use-the-gosub-callers-loop.stdout'), b''))
 
     def test_integer_limits(self):
         for case_number, (text, diagnostic) in enumerate([('9223372036854775807', 'overflow'),
@@ -1049,7 +1049,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/conditional-missing-else.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:20: expected 'ELSE'", result.stderr)
+        self.assertIn(expected_text('conditional-expression-requires-else.stderr', source=source), result.stderr)
 
     def test_precision_call_scope(self):
         sources = ROOT / 'tests/routines/precision-scope'
@@ -1414,13 +1414,13 @@ time_t test_clock(time_t *out)
         reset = ROOT / 'tests/routines/clear-storage/reset.b'
         result = self.run_native(main, reset)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'9\n0:0:0:0\n10:11:12:13:14\n0\n10:11:12:13:14\n', b''))
+                         (0, expected_bytes('clear-resets-local-storage-and-preserves-shared-slots.stdout'), b''))
 
     def test_clear_requires_a_path_that_initializes_the_local(self):
         source = ROOT / 'tests/programs/clear-unassigned-local.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f"{source}:2:5: unknown variable or unsupported function 'Local'\n")
+        self.assertEqual(result.stderr, expected_text('clear-requires-a-path-that-initializes-the-local.stderr', source=source))
 
     def test_concatenation_requires_a_left_operand(self):
         source = ROOT / 'tests/programs/concat-missing-left.b'
@@ -2085,31 +2085,31 @@ CRT 'main'
         routine = ROOT / 'tests/programs/increment-and-decrement-expression-values/show-steps.b'
         result = self.run_native(source, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:2:2\n2:0:0\n0\n17\n7:7\n8:2:9\n20:18:18\n', b''))
+                         (0, expected_bytes('increment-and-decrement-expression-values.stdout'), b''))
 
     def test_increment_and_decrement_diagnostics(self):
         for fixture_name, message in (
-            ('step_1.b', "1:1: unassigned variable 'Count'"),
-            ('step_2.b', "1:7: unassigned variable 'Count'"),
-            ('step_3.b', '1:7: expected a name'),
-            ('step_4.b', '2:5: increment and decrement require a variable or matrix element'),
+            ('step_1.b', expected_text('increment-and-decrement-diagnostics.stderr')),
+            ('step_2.b', expected_text('increment-and-decrement-diagnostics_2.stderr')),
+            ('step_3.b', expected_text('increment-and-decrement-diagnostics_3.stderr')),
+            ('step_4.b', expected_text('increment-and-decrement-diagnostics_4.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/increment-and-decrement-diagnostics' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:{message}', result.stderr)
+                self.assertIn(expected_text('increment-and-decrement-diagnostics_5.stderr', source=source, message=message), result.stderr)
 
         source = ROOT / 'tests/programs/increment-and-decrement-diagnostics/step-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:6: integer addition overflow'.encode(), result.stderr)
+        self.assertIn(expected_text('increment-and-decrement-diagnostics_6.stderr', source=source).encode(), result.stderr)
 
     def test_spaced_concatenating_assignment_requires_initial_value(self):
         source = ROOT / 'tests/programs/spaced-concatenating-assignment-requires-initial-value.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:1: unassigned variable 'Text'", result.stderr)
+        self.assertIn(expected_text('spaced-concatenating-assignment-requires-initial-value.stderr', source=source), result.stderr)
 
     def test_compound_division_by_zero(self):
         source = ROOT / 'tests/programs/compound-division-by-zero.b'
@@ -2120,9 +2120,9 @@ CRT 'main'
     def test_compound_assignment_checks_conditionally_assigned_target(self):
         binary = self.work / 'compound'
         for fixture_name, expected in (
-            ('compound_1.b', b'prefix!\n'),
-            ('compound_2.b', b'6\n'),
-            ('compound_3.b', b'one\ttwo!\n'),
+            ('compound_1.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target.stdout')),
+            ('compound_2.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target_2.stdout')),
+            ('compound_3.b', expected_bytes('compound-assignment-checks-conditionally-assigned-target_3.stdout')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/compound-assignment-checks-conditionally-assigned-target' / fixture_name
@@ -2132,7 +2132,7 @@ CRT 'main'
                 self.assertEqual((hit.returncode, hit.stdout, hit.stderr), (0, expected, b''))
                 miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
                 self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
-                                 (1, b'', f"{source}:3:1: unassigned variable 'Value'\n".encode()))
+                                 (1, b'', expected_text('compound-assignment-checks-conditionally-assigned-target.stderr', source=source).encode()))
 
     def test_external_subroutine(self):
         directory = ROOT / 'tests/routines'
@@ -2426,7 +2426,7 @@ CRT 'main'
         source = ROOT / 'tests/programs/indexed-jump-selector/dispatch.b'
         run = self.run_native(source, function)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'second\n2\n')
+        self.assertEqual(run.stdout, expected_bytes('indexed-jump-selector.stdout'))
         for fixture_name in (
             'dispatch-variant-2_1.b',
             'dispatch-variant-2_2.b',
@@ -2434,13 +2434,13 @@ CRT 'main'
             source = ROOT / 'tests/programs/indexed-jump-selector' / fixture_name
             run = self.run_native(source)
             self.assertNotEqual(run.returncode, 0)
-            self.assertIn(f'{source}:1:1: ON requires an integer selector'.encode(), run.stderr)
+            self.assertIn(expected_text('indexed-jump-selector.stderr', source=source).encode(), run.stderr)
 
     def test_indexed_jump_range(self):
         source = ROOT / 'tests/programs/indexed-jump-range.b'
         run = self.run_native(source)
         self.assertEqual(run.returncode, 0)
-        self.assertEqual(run.stdout, b'low\nhigh\n')
+        self.assertEqual(run.stdout, expected_bytes('indexed-jump-range.stdout'))
         expected = [f'{source}:{line}:1: warning: ON selector out of range, using label {line}'
                     for line in (1, 2)]
         self.assertEqual(run.stderr.decode().splitlines(), expected)
@@ -2449,41 +2449,41 @@ CRT 'main'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True, env=env)
         run = subprocess.run([binary], capture_output=True)
         self.assertEqual(run.returncode, 0)
-        self.assertEqual(run.stdout, b'fell through\n')
+        self.assertEqual(run.stdout, expected_bytes('indexed-jump-range_2.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_jump_discards_step_when_reentering_a_completed_for(self):
         source = ROOT / 'tests/programs/jump-discards-step-when-reentering-a-completed-for.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stdout, b'1\n3\n')
-        self.assertEqual(result.stderr, f'{source}:4:1: NEXT requires the STEP expression from the FOR header\n'.encode())
+        self.assertEqual(result.stdout, expected_bytes('jump-discards-step-when-reentering-a-completed-for.stdout'))
+        self.assertEqual(result.stderr, expected_text('jump-discards-step-when-reentering-a-completed-for.stderr', source=source).encode())
 
     def test_next_after_jump_requires_assigned_counter(self):
         source = ROOT / 'tests/programs/next-after-jump-requires-assigned-counter.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stdout, b'body\n')
-        self.assertEqual(result.stderr, f"{source}:2:5: unassigned variable 'I'\n".encode())
+        self.assertEqual(result.stdout, expected_bytes('next-after-jump-requires-assigned-counter.stdout'))
+        self.assertEqual(result.stderr, expected_text('next-after-jump-requires-assigned-counter.stderr', source=source).encode())
 
     def test_return_to_unwinds_subroutine(self):
         main = ROOT / 'tests/programs/return-to-unwinds-subroutine/main.b'
         sub = ROOT / 'tests/programs/return-to-unwinds-subroutine/sub.b'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'unwind\nunwind\nunwind\nback in main\n')
+        self.assertEqual(run.stdout, expected_bytes('return-to-unwinds-subroutine.stdout'))
 
     def test_return_to_without_caller(self):
         main = ROOT / 'tests/programs/return-to-without-caller.b'
         run = self.run_native(main)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{main}:2:10: RETURN TO without an outstanding GOSUB".encode(), run.stderr)
+        self.assertIn(expected_text('return-to-without-caller.stderr', main=main).encode(), run.stderr)
 
     def test_return_to_bypasses_for_header_with_explicit_step(self):
         main = ROOT / 'tests/programs/return-to-bypasses-for-header-with-explicit-step.b'
         run = self.run_native(main)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (1, b'0\n', f'{main}:5:1: NEXT requires the STEP expression from the FOR header\n'.encode()))
+                         (1, expected_bytes('return-to-bypasses-for-header-with-explicit-step.stdout'), expected_text('return-to-bypasses-for-header-with-explicit-step.stderr', main=main).encode()))
 
     def test_bad_routine_references(self):
         sub = ROOT / 'tests/routines/bad-routine-references/sub.b'
@@ -2899,13 +2899,13 @@ CRT 'main'
         command = [CLI, '--exe', source, '-o', binary]
         strict = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(strict.returncode, 1)
-        self.assertEqual(strict.stderr, f"{source}:3:9: unknown variable or unsupported function 'Missing'\n")
+        self.assertEqual(strict.stderr, expected_text('deferred-scalar-read-warns-and-fails-only-when-reached.stderr', source=source))
         deferred = subprocess.run([*command, '--defer-unassigned-reads'], capture_output=True, text=True, check=True)
         self.assertEqual(deferred.stderr,
-                         f"{source}:3:9: warning: read of 'Missing' before assignment is deferred to runtime\n")
+                         expected_text('deferred-scalar-read-warns-and-fails-only-when-reached_2.stderr', source=source))
         for flag, expected in (
-            ('0', (0, b'done\n', b'')),
-            ('1', (1, b'', f"{source}:3:9: unassigned variable 'Missing'\n".encode())),
+            ('0', (0, expected_bytes('deferred-scalar-read-warns-and-fails-only-when-reached.stdout'), b'')),
+            ('1', (1, b'', expected_text('deferred-scalar-read-warns-and-fails-only-when-reached_3.stderr', source=source).encode())),
         ):
             with self.subTest(flag=flag):
                 run = subprocess.run([binary], capture_output=True, timeout=5,
@@ -2918,16 +2918,16 @@ CRT 'main'
         command = [CLI, '--exe', source, '-o', binary]
         strict = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual((strict.returncode, strict.stderr),
-                         (1, f"{source}:3:5: unassigned variable 'Count'\n"))
+                         (1, expected_text('deferred-compound-assignment-checks-previous-value-when-reached.stderr', source=source)))
         deferred = subprocess.run([*command, '--defer-unassigned-reads'], capture_output=True, text=True, check=True)
         self.assertEqual(deferred.stderr.splitlines(), [
-            f"{source}:3:5: warning: read of 'Count' before assignment is deferred to runtime",
-            f"{source}:6:5: warning: read of 'Text' before assignment is deferred to runtime",
+            expected_text('deferred-compound-assignment-checks-previous-value-when-reached_2.stderr', source=source),
+            expected_text('deferred-compound-assignment-checks-previous-value-when-reached_3.stderr', source=source),
         ])
         for mode, expected in (
-            ('skip', (0, b'done\n', b'')),
-            ('add', (1, b'', f"{source}:3:5: unassigned variable 'Count'\n".encode())),
-            ('append', (1, b'', f"{source}:6:5: unassigned variable 'Text'\n".encode())),
+            ('skip', (0, expected_bytes('deferred-compound-assignment-checks-previous-value-when-reached.stdout'), b'')),
+            ('add', (1, b'', expected_text('deferred-compound-assignment-checks-previous-value-when-reached.stderr', source=source).encode())),
+            ('append', (1, b'', expected_text('deferred-compound-assignment-checks-previous-value-when-reached_4.stderr', source=source).encode())),
         ):
             with self.subTest(mode=mode):
                 run = subprocess.run([binary, mode], capture_output=True, timeout=5)
@@ -2938,7 +2938,7 @@ CRT 'main'
         result = subprocess.run([CLI, '--defer-unassigned-reads', source, '-o', self.c],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f"{source}:1:5: unknown variable or unsupported function 'Missing'\n")
+        self.assertEqual(result.stderr, expected_text('deferred-reads-still-reject-unknown-functions.stderr', source=source))
 
     def test_corpus_reports_deferred_reads_in_includes(self):
         corpus = ROOT / 'tests/corpus/deferred-include-reads'
@@ -3592,7 +3592,7 @@ CRT 'main'
         sub = ROOT / 'tests/programs/assignment-predicates-on-arguments/init.b'
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\n1\n0\n')
+        self.assertEqual(run.stdout, expected_bytes('assignment-predicates-on-arguments.stdout'))
 
     def test_expression_reads_after_conditional_assignment_are_checked_at_runtime(self):
         binary = self.work / 'guard'
@@ -3600,9 +3600,9 @@ CRT 'main'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         for argument, expected in (
-            ('hit', (0, b'ready\n', b'')),
-            ('skip', (0, b'missing\n', b'')),
-            ('broken', (1, b'', f"{source}:8:26: unassigned variable 'Value'\n".encode())),
+            ('hit', (0, expected_bytes('expression-reads-after-conditional-assignment-are-checked-at-runtime.stdout'), b'')),
+            ('skip', (0, expected_bytes('expression-reads-after-conditional-assignment-are-checked-at-runtime_2.stdout'), b'')),
+            ('broken', (1, b'', expected_text('expression-reads-after-conditional-assignment-are-checked-at-runtime.stderr', source=source).encode())),
         ):
             with self.subTest(argument=argument):
                 run = subprocess.run([binary, argument], capture_output=True, timeout=5)
@@ -3613,10 +3613,10 @@ CRT 'main'
         source = ROOT / 'tests/programs/scalar-reads-after-case-are-checked-at-runtime.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-        unassigned = (1, b'', f"{source}:8:27: unassigned variable 'Value'\n".encode())
+        unassigned = (1, b'', expected_text('scalar-reads-after-case-are-checked-at-runtime.stderr', source=source).encode())
         for argument, expected in (
-            ('alpha', (0, b'first\n', b'')),
-            ('beta', (0, b'second\n', b'')),
+            ('alpha', (0, expected_bytes('scalar-reads-after-case-are-checked-at-runtime.stdout'), b'')),
+            ('beta', (0, expected_bytes('scalar-reads-after-case-are-checked-at-runtime_2.stdout'), b'')),
             ('skip', (0, b'', b'')),
             ('absent', unassigned),
             ('other', unassigned),
@@ -3627,15 +3627,15 @@ CRT 'main'
 
     def test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms(self):
         for fixture_name, location in (
-            ('case_1.b', ':5:5:'),
-            ('case_2.b', ':6:5:'),
-            ('case_3.b', ':4:12:'),
+            ('case_1.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms.stderr')),
+            ('case_2.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_2.stderr')),
+            ('case_3.b', expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/case-assignment-diagnostics-exclude-unreachable-and-sibling-arms' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}{location} unknown variable or unsupported function 'Value'",
+                self.assertIn(expected_text('case-assignment-diagnostics-exclude-unreachable-and-sibling-arms_4.stderr', source=source, location=location),
                               result.stderr)
 
     def test_scalar_reads_after_for_are_checked_at_runtime(self):
@@ -3643,16 +3643,16 @@ CRT 'main'
         source = ROOT / 'tests/programs/scalar-reads-after-for-are-checked-at-runtime.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-        unassigned = (1, b'', f"{source}:8:24: unassigned variable 'Value'\n".encode())
+        unassigned = (1, b'', expected_text('scalar-reads-after-for-are-checked-at-runtime.stderr', source=source).encode())
         for bound, expected in (
             ('-1', (0, b'', b'')),
             ('0', unassigned),
-            ('1', (0, b'1\n', b'')),
-            ('2', (0, b'2\n', b'')),
+            ('1', (0, expected_bytes('scalar-reads-after-for-are-checked-at-runtime.stdout'), b'')),
+            ('2', (0, expected_bytes('scalar-reads-after-for-are-checked-at-runtime_2.stdout'), b'')),
             ('3', unassigned),
             ('4', unassigned),
             ('5', unassigned),
-            ('6', (0, b'2\n', b'')),
+            ('6', (0, expected_bytes('scalar-reads-after-for-are-checked-at-runtime_2.stdout'), b'')),
         ):
             with self.subTest(bound=bound):
                 run = subprocess.run([binary, bound], capture_output=True, timeout=5)
@@ -3669,11 +3669,11 @@ CRT 'main'
                 subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                                env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
                 hit = subprocess.run([binary, '1'], capture_output=True, timeout=5)
-                self.assertEqual((hit.returncode, hit.stdout, hit.stderr), (0, b'first:2:3\n', b''))
+                self.assertEqual((hit.returncode, hit.stdout, hit.stderr), (0, expected_bytes('for-reads-check-values-from-earlier-iterations.stdout'), b''))
                 miss = subprocess.run([binary, '2'], capture_output=True, timeout=5)
                 column = branch.index('Value :=') + 1
                 self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
-                                 (1, b'', f"{source}:3:{column}: unassigned variable 'Value'\n".encode()))
+                                 (1, b'', expected_text('for-reads-check-values-from-earlier-iterations.stderr', source=source, column=column).encode()))
 
     def test_for_reads_without_an_initializer_are_compile_errors(self):
         for fixture_name, column in (
@@ -3685,14 +3685,14 @@ CRT 'main'
                 source = ROOT / 'tests/programs/for-reads-without-an-initializer-are-compile-errors' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:2:{column}:", result.stderr)
-                self.assertIn("'Value'", result.stderr)
+                self.assertIn(expected_text('for-reads-without-an-initializer-are-compile-errors.stderr', source=source, column=column), result.stderr)
+                self.assertIn(expected_text('for-reads-without-an-initializer-are-compile-errors_2.stderr'), result.stderr)
 
     def test_assignment_probe_does_not_initialize(self):
         for fixture_name, location in (
-            ('probe_1.b', ':2:7:'),
-            ('probe_2.b', ':1:16:'),
-            ('probe_3.b', ':1:20:'),
+            ('probe_1.b', expected_text('assignment-probe-does-not-initialize.stderr')),
+            ('probe_2.b', expected_text('assignment-probe-does-not-initialize_2.stderr')),
+            ('probe_3.b', expected_text('assignment-probe-does-not-initialize_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/assignment-probe-does-not-initialize' / fixture_name
