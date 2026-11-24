@@ -74,11 +74,12 @@ in this operator, following usage in T24.
 Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value.
 An expression can read a scalar assigned on some paths through a prior
-conditional, including IF and BEGIN CASE. jbcc checks the value at runtime,
-so a later guard can protect that read. Routines with GOTO, GOSUB or RETURN
-TO also check reads at runtime because jumps can bypass assignments. Separate
-statements with a newline or semicolon. A statement beginning
-with `*`, `!` or `REM` comments out the rest of its line. These markers
+conditional or FOR loop. jbcc checks the value at runtime, so a later guard
+can protect that read. A FOR body can be skipped by its bounds or its guard.
+Routines with GOTO, GOSUB or RETURN TO also check reads at runtime because
+jumps can bypass assignments. Separate statements with a newline or
+semicolon. A statement beginning with `*`, `!` or `REM` comments out
+the rest of its line. These markers
 can follow a named or numeric label directly, as in `setup:* read inputs`
 or `100: REM retry`.
 

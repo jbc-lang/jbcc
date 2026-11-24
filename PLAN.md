@@ -2801,6 +2801,22 @@ AA.FIND.DATED.RECORDS and 12 other units now pass strict C99 checking
 in byte mode. The total is 17,173 of 17,336 candidates, including all
 17,160 previous passes.
 
-- [ ] Investigate scalar reads after FOR, starting with MATCH.POS in
+- [x] Investigate scalar reads after FOR, starting with MATCH.POS in
   LC.MT1798.HDR.FORMAT. Check the paths that skip the body, exit at an
   UNTIL guard, or reach NEXT.
+
+The reference compiler accepts a read after a FOR with a trailing UNTIL
+and a scalar assigned inside the body. jbcc retains possible assignments
+from the body and checks the value when execution reaches the read.
+Native tests cover an assignment before UNTIL or NEXT and a missing value
+after the bounds check, a header guard, CONTINUE or EXIT. A later guard
+can skip the read entirely. [FOR](https://jbc-lang.org/pages/for.html).
+
+LC.MT1798.HDR.FORMAT and COPY.RE.BAL.DIFFERENCE.IMPORT now pass strict
+C99 checking in byte mode. The total is 17,175 of 17,336 candidates,
+including all 17,173 previous passes.
+
+- [ ] Investigate CONVERT targets assigned on only some paths, starting
+  with SCENARIO.LIST in AM.SCE.PREVIEW.FXO and AM.SCE.PREVIEW.SOO.
+  Check successful conversion and the diagnostic when LOCATE leaves the
+  target unassigned.

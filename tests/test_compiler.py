@@ -4335,6 +4335,35 @@ IF Mode # 'skip' THEN CRT Value
                 self.assertIn(f"{source}{location} unknown variable or unsupported function 'Value'",
                               result.stderr)
 
+    def test_scalar_reads_after_for_are_checked_at_runtime(self):
+        source = self.work / 'for.b'
+        binary = self.work / 'for-loop'
+        source.write_text("""GET(ARG.) Bound
+FOR I = 1 TO Bound WHILE Bound # 4
+    IF Bound = 3 THEN CONTINUE
+    IF Bound = 5 THEN EXIT
+    Value = I
+UNTIL I = 2
+NEXT I
+IF Bound # -1 THEN CRT Value
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        unassigned = (1, b'', f"{source}:8:24: unassigned variable 'Value'\n".encode())
+        for bound, expected in (
+            ('-1', (0, b'', b'')),
+            ('0', unassigned),
+            ('1', (0, b'1\n', b'')),
+            ('2', (0, b'2\n', b'')),
+            ('3', unassigned),
+            ('4', unassigned),
+            ('5', unassigned),
+            ('6', (0, b'2\n', b'')),
+        ):
+            with self.subTest(bound=bound):
+                run = subprocess.run([binary, bound], capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+
     def test_assignment_probe_does_not_initialize(self):
         source = self.work / 'probe.b'
         for program, location in [('PRINT ASSIGNED(X)\nPRINT X', ':2:7:'),

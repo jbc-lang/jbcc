@@ -2301,6 +2301,8 @@ class Compiler:
         self.emit(f"assign_value(&{symbol}, {increment});")
         self.for_stack.pop()
         self.end_loop()
+        # The first bounds check can skip the body, so check its new scalars on read.
+        self.maybe_assigned.update((self.assigned - before) & self.names.keys())
         self.assigned = before
 
     def guarded_body(self, opening, terminator):
