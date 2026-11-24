@@ -2900,7 +2900,27 @@ CONV.LOCAL.TABLE.G12.2 and DE.ADD.TAG.DETAILS now pass strict C99 checking
 in byte mode. The total is 17,188 of 17,336 candidates, including all
 17,186 previous passes.
 
-- [ ] Investigate preprocessor conditionals and include guards.
+- [x] Investigate preprocessor conditionals and include guards.
   Start with the #ifndef blocks in qbasiccommonpick, qbasiccommonseq
   and EB.DEV.CHECK.LICENSE. Verify how a symbol is defined and how the
   preprocessor skips inactive branches.
+
+The reference compiler treats a zero-valued definition as present and
+expands the replacement of #DEFINE when it reads the directive.
+A reference probe with a repeated guarded include emitted its body
+only once. The reference also processed a definition and an include
+lookup inside inactive branches. jbcc skips those side effects and
+requires conditionals to close in the file that opens them. Native
+tests cover nesting, case-sensitive names, usage of definitions from
+an include, and diagnostics in the included file.
+
+All three units now pass strict C99 checking in byte mode, bringing
+the total to 17,191 of 17,336 candidates with all previous passes intact.
+
+Adding the local reference source directory to the include path advances
+38 corpus units from missing JBC.h to its missing dependency jportB.h.
+The bundled reference sources supply JBC.h.
+
+- [ ] Investigate CHECKSUM in OS.CHECKSUM.JBASE. Verify the documented
+  position-weighted byte sum and how it interacts with jbcc's native
+  string representation.

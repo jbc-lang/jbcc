@@ -224,6 +224,14 @@ def lex_line(line, n, path, words, parentheses):
 
 
 INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
+DIRECTIVE = re.compile(r"^[#$][ \t]*(IFDEF|IFNDEF|ELSE|ENDIF|END|DEFINE)\b", re.IGNORECASE | re.ASCII)
+DIRECTIVE_SYMBOL = re.compile(r"[ \t]+([A-Za-z][A-Za-z0-9._$]*)")
+
+
+class ConditionalDirective(NamedTuple):
+    opening: Token
+    active: bool
+    has_else: bool = False
 
 
 def branch_continuations(lines):
@@ -267,6 +275,7 @@ class Preprocessor:
         self.directories = directories
         self.encoding = encoding
         self.equates = {}
+        self.direct_definitions = set()
 
     def define(self, words):
         i = 1
@@ -288,6 +297,7 @@ class Preprocessor:
                     and literal.kind == 'string' and literal.word[0] in "\"'"):
                 replacement = [literal._replace(kind='equate_text')]
             self.equates[name.word] = replacement
+            self.direct_definitions.discard(name.word)
             i = end + 1
         if len(words) == 1:
             directive_error(words[0], "missing EQUATE definition")
@@ -308,7 +318,11 @@ class Preprocessor:
                     continue
                 if token.word in stack:
                     directive_error(token, f"recursive EQUATE '{token.word}'")
-                yield from self.expand(self.equates[token.word], stack + (token.word,))
+                replacement = self.equates[token.word]
+                if token.word in self.direct_definitions:
+                    yield from replacement
+                else:
+                    yield from self.expand(replacement, stack + (token.word,))
             else:
                 yield token
 
@@ -322,6 +336,45 @@ class Preprocessor:
                     yield separator
                 yield from self.expand(statement)
                 emitted = True
+
+    def directive(self, match, line, path, n, conditions):
+        name = match[1].upper()
+        opening = Token('#' + name, 'directive', n, 1, path)
+        active = not conditions or conditions[-1].active
+        if name == 'DEFINE' and not active:
+            return
+        offset = match.end()
+        symbol = None
+        if name in ('IFDEF', 'IFNDEF', 'DEFINE'):
+            operand = DIRECTIVE_SYMBOL.match(line, offset)
+            if not operand:
+                directive_error(opening, f"expected a symbol after {opening.word}")
+            symbol = operand[1]
+            offset = operand.end()
+        args = []
+        lex_line(' ' * offset + line[offset:], n, path, args, 0)
+        if name == 'DEFINE':
+            if not args:
+                directive_error(opening, "expected a replacement after #DEFINE symbol")
+            if symbol not in self.equates:
+                # The reference expands existing substitutions while reading #DEFINE.
+                self.equates[symbol] = list(self.expand(angle_tokens(args)))
+                self.direct_definitions.add(symbol)
+        else:
+            if args:
+                directive_error(args[0], f"unexpected text after {opening.word}")
+            if symbol is not None:
+                matched = (symbol in self.equates) == (name == 'IFDEF')
+                conditions.append(ConditionalDirective(opening, active and matched))
+            elif not conditions:
+                directive_error(opening, f"{opening.word} without matching #IFDEF or #IFNDEF")
+            else:
+                previous = conditions.pop()
+                if name == 'ELSE':
+                    if previous.has_else:
+                        directive_error(opening, "duplicate #ELSE")
+                    parent_active = not conditions or conditions[-1].active
+                    conditions.append(ConditionalDirective(previous.opening, parent_active and not previous.active, True))
 
     def read(self, path, parents=()):
         try:
@@ -337,10 +390,17 @@ class Preprocessor:
             raise Diagnostic(f"{path}: NUL bytes in source are unsupported")
         words = []
         parentheses = 0
+        conditions = []
         lines = source.split('\n')
         joined = branch_continuations(lines)
         for n, line in enumerate(lines, 1):
             newline = Token('\n', 'newline', n, len(line) + 1, path)
+            directive = DIRECTIVE.match(line)
+            if directive:
+                self.directive(directive, line, path, n, conditions)
+                continue
+            if conditions and not conditions[-1].active:
+                continue
             include = INCLUDE.fullmatch(line)
             if include and not words:
                 name = next(group for group in include.groups() if group is not None)
@@ -366,6 +426,8 @@ class Preprocessor:
                 yield newline
             words = []
             parentheses = 0
+        if conditions:
+            directive_error(conditions[-1].opening, "missing #ENDIF")
         if words:
             last = list(split_statements(words))[-1][1]
             if is_equate(last):

@@ -3047,6 +3047,74 @@ SHOW.IT; CRT VALUE, KEEP, SLASH
         self.assertIn(f"{include}:1:{definition.index('MISSING') + 1}: unknown variable".encode(),
                       result.stderr)
 
+    def test_preprocessor_conditionals_and_include_guards(self):
+        source = self.work / 'guarded.b'
+        include = self.work / 'I_GUARDED'
+        include.write_text("""#ifndef Seen
+#define Seen 0
+$ define Delta Base + 2
+Total += Delta
+#endif
+""")
+        source.write_text("""EQUATE Base TO 1
+Total = 0
+$INSERT I_GUARDED
+$INSERT I_GUARDED
+#ifdef Seen
+#ifndef seen
+CRT Total, Seen
+#end
+#else
+CRT 'inactive'
+#endif
+#ifdef Missing
+#define Hidden 1
+#ifndef AlsoMissing
+#else
+$INSERT MissingFile
+INCORRECT (
+#endif
+#else
+CRT Delta
+#endif
+#ifdef Hidden
+CRT 'hidden'
+#endif
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'3\t0\n3\n', b''))
+
+    def test_preprocessor_define_uses_the_current_replacement(self):
+        source = self.work / 'defines.b'
+        source.write_text("""Later = 4
+#define Forward Later
+#define Later 7
+#define Captured Later + 2
+#define Later 20
+CRT Forward, Later, Captured
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'4\t7\t9\n', b''))
+
+    def test_preprocessor_conditional_diagnostics(self):
+        source = self.work / 'main.b'
+        include = self.work / 'I_BAD'
+        source.write_text('$INSERT I_BAD\n')
+        for program, location in (
+            ('#else\n', ':1:1: #ELSE without matching'),
+            ('#ifdef\n', ':1:1: expected a symbol'),
+            ('#ifndef Flag\n#else\n#else\n#endif\n', ':3:1: duplicate #ELSE'),
+            ('#ifndef Flag\nCRT 1\n', ':1:1: missing #ENDIF'),
+            ('#define Flag\n', ':1:1: expected a replacement'),
+        ):
+            with self.subTest(program=program):
+                include.write_text(program)
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(str(include) + location, result.stderr)
+
     def test_quoted_and_punctuated_direct_routine_names(self):
         main = self.work / 'main.b'
         star = self.work / 'star.b'

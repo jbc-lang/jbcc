@@ -1171,6 +1171,15 @@ callee reads the status field, selects a CASE arm, and updates the output.
   $INSERT and INCLUDE search the including file's directory, followed by
   each `-I DIR` in order. Included tokens retain their source locations.
   [EQUATE](https://jbc-lang.org/pages/equate.html)
+- `#ifdef` and `#ifndef` test whether a case-sensitive symbol has been
+  defined by EQUATE or `#define`. A defined value of zero counts as
+  present. Nest blocks with optional `#else` and close them with
+  `#endif` or `#end` in the same file. Directives start at column one
+  and accept either `#` or `$` as a prefix. `#define NAME replacement`
+  captures existing substitutions and preserves an existing definition
+  of NAME. Definitions are shared across includes for the translation
+  unit, so an include can guard itself against repeated insertion.
+  Inactive branches skip code, new definitions and include lookups.
 - BEGIN CASE evaluates conditions in order, executes the first true arm,
   and resumes after END CASE. Use CASE 1 for a default. The reference
   grammar allows zero arms. When the block is empty or contains only
