@@ -2214,9 +2214,12 @@ With uv installed, the same suite can run in parallel.
 uvx --with pytest-xdist pytest -n auto
 ```
 
-Each `tests/snippets/*.b` has a sibling `.stdout` file. The tests invoke
-the CLI, compile with strict C99 warnings, run the binary and compare output
-byte for byte. They also exercise translation errors and runtime errors.
+Put self-contained, single-source success cases in `tests/snippets/` as
+`.b` and `.stdout` pairs. Each pair is discovered as an individual test
+by unittest and pytest. The runner invokes the CLI, compiles with strict
+C99 warnings, and checks for exit zero, byte-for-byte stdout and empty
+stderr. Python tests cover diagnostics, multiple sources, runtime setup
+and side effects.
 The expected outputs are project expectations. The conversion and printing
 rules draw on the guide's [string variables](https://jbc-lang.org/pages/string_variables.html),
 [numeric variables](https://jbc-lang.org/pages/numeric_variables.html) and

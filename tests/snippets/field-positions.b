@@ -1,0 +1,12 @@
+CRT COL1():':':COL2()
+S = 'ABC/DEF/QWE/XYZ'
+CRT FIELD(S, '/', 2):':':COL1():':':COL2()
+CRT FIELD(S, '/', 2, 2):':':COL1():':':COL2()
+CRT S['/', 3, 2]:':':COL1():':':COL2()
+CRT FIELD('ab--cd--ef', '--', 2):':':COL1():':':COL2()
+CRT FIELDS('x/y', '/', 2):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 2):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 4):':':COL1():':':COL2()
+CRT FIELD('a//b/', '/', 5):':':COL1():':':COL2()
+CRT FIELD('whole', '/', 1):':':COL1():':':COL2()
+CRT FIELD('whole', '', 1):':':COL1():':':COL2()

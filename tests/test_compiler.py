@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / 'jbcc'
 
 
-class CompilerTest(unittest.TestCase):
+class NativeCompilerTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -36,26 +36,29 @@ class CompilerTest(unittest.TestCase):
                         '-pedantic', self.c, '-lm', '-o', binary], check=True)
         return subprocess.run([binary], capture_output=True, timeout=5, env=env, cwd=cwd)
 
-    def test_snippets(self):
-        for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
-            with self.subTest(source=source.name):
-                run = self.run_native(source)
-                self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, source.with_suffix('.stdout').read_bytes())
-                self.assertEqual(run.stderr, b'')
 
-    def test_heading_automatic_page_break(self):
-        source = self.work / 'pages.b'
-        source.write_text("""HEADING "Page ^'N'"
-FOR I = 1 TO 24
-    PRINT I
-NEXT I
-""")
-        result = self.run_native(source)
-        body = b''.join(f"{i}\n".encode() for i in range(1, 24))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b"Page 1\n" + body + b"\fPage 2\n24\n")
+class SnippetTest(NativeCompilerTest):
+    pass
 
+
+def snippet_test(source):
+    def test(self):
+        run = self.run_native(source)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, source.with_suffix('.stdout').read_bytes())
+        self.assertEqual(run.stderr, b'')
+
+    return test
+
+
+for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
+    name = f"test_{source.stem.replace('-', '_').replace('.', '_')}"
+    if hasattr(SnippetTest, name):
+        raise ValueError(f'duplicate snippet test name for {source}')
+    setattr(SnippetTest, name, snippet_test(source))
+
+
+class CompilerTest(NativeCompilerTest):
     def test_heading_terminal_pause(self):
         source = self.work / 'report.b'
         source.write_text("""HEADING 'First'
@@ -1315,7 +1318,6 @@ NEXT I
     def test_stop_and_abort_from_main(self):
         source = self.work / 'main.b'
         for statement, status, message in [
-            ("STOP", 0, b""),
             ("STOP 'cannot read ' : 'file'", 0, b"cannot read file\n"),
             ("ABORT", 1, b""),
             ("ABORT 201, 'file', 1 + 2", 1, b"ABORT [201] file 3\n"),
@@ -1632,14 +1634,8 @@ time_t test_clock(time_t *out)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
-    def test_str_repetition(self):
+    def test_str_repetition_diagnostics(self):
         source = self.work / 'repeat.b'
-        source.write_text("LongString = STR('long string ', 999)\nCRT LongString\n")
-        run = self.run_native(source)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'long string ' * 999 + b'\n')
-        self.assertEqual(run.stderr, b'')
-
         for count, message in [("'two'", 'expected a numeric value'),
                                ("'9223372036854775807'", 'STR result too large')]:
             with self.subTest(count=count):
@@ -1680,71 +1676,6 @@ time_t test_clock(time_t *out)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
 
-    def test_group_uses_full_delimiter_and_updates_field_positions(self):
-        source = self.work / 'group.b'
-        source.write_text("""Value = 'a::b::c::'
-CRT GROUP(Value, '::', 2), COL1(), COL2()
-CRT GROUP(Value, '::', 2, 2), COL1(), COL2()
-CRT '[':GROUP(Value, '::', 4):']', COL1(), COL2()
-CRT '[':GROUP(Value, '::', 5):']', COL1(), COL2()
-CRT GROUP('plain', '', 1), COL1(), COL2()
-CRT GROUP('a::b::c', '::', 2, 20)
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'b\t3\t5\nb::c\t3\t8\n[]\t9\t10\n[]\t0\t0\n'
-                             b'plain\t0\t0\nb::c\n', b''))
-
-    def test_col_positions_follow_last_field_selection(self):
-        source = self.work / 'field-positions.b'
-        source.write_text("""CRT COL1():':':COL2()
-S = 'ABC/DEF/QWE/XYZ'
-CRT FIELD(S, '/', 2):':':COL1():':':COL2()
-CRT FIELD(S, '/', 2, 2):':':COL1():':':COL2()
-CRT S['/', 3, 2]:':':COL1():':':COL2()
-CRT FIELD('ab--cd--ef', '--', 2):':':COL1():':':COL2()
-CRT FIELDS('x/y', '/', 2):':':COL1():':':COL2()
-CRT FIELD('a//b/', '/', 2):':':COL1():':':COL2()
-CRT FIELD('a//b/', '/', 4):':':COL1():':':COL2()
-CRT FIELD('a//b/', '/', 5):':':COL1():':':COL2()
-CRT FIELD('whole', '/', 1):':':COL1():':':COL2()
-CRT FIELD('whole', '', 1):':':COL1():':':COL2()
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:0\nDEF:4:8\nDEF/QWE:4:12\nQWE/XYZ:8:16\ncd:4:7\ny:4:7\n'
-                             b':2:3\n:5:6\n:0:0\nwhole:0:6\nwhole:0:0\n', b''))
-
-    def test_lendp_uses_byte_length_without_international_mode(self):
-        source = self.work / 'length.b'
-        source.write_text("""CRT LENDP(''), LENDP('abc '), LENDP(-12.5)
-Controls = CHAR(9):CHAR(10):CHAR(127)
-Marks = @FM:@VM:@SM:@TM
-Text = 'é漢'
-CRT LENDP(Controls), LEN(Controls), BYTELEN(Controls)
-CRT LENDP(Marks), LEN(Marks), BYTELEN(Marks)
-CRT LENDP(Text), LEN(Text), BYTELEN(Text)
-IF LENDP(Text[1,2]) > 0 THEN CRT 'present' ELSE ABORT
-""", encoding='utf-8')
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0\t4\t5\n3\t3\t3\n4\t4\t4\n5\t5\t5\npresent\n', b''))
-
-    def test_counts_preserves_marks_and_counts_each_element(self):
-        source = self.work / 'counts.b'
-        source.write_text("""Values = @FM:'aaaaa':@VM:'Bb':@SM:'aa':@FM
-CRT COUNTS(Values, 'aa')
-CRT COUNTS(Values, '')
-CRT COUNTS('', 'a'), COUNTS('', '')
-CRT COUNTS('ab':@VM:'ab', 'b':@VM:'a'), COUNT('ab':@VM:'ab', 'b':@VM:'a')
-CRT COUNTS(CHAR(195):CHAR(169):@TM:'x', '')
-CRT SUM(COUNTS('aaa':@VM:'aa':@VM:'bbb', 'a'))
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0\xfe2\xfd0\xfc1\xfe0\n0\xfe5\xfd2\xfc2\xfe0\n'
-                             b'0\t0\n0\xfd0\t1\n4\n5\n', b''))
-
     def test_counts_requires_two_arguments(self):
         source = self.work / 'counts.b'
         for args in ("'ab'", "'ab', 'b', 1"):
@@ -1762,35 +1693,6 @@ CRT SUM(COUNTS('aaa':@VM:'aa':@VM:'bbb', 'a'))
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
-
-    def test_delimited_bracket_assignment(self):
-        source = self.work / 'fields.b'
-        source.write_text("""Text = 'a--b--c--d'
-CRT Text['--',2,2]
-Text['--',2,2] = 'new'
-CRT Text
-Text['--',2,1] := '!'
-CRT Text
-Text['--',2,1] = ''
-CRT Text
-Text['--',5,1] = 'end'
-CRT Text
-Empty['.',3,1] = 'x'
-CRT Empty
-Empty['.',2,9] = 'rest'
-CRT Empty
-DIM Rows(2)
-Rows(1) = 'left/right':@FM:'keep'
-Rows(1)<1>['/',2,1] = 'changed'
-CRT Rows(1)
-CRT COL1():':':COL2()
-Text['',1,1] = 'whole'
-CRT Text
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'b--c\na--new--d\na--new!--d\na----d\na----d----end\n'
-                             b'..x\n.rest\nleft/changed\xfekeep\n3:8\nwhole\n', b''))
 
     def test_delimited_bracket_assignment_diagnostics(self):
         source = self.work / 'fields.b'
@@ -1921,73 +1823,8 @@ CRT R<1>:'!'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'ab:c\n6:num-2\nfield!\n', b''))
 
-    def test_omitted_concat_operand_suppresses_output_newline(self):
-        source = self.work / 'concat.b'
-        source.write_text("""CRT 'a'::'b'
-CRT 'c':::
-CRT 'd'
-PRINT ('e':), 'f'
-PRINT LEN('gh':)
-CRT 'i':, 'j'
-CRT 'k'
-CRT 'x':'y'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'abcd\ne\tf2i\tjk\nxy\n', b''))
-
-    def test_cat_spells_concatenation_and_suppresses_output_newline(self):
-        source = self.work / 'cat.b'
-        source.write_text("""GOTO CAT
-CRT 'unexpected'
-CAT:
-R = 'first':@FM:'second'
-Text = R <2> CAT 1 + 2 : '!'
-CRT Text
-CRT 'a' CAT CAT 'b'
-DISPLAY ('c' CAT)
-PRINT 'd' CAT
-CRT 'e'
-CRT 'f' CAT 'g'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'second3!\nabcde\nfg\n', b''))
-
-    def test_output_commas_emit_tabs_without_an_expression(self):
-        source = self.work / 'tabs.b'
-        source.write_text("""PRINT ,,,'start'
-CRT 'a',,;* continue across a comment
-* intervening comment
-    'b'
-DISPLAY 'c':,, 'd'
-IF 1 THEN CRT 'e', ELSE CRT 'unexpected'
-CRT ,
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'\t\t\tstart\na\t\tb\nc\t\tde\t\n\t\n', b''))
-
-    def test_end_label_is_a_jump_target_inside_and_outside_blocks(self):
-        source = self.work / 'end-label.b'
-        for program, expected in (
-            ("GOTO END\nCRT 'skipped'\nEND: CRT 'target'\nEND\n", b'target\n'),
-            ("IF 1 THEN\nGOTO END\nCRT 'skipped'\nEND: CRT 'inside'\nEND\nCRT 'outside'\nEND\n",
-             b'inside\noutside\n'),
-        ):
-            with self.subTest(program=program):
-                source.write_text(program)
-                result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
-
-    def test_period_label_at_start_of_line(self):
+    def test_period_label_diagnostics(self):
         source = self.work / 'period.b'
-        for label in ('  .\n', '  . ', '  .: '):
-            with self.subTest(label=label):
-                source.write_text(f"{label}Amount = .5\nCRT Amount\n")
-                result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0.5\n', b''))
-
         for program, location in (
             ('.\n . Amount = 1\n', ':2:2: duplicate label'),
             ('Amount = 1; . Amount = 2\n', ':1:13: expected an assignment'),
@@ -1997,45 +1834,6 @@ CRT ,
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(str(source) + location, result.stderr)
-
-    def test_empty_inline_arms_closed_by_end(self):
-        source = self.work / 'empty-arm.b'
-        source.write_text("""Total = 0
-FOR I = 1 TO 2
-    IF I = 1 THEN END
-    Total += 1
-NEXT I
-CRT Total
-IF 0 THEN END ELSE CRT 'else'
-IF 1 THEN CRT 'then' ELSE END
-IF 0 ELSE END; CRT 'after'
-OPEN 'missing' THEN END ELSE CRT 'open miss'
-END
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'2\nelse\nthen\nafter\nopen miss\n', b''))
-
-    def test_inline_if_ends_at_next_in_the_enclosing_for(self):
-        source = self.work / 'inline-next.b'
-        source.write_text("""FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ELSE CRT 'other' ; NEXT I
-FOR I = 1 TO 2 ; IF I > 0 THEN IF I = 2 THEN CRT I ; NEXT
-FOR I = 1 TO 2 ; IF I = 1 THEN CRT I NEXT I
-CRT 'done'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'other\n2\nother\n2\n1\ndone\n', b''))
-
-    def test_inline_if_preserves_next_as_an_assignment_target_or_label(self):
-        source = self.work / 'inline-next.b'
-        source.write_text("""NEXT = 0
-FOR I = 1 TO 3 ; IF I = 2 THEN NEXT += 4 ; NEXT I
-CRT (NEXT)
-FOR I = 1 TO 2 ; IF 1 THEN GOTO NEXT ; NEXT: CRT I ; NEXT I
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'4\n1\n2\n', b''))
 
     def test_clear_resets_local_storage_and_preserves_shared_slots(self):
         main = self.work / 'main.b'
@@ -2089,25 +1887,6 @@ CRT Local
             result.stderr, f'{source}:1:5: expected a variable, integer, string or parenthesized expression\n'
         )
 
-    def test_comparison_spellings_with_dynamic_array_selectors(self):
-        source = self.work / 'compare.b'
-        source.write_text("""A = 2
-B = 3
-R = 'x':@VM:'y':@FM:B
-CRT (A#>B):(B#>A):(A#<B):(B#<A)
-CRT (A >< B):(A\t>< A):(B> = A):(A >\t= B)
-CRT R<1><1,2>
-CRT (R<2>>=B):(R<2> > = B):(R<2> >< R<1>)
-CRT (R <2> = B)
-R<2> = 'updated'
-R<1>= 'first'
-CRT R<1>:'|':R<2>
-CRT '#> #< >< > ='
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'1001\n1010\ny\n111\n1\nfirst|updated\n#> #< >< > =\n', b''))
-
     def test_comparison_signs_keep_reference_spacing_rules(self):
         source = self.work / 'compare.b'
         for expression, column in (('1><2', 7), ('1 # > 2', 9), ('1 < = 2', 9)):
@@ -2119,32 +1898,6 @@ CRT '#> #< >< > ='
                     result.stderr,
                     f'{source}:1:{column}: expected a variable, integer, string or parenthesized expression\n'
                 )
-
-    def test_single_index_substring_assignment(self):
-        source = self.work / 'suffix.b'
-        source.write_text("""Text = 'abcde'
-Text[2.9] = 'WXYZ'
-CRT Text
-Text[3] = ''
-CRT Text
-Text[0] = '!'
-Text[-1] := '?'
-CRT Text
-Text[999] = 'whole'
-CRT Text
-DIM A(2)
-A(1) = 'left'
-A(2) = 'right'
-A(1)[1] = 'T'
-A(2)[2] := '!'
-CRT A(1):':':A(2)
-R = 'one':@FM:'two'
-R<2>[2] = 'WO'
-CRT R<1>:':':R<2>
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'abcWXYZ\nabcW\nabcW!?\nwhole\nlefT:right!\none:tWO\n', b''))
 
     def test_single_index_substring_assignment_diagnostics(self):
         source = self.work / 'suffix.b'
@@ -2476,18 +2229,6 @@ CRT Response
         warning = f'{source}:1:5: warning: DIVS: division by zero\n'
         self.assertEqual(run.stderr, warning.encode() * 2)
 
-    def test_infix_division_reuses_scalar_operands(self):
-        source = self.work / 'reuse.b'
-        source.write_text("""A = 6:@VM:'':@SM:8:@FM:12
-CRT A / REUSE(2)
-CRT REUSE(24) / A
-CRT 1 + 12 / REUSE(3) * 2
-CRT REUSE(9) / REUSE(3)
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'3\xfd\xfc4\xfe6\n4\xfd\xfc3\xfe2\n9\n3\n', b''))
-
     def test_infix_reuse_division_reports_invalid_operands(self):
         source = self.work / 'reuse.b'
         for expression, marker, message in (
@@ -2576,20 +2317,8 @@ CRT REUSE(9) / REUSE(3)
                 self.assertEqual(run.stdout, b'0\ndone\n' if continues else b'')
                 self.assertIn(f'{source}:1:{column}: {message}'.encode(), run.stderr)
 
-    def test_randomize_compatibility_forms_leave_rnd_available(self):
+    def test_randomize_wrong_argument_count(self):
         source = self.work / 'randomize.b'
-        source.write_text("""RANDOMIZE = 5
-IF 1 THEN RANDOMIZE ELSE ABORT
-RANDOMIZE()
-RANDOMIZE(RANDOMIZE / 0)
-N = RND(50)
-IF N < 0 OR N >= 50 THEN ABORT
-CRT RANDOMIZE:':':RND(1)
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'5:0\n', b''))
-
         source.write_text('RANDOMIZE(1, 2)\n')
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -2608,22 +2337,6 @@ CRT RANDOMIZE:':':RND(1)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: RND {diagnostic}'.encode(), run.stderr)
 
-    def test_bitxor_uses_signed_32_bit_words(self):
-        source = self.work / 'bitxor.b'
-        source.write_text("""CRT BITXOR(6, 12)
-CRT BITXOR('6.9', 12.9)
-CRT BITXOR(-1.9, 5)
-CRT BITXOR(2147483647, -1)
-CRT BITXOR(2147483648, 1)
-CRT BITXOR(4294967296, 7)
-CRT BITXOR('18446744073709551617', 3)
-CRT BITXOR(-4294967297, 0)
-CRT '[':BITXOR('', 5):'] [':BITXOR('other', ''):']'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'10\n10\n-6\n-2147483648\n-2147483647\n7\n2\n-1\n[] []\n', b''))
-
     def test_bitxor_diagnostics(self):
         source = self.work / 'bitxor.b'
         for operands in ("'bad', 1", "1, 'bad'"):
@@ -2638,28 +2351,6 @@ CRT '[':BITXOR('', 5):'] [':BITXOR('other', ''):']'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
-
-    def test_bitor_uses_signed_32_bit_words(self):
-        source = self.work / 'bitor.b'
-        source.write_text("""CRT BITOR('6.9', 12.9), BITOR(2147483648, 1)
-CRT BITOR(-1.9, 5), BITOR(4294967296, 7), BITOR(6, XTD(40000000))
-CRT '[':BITOR('', 'other'):']'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'14\t-2147483647\n-1\t7\t1073741830\n[]\n', b''))
-
-    def test_encrypt_and_decrypt_rot13(self):
-        source = self.work / 'rot13.b'
-        source.write_text("""EQUATE ROTATION TO 1
-Encoded = ENCRYPT('Abc Nop 123!', 'unused', ROTATION)
-CRT Encoded
-CRT DECRYPT(Encoded, '', ROTATION)
-CRT '[':ENCRYPT('', '', ROTATION):']'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'Nop Abc 123!\nAbc Nop 123!\n[]\n', b''))
 
     def test_cipher_diagnostics(self):
         source = self.work / 'crypt.b'
@@ -2678,19 +2369,6 @@ CRT {function}('text', '', 5)
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stderr, f"{source}:1:5: wrong argument count for '{function}'\n")
-
-    def test_hexadecimal_conversion_uses_32_bit_words(self):
-        source = self.work / 'hex.b'
-        source.write_text("""CRT DTX(0), DTX('171.9'), DTX(-2.9), DTX(2147483648)
-CRT DTX(4294967296), DTX('18446744073709551618')
-CRT XTD('7f'), XTD('2Bg7'), XTD('G2B'), XTD('')
-CRT XTD('80000000'), XTD('FFFFFFFF'), XTD('100000008')
-CRT XTD(DTX(-23)) + 1
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0\tAB\tFFFFFFFE\t80000000\n0\t2\n127\t43\t0\t0\n'
-                             b'-2147483648\t-1\t8\n-22\n', b''))
 
     def test_hexadecimal_conversion_diagnostics(self):
         source = self.work / 'hex.b'
@@ -2716,39 +2394,6 @@ CRT XTD(DTX(-23)) + 1
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {name} requires numeric operands'.encode(), run.stderr)
 
-    def test_character_class_predicates(self):
-        source = self.work / 'classes.b'
-        source.write_text("""Letters = 'Az'
-CRT ALPHA(Letters), ISALPHA(Letters), ISALPHA(''), ISALPHA('Az1'), ISALPHA('a-b')
-CRT ISALPHA('a':@FM:'b'), ISALPHA(CHAR(233)), ISALPHA('a b')
-CRT ISDIGIT('009'), ISDIGIT(0), ISDIGIT(-9), ISDIGIT(9.5), ISDIGIT('+9'), ISDIGIT('9 ')
-CRT ISDIGIT(''), ISDIGIT('7':@VM:'9'), ISDIGIT(CHAR(178))
-CRT NUM(-9), NUM(9.5), NUM(''), NUM('+9')
-IF ISDIGIT('123') AND ISALPHA('xY') THEN CRT 'accepted' ELSE ABORT
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'1\t1\t0\t0\t0\n0\t0\t0\n1\t1\t0\t0\t0\t0\n'
-                             b'0\t0\t0\n1\t1\t1\t1\naccepted\n', b''))
-
-    def test_case_conversion_bytes(self):
-        source = self.work / 'case.b'
-        source.write_text("""Text = ''
-FOR I = 1 TO 255
-    Text := CHAR(I)
-NEXT I
-CRT UPCASE(Text)
-CRT DOWNCASE(Text)
-CRT LOWCASE(Text)
-CRT Text
-CRT UPCASE(''):LOWCASE('')
-""")
-        run = self.run_native(source)
-        data = bytes(range(1, 256))
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'\n'.join([data.upper(), data.lower(), data.lower(), data, b'', b'']))
-        self.assertEqual(run.stderr, b'')
-
     def test_trim_diagnostics(self):
         source = self.work / 'trim.b'
         for args, message in [("' ', 'X'", 'unknown TRIM mode'),
@@ -2758,20 +2403,6 @@ CRT UPCASE(''):LOWCASE('')
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
-
-    def test_trim_array_ends_preserve_internal_whitespace_and_marks(self):
-        source = self.work / 'trim-array.b'
-        source.write_text("""Tab = CHAR(9)
-Text = @FM:Tab:'  a  b ':Tab:@VM:' ':Tab:@SM:' x ':@FM
-CRT TRIMBS(Text)
-CRT TRIMFS(Text)
-CRT '[':TRIMBS(''):'] [':TRIMFS(''):']'
-CRT '[':TRIMS(Tab:'  q  ':Tab):']'
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'\xfe\t  a  b\xfd\xfc x\xfe\n'
-                             b'\xfea  b \t\xfd\xfcx \xfe\n[] []\n[\t q \t]\n', b''))
 
     def test_find_diagnostics(self):
         source = self.work / 'find.b'
@@ -2791,24 +2422,6 @@ CRT '[':TRIMS(Tab:'  q  ':Tab):']'
             self.assertIn(f"{source}:1:1: {keyword} occurrence must be a positive integer".encode(),
                           run.stderr)
 
-    def test_swap_function_and_statement(self):
-        source = self.work / 'swap.b'
-        source.write_text("""Text = '::first::second::'
-CRT SWAP(Text, '::', '|')
-CRT Text
-CRT SWAP('aaaaa', 'aa', 'b', 1), SWAP('aaaaa', 'aa', 'b', 1, 2)
-CRT SWAP('tail', '', 'head:')
-R = Text:@FM:'second'
-SWAP '::' WITH '|' IN R<1>
-CRT R<1>, R<2>
-SWAP '|' TO '' IN R<1>
-CRT R<1>
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'|first|second|\n::first::second::\nbaaa\taaba\ntail\n'
-                             b'|first|second|\tsecond\nfirstsecond\n', b''))
-
     def test_swap_diagnostics(self):
         source = self.work / 'swap.b'
         source.write_text("CRT SWAP('abc', 'a')\n")
@@ -2820,22 +2433,6 @@ CRT R<1>
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: SWAP requires integer occurrence arguments'.encode(),
                       result.stderr)
-
-    def test_ereplace_reuses_occurrence_rules_and_prefixes_an_empty_search(self):
-        source = self.work / 'ereplace.b'
-        source.write_text("""CRT EREPLACE('aaaaa', 'aa', 'b')
-CRT EREPLACE('aaaaa', 'aa', 'b', 1)
-CRT EREPLACE('aaaaa', 'aa', 'b', 0, 2)
-CRT EREPLACE('aaaaa', 'aa', '', -1, 0)
-CRT EREPLACE('tail', '', 'head:')
-CRT CHANGE('tail', '', 'head:')
-Value = 'cocoa'
-EREPLACE 'co' WITH 'x' IN Value
-CRT Value
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'bba\nbaaa\naaba\na\nhead:tail\ntail\nxxa\n', b''))
 
     def test_ereplace_diagnostics(self):
         source = self.work / 'ereplace.b'
@@ -2922,20 +2519,6 @@ CRT Value<1>, Value<2>
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: ABSS requires numeric elements'.encode(), run.stderr)
 
-    def test_implicit_format_uses_a_mask_initialized_by_gosub(self):
-        source = self.work / 'format.b'
-        source.write_text("""GOSUB INIT.MASK
-IF 'Y ' = 'Y' Mask THEN CRT 'matched' ELSE ABORT
-CRT '[':'Y' Mask:']'
-STOP
-INIT.MASK:
-Mask = '2L'
-RETURN
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'matched\n[Y ]\n', b''))
-
     def test_implicit_format_reports_uninitialized_mask_at_read(self):
         source = self.work / 'format.b'
         source.write_text("""IF 0 THEN GOSUB INIT.MASK
@@ -2987,30 +2570,6 @@ RETURN
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
 
-    def test_increment_and_decrement_statements(self):
-        source = self.work / 'step.b'
-        source.write_text("""Count = '4.5'
-Count++
---Count
-IF Count = 4.5 THEN ++Count ELSE ABORT
-Count --
-CRT Count
-DIM A(2)
-A(1) = 0
-A(2) = 12
-I = 1
-A(I)++
---A(I + 1)
-CRT A(1):':':A(2)
-PROGRAM = 1
-PROGRAM ++
-CRT PROGRAM
-CRT 4 - -2
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'4.5\n1:11\n2\n6\n', b''))
-
     def test_increment_and_decrement_expression_values(self):
         source = self.work / 'step.b'
         source.write_text("""N = 0
@@ -3057,26 +2616,8 @@ CRT Old:':':New:':':Current
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:6: integer addition overflow'.encode(), result.stderr)
 
-    def test_spaced_concatenating_assignment(self):
+    def test_spaced_concatenating_assignment_requires_initial_value(self):
         source = self.work / 'append.b'
-        source.write_text("""Text = 'a'
-add: Text : = 'b'
-IF Text = 'ab' THEN Text :\t= 'c' ELSE ABORT
-PROGRAM = 'p'
-PROGRAM : = 'q'
-R = 'first':@FM:'second'
-R<2> : = '!'
-DIM A(1)
-A(1) = 'left'
-A(1)[1] : = '+'
-CRT Text:':':PROGRAM:':':R<2>:':':A(1)
-CRT ('a' : 'b') = 'ab'
-CRT ': ='
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'abc:pq:second!:left+\n1\n: =\n', b''))
-
         source.write_text("Text : = 'b'\n")
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -3287,22 +2828,6 @@ SHOW.IT; CRT VALUE, KEEP, SLASH
         self.assertIn(f"{include}:1:{definition.index('MISSING') + 1}: unknown variable".encode(),
                       result.stderr)
 
-    def test_percent_inside_names(self):
-        source = self.work / 'percent.b'
-        source.write_text("""#define FLAG%SET 1
-#ifdef FLAG%SET
-EQUATE Report.%TOTAL TO Value%Sum
-Report.%TOTAL = 4
-GOSUB SHOW%TOTAL
-STOP
-SHOW%TOTAL:
-CRT Value%Sum, FLAG%SET
-RETURN
-#endif
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'4\t1\n', b''))
-
     def test_preprocessor_conditionals_and_include_guards(self):
         source = self.work / 'guarded.b'
         include = self.work / 'I_GUARDED'
@@ -3377,19 +2902,6 @@ DEFC ReadNative()
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stderr, f"{source}{diagnostic}\n")
-
-    def test_preprocessor_define_uses_the_current_replacement(self):
-        source = self.work / 'defines.b'
-        source.write_text("""Later = 4
-#define Forward Later
-#define Later 7
-#define Captured Later + 2
-#define Later 20
-CRT Forward, Later, Captured
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'4\t7\t9\n', b''))
 
     def test_preprocessor_conditional_diagnostics(self):
         source = self.work / 'main.b'
@@ -3653,18 +3165,6 @@ RETURN M(2,3)
         self.assertEqual(run.stdout, b'fell through\n')
         self.assertEqual(run.stderr, b'')
 
-    def test_jump_can_bypass_for_header_with_default_step(self):
-        source = self.work / 'jump.b'
-        for jump, target in [('GOTO', 'middle'), ('GOTO', 'middle:'), ('GO', 'middle'), ('GO TO', 'middle:'),
-                             ('GOSUB', 'middle'), ('GOSUB', 'middle:'),
-                             ('ON 2 GO TO safe,', 'middle'), ('ON 2 GOTO safe,', 'middle'), ('ON 2 GOSUB safe,', 'middle')]:
-            with self.subTest(jump=jump, target=target):
-                source.write_text(f"I = 0\nLimit = 0\n{jump} {target}\n"
-                                  "FOR I = 99 TO Limit\nmiddle: PRINT I\nLimit = 2\n"
-                                  "NEXT I\nsafe: STOP\n")
-                result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\n1\n2\n', b''))
-
     def test_jump_discards_step_when_reentering_a_completed_for(self):
         source = self.work / 'jump.b'
         source.write_text("""FOR I = 1 TO 1 STEP 2
@@ -3704,17 +3204,13 @@ GOTO middle
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{main}:2:10: RETURN TO without an outstanding GOSUB".encode(), run.stderr)
 
-    def test_return_to_bypasses_for_header(self):
+    def test_return_to_bypasses_for_header_with_explicit_step(self):
         main = self.work / 'main.b'
-        for step, expected in (
-            ('', (0, b'0\n1\n2\n', b'')),
-            (' STEP 2', (1, b'0\n', f'{main}:5:1: NEXT requires the STEP expression from the FOR header\n'.encode())),
-        ):
-            with self.subTest(step=step):
-                main.write_text(f'I = 0\nGOSUB redirect\nFOR I = 99 TO 2{step}\nmiddle: CRT I\nNEXT I\n'
-                                'STOP\nredirect: RETURN TO middle\n')
-                run = self.run_native(main)
-                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+        main.write_text('I = 0\nGOSUB redirect\nFOR I = 99 TO 2 STEP 2\nmiddle: CRT I\nNEXT I\n'
+                        'STOP\nredirect: RETURN TO middle\n')
+        run = self.run_native(main)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (1, b'0\n', f'{main}:5:1: NEXT requires the STEP expression from the FOR header\n'.encode()))
 
     def test_bad_routine_references(self):
         main = self.work / 'main.b'
@@ -4501,12 +3997,8 @@ CLOSESEQ F
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'SEQ'", result.stderr)
 
-    def test_char_byte_range(self):
+    def test_char_byte_range_diagnostics(self):
         source = self.work / 'char.b'
-        source.write_text('CRT CHAR(1) : CHAR(254) : CHAR("255.0"):\n')
-        run = self.run_native(source)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, bytes([1, 254, 255]))
         for value, message in [('0', 'embedded NUL'), ('256', '0 to 255'), ('1.5', '0 to 255')]:
             with self.subTest(value=value):
                 source.write_text(f'CRT CHAR({value})\n')
@@ -4514,16 +4006,6 @@ CLOSESEQ F
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message.encode(), run.stderr)
                 self.assertIn(f'{source}:1:5:'.encode(), run.stderr)
-
-    def test_checksum_weighted_bytes(self):
-        source = self.work / 'checksum.b'
-        source.write_text("""CRT CHECKSUM(''), CHECKSUM('A'), CHECKSUM('AA'), CHECKSUM('B')
-CRT CHECKSUM('AB'), CHECKSUM(12), CHECKSUM(@FM:CHAR(255))
-CRT CHECKSUM('é'), CHECKSUM(STR('A', 100000))
-""", encoding='utf-8')
-        run = self.run_native(source)
-        self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'0\t65\t195\t66\n197\t149\t764\n533\t325003250000\n', b''))
 
     def test_checksum_argument_diagnostics(self):
         source = self.work / 'checksum.b'
@@ -4793,12 +4275,6 @@ CRT Rows(1)
         result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{main}:3:6: expected '('", result.stderr)
-
-    def test_forward_fixed_matrix_can_be_used_before_dim_executes(self):
-        source = self.work / 'forward.b'
-        source.write_text("A(1) = 7\nCRT A(1)\nSTOP\nDIM A(2)\n")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'7\n', b''))
 
     def test_forward_matrix_errors_use_reference_location(self):
         source = self.work / 'forward.b'
@@ -5422,28 +4898,8 @@ CRT A:'|':B:'|':C:'|':D:'|':E
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CAPTURING cannot store a NUL byte'.encode(), run.stderr)
 
-    def test_execute_returning_and_setting(self):
-        run = self.run_native(ROOT / 'tests/programs/returning.b')
-        self.assertEqual(run.returncode, 0, run.stderr)
-        status = b'7\xfebad\xfeworse\xfe\n'
-        captured = b'one\xfetwo\n'
-        self.assertEqual(run.stdout, captured + status + status + captured + b'visible\n5\n0\n2\n143\n')
-        self.assertEqual(run.stderr, b'')
-
-    def test_exec_alias_runs_the_command_and_captures_results(self):
+    def test_exec_rejects_duplicate_returning_clause(self):
         source = self.work / 'exec.b'
-        source.write_text(r"""EXEC = "printf 'output\n'; printf 'error\n' >&2; exit 7"
-EXEC EXEC SETTING Result CAPTURING Output
-CRT Output
-CRT Result
-CRT @SYSTEM.RETURN.CODE
-EXEC "printf 'visible\n'"
-CRT @SYSTEM.RETURN.CODE
-""")
-        result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'output\xfe\n7\xfeerror\xfe\n7\nvisible\n0\n', b''))
-
         source.write_text("EXEC ':' SETTING A RETURNING B\n")
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)

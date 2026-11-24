@@ -1,0 +1,4 @@
+FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ELSE CRT 'other' ; NEXT I
+FOR I = 1 TO 2 ; IF I > 0 THEN IF I = 2 THEN CRT I ; NEXT
+FOR I = 1 TO 2 ; IF I = 1 THEN CRT I NEXT I
+CRT 'done'

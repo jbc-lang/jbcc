@@ -1,0 +1,9 @@
+Text = ''
+FOR I = 1 TO 255
+    Text := CHAR(I)
+NEXT I
+CRT UPCASE(Text)
+CRT DOWNCASE(Text)
+CRT LOWCASE(Text)
+CRT Text
+CRT UPCASE(''):LOWCASE('')

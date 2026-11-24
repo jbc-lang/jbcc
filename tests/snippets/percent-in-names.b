@@ -1,0 +1,10 @@
+#define FLAG%SET 1
+#ifdef FLAG%SET
+EQUATE Report.%TOTAL TO Value%Sum
+Report.%TOTAL = 4
+GOSUB SHOW%TOTAL
+STOP
+SHOW%TOTAL:
+CRT Value%Sum, FLAG%SET
+RETURN
+#endif

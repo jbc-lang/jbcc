@@ -1,0 +1,4 @@
+A(1) = 7
+CRT A(1)
+STOP
+DIM A(2)

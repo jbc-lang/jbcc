@@ -12,6 +12,9 @@ Read README.md for the current milestone and its acceptance example.
 - Keep test snippets small and independently authored. Record whether an
   expected result comes from a guide example, an observed reference run or
   a provisional project decision. Keep external source corpora local.
+- Place self-contained, single-source success tests with expected stdout
+  in `tests/snippets/` as `.b` and `.stdout` pairs. Use Python tests for
+  diagnostics, multiple sources, setup or side effects.
 - Centralize jBC value conversions in the runtime so generated C preserves
   jBC semantics. Make test doubles explicit and report unsupported services
   at their call sites.
