@@ -1976,6 +1976,24 @@ CRT ,
                 result = self.run_native(source)
                 self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
 
+    def test_empty_inline_arms_closed_by_end(self):
+        source = self.work / 'empty-arm.b'
+        source.write_text("""Total = 0
+FOR I = 1 TO 2
+    IF I = 1 THEN END
+    Total += 1
+NEXT I
+CRT Total
+IF 0 THEN END ELSE CRT 'else'
+IF 1 THEN CRT 'then' ELSE END
+IF 0 ELSE END; CRT 'after'
+OPEN 'missing' THEN END ELSE CRT 'open miss'
+END
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'2\nelse\nthen\nafter\nopen miss\n', b''))
+
     def test_inline_if_ends_at_next_in_the_enclosing_for(self):
         source = self.work / 'inline-next.b'
         source.write_text("""FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ELSE CRT 'other' ; NEXT I

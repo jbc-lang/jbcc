@@ -3077,6 +3077,20 @@ the bare END that closes the IF.
 Both routines now pass strict C99 checking in byte mode. The total is
 17,211 of 17,336 candidates, including all 17,209 previous passes.
 
-- [ ] Investigate an empty inline IF arm closed by END in
+- [x] Investigate an empty inline IF arm closed by END in
   REBUILD.AVAIL.FUNDS.SELECT. Check its effect on the following statement
   and the surrounding loop.
+
+The reference compiler emits an empty branch for THEN END or ELSE END,
+including a THEN/ELSE arm on OPEN. The following statement stays in
+the surrounding loop or block. jbcc consumes the END at the beginning
+of the arm. Native tests cover a loop, an opposite arm with a statement,
+continuation after a semicolon and a failed OPEN.
+
+REBUILD.AVAIL.FUNDS.SELECT now passes strict C99 checking in byte mode.
+The total is 17,212 of 17,336 candidates, including all 17,211
+previous passes.
+
+- [ ] Investigate YR.NEW declared both with and without dimensions in
+  I_RE.STAT.REP.LINE.COMMON. Check the reference slot layout and which
+  declaration supplies the dimensions.

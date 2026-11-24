@@ -1231,6 +1231,9 @@ class Compiler:
         return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
 
     def clause(self, opening, inline_stops=None):
+        if self.word == 'END' and not self.statement_boundary_is_target():
+            self.advance()
+            return
         # A multiline arm has its own END. An inline arm can also end
         # where the enclosing loop resumes.
         self.depth += 1
@@ -3309,8 +3312,8 @@ class Compiler:
         else:
             self.error("expected an assignment, CRT or IF")
 
-    def loop_boundary_is_target(self):
-        # Preserve assignments and labels using loop keywords in inline arms.
+    def statement_boundary_is_target(self):
+        # Assignments and labels can use words that also end a statement sequence.
         return (self.following.word in ASSIGNMENT_PREFIXES
             or (self.word in self.matrices and self.following.word == '(')
             or is_label(self.current, self.following))
@@ -3320,7 +3323,7 @@ class Compiler:
         self.statement_stops = stops
         while self.word not in stops or (
             self.word == 'END' and is_label(self.current, self.following)
-            or self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.loop_boundary_is_target()
+            or self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.statement_boundary_is_target()
         ):
             if self.word == '':
                 self.error(f"unterminated {opening.word}", opening)

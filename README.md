@@ -883,7 +883,9 @@ the read, including on the first iteration. FOR accepts WHILE and UNTIL
 guards in its header.
 The reference grammar also allows guards between statements in FOR and
 LOOP bodies, with an optional DO after the condition. An inline arm can
-end at a loop guard. In `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,
+end at a loop guard. `THEN END` and `ELSE END` specify empty arms and
+execution continues after the conditional. In
+`LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,
 the guard tests the ID after READNEXT and its ELSE arm have run. An ELSE
 inside a nested conditional still binds to the nearest eligible THEN.
 An inline arm inside a FOR also ends at the enclosing NEXT. For example,
