@@ -1014,6 +1014,9 @@ expanded twice. This follows the reference parser’s `common_identifier`
 allocation rule and its dynamic-dimension generator. Repeated matrix
 declarations must agree on rank and bounds. jbcc checks constant bounds
 at compile time and expression bounds when the declaration executes.
+A member listed with and without dimensions in the same block keeps
+the slot of its first occurrence and takes the dimensioned declaration's
+bounds, following the Prime compiler layout.
 For T24 compatibility, a later DIM or DIMENSION that names a COMMON
 matrix also checks its shape and reuses its original shared slot. The
 reference generator accepts a repeated DIM in resize-enabled emulation.

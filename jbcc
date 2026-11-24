@@ -539,7 +539,7 @@ def dimension_shape(tokens, opening):
 
 
 def matrix_declarations(tokens):
-    """Index the first declaration of each member before generating code."""
+    """Index the dimensions of each member before generating code."""
     members = {}
     for i, opening in enumerate(tokens):
         if opening.kind != 'name' or opening.word not in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
@@ -567,7 +567,10 @@ def matrix_declarations(tokens):
                 shape, i = dimension_shape(tokens, i)
             elif block_name is None:
                 break
-            members.setdefault(member.word, (member, shape, block_name))
+            previous = members.get(member.word)
+            if previous is None or (shape and block_name is not None
+                                    and not previous[1] and previous[2] == block_name):
+                members[member.word] = member, shape, block_name
             if tokens[i].word != ',':
                 break
             i += 1
@@ -2686,10 +2689,17 @@ class Compiler:
         common = block is not None
         token = self.identifier()
         name = token.word
-        if common and self.common_scalars.get(name) == block_name and self.word != '(':
-            return
         matrix = self.matrices.get(name)
         pending = self.pending_matrices.get(name) == token
+        if common and self.word != '(':
+            if self.common_scalars.get(name) == block_name:
+                return
+            if matrix and matrix.common_block == block_name:
+                if name not in block.matrix_slots:
+                    # Reserve the first slot. The dimensioned occurrence supplies its bounds.
+                    block.matrix_slots[name] = len(block.shapes)
+                    block.shapes.append(matrix.shape)
+                return
         if (matrix and not pending and matrix.shape is not None and self.word == '('
                 and (not common or matrix.common_block == block_name)):
             self.redeclare_matrix(token, matrix)
@@ -2707,8 +2717,11 @@ class Compiler:
         bounds = self.dimension_bounds() if self.word == '(' or not common else ()
         shape = tuple(n if isinstance(n, int) else None for n in bounds)
         if common:
-            member = len(block.shapes)
-            block.shapes.append(shape)
+            member = block.matrix_slots.get(name, len(block.shapes))
+            if member == len(block.shapes):
+                block.shapes.append(shape)
+            else:
+                block.shapes[member] = shape
             if not bounds:
                 self.common_scalars[name] = block_name
                 self.names[name] = f"frame->{block.field}[{member}]"

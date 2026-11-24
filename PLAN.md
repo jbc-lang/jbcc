@@ -3091,6 +3091,20 @@ REBUILD.AVAIL.FUNDS.SELECT now passes strict C99 checking in byte mode.
 The total is 17,212 of 17,336 candidates, including all 17,211
 previous passes.
 
-- [ ] Investigate YR.NEW declared both with and without dimensions in
+- [x] Investigate YR.NEW declared both with and without dimensions in
   I_RE.STAT.REP.LINE.COMMON. Check the reference slot layout and which
   declaration supplies the dimensions.
+
+The reference compiler in Prime mode uses the first slot for a member
+spelled with and without dimensions. The dimensioned occurrence supplies
+the bounds. Probes confirm the slot layout in either order and across
+separate COMMON declarations. jbcc follows that layout. A native test
+verifies that two routines share the matrix and independently update
+the neighboring scalars. [COMMON](https://jbc-lang.org/pages/common.html).
+
+All six RE.STAT.REP.LINE routines now pass strict C99 checking in byte
+mode. The total is 17,218 of 17,336, including all 17,212 previous passes.
+
+- [ ] Investigate a bare dot in MD.EOD.ACCRUAL and before an assignment
+  in E.CALC.DAILY.PERF and E.AM.CALC.DAILY.PERF.GRP. Check the reference
+  treatment of period labels without a colon.

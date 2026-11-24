@@ -4335,13 +4335,35 @@ RETURN
         source = self.work / 'conflict.b'
         for first, second in [('COMMON /X/ A', 'COMMON /Y/ A'),
                               ('COMMON A', 'COMMON /X/ A'),
-                              ('COMMON /X/ A(2)', 'COMMON /X/ A'),
-                              ('COMMON /X/ A', 'COMMON /X/ A(2)')]:
+                              ('COMMON /X/ A(2)', 'COMMON /Y/ A'),
+                              ('COMMON /X/ A', 'COMMON /Y/ A(2)')]:
             with self.subTest(first=first, second=second):
                 source.write_text(f'{first}\n{second}\n')
                 run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:2:12: duplicate declaration of 'A'", run.stderr)
+
+    def test_common_member_keeps_first_slot_when_dimensioned_later(self):
+        main = self.work / 'main.b'
+        sub = self.work / 'update.b'
+        main.write_text("""N = 2
+COMMON /SHARED/ Rows, Middle
+COMMON /SHARED/ Rows(N), Tail
+Rows(2) = 'row'
+Middle = 'middle'
+Tail = 'tail'
+CALL UPDATE()
+CRT Rows(2), Middle, Tail
+""")
+        sub.write_text("""SUBROUTINE UPDATE()
+COMMON /SHARED/ A(2), B, A, C
+A(2) := '!'
+B := '!'
+C := '!'
+""")
+        result = self.run_native(main, sub)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'row!\tmiddle!\ttail!\n', b''))
 
     def test_repeated_include_reuses_common_matrix_slots(self):
         main = self.work / 'main.b'
