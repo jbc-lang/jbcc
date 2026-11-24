@@ -2772,5 +2772,19 @@ IDESC and 66 other units now pass strict C99 checking in byte mode.
 The total is 17,159 of 17,336 candidates, including all 17,092
 previous passes. Three other units reach later diagnostics.
 
-- [ ] Investigate EQUATE LIT in CONV.DR.DEL. Check how a quoted
+- [x] Investigate EQUATE LIT in CONV.DR.DEL. Check how a quoted
   statement expands and how the preprocessor records its source location.
+
+The reference compiler expands quoted statement and expression text with
+LIT and LITERALLY. Its diagnostic points to the use of the equate.
+jbcc points inside the definition and resolves equates inside the
+replacement using its existing recursive substitution rules. The native
+tests cover a quoted CALL followed by a second statement, an array
+selector, string values, and the location of an error in an include.
+
+CONV.DR.DEL now passes strict C99 checking in byte mode, bringing the
+total to 17,160 of 17,336 candidates. All 17,159 previous passes hold.
+
+- [ ] Investigate scalar reads after BEGIN CASE, starting with PROP.CHK
+  in AA.FIND.DATED.RECORDS. Check how the compiler joins assignments from
+  multiple arms and handles the path where no arm runs.

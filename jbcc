@@ -25,6 +25,7 @@ PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[:+*/-][ \t]*=|\+\+|--)("[^"]*"|'
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
 STEP_OPERATORS = {'++', '--'}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
+EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "><": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
                "#>": "<=", ">": ">", ">=": ">=", "=>": ">=", "GE": ">=", "#<": ">="}
@@ -271,24 +272,35 @@ class Preprocessor:
         i = 1
         while i < len(words):
             name = words[i]
-            if name.kind != 'name' or i + 2 >= len(words) or words[i + 1].word not in ('TO', 'LIT'):
+            if name.kind != 'name' or i + 2 >= len(words) or words[i + 1].word not in EQUATE_OPERATORS:
                 directive_error(name, "expected EQUATE name TO expression")
             end = i + 2
             while end < len(words):
                 if (words[end].word == ',' and end + 2 < len(words)
-                        and words[end + 1].kind == 'name' and words[end + 2].word in ('TO', 'LIT')):
+                        and words[end + 1].kind == 'name' and words[end + 2].word in EQUATE_OPERATORS):
                     break
                 end += 1
             if end == i + 2:
                 directive_error(name, "empty EQUATE expression")
-            self.equates[name.word] = words[i + 2:end]
+            replacement = words[i + 2:end]
+            literal = replacement[0]
+            if (words[i + 1].word != 'TO' and len(replacement) == 1
+                    and literal.kind == 'string' and literal.word[0] in "\"'"):
+                replacement = [literal._replace(kind='equate_text')]
+            self.equates[name.word] = replacement
             i = end + 1
         if len(words) == 1:
             directive_error(words[0], "missing EQUATE definition")
 
     def expand(self, words, stack=()):
         for i, token in enumerate(words):
-            if token.kind == 'name' and token.word in self.equates:
+            if token.kind == 'equate_text':
+                replacement = []
+                # Preserve the column within the quoted text, including for lexer errors.
+                text = ' ' * token.column + token.word[1:-1]
+                lex_line(text, token.line, token.path, replacement, 0)
+                yield from self.expand(list(angle_tokens(replacement)), stack)
+            elif token.kind == 'name' and token.word in self.equates:
                 # The reference preprocessor skips EQUATE lookup for direct CALL names.
                 if ((i > 0 and words[i - 1].word == 'CALL')
                         or (i > 1 and words[i - 1].kind == 'bang_prefix' and words[i - 2].word == 'CALL')):

@@ -2947,6 +2947,37 @@ CRT WORK
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
 
+    def test_lit_equates_expand_quoted_source(self):
+        main = self.work / 'main.b'
+        show = self.work / 'show.b'
+        include = self.work / 'I_LITERALS'
+        include.write_text(r"""EQUATE POS LIT '2', TEXT LITERALLY "'payload'", KEEP TO '1+2'
+EQUATE PICK LIT "REC<POS>", VALUE LIT "1+POS", SLASH LIT \literal\
+EQUATE SHOW.IT LIT "CALL SHOW('record', PICK); CRT TEXT"
+EQUATE NOTHING LIT ""
+""")
+        main.write_text("""$INSERT I_LITERALS
+REC = 'first':@FM:'second'
+NOTHING
+SHOW.IT; CRT VALUE, KEEP, SLASH
+""")
+        show.write_text("SUBROUTINE SHOW(LABEL.TEXT, VALUE.TEXT)\nCRT LABEL.TEXT:':':VALUE.TEXT\n")
+        run = self.run_native(main, show)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'record:second\npayload\n3\t1+2\tliteral\n', b''))
+
+    def test_lit_equate_diagnostic_points_inside_definition(self):
+        source = self.work / 'main.b'
+        include = self.work / 'I_INVALID'
+        definition = 'EQUATE BROKEN LIT "CRT MISSING"'
+        include.write_text(definition + '\n')
+        source.write_text('$INSERT I_INVALID\nBROKEN\n')
+        result = subprocess.run([str(ROOT / 'jbcc'), str(source), '-o', str(self.work / 'main.c')],
+                                capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{include}:1:{definition.index('MISSING') + 1}: unknown variable".encode(),
+                      result.stderr)
+
     def test_quoted_and_punctuated_direct_routine_names(self):
         main = self.work / 'main.b'
         star = self.work / 'star.b'

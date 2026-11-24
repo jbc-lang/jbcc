@@ -1157,9 +1157,14 @@ callee reads the status field, selects a CASE arm, and updates the output.
 - EQU or EQUATE defines token substitutions, including comma-separated
   definitions. T24 also uses definitions between semicolon-separated
   statements. Each definition applies from that point onward, including
-  later statements on the same line. $INSERT and INCLUDE search the
-  including file's directory, followed by each `-I DIR` in order. Included
-  tokens retain their source locations. [EQUATE](https://jbc-lang.org/pages/equate.html)
+  later statements on the same line. LIT and LITERALLY treat a single- or
+  double-quoted operand as source text. The text can supply an expression
+  or multiple statements. For example, `EQUATE SHOW.IT LIT "CRT 'ready'"`
+  defines a statement, and `EQUATE MESSAGE TO 'ready'` defines a string
+  value. Tokens from quoted expansions point inside the definition.
+  $INSERT and INCLUDE search the including file's directory, followed by
+  each `-I DIR` in order. Included tokens retain their source locations.
+  [EQUATE](https://jbc-lang.org/pages/equate.html)
 - BEGIN CASE evaluates conditions in order, executes the first true arm,
   and resumes after END CASE. Use CASE 1 for a default. The reference
   grammar allows zero arms. When the block is empty or contains only
