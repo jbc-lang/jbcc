@@ -1,0 +1,8 @@
+DEFFUN INC(N)
+DEFFUN EMPTY()
+DEFFUN UNUSED()
+DIM M(1)
+M(0) = 2
+PRINT M(0) : INC(M(0)) : M(0)
+PRINT INC(INC(M(0))) : M(0)
+PRINT '[' : EMPTY() : ']'

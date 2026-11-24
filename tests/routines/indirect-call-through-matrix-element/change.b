@@ -1,0 +1,4 @@
+FUNCTION CHANGE.TARGET(Slot, Index)
+Slot = 'REPORT'
+Index += 1
+RETURN 5

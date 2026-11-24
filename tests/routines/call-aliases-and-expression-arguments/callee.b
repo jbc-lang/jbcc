@@ -1,0 +1,4 @@
+SUBROUTINE TWICE(A, B)
+A += 1
+B += A
+RETURN

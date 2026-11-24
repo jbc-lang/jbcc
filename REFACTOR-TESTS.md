@@ -54,28 +54,28 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Routine calls, functions and linkage (22)
 
-- [ ] `test_callonexit_dispatches_linked_callbacks`
-- [ ] `test_bang_subroutine_names`
-- [ ] `test_call_aliases_and_expression_arguments`
-- [ ] `test_indirect_call`
-- [ ] `test_empty_actual_uses_local_storage_for_mat_formal`
-- [ ] `test_empty_mat_actual_requires_dimension_before_use`
-- [ ] `test_callc_subroutine_exists_checks_linked_subroutines`
-- [ ] `test_callc_subroutine_exists_requires_two_arguments`
-- [ ] `test_call_expands_equates_in_arguments_and_indirect_targets`
-- [ ] `test_quoted_and_punctuated_direct_routine_names`
-- [ ] `test_quoted_direct_target_preserves_whitespace_and_punctuation`
-- [ ] `test_indirect_call_diagnostics`
-- [ ] `test_indirect_call_through_matrix_element`
-- [ ] `test_indirect_matrix_call_uses_normal_matrix_diagnostics`
-- [ ] `test_multiline_call`
-- [ ] `test_deffun_call_as_statement_discards_return_and_updates_argument`
-- [ ] `test_function_arguments_and_returns`
-- [ ] `test_matrix_parameters`
-- [ ] `test_matrix_parameter_diagnostics`
-- [ ] `test_function_diagnostics`
-- [ ] `test_bad_routine_references`
-- [ ] `test_seqx_resolves_as_external_function`
+- [x] `test_callonexit_dispatches_linked_callbacks`
+- [x] `test_bang_subroutine_names`
+- [x] `test_call_aliases_and_expression_arguments`
+- [x] `test_indirect_call`
+- [x] `test_empty_actual_uses_local_storage_for_mat_formal`
+- [x] `test_empty_mat_actual_requires_dimension_before_use`
+- [x] `test_callc_subroutine_exists_checks_linked_subroutines`
+- [x] `test_callc_subroutine_exists_requires_two_arguments`
+- [x] `test_call_expands_equates_in_arguments_and_indirect_targets`
+- [x] `test_quoted_and_punctuated_direct_routine_names`
+- [x] `test_quoted_direct_target_preserves_whitespace_and_punctuation`
+- [x] `test_indirect_call_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_indirect_call_through_matrix_element`
+- [x] `test_indirect_matrix_call_uses_normal_matrix_diagnostics`
+- [x] `test_multiline_call`
+- [x] `test_deffun_call_as_statement_discards_return_and_updates_argument`
+- [x] `test_function_arguments_and_returns`
+- [x] `test_matrix_parameters`
+- [x] `test_matrix_parameter_diagnostics`
+- [x] `test_function_diagnostics`
+- [x] `test_bad_routine_references`
+- [x] `test_seqx_resolves_as_external_function`
 
 ## Compiler diagnostics and preprocessing (7)
 

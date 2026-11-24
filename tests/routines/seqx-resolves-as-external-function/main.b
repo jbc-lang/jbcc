@@ -1,0 +1,2 @@
+DEFFUN SEQX(S)
+CRT SEQX('b'), SEQ('b')

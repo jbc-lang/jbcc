@@ -1,0 +1,5 @@
+SUBROUTINE MIX(A, B,
+C, D)
+B = A * 10 + C
+D += B
+RETURN

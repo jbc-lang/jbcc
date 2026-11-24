@@ -1,0 +1,2 @@
+DIM A(2)
+CALL S(MAT A)

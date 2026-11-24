@@ -1,0 +1,7 @@
+FUNCTION INC(N)
+GOSUB increment
+GOSUB finish
+RETURN 99
+increment: N += 1
+RETURN
+finish: RETURN N

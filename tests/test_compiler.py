@@ -1579,7 +1579,6 @@ CRT 'after'
                 self.assertIn((str(source) + diagnostic).encode(), result.stderr)
 
     def test_callonexit_dispatches_linked_callbacks(self):
-        source = self.work / 'exit.b'
         save = ROOT / 'tests/routines/exit-callbacks/save.b'
         show = ROOT / 'tests/routines/exit-callbacks/show.b'
         wrong = ROOT / 'tests/routines/exit-callbacks/wrong.b'
@@ -1593,9 +1592,9 @@ CRT CALLONEXIT('WRONG') > 0
 CRT CALLONEXIT('') > 0
 CRT 'main'
 """
-        for ending, status in (('', 0), ('STOP', 0), ('EXIT(7)', 7), ('ABORT', 1), ('DEBUG', 1)):
+        for case_number, (ending, status) in enumerate((('', 0), ('STOP', 0), ('EXIT(7)', 7), ('ABORT', 1), ('DEBUG', 1)), 1):
             with self.subTest(ending=ending):
-                source.write_text(program + ending + '\n')
+                source = ROOT / 'tests/routines/callonexit-dispatches-linked-callbacks' / f'exit_{case_number}.b'
                 result = self.run_native(source, save, show, wrong)
                 self.assertEqual(result.returncode, status, result.stderr)
                 self.assertEqual(result.stdout, b'0\n0\n0\n1\n1\n1\nmain\nsave\n[] payload\xfd1\n')
@@ -2195,129 +2194,75 @@ CRT Old:':':New:':':Current
         self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
 
     def test_bang_subroutine_names(self):
-        main = self.work / 'main.b'
-        plain = self.work / 'plain.b'
-        bang = self.work / 'bang.b'
-        main.write_text('X = 0\nCALL ADD.IT$(X)\nCALL !ADD.IT$(X); ! trailing comment\n'
-                        'IF 0!X THEN CALL !ADD.IT$(X)\n!ADD.IT$(X) is a comment here\nCRT X\n')
-        plain.write_text('SUB ADD.IT$(N)\nN += 1\nRETURN\n')
-        bang.write_text('SUBROUTINE !ADD.IT$(N)\nN += 10\nRETURN\n')
+        main = ROOT / 'tests/routines/bang-subroutine-names/main.b'
+        plain = ROOT / 'tests/routines/bang-subroutine-names/plain.b'
+        bang = ROOT / 'tests/routines/bang-subroutine-names/bang.b'
         run = self.run_native(main, plain, bang)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'21\n')
         self.assertEqual(run.stderr, b'')
 
     def test_call_aliases_and_expression_arguments(self):
-        caller = self.work / 'caller.b'
-        callee = self.work / 'callee.b'
-        caller.write_text('X = 1\nCALL TWICE(X, X)\nCALL TWICE(X + 1, X)\nPRINT X\n')
-        callee.write_text('SUBROUTINE TWICE(A, B)\nA += 1\nB += A\nRETURN\n')
+        caller = ROOT / 'tests/routines/call-aliases-and-expression-arguments/caller.b'
+        callee = ROOT / 'tests/routines/call-aliases-and-expression-arguments/callee.b'
         run = self.run_native(callee, caller)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'10\n')
 
     def test_indirect_call(self):
-        main = self.work / 'main.b'
-        work = self.work / 'work.b'
-        done = self.work / 'done.b'
-        switch = self.work / 'switch.b'
-        main.write_text("EQU Which TO Name\nDEFFUN SWITCH(N)\nDIM M(2)\nM(1) = 4\nX = 1\nName = '!WORK'\n"
-                        "CALL @Which(MAT M, X, X, SWITCH(Name))\nCRT M(1), X\nCALL @ Name\n")
-        work.write_text("SUBROUTINE !WORK(MAT A, B, C, D)\nA(1) += D\nB += A(1)\nC += 1\n")
-        switch.write_text("FUNCTION SWITCH(N)\nN = 'DONE'\nRETURN 2\n")
-        done.write_text("SUBROUTINE DONE()\nCRT 'done'\n")
+        main = ROOT / 'tests/routines/indirect-call/main.b'
+        work = ROOT / 'tests/routines/indirect-call/work.b'
+        switch = ROOT / 'tests/routines/indirect-call/switch.b'
+        done = ROOT / 'tests/routines/indirect-call/done.b'
         run = self.run_native(main, work, switch, done)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'6\t8\ndone\n')
         self.assertEqual(run.stderr, b'')
 
     def test_empty_actual_uses_local_storage_for_mat_formal(self):
-        main = self.work / 'main.b'
-        load = self.work / 'load.b'
-        scalar = self.work / 'scalar.b'
-        main.write_text("""DIM Values(2)
-Name = 'LOAD.VALUES'
-CALL LOAD.VALUES('', 3, Result)
-CRT Result
-CALL @Name("", 4, Result)
-CRT Result
-CALL LOAD.VALUES(MAT Values, 2, Result)
-CRT Result, Values(2)
-CALL CHECK.SCALAR('', Result)
-CRT '[':Result:']'
-""")
-        load.write_text("""SUBROUTINE LOAD.VALUES(MAT Items, Size, Answer)
-DIM Items(Size)
-MAT Items = 'filled'
-Answer = INMAT(Items):':':Items(Size)
-""")
-        scalar.write_text("SUBROUTINE CHECK.SCALAR(Value, Report)\nReport = Value\n")
+        main = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/main.b'
+        load = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/load.b'
+        scalar = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/scalar.b'
         result = self.run_native(main, load, scalar)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'3:filled\n4:filled\n2:filled\tfilled\n[]\n', b''))
 
     def test_empty_mat_actual_requires_dimension_before_use(self):
-        main = self.work / 'main.b'
-        load = self.work / 'load.b'
-        main.write_text("CALL LOAD.VALUES('')\n")
-        load.write_text("SUBROUTINE LOAD.VALUES(MAT Items)\nCRT Items(1)\n")
+        main = ROOT / 'tests/routines/empty-mat-actual-requires-dimension-before-use/main.b'
+        load = ROOT / 'tests/routines/empty-mat-actual-requires-dimension-before-use/load.b'
         result = self.run_native(main, load)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (1, b'', f'{load}:2:5: MAT parameter requires a matrix argument or DIM\n'.encode()))
 
     def test_callc_subroutine_exists_checks_linked_subroutines(self):
-        main = self.work / 'main.b'
-        subroutine = self.work / 'worker.b'
-        function = self.work / 'compute.b'
-        main.write_text("""Info = 'old'
-CRT CALLC JBASESubroutineExist('WOR':'KER', Info), '[':Info:']'
-CRT CALLC JBASESubroutineExist('worker', 0), CALLC JBASESubroutineExist('COMPUTE', Info)
-Name = 'WORKER'
-CRT CALLC JBASESubroutineExist(Name, Name), '[':Name:']'
-DIM Codes(1)
-CALLC JBASESubroutineExist('missing', Codes(1))
-CRT '[':Codes(1):']'
-""")
-        subroutine.write_text("SUBROUTINE WORKER(Value)\nABORT\n")
-        function.write_text("FUNCTION COMPUTE()\nRETURN 1\n")
+        main = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/main.b'
+        subroutine = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/worker.b'
+        function = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/compute.b'
         result = self.run_native(main, subroutine, function)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'1\t[]\n0\t0\n1\t[]\n[]\n', b''))
 
-        main.write_text("CRT CALLC JBASESubroutineExist('WORKER', Info), '[':Info:']'\n")
+        main = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/main-variant-2.b'
         result = self.run_native(main)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\t[]\n', b''))
 
     def test_callc_subroutine_exists_requires_two_arguments(self):
-        source = self.work / 'main.b'
-        for arguments, marker, message in (
+        for case_number, (arguments, marker, message) in enumerate((
             ("'WORKER'", ')', "expected ','"),
             ("'WORKER', Info, 0", ', 0', "expected ')'"),
-        ):
+        ), 1):
             with self.subTest(arguments=arguments):
                 statement = f'CRT CALLC JBASESubroutineExist({arguments})'
-                source.write_text(statement + '\n')
+                source = ROOT / 'tests/routines/callc-subroutine-exists-requires-two-arguments' / f'main_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
 
     def test_call_expands_equates_in_arguments_and_indirect_targets(self):
-        main = self.work / 'main.b'
-        direct = self.work / 'direct.b'
-        prefixed = self.work / 'prefixed.b'
-        include = self.work / 'I_NAMES'
-        include.write_text('EQU WORK TO 7, ALIAS TO ROUTE\n')
-        main.write_text("""$INSERT I_NAMES
-RouteValue = 'WORK'
-ROUTE = RouteValue
-CALL WORK(WORK)
-IF 1 THEN CALL !WORK(WORK + 1)
-CALL@ALIAS(WORK + 2)
-CALL @ ALIAS(WORK + 3)
-CRT WORK
-""")
-        direct.write_text("SUBROUTINE WORK(Value)\nCRT 'direct ':Value\n")
-        prefixed.write_text("SUBROUTINE !WORK(Value)\nCRT 'prefixed ':Value\n")
+        include = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/I_NAMES'
+        main = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/main.b'
+        direct = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/direct.b'
+        prefixed = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/prefixed.b'
         run = self.run_native(main, direct, prefixed)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
@@ -2446,44 +2391,27 @@ DEFC ReadNative()
                 self.assertIn(str(include) + location, result.stderr)
 
     def test_quoted_and_punctuated_direct_routine_names(self):
-        main = self.work / 'main.b'
-        star = self.work / 'star.b'
-        dashed = self.work / 'dashed.b'
-        quoted_header = self.work / 'quoted.b'
-        main.write_text(r"""EQU ADD TO 200
-EQU STEP TO 700
-N = 1
-* full-line comment
-again: CALL *ADD(N);* trailing comment
-IF N = 2 THEN CALL 'ADD-STEP'(N)
-CALL \*ADD\(N)
-CALL '"SUMMARY"'(N)
-Name = '*ADD'
-CALL @Name(N)
-CRT N
-""")
-        star.write_text('SUBROUTINE *ADD(Value)\nValue += 1\n')
-        dashed.write_text('SUB ADD-STEP(Value)\nValue += 10\n')
-        quoted_header.write_text('SUBROUTINE "SUMMARY"(Value)\nValue += 100\n')
+        main = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/main.b'
+        star = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/star.b'
+        dashed = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/dashed.b'
+        quoted_header = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/quoted.b'
         result = self.run_native(main, star, dashed, quoted_header)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'114\n', b''))
 
     def test_quoted_direct_target_preserves_whitespace_and_punctuation(self):
-        main = self.work / 'main.b'
-        main.write_text("CALL 'TWO WORDS;(AND PUNCTUATION)'\n")
+        main = ROOT / 'tests/routines/quoted-direct-target-preserves-whitespace-and-punctuation/main.b'
         result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f"{main}:1:6: unknown subroutine 'TWO WORDS;(AND PUNCTUATION)'\n")
 
-        main.write_text("CALL 'UNCLOSED\n")
+        main = ROOT / 'tests/routines/quoted-direct-target-preserves-whitespace-and-punctuation/main-variant-2.b'
         result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{main}:1:6: unterminated quoted routine name\n')
 
     def test_indirect_call_diagnostics(self):
         main = self.work / 'main.b'
-        sub = self.work / 'update.b'
-        sub.write_text("SUBROUTINE UPDATE(MAT M)\nCRT 'unexpected'\n")
+        sub = ROOT / 'tests/routines/indirect-call-diagnostics/update.b'
         for name, args, units, message in [
                 ('MISSING', '', [], 'unknown subroutine'),
                 ('update', '(MAT M)', [sub], 'unknown subroutine'),
@@ -2497,65 +2425,29 @@ CRT N
                 self.assertIn(f"{main}:3:6: {message} '{name}'".encode(), run.stderr)
 
     def test_indirect_call_through_matrix_element(self):
-        main = self.work / 'main.b'
-        add = self.work / 'add.b'
-        report = self.work / 'report.b'
-        change = self.work / 'change.b'
-        main.write_text("""DEFFUN CHANGE.TARGET(Slot, Index)
-DIM Names(2), Grid(1,1)
-Names(1) = 'ADD'
-Names(2) = 'REPORT'
-Grid(1,0) = 'REPORT'
-X = 2
-I = 1
-EQU Target TO Names(I)
-CALL @Target(X, CHANGE.TARGET(Names(1), I))
-CRT X
-CRT I
-CALL @Names(1)()
-CALL @Names(2)
-CALL @Grid(1, I - 2)
-""")
-        add.write_text('SUBROUTINE ADD(Value, Amount)\nValue += Amount\n')
-        report.write_text("SUBROUTINE REPORT()\nCRT 'called'\n")
-        change.write_text("""FUNCTION CHANGE.TARGET(Slot, Index)
-Slot = 'REPORT'
-Index += 1
-RETURN 5
-""")
+        main = ROOT / 'tests/routines/indirect-call-through-matrix-element/main.b'
+        add = ROOT / 'tests/routines/indirect-call-through-matrix-element/add.b'
+        report = ROOT / 'tests/routines/indirect-call-through-matrix-element/report.b'
+        change = ROOT / 'tests/routines/indirect-call-through-matrix-element/change.b'
         result = self.run_native(main, add, report, change)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'7\n2\ncalled\ncalled\ncalled\n', b''))
 
     def test_indirect_matrix_call_uses_normal_matrix_diagnostics(self):
-        source = self.work / 'main.b'
-        for index, message in (
-            (1, "unassigned variable 'Names'"),
-            (3, 'matrix subscript out of bounds'),
+        for fixture_name, message in (
+            ('main_1.b', "unassigned variable 'Names'"),
+            ('main_2.b', 'matrix subscript out of bounds'),
         ):
-            with self.subTest(index=index):
-                source.write_text(f'DIM Names(2)\nCALL @Names({index})\n')
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/indirect-matrix-call-uses-normal-matrix-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, f'{source}:2:7: {message}\n'.encode())
 
     def test_multiline_call(self):
-        caller = self.work / 'caller.b'
-        callee = self.work / 'callee.b'
-        caller.write_text("""X = 4
-R<1,2> = 3
-CALL MIX(X + 1, ;* capture the first argument
-
-    * pass X twice by reference
-    X,
-    ! extract from a dynamic array
-    R<1,
-      2>,
-    X)
-CRT X
-""")
-        callee.write_text('SUBROUTINE MIX(A, B,\nC, D)\nB = A * 10 + C\nD += B\nRETURN\n')
+        caller = ROOT / 'tests/routines/multiline-call/caller.b'
+        callee = ROOT / 'tests/routines/multiline-call/callee.b'
         run = self.run_native(caller, callee)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'106\n')
@@ -2568,91 +2460,56 @@ CRT X
         self.assertEqual(subprocess.check_output([binary]), b'43\n')
 
     def test_deffun_call_as_statement_discards_return_and_updates_argument(self):
-        main = self.work / 'main.b'
-        function = self.work / 'function.b'
-        main.write_text('DEFFUN Log.Event()\nCount = 4\nLog.Event(Count)\nCRT Count\n')
-        function.write_text('FUNCTION Log.Event(Count)\nCount += 1\nRETURN 99\n')
+        main = ROOT / 'tests/routines/deffun-call-as-statement-discards-return-and-updates-argument/main.b'
+        function = ROOT / 'tests/routines/deffun-call-as-statement-discards-return-and-updates-argument/function.b'
         result = self.run_native(main, function)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'5\n', b''))
 
     def test_function_arguments_and_returns(self):
-        main = self.work / 'main.b'
-        inc = self.work / 'INC'
-        empty = self.work / 'EMPTY'
-        main.write_text("""DEFFUN INC(N)
-DEFFUN EMPTY()
-DEFFUN UNUSED()
-DIM M(1)
-M(0) = 2
-PRINT M(0) : INC(M(0)) : M(0)
-PRINT INC(INC(M(0))) : M(0)
-PRINT '[' : EMPTY() : ']'
-""")
-        inc.write_text('FUNCTION INC(N)\nGOSUB increment\nGOSUB finish\nRETURN 99\n'
-                       'increment: N += 1\nRETURN\nfinish: RETURN N\n')
-        empty.write_text('FUNCTION EMPTY()\nRETURN\n')
+        main = ROOT / 'tests/routines/function-arguments-and-returns/main.b'
+        inc = ROOT / 'tests/routines/function-arguments-and-returns/INC'
+        empty = ROOT / 'tests/routines/function-arguments-and-returns/EMPTY'
         run = self.run_native(empty, inc, main)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'233\n54\n[]\n')
 
     def test_matrix_parameters(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'relay.b'
-        func = self.work / 'edit.b'
-        main.write_text("""N = 2
-COMMON /DATA/ Grid(N,3)
-DIM Copy(N,3)
-MAT Grid = 'seed'
-CALL RELAY(MAT Grid, MAT Copy, N, Result)
-PRINT Grid(0,0), Grid(2,3), Copy(2,3), Result
-""")
-        sub.write_text("""SUBROUTINE RELAY(MAT G, MAT D, N, Out)
-DIM G(N,3)
-DEFFUN EDIT(MAT A, S)
-Out = EDIT(MAT G, G(0,0))
-MAT D = MAT G
-MATBUILD Rec FROM D, 5, 6 USING '|'
-Out := Rec
-""")
-        func.write_text("""FUNCTION EDIT(MAT M, Alias)
-FOR I = 1 TO 2
-    M(2,3) = Alias : I
-NEXT I
-Alias = 'new'
-RETURN M(2,3)
-""")
+        main = ROOT / 'tests/routines/matrix-parameters/main.b'
+        sub = ROOT / 'tests/routines/matrix-parameters/relay.b'
+        func = ROOT / 'tests/routines/matrix-parameters/edit.b'
         run = self.run_native(main, sub, func)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'new\tseed2\tseed2\tseed2seed|seed2\n')
 
     def test_matrix_parameter_diagnostics(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'sub.b'
-        for call, formal in [('CALL S(MAT A)', 'X'), ('CALL S(N)', 'MAT X')]:
-            main.write_text(f'DIM A(2)\n{call}\n')
-            sub.write_text(f'SUBROUTINE S({formal})\n')
+        for case_number, (call, formal) in enumerate([('CALL S(MAT A)', 'X'), ('CALL S(N)', 'MAT X')], 1):
+            main = ROOT / 'tests/routines/matrix-parameter-diagnostics' / f'main_{case_number}.b'
+            sub = ROOT / 'tests/routines/matrix-parameter-diagnostics' / f'sub_{case_number}.b'
             result = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(f"{main}:2:6: scalar/MAT argument mismatch for 'S'", result.stderr)
-        main.write_text('DIM A(2)\nCALL S(MAT A)\n')
-        for body, message in [('DIM X(3)', 'incompatible MAT parameter dimensions'),
-                              ('PRINT X(1,1)', 'wrong number of MAT parameter subscripts'),
-                              ('PRINT X(3)', 'matrix subscript out of bounds')]:
-            sub.write_text(f'SUBROUTINE S(MAT X)\n{body}\n')
+        main = ROOT / 'tests/routines/matrix-parameter-diagnostics/main-variant-2.b'
+        for fixture_name, message in (
+            ('sub-variant-2_1.b', 'incompatible MAT parameter dimensions'),
+            ('sub-variant-2_2.b', 'wrong number of MAT parameter subscripts'),
+            ('sub-variant-2_3.b', 'matrix subscript out of bounds'),
+        ):
+            sub = ROOT / 'tests/routines/matrix-parameter-diagnostics' / fixture_name
             run = self.run_native(main, sub)
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(f'{sub}:2:'.encode(), run.stderr)
             self.assertIn(message.encode(), run.stderr)
 
     def test_function_diagnostics(self):
-        main = self.work / 'main.b'
         definition = ROOT / 'tests/routines/DOUBLE.IT'
-        for text, message in [('DEFFUN MISSING()\nCRT MISSING()', ":2:5: unknown function 'MISSING'"),
-                              ('DEFFUN DOUBLE.IT()\nCRT DOUBLE.IT()', ":2:5: wrong argument count"),
-                              ('CRT DOUBLE.IT(1)\nDEFFUN DOUBLE.IT()', ':1:5: unknown variable'),
-                              ('CALL DOUBLE.IT(1)', ":1:6: unknown subroutine")]:
-            with self.subTest(text=text):
-                main.write_text(text)
+        for fixture_name, message in (
+            ('main_1.b', ":2:5: unknown function 'MISSING'"),
+            ('main_2.b', ':2:5: wrong argument count'),
+            ('main_3.b', ':1:5: unknown variable'),
+            ('main_4.b', ':1:6: unknown subroutine'),
+        ):
+            with self.subTest(source=fixture_name):
+                main = ROOT / 'tests/routines/function-diagnostics' / fixture_name
                 run = subprocess.run([CLI, main, definition, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(main) + message, run.stderr)
@@ -2738,29 +2595,29 @@ GOTO middle
                          (1, b'0\n', f'{main}:5:1: NEXT requires the STEP expression from the FOR header\n'.encode()))
 
     def test_bad_routine_references(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'sub.b'
-        sub.write_text('SUBROUTINE CHECK(X)\nRETURN\n')
-        for program, message in [('CALL CHECK()', 'wrong argument count'),
-                                 ('CALL MISSING()', 'unknown subroutine'),
-                                 ('CALL !CHECK(X)', ":1:6: unknown subroutine '!CHECK'"),
-                                 ('CALL ! CHECK(X)', ":1:6: expected a routine name immediately after '!'"),
-                                 ('GOSUB missing', 'unknown label'),
-                                 ('GOSUB missing:', ":1:7: unknown label 'missing'"),
-                                 ('GO missing', ":1:4: unknown label 'missing'"),
-                                 ('GO   TO missing:', ":1:9: unknown label 'missing'"),
-                                 ('GO TO', ':1:6: expected a label'),
-                                 ('GOTO 90:', ":1:6: unknown label '90'"),
-                                 ('ON 1 GOTO ok, missing\nok:', ":1:15: unknown label 'missing'"),
-                                 ('ON 2 GOSUB', ':1:11: expected a label'),
-                                 ('ON 1 PRINT', ':1:6: expected GOTO or GOSUB'),
-                                 ('GOTO :', ':1:6: expected a label'),
-                                 ('GOTO here::\nhere:', ":1:11: unexpected ':'"),
-                                 ('RETURN TO missing', 'unknown label'),
-                                 ('RETURN TO', 'expected a label'),
-                                 ('here:\nhere:', 'duplicate label')]:
-            with self.subTest(program=program):
-                main.write_text(program)
+        sub = ROOT / 'tests/routines/bad-routine-references/sub.b'
+        for fixture_name, message in (
+            ('main_1.b', 'wrong argument count'),
+            ('main_2.b', 'unknown subroutine'),
+            ('main_3.b', ":1:6: unknown subroutine '!CHECK'"),
+            ('main_4.b', ":1:6: expected a routine name immediately after '!'"),
+            ('main_5.b', 'unknown label'),
+            ('main_6.b', ":1:7: unknown label 'missing'"),
+            ('main_7.b', ":1:4: unknown label 'missing'"),
+            ('main_8.b', ":1:9: unknown label 'missing'"),
+            ('main_9.b', ':1:6: expected a label'),
+            ('main_10.b', ":1:6: unknown label '90'"),
+            ('main_11.b', ":1:15: unknown label 'missing'"),
+            ('main_12.b', ':1:11: expected a label'),
+            ('main_13.b', ':1:6: expected GOTO or GOSUB'),
+            ('main_14.b', ':1:6: expected a label'),
+            ('main_15.b', ":1:11: unexpected ':'"),
+            ('main_16.b', 'unknown label'),
+            ('main_17.b', 'expected a label'),
+            ('main_18.b', 'duplicate label'),
+        ):
+            with self.subTest(source=fixture_name):
+                main = ROOT / 'tests/routines/bad-routine-references' / fixture_name
                 run = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message, run.stderr)
@@ -3619,10 +3476,8 @@ CLOSESEQ F
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'510\t65\n', b''))
 
     def test_seqx_resolves_as_external_function(self):
-        source = self.work / 'main.b'
-        function = self.work / 'seqx.b'
-        source.write_text("DEFFUN SEQX(S)\nCRT SEQX('b'), SEQ('b')\n")
-        function.write_text("FUNCTION SEQX(S)\nRETURN INDEX('abc',S,1)\n")
+        source = ROOT / 'tests/routines/seqx-resolves-as-external-function/main.b'
+        function = ROOT / 'tests/routines/seqx-resolves-as-external-function/seqx.b'
         result = self.run_native(source, function)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'2\t98\n', b''))
 

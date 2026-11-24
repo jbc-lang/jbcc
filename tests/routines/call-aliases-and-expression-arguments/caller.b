@@ -1,0 +1,4 @@
+X = 1
+CALL TWICE(X, X)
+CALL TWICE(X + 1, X)
+PRINT X
