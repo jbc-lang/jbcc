@@ -1,0 +1,10 @@
+INPUT X:
+CRT '[' : X : ']'
+INPUT X
+CRT X
+INPUT X, 2
+CRT X
+INPUT X, (1 CAT)
+CRT X
+INPUT X FOR 4 ELSE CRT '[' : X : ']'
+INPUT X FOR 0 THEN CRT 'unexpected' ELSE CRT DQUOTE(X)

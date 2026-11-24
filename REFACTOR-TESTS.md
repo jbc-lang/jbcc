@@ -255,24 +255,24 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Terminal input, echo and polling (18)
 
-- [ ] `test_cursor_coordinate_diagnostics`
-- [ ] `test_inputclear_discards_only_terminal_typeahead`
-- [ ] `test_input_underscore_discards_excess_in_queue_and_pipe`
-- [ ] `test_input_underscore_rings_bell_and_waits_for_enter`
-- [ ] `test_keyin_shares_queued_and_piped_input`
-- [ ] `test_keyin_reads_unedited_terminal_byte_and_restores_mode`
-- [ ] `test_keyin_function_diagnostics`
-- [ ] `test_timed_input_diagnostics`
-- [ ] `test_input_negative_one_polls_without_consuming_bytes`
-- [ ] `test_input_negative_one_polls_an_empty_open_pipe`
-- [ ] `test_input_negative_one_detects_terminal_typeahead`
-- [ ] `test_input_length_diagnostics`
-- [ ] `test_hush_nonnumeric_operand`
-- [ ] `test_break_key_controls_terminal_interrupts`
-- [ ] `test_echo_controls_terminal_input_and_system24`
-- [ ] `test_hush_terminal_input_and_printer`
-- [ ] `test_input_terminal_echo`
-- [ ] `test_system14_input_queue`
+- [x] `test_cursor_coordinate_diagnostics`
+- [x] `test_inputclear_discards_only_terminal_typeahead`
+- [x] `test_input_underscore_discards_excess_in_queue_and_pipe`
+- [x] `test_input_underscore_rings_bell_and_waits_for_enter`
+- [x] `test_keyin_shares_queued_and_piped_input`
+- [x] `test_keyin_reads_unedited_terminal_byte_and_restores_mode`
+- [x] `test_keyin_function_diagnostics`
+- [x] `test_timed_input_diagnostics`
+- [x] `test_input_negative_one_polls_without_consuming_bytes`
+- [x] `test_input_negative_one_polls_an_empty_open_pipe`
+- [x] `test_input_negative_one_detects_terminal_typeahead`
+- [x] `test_input_length_diagnostics`
+- [x] `test_hush_nonnumeric_operand`
+- [x] `test_break_key_controls_terminal_interrupts`
+- [x] `test_echo_controls_terminal_input_and_system24`
+- [x] `test_hush_terminal_input_and_printer`
+- [x] `test_input_terminal_echo`
+- [x] `test_system14_input_queue`
 
 ## Session identity and environment (13)
 

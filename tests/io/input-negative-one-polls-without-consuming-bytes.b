@@ -1,0 +1,13 @@
+DATA 'xy'
+Length = -1
+INPUT Ready, Length
+CRT Ready, SYSTEM(14)
+CRT KEYIN()
+INPUT Ready, -1 FOR 50 THEN CRT Ready, SYSTEM(14) ELSE ABORT
+INPUT Rest
+CRT Rest
+INPUT Ready, -1
+CRT Ready, SYSTEM(14)
+CRT KEYIN()
+INPUT Ready, -1
+CRT Ready, SYSTEM(14)

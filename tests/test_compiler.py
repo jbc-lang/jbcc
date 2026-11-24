@@ -3804,14 +3804,15 @@ CRT {function}('text', '', {method})
         self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)
 
     def test_cursor_coordinate_diagnostics(self):
-        source = self.work / 'cursor.b'
-        for args, message in [("0, 'x'", 'expected a numeric value'),
-                              ('-1, 0', 'negative cursor coordinate'),
-                              ('0, -1', 'negative cursor coordinate'),
-                              ('-3.5', 'unsupported one-argument @ code'),
-                              ('-5', 'unsupported one-argument @ code')]:
-            with self.subTest(args=args):
-                source.write_text(f'CRT @({args})\n')
+        for fixture_name, message in (
+            ('cursor_1.b', 'expected a numeric value'),
+            ('cursor_2.b', 'negative cursor coordinate'),
+            ('cursor_3.b', 'negative cursor coordinate'),
+            ('cursor_4.b', 'unsupported one-argument @ code'),
+            ('cursor_5.b', 'unsupported one-argument @ code'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/cursor-coordinate-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
@@ -3948,7 +3949,6 @@ CRT {function}('text', '', {method})
         self.assertEqual(run.stdout, b'abc|de||x||end\n')
 
     def test_inputclear_discards_only_terminal_typeahead(self):
-        source = self.work / 'input.b'
         binary = self.work / 'input'
 
         def read_until(fd, marker):
@@ -3958,17 +3958,12 @@ CRT {function}('text', '', {method})
                 data.extend(os.read(fd, 1024))
             return bytes(data)
 
-        for statement in ('INPUTCLEAR', 'CLEARINPUT'):
-            with self.subTest(statement=statement):
-                source.write_text(f"""PROMPT ''
-DATA 'queued'
-{statement}
-INPUT Queued
-CRT Queued
-PROMPT '>'
-INPUT Fresh
-CRT Fresh
-""")
+        for fixture_name in (
+            'input_1.b',
+            'input_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/inputclear-discards-only-terminal-typeahead' / fixture_name
                 subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
                 run = subprocess.run([binary], input=b'pipe\n', capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 0, run.stderr)
@@ -3994,16 +3989,7 @@ CRT Fresh
                             proc.kill()
 
     def test_input_underscore_discards_excess_in_queue_and_pipe(self):
-        source = self.work / 'input.b'
-        source.write_text("""PROMPT ''
-DATA 'queued':@FM:'next'
-INPUT A, 2_
-INPUT B
-INPUT C, 1_:
-INPUT D, 1:_
-INPUT E
-CRT A:'|':B:'|':C:'|':D:'|':E
-""")
+        source = ROOT / 'tests/io/input-underscore-discards-excess-in-queue-and-pipe.b'
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary], input=b'first\nsecond\nlast', capture_output=True, timeout=5)
@@ -4012,8 +3998,7 @@ CRT A:'|':B:'|':C:'|':D:'|':E
         self.assertEqual(run.stderr, b'')
 
     def test_input_underscore_rings_bell_and_waits_for_enter(self):
-        source = self.work / 'input.b'
-        source.write_text("PROMPT '>'\nINPUT X,1_:\nCRT '[':X:']'\n")
+        source = ROOT / 'tests/io/input-underscore-rings-bell-and-waits-for-enter.b'
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -4172,28 +4157,16 @@ CRT A:'|':B:'|':C:'|':D:'|':E
                 self.assertIn(message.encode(), run.stderr)
 
     def test_keyin_shares_queued_and_piped_input(self):
-        source = self.work / 'keyin.b'
         binary = self.work / 'keyin'
-        source.write_text("""PROMPT '>'
-DATA 'abc', 'd'
-CRT KEYIN()
-INPUT Tail
-CRT Tail
-CRT IN():SEQ(KEYIN())
-CRT KEYIN()
-INPUT Tail
-CRT Tail
-CRT '[':IN():']'
-""")
+        source = ROOT / 'tests/io/keyin-shares-queued-and-piped-input.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         result = subprocess.run([binary], input=b'xyz\n', capture_output=True, timeout=5)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'a\n>bc\nd10\nx\n>yz\n[]\n', b''))
 
     def test_keyin_reads_unedited_terminal_byte_and_restores_mode(self):
-        source = self.work / 'keyin.b'
         binary = self.work / 'keyin'
-        source.write_text("CRT 'ready>'\nCRT SEQ(KEYIN())\n")
+        source = ROOT / 'tests/io/keyin-reads-unedited-terminal-byte-and-restores-mode.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         master, slave = os.openpty()
@@ -4235,10 +4208,9 @@ CRT '[':IN():']'
                         proc.kill()
 
     def test_keyin_function_diagnostics(self):
-        source = self.work / 'keyin.b'
-        for function in ('KEYIN', 'IN'):
+        for case_number, function in enumerate(('KEYIN', 'IN'), 1):
             with self.subTest(function=function):
-                source.write_text(f'CRT {function}(1)\n')
+                source = ROOT / 'tests/io/keyin-function-diagnostics' / f'keyin_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for '{function}'".encode(),
@@ -4266,33 +4238,18 @@ CRT '[':IN():']'
                 proc.kill()
 
     def test_timed_input_diagnostics(self):
-        source = self.work / 'input.b'
-        source.write_text('INPUT X FOR 2\n')
+        source = ROOT / 'tests/io/timed-input-diagnostics/input.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:14: expected THEN or ELSE'.encode(), run.stderr)
-        source.write_text('INPUT X FOR -1 ELSE CRT X\n')
+        source = ROOT / 'tests/io/timed-input-diagnostics/input-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: negative INPUT timeout'.encode(), run.stderr)
 
     def test_input_negative_one_polls_without_consuming_bytes(self):
-        source = self.work / 'input-poll.b'
         binary = self.work / 'input-poll'
-        source.write_text("""DATA 'xy'
-Length = -1
-INPUT Ready, Length
-CRT Ready, SYSTEM(14)
-CRT KEYIN()
-INPUT Ready, -1 FOR 50 THEN CRT Ready, SYSTEM(14) ELSE ABORT
-INPUT Rest
-CRT Rest
-INPUT Ready, -1
-CRT Ready, SYSTEM(14)
-CRT KEYIN()
-INPUT Ready, -1
-CRT Ready, SYSTEM(14)
-""")
+        source = ROOT / 'tests/io/input-negative-one-polls-without-consuming-bytes.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         read_fd, write_fd = os.pipe()
@@ -4304,9 +4261,8 @@ CRT Ready, SYSTEM(14)
                          (0, b'1\t4\nx\n1\t3\n?y\n1\t1\nz\n0\t0\n', b''))
 
     def test_input_negative_one_polls_an_empty_open_pipe(self):
-        source = self.work / 'input-poll.b'
         binary = self.work / 'input-poll'
-        source.write_text('INPUT Ready, -1 FOR 100 THEN ABORT ELSE CRT Ready\n')
+        source = ROOT / 'tests/io/input-negative-one-polls-an-empty-open-pipe.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         with subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
@@ -4318,17 +4274,8 @@ CRT Ready, SYSTEM(14)
                     proc.kill()
 
     def test_input_negative_one_detects_terminal_typeahead(self):
-        source = self.work / 'input-poll.b'
         binary = self.work / 'input-poll'
-        source.write_text("""INPUT Ready, -1
-CRT Ready
-LOOP
-    INPUT Ready, -1
-UNTIL Ready DO
-    SLEEP .01
-REPEAT
-CRT Ready, KEYIN()
-""")
+        source = ROOT / 'tests/io/input-negative-one-detects-terminal-typeahead.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
         self.addCleanup(os.close, master)
@@ -4352,37 +4299,24 @@ CRT Ready, KEYIN()
                     proc.kill()
 
     def test_input_length_diagnostics(self):
-        source = self.work / 'input.b'
-        for limit, message in [('-2', 'negative INPUT length'), ("'x'", 'expected a numeric value')]:
-            with self.subTest(limit=limit):
-                source.write_text(f'INPUT X, {limit}\n')
+        for fixture_name, message in (
+            ('input_1.b', 'negative INPUT length'),
+            ('input_2.b', 'expected a numeric value'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/input-length-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
 
     def test_hush_nonnumeric_operand(self):
-        source = self.work / 'invalid.b'
-        source.write_text("HUSH 'bad'\n")
+        source = ROOT / 'tests/io/hush-nonnumeric-operand.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: HUSH requires a numeric operand'.encode(), result.stderr)
 
     def test_break_key_controls_terminal_interrupts(self):
-        source = self.work / 'break-key.b'
-        source.write_text("""BREAK OFF
-BREAK OFF
-ECHO OFF
-PROMPT 'off>'
-INPUT Text, 8
-LOOP
-    CRT Text
-    BREAK
-REPEAT
-BREAK ON
-PROMPT 'on>'
-INPUT Text, 8
-ABORT
-""")
+        source = ROOT / 'tests/io/break-key-controls-terminal-interrupts.b'
         binary = self.work / 'break-key'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
@@ -4422,24 +4356,7 @@ ABORT
                     proc.kill()
 
     def test_echo_controls_terminal_input_and_system24(self):
-        source = self.work / 'echo.b'
-        source.write_text("""PROMPT '>'
-CRT SYSTEM(24)
-ECHO OFF
-CRT SYSTEM(24)
-INPUT Secret
-CRT LEN(Secret)
-ECHO 2 > 1
-HUSH ON
-Quiet = SYSTEM(24)
-HUSH OFF
-CRT Quiet:':':SYSTEM(24)
-INPUT Visible
-ECHO ON
-CRT SYSTEM(24)
-ECHO 0
-CRT SYSTEM(24)
-""")
+        source = ROOT / 'tests/io/echo-controls-terminal-input-and-system24.b'
         binary = self.work / 'echo'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -4470,8 +4387,7 @@ CRT SYSTEM(24)
                     proc.kill()
 
     def test_hush_terminal_input_and_printer(self):
-        source = self.work / 'hush.b'
-        source.write_text("HUSH ON\nPRINT ON 1 'job'\nINPUT X\nHUSH OFF\nCRT LEN(X)\nINPUT Y\nCRT Y\n")
+        source = ROOT / 'tests/io/hush-terminal-input-and-printer.b'
         binary = self.work / 'hush'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -4498,11 +4414,7 @@ CRT SYSTEM(24)
         self.assertEqual([p.read_bytes() for p in self.work.glob('unit-1-*')], [b'job\n'])
 
     def test_input_terminal_echo(self):
-        source = self.work / 'input.b'
-        source.write_text("INPUT X:\nCRT '[' : X : ']'\nINPUT X\nCRT X\n"
-                          "INPUT X, 2\nCRT X\nINPUT X, (1 CAT)\nCRT X\n"
-                          "INPUT X FOR 4 ELSE CRT '[' : X : ']'\n"
-                          "INPUT X FOR 0 THEN CRT 'unexpected' ELSE CRT DQUOTE(X)\n")
+        source = ROOT / 'tests/io/input-terminal-echo.b'
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -4588,17 +4500,7 @@ CRT SYSTEM(24)
         self.assertEqual(frames[len(blank):2 * len(blank)], expected)
 
     def test_system14_input_queue(self):
-        source = self.work / 'pending.b'
-        source.write_text("""PROMPT ''
-CRT SYSTEM(14)
-DATA '123', '456'
-CRT SYSTEM(14)
-CRT SYSTEM(14)
-INPUT First, 2
-CRT First:':':SYSTEM(14)
-CLEARDATA
-CRT SYSTEM(14)
-""")
+        source = ROOT / 'tests/io/system14-input-queue.b'
         binary = self.work / 'pending'
         subprocess.run([CLI, source, '-o', self.c], check=True)
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
