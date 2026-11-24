@@ -3859,6 +3859,38 @@ CRT 'done'
                 self.assertEqual((self.work / name).read_bytes(), source)
         self.assertEqual(reports['nested/LIST.DATA'], strict['files']['nested/LIST.DATA'])
 
+    def test_r07_corpus_can_apply_source_fixes_and_report_include_stub(self):
+        fixture = ROOT / 'tests/corpus/r07'
+        root = fixture / '200707-R07'
+        bp = root / 'GLOBUS.BP'
+        original = {path: path.read_bytes() for path in bp.iterdir()}
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', root]
+        baseline = json.loads(subprocess.check_output(command, text=True))['files']
+        missing = 'GLOBUS.BP/LA.FIXTURE.b'
+        compare = 'GLOBUS.BP/COMPARE.DB.JBASE'
+        dates = 'GLOBUS.BP/STEST.AZ.PD.DATES.CHK'
+        self.assertIn("include file 'I_F.LA.PARAMETER' not found", baseline[missing]['diagnostic'])
+        self.assertEqual(baseline[dates]['status'], 'rejected')
+
+        options = ['--t24-source-fixes', '--stub-r07-la-parameter']
+        report = json.loads(subprocess.check_output(command + options, text=True))['files']
+        self.assertEqual(report[missing], {'status': 'translated', 'include_stubs': ['I_F.LA.PARAMETER']})
+        self.assertEqual(report[compare], {
+            'status': 'translated',
+            'source_fixes': [dict(file=compare, line=1, column=10,
+                                  before='/usr/jbc/include/JBC.h', after='JBC.h')],
+        })
+        self.assertEqual(report[dates], {
+            'status': 'translated',
+            'source_fixes': [dict(file=dates, line=3, column=16,
+                                  before='.AZ.SLS.TYPE.I', after='AZ.SLS.TYPE.I')],
+        })
+
+        with_real_include = command + options + ['-I', fixture / 'real-includes']
+        report = json.loads(subprocess.check_output(with_real_include, text=True))['files']
+        self.assertEqual(report[missing], {'status': 'translated'})
+        self.assertEqual({path: path.read_bytes() for path in bp.iterdir()}, original)
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\nCALL @X(X)\n')

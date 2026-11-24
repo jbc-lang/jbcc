@@ -3330,13 +3330,26 @@ The full R07 scan now passes strict C99 checks for 15,009 of 15,030
 units. Five passes came from the compound-assignment change and one from
 `DELETE … LOCKED`. Every previous pass is preserved.
 
-- [ ] Implement `NUMS` for `TU.PR.MODIFIER`. The reference emits the
-  documented dynamic-array numeric test at the failing call.
-- [ ] Resolve the remaining R07 include dependencies. The reference also
-  reports seven include errors with the two extracted BP folders on
-  its search path. The R07.003 archive lacks `I_F.LA.PARAMETER`, which
-  six units need. A temporary copy of `COMPARE.DB.JBASE` passes with
-  its absolute include redirected to the extracted `JBC.h`.
-- [ ] Apply the existing leading-dot correction for `STEST.AZ.PD.DATES.CHK`
-  to the R07 path when corpus source fixes are enabled. A temporary copy
-  with that same correction passes the C99 check.
+- [x] Implement `NUMS` for `TU.PR.MODIFIER`. The reference emits the
+  documented dynamic-array numeric test at the failing call. The native
+  fixture checks numeric and nonnumeric elements, empty strings and
+  preservation of field, value and subvalue delimiters.
+- [x] Add `--stub-r07-la-parameter` for the six units whose include is
+  missing from the R07.003 archive. The fallback supplies no field positions
+  and the checker reports each unit that reads it. Keep looking for the
+  authentic header before attempting runtime validation of these units.
+- [x] Use `--t24-source-fixes` for the verified R07 source workarounds.
+  Redirect the absolute include in `COMPARE.DB.JBASE` to the extracted
+  `JBC.h` and apply the existing leading-dot correction to the R07
+  `STEST.AZ.PD.DATES.CHK` path. Both edits appear in the JSON report.
+
+With both corpus options enabled, 15,018 of 15,030 units pass strict C99
+checking. This includes six units that used the stub, two with in-memory
+source fixes and one enabled by NUMS. All previous passes are preserved,
+and all 18,362 extracted files still match the catalog hashes.
+
+- [ ] Check bare numeric labels at statement boundaries in R07. The
+  reference accepts the label before the comment in
+  `EB.UPDATE.ACCT.ACTIVITY` and preserves the label before `CASE` in
+  `LC.ACCOUNT.BALANCES`. It also emits a numeric label for the equated
+  `OTHERWISE` line in `E.GL.DIFF.DETAIL`.

@@ -3028,6 +3028,24 @@ static char *split_array_items(const char *array, size_t *marks)
     return copy;
 }
 
+const char *jbc_nums(const char *source)
+{
+    size_t marks = 0;
+    char *items = split_array_items(source, &marks);
+    if (marks > (SIZE_MAX - 1) / 2) fail("NUMS result too large");
+    char *out = allocate(2 * marks + 1), *write = out;
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark = source[end - items];
+        *write++ = *jbc_num(item);
+        *write++ = mark;
+        if (!mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
 const char *jbc_counts(const char *source, const char *needle)
 {
     size_t length = strlen(source), marks = 0;

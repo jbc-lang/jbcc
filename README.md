@@ -207,6 +207,10 @@ zeros are accepted, as are the empty string and the single characters
 `.`, `+`, and `-`. Spaces, thousands separators, and exponent notation
 return 0. [NUM](https://jbc-lang.org/pages/num.html).
 
+`NUMS(array)` applies that test to each element, preserving field, value
+and subvalue marks. Empty strings are numeric under the same rules.
+[NUMS](https://jbc-lang.org/pages/nums.html).
+
 MOD and REM return the decimal remainder of two numeric expressions.
 The reference compiler emits the same runtime call for both. A
 statement-leading REM still introduces a comment.
@@ -2199,8 +2203,8 @@ python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 
-Add `--t24-source-fixes` to apply the three known T24 corrections in memory
-before parsing. The option matches the named files at the corpus root.
+For R10, add `--t24-source-fixes` to apply the three known corrections
+to files at the corpus root in memory before parsing.
 The report's `source_fixes` entries give the original file, line, column,
 and replacement for each edit. Diagnostics on edited lines use the
 columns of the text passed to the lexer. The scan reads the original
@@ -2240,6 +2244,17 @@ compilation units. Files absent from the catalog follow the usual `I_`
 name rule. If only `catalog.sqlite.xz` exists, unpack it as described in
 the extraction checkout's README. See the [R07 baseline](PLAN.md#r07-baseline)
 for the first scan's results.
+
+Add `--stub-r07-la-parameter` to use a translation-only fallback for the
+missing `I_F.LA.PARAMETER`. An include found next to its caller or on the
+normal search path takes precedence. The stub supplies no field positions.
+Each affected unit has an `include_stubs` entry in the JSON, and its
+translation result provides no runtime validation of the missing layout.
+
+Add `--t24-source-fixes` to apply the two R07 workarounds in memory.
+`COMPARE.DB.JBASE` uses the extracted `GLOBUS.BP/JBC.h` in place of the
+absolute installation path. `STEST.AZ.PD.DATES.CHK` has its leading-dot
+selector corrected as in R10. The JSON records both edits.
 
 Render the R07 API report with:
 

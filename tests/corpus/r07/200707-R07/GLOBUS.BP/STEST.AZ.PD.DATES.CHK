@@ -1,0 +1,4 @@
+EQUATE AZ.SLS.TYPE.I TO 2
+Items = 'a':@FM:'b'
+Result = Items<.AZ.SLS.TYPE.I,1>
+CRT Result

@@ -1,0 +1,2 @@
+$INSERT I_F.LA.PARAMETER
+CRT 'ready'

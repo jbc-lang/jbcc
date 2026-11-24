@@ -22,6 +22,7 @@ else:
 ROOT = Path(__file__).resolve().parents[1]
 COMPILER = runpy.run_path(str(ROOT / "jbcc"))
 RUNTIME = (ROOT / "runtime/jbc.c").read_text()
+R07_LA_PARAMETER_STUB = ROOT / "tools/corpus_stubs/r07/I_F.LA.PARAMETER"
 
 T24_SOURCE_FIXES = {
     "STEST.AZ.PD.DATES.CHK": (
@@ -38,16 +39,34 @@ T24_SOURCE_FIXES = {
     ),
 }
 
+R07_JBC_INCLUDE_FIX = (
+    re.compile(r"^[ \t]*\$INCLUDE[ \t]+(?P<edit>/usr/jbc/include/JBC\.h)(?=[ \t]*(?:;|$))", re.M),
+    "JBC.h",
+)
+
 
 def fix_t24_source(path, source, *, root, fixes):
-    rule = T24_SOURCE_FIXES.get(path.name)
-    if rule is None or path.resolve() != root / path.name:
+    if path.name not in T24_SOURCE_FIXES and path.name != "COMPARE.DB.JBASE":
+        return source
+    try:
+        relative = path.resolve().relative_to(root)
+    except ValueError:
+        return source
+    rule = None
+    if relative == Path(path.name):
+        rule = T24_SOURCE_FIXES.get(path.name)
+    elif root.name == "200707-R07":
+        if relative == Path("GLOBUS.BP/STEST.AZ.PD.DATES.CHK"):
+            rule = T24_SOURCE_FIXES[path.name]
+        elif relative == Path("GLOBUS.BP/COMPARE.DB.JBASE") and (root / "GLOBUS.BP/JBC.h").is_file():
+            rule = R07_JBC_INCLUDE_FIX
+    if rule is None:
         return source
     pattern, replacement = rule
 
     def replace(match):
         start = match.start("edit")
-        fix = {"file": path.name, "line": source.count("\n", 0, start) + 1,
+        fix = {"file": relative.as_posix(), "line": source.count("\n", 0, start) + 1,
                "column": start - source.rfind("\n", 0, start),
                "before": match["edit"], "after": replacement}
         if fix not in fixes:
@@ -77,24 +96,36 @@ def read_file_kinds(catalogue, extract):
 
 
 def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
-          t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False, *, catalog_kind=None):
+          t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False, *,
+          catalog_kind=None, stub_r07_la_parameter=False):
     path = root / relative
     fixes = []
     calls = []
+    stubs = []
     if catalog_kind == "jbc_include" or (catalog_kind is None and path.name.startswith("I_")):
-        return relative, "include fragment", "", [], fixes, 0, calls
+        return relative, "include fragment", "", [], fixes, 0, calls, stubs
     if catalog_kind == "c_header":
-        return relative, "C header", "", [], fixes, 0, calls
+        return relative, "C header", "", [], fixes, 0, calls, stubs
     if catalog_kind not in (None, "jbc_source"):
-        return relative, "other catalog file", "", [], fixes, 0, calls
+        return relative, "other catalog file", "", [], fixes, 0, calls, stubs
     suppressed_next_warnings = 0
 
     def count_next_warning(_message):
         nonlocal suppressed_next_warnings
         suppressed_next_warnings += 1
 
+    def filter_source(source_path, source):
+        if (stub_r07_la_parameter and source_path.name == R07_LA_PARAMETER_STUB.name
+                and source_path.resolve() == R07_LA_PARAMETER_STUB and not stubs):
+            stubs.append(source_path.name)
+        if t24_source_fixes:
+            return fix_t24_source(source_path, source, root=root, fixes=fixes)
+        return source
+
     try:
-        source_filter = partial(fix_t24_source, root=root, fixes=fixes) if t24_source_fixes else None
+        if stub_r07_la_parameter:
+            directories = [*directories, R07_LA_PARAMETER_STUB.parent]
+        source_filter = filter_source if t24_source_fixes or stub_r07_la_parameter else None
         unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
                                        separate_external_arities=True,
                                        defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
@@ -137,16 +168,16 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls
+            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls, stubs
         warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
-        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls
+        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls, stubs
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls
+        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls, stubs
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls
+        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls, stubs
     except OSError as error:
-        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls
+        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls, stubs
 
 
 def check_entry(relative, kind, **options):
@@ -164,6 +195,8 @@ def main():
                         help="report warnings for scalar variable reads checked at runtime")
     parser.add_argument("--t24-source-fixes", action="store_true",
                         help="apply the known T24 source fixes in memory and include them in the report")
+    parser.add_argument("--stub-r07-la-parameter", action="store_true",
+                        help="use a translation-only fallback for missing I_F.LA.PARAMETER and report its use")
     parser.add_argument("--quiet-next-warnings", action="store_true",
                         help="replace individual FOR/NEXT name mismatch warnings with a total on stderr")
     parser.add_argument("--api-catalogue", type=Path, metavar="SPEC_DIR",
@@ -191,14 +224,15 @@ def main():
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
     scan = partial(check_entry, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
                    defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes,
-                   quiet_next_warnings=options.quiet_next_warnings, collect_apis=coverage is not None)
+                   quiet_next_warnings=options.quiet_next_warnings, collect_apis=coverage is not None,
+                   stub_r07_la_parameter=options.stub_r07_la_parameter)
     counts = Counter()
     blockers = Counter()
     files = {}
     suppressed_next_warnings = 0
     with ProcessPoolExecutor(max_workers=options.j) as pool:
         entries = pool.map(scan, paths, map(file_kinds.get, paths), chunksize=16)
-        for name, status, diagnostic, warnings, fixes, suppressed, calls in entries:
+        for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs in entries:
             suppressed_next_warnings += suppressed
             counts[status] += 1
             if coverage is not None:
@@ -206,6 +240,8 @@ def main():
             files[name] = {"status": status}
             if fixes:
                 files[name]["source_fixes"] = fixes
+            if stubs:
+                files[name]["include_stubs"] = stubs
             if warnings:
                 files[name]["warnings"] = warnings
             if status == "translated" and diagnostic:
@@ -234,6 +270,8 @@ def main():
         }
         if options.t24_catalog is not None:
             scan_settings["t24_catalog"] = str(options.t24_catalog.resolve())
+        if options.stub_r07_la_parameter:
+            scan_settings["stub_r07_la_parameter"] = True
         report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 
