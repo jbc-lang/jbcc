@@ -2499,6 +2499,12 @@ These snippets have yet to be run on a reference jBC implementation.
   and press `q` to quit. These keys take effect without pressing Enter.
   The native test checks the opening board, turns the snake and quits
   through a pseudo-terminal.
+- `life.b` runs Conway's Game of Life on a 40-column by 30-row board
+  with dead cells beyond the edges. Run it with
+  `./jbcc --run tests/programs/life.b` and press `q` to quit.
+- `rule110.b` prints 32 generations of the Rule 110 automaton on a
+  63-cell row, starting with one live cell and dead cells beyond the edges.
+  Run it with `./jbcc --run tests/programs/rule110.b`.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative

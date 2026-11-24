@@ -1239,6 +1239,48 @@ def test_snake(compiler, request):
     assert b'@>' in top_row
 
 
+def test_life(compiler):
+    source = ROOT / 'tests/programs/life.b'
+    binary = compiler.work / 'life'
+    subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+
+    # The glider moves and the blinker turns vertical after one generation.
+    generations = (
+        {(3, 2), (4, 3), (2, 4), (3, 4), (4, 4), (19, 15), (20, 15), (21, 15)},
+        {(2, 3), (4, 3), (3, 4), (4, 4), (3, 5), (20, 14), (20, 15), (20, 16)},
+    )
+    expected = b'\x1b[2J\x1b[H'
+    for live in generations:
+        expected += b'\x1b[H' + b'\n'.join(
+            bytes(
+                ord('O') if (x, y) in live else ord('.') for x in range(1, 41)
+            )
+            for y in range(1, 31)
+        )
+
+    with subprocess.Popen(
+        [binary],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as process:
+        try:
+            frames = bytearray()
+            while len(frames) < len(expected):
+                assert select.select([process.stdout], [], [], 5)[0], (
+                    'Life frame timeout'
+                )
+                chunk = os.read(process.stdout.fileno(), 4096)
+                assert chunk, 'Life exited before drawing two frames'
+                frames.extend(chunk)
+            _, stderr = process.communicate(input=b'q', timeout=5)
+            assert (process.returncode, stderr) == (0, b'')
+        finally:
+            if process.poll() is None:
+                process.kill()
+    assert frames[: len(expected)] == expected
+
+
 def test_system14_input_queue(compiler):
     source = ROOT / 'tests/io/system14-input-queue.b'
     binary = compiler.work / 'pending'

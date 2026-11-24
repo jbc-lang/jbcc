@@ -62,6 +62,17 @@ def test_matparse_diagnostics(compiler, subtests):
             )
 
 
+@pytest.mark.parametrize('program', ['fibonacci', 'factorial', 'rule110'])
+def test_example_program(compiler, program):
+    source = ROOT / 'tests/programs' / f'{program}.b'
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes(f'{program}.stdout'),
+        b'',
+    )
+
+
 def test_exit_status_from_subroutine(compiler):
     main = ROOT / 'tests/routines/exit-status/main.b'
     sub = ROOT / 'tests/routines/exit-status/finish.b'
