@@ -2614,3 +2614,9 @@ output are the evidence for runtime behavior.
 
 Use the first-blocker counts to prioritize further compiler work. WebAssembly
 remains a possible playground target.
+
+## License
+
+The project's original code is released under the [MIT License](LICENSE).
+The [third-party notices](THIRD-PARTY-NOTICES.md) cover the CP037
+mapping data distributed with jbcc.
