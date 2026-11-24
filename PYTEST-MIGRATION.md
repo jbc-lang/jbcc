@@ -7,17 +7,17 @@ subtests later can increase the count.
 
 ## Shared fixtures and snippet runner
 
-- [ ] Record the baseline collection with `pytest --collect-only -q`
+- [x] Record the baseline collection with `pytest --collect-only -q`
   and run the full suite with `just test-parallel`.
-- [ ] Introduce pytest fixtures based on `tmp_path` for each test's
+- [x] Introduce pytest fixtures based on `tmp_path` for each test's
   working directory and generated files.
-- [ ] Share the existing CLI, C99 build, and execution setup with the
+- [x] Share the existing CLI, C99 build, and execution setup with the
   migrated tests. Preserve compiler flags, timeouts, environment
   overrides, and byte-for-byte output checks.
-- [ ] Replace the generated `SnippetTest` methods with one parametrized
+- [x] Replace the generated `SnippetTest` methods with one parametrized
   test. Use the source filename as its test ID and keep one case per
   `.b` and `.stdout` pair.
-- [ ] Verify all 183 snippet cases and the full 561-test collection.
+- [x] Verify all 183 snippet cases and the full 561-test collection.
 
 ## Compiler tests
 

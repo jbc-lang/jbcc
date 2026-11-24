@@ -19,53 +19,14 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-CLI = ROOT / 'jbcc'
+from compiler_support import CLI, ROOT, NativeCompiler, expected_bytes, expected_text
 
 
-def expected_bytes(name):
-    return (ROOT / 'tests/expected' / name).read_bytes()
-
-
-def expected_text(name, **fields):
-    text = expected_bytes(name).decode('utf-8')
-    return text.format(**fields) if fields else text
-
-
-class NativeCompilerTest(unittest.TestCase):
+class NativeCompilerTest(unittest.TestCase, NativeCompiler):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.work = Path(tmp.name)
-        self.c = self.work / 'generated.c'
-
-    def run_native(self, *sources, options=(), env=None, cwd=None):
-        subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
-        binary = self.work / 'program'
-        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
-                        '-pedantic', self.c, '-lm', '-o', binary], check=True)
-        return subprocess.run([binary], capture_output=True, timeout=5, env=env, cwd=cwd)
-
-
-class SnippetTest(NativeCompilerTest):
-    pass
-
-
-def snippet_test(source):
-    def test(self):
-        run = self.run_native(source)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, source.with_suffix('.stdout').read_bytes())
-        self.assertEqual(run.stderr, b'')
-
-    return test
-
-
-for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
-    name = f"test_{source.stem.replace('-', '_').replace('.', '_')}"
-    if hasattr(SnippetTest, name):
-        raise ValueError(f'duplicate snippet test name for {source}')
-    setattr(SnippetTest, name, snippet_test(source))
+        NativeCompiler.__init__(self, Path(tmp.name))
 
 
 class CompilerTest(NativeCompilerTest):
