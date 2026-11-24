@@ -3480,9 +3480,18 @@ from 47 with the ordinary search path. The other 119 first blockers are
   table calls. The pilot now has 118 strict C99 passes.
 - [ ] Find an R19 declaration for `EB.Service.setFComo`. The R07 and
   R10 versions of the caller set the file handle `F.COMO` directly.
-  The R19 caller uses a setter whose declaration is absent from the
-  catalogued definition. Validate package-aware linkage separately.
-- [ ] Audit unresolved headers against the original export and component
-  definitions, then scan all 39,675 catalogued production units.
+  The original R19 `EB.Service.component` is byte-identical to the
+  extracted copy and has no such setter. The original export does
+  contain `I_EB.CLEAN.ALL.COMOS.COMMON`, which declares `F.COMO`.
+  Validate package-aware linkage separately.
+- [x] Audit the 27 unresolved pilot includes against the original R19
+  export. None of the ten distinct include filenames appears in the
+  original tree. All ten type names occur in seven original `.domain`
+  files, which the jBC extract excludes. For example,
+  `PaymentFinalisationDomain.domain` declares `TransactionContext`
+  and the fields used by the jBC caller. The original Ant build
+  scripts refer to generated jBC and `JBCInsert` files.
+- [ ] Establish how the domain models map to generated include
+  declarations, then scan all 39,675 catalogued production units.
 - [ ] Select a small deterministic set of `.tut` tests and identify
   their target routines and required `.d` records.
