@@ -13,6 +13,21 @@ Parts of the jBASE runtime are still to be implemented.
 The [jBC language reference repository](https://github.com/jbc-lang/jbc-language)
 maintains the programmer’s guide, grammar, and function catalogue.
 
+## Compiler performance
+
+On a 10-core Apple M5 Mac with eight workers, the
+[corpus checker](#check-a-local-source-corpus) scanned each extract,
+translated its source units to C, and syntax-checked the output with
+Apple Clang. These runs used the documented corpus compatibility options,
+including in-memory source fixes and the R07 include stub.
+
+| T24 release | Files scanned | Source units translated and checked | Wall time |
+| --- | ---: | ---: | ---: |
+| R10 | 22,474 | 17,336 | 2 min 18 s |
+| R07 | 18,362 | 15,030 | 2 min 2 s |
+
+The file totals also count headers and include fragments.
+
 ## What is jBC?
 
 jBC is a dialect of BASIC developed for the jBASE MultiValue database
@@ -69,8 +84,11 @@ More examples in jBC
 
 ## Try the compiler
 
-From the checkout, with Python 3.8+ and a C99 compiler on PATH, build and
-start the banner animation. Press Enter to stop it.
+You need Python 3.8 or newer to run jbcc. Using `uv` is recommended for
+managing Python and running the developer tools. Native builds also need
+a C99 compiler on `PATH`, such as Clang or GCC. jbcc uses `cc` by default.
+
+From the checkout, build and start the banner animation. Press Enter to stop it.
 
 ```sh
 ./jbcc --exe -o banner tests/programs/banner.b && ./banner
