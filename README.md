@@ -1276,6 +1276,13 @@ or an empty delimiter. An existing empty field still has positions.
 Element-wise FIELDS leaves the saved positions intact.
 [COL1 and COL2](https://jbc-lang.org/pages/col1_and_col2.html).
 
+`GROUP(text, delimiter, first [, count])` uses the same selection
+and position tracking as FIELD in jbcc. It matches the full delimiter
+and keeps delimiters between the returned fields. The reference
+compiler defaults an omitted count to one. A start beyond the last
+field returns an empty string.
+[jBASE GROUP](https://docs.rocketsoftware.com/bundle/jbase_lib_62/page/topics/group_function.html).
+
 `BYTELEN(value)` counts bytes, including each field, value and subvalue
 mark. For example, `BYTELEN('é')` is 2 for a UTF-8 literal. It uses the
 same byte-count operation as LEN in the current runtime.

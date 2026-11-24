@@ -1118,6 +1118,8 @@ NEXT I
                                   ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
                                   ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
                                   ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
+                                  ("CRT GROUP('x', ':')\n", ":1:5: wrong argument count for 'GROUP'"),
+                                  ("CRT GROUP('x', ':', 1, 1, 1)\n", ":1:5: wrong argument count for 'GROUP'"),
                                   ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
                                   ("CRT BYTELEN()\n", ":1:5: wrong argument count for 'BYTELEN'"),
                                   ("CRT UTF8()\n", ":1:5: wrong argument count for 'UTF8'"),
@@ -1622,6 +1624,21 @@ time_t test_clock(time_t *out)
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
+
+    def test_group_uses_full_delimiter_and_updates_field_positions(self):
+        source = self.work / 'group.b'
+        source.write_text("""Value = 'a::b::c::'
+CRT GROUP(Value, '::', 2), COL1(), COL2()
+CRT GROUP(Value, '::', 2, 2), COL1(), COL2()
+CRT '[':GROUP(Value, '::', 4):']', COL1(), COL2()
+CRT '[':GROUP(Value, '::', 5):']', COL1(), COL2()
+CRT GROUP('plain', '', 1), COL1(), COL2()
+CRT GROUP('a::b::c', '::', 2, 20)
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'b\t3\t5\nb::c\t3\t8\n[]\t9\t10\n[]\t0\t0\n'
+                             b'plain\t0\t0\nb::c\n', b''))
 
     def test_col_positions_follow_last_field_selection(self):
         source = self.work / 'field-positions.b'

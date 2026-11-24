@@ -2707,5 +2707,22 @@ CONVERT.SYSTEM.UTF8.JBASE now passes strict C99 checking in byte mode.
 The total is 17,085 of 17,336 candidates, including all 17,084
 previous passes.
 
-- [ ] Investigate GROUP in syTransaction.getMarketValue. Compare its
+- [x] Investigate GROUP in syTransaction.getMarketValue. Compare its
   delimiter, count and out-of-range behavior with FIELD.
+
+The reference compiler emits GROUP_BBBBII and supplies a fourth
+argument of one for the three-argument spelling. The guide describes
+GROUP as equivalent to FIELD and gives a full-delimiter example.
+jbcc reuses FIELD, including its saved positions. Tests cover
+multibyte delimiters, absent and empty fields, omitted counts,
+and position updates. Position behavior follows the documented
+equivalence pending a vendor runtime check.
+[jBASE GROUP](https://docs.rocketsoftware.com/bundle/jbase_lib_62/page/topics/group_function.html).
+
+syTransaction.getMarketValue now passes strict C99 checking in byte mode.
+The total is 17,086 of 17,336 candidates, including all 17,085
+previous passes.
+
+- [ ] Investigate writable @FILENAME in DW.GET.FIELD.VALUE,
+  ENQ.TRANS, IDESC and MI.FIELD.JOIN. Check its relation to @ID
+  and @RECORD and whether reads and writes share state across routines.
