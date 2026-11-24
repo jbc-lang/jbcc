@@ -1215,6 +1215,10 @@ because XML conversion requires a backend.
 [XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
 [XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
 
+`JBASECOREDUMP(suffix, mode)` accepts two expressions. A reached call
+reports a source-located error because application snapshots require a
+backend. [JBASECOREDUMP](https://jbc-lang.org/pages/jbasecoredump.html).
+
 `SEQ(value)` returns the unsigned value of the first byte of its string
 representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.
 jbcc provisionally returns 0 for an empty string. UTF-8 strings use the

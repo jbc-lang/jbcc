@@ -6010,6 +6010,14 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
     return file_succeeded(status);
 }
 
+const char *jbc_jbasecoredump(const char *suffix, const char *mode, const char *file, int line, int column)
+{
+    (void)suffix;
+    (void)mode;
+    numeric_error(file, line, column, "JBASECOREDUMP requires an application snapshot backend");
+    return "";
+}
+
 const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
 {
     (void)descriptor;

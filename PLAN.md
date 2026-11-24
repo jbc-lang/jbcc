@@ -2998,6 +2998,32 @@ COLLATERAL.ALLOCATION.III now passes strict C99 checking in byte mode.
 The total is 17,198 of 17,336 candidates, including all 17,197
 previous passes.
 
-- [ ] Investigate two subscripts on R.NEW in ACCOUNT.AUTHORISATION.
+- [x] Investigate two subscripts on R.NEW in ACCOUNT.AUTHORISATION.
   Trace the COMMON declaration and check how the reference compiler
   treats a second subscript on a one-dimensional matrix.
+
+I_COMMON declares R.NEW with one dimension. A reduced COMMON program
+gets a rank diagnostic in the reference compiler's fixed-array mode.
+With Prime emulation, it emits DYNARRAY_BB with both subscripts. The
+available reference build emits C and lacks the vendor array runtime,
+so the probe cannot establish which element is selected.
+[jBASE emulation options](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup12_EMULATION.htm).
+
+- [ ] Verify excess and omitted matrix subscripts with the vendor
+  runtime in Prime emulation. Check the first and second subscripts
+  independently before revising the rank diagnostic.
+
+- [x] Investigate JBASECOREDUMP in FATAL.ERROR.
+
+The reference emits JBASECOREDUMP_BBBB with two expressions. jbcc
+translates the call and reports a source-located error when execution
+reaches it and needs an application snapshot backend. Tests cover
+skipped calls, reached calls and arity.
+[JBASECOREDUMP](https://jbc-lang.org/pages/jbasecoredump.html).
+
+FATAL.ERROR now passes strict C99 checking in byte mode. The total is
+17,199 of 17,336 candidates, including all 17,198 previous passes.
+
+- [ ] Investigate an empty scalar argument in a MAT parameter position.
+  Start with the two EB.READ.PARAMETER calls in AZ.BV.INT.PROCESS and
+  verify how the callee handles the absent matrix.

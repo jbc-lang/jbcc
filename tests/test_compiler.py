@@ -1807,6 +1807,26 @@ CRT Text
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
 
+    def test_jbasecoredump_requires_an_application_snapshot_backend(self):
+        source = self.work / 'snapshot.b'
+        source.write_text("""IF 0 THEN CRT JBASECOREDUMP('skipped', 1)
+CRT 'before'
+Result = JBASECOREDUMP('snapshot', 0)
+CRT 'after'
+""")
+        result = self.run_native(source, cwd=self.work)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (1, b'before\n',
+                          f'{source}:3:10: JBASECOREDUMP requires an application snapshot backend\n'.encode()))
+        self.assertEqual(list(self.work.glob('JBASECOREDUMP*')), [])
+
+        for args in ("'snapshot'", "'snapshot', 0, 1"):
+            with self.subTest(args=args):
+                source.write_text(f'CRT JBASECOREDUMP({args})\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for 'JBASECOREDUMP'", result.stderr)
+
     def test_itype_requires_backend_only_when_evaluation_is_reached(self):
         source = self.work / 'dictionary.b'
         source.write_text("""@FILENAME = 'records'
