@@ -4868,17 +4868,30 @@ static ssize_t read_input_byte(unsigned char *c)
 static const char *pending_stdin_bytes(int *bytes)
 {
     *bytes = 0;
-    int result;
-    do {
-        result = ioctl(STDIN_FILENO, FIONREAD, bytes);
-    } while (result < 0 && errno == EINTR);
-    if (result < 0) {
-        /* Devices such as /dev/null have no input queue to inspect. */
-        if (errno != ENODEV && errno != ENOTTY && errno != EOPNOTSUPP)
-            return "cannot query pending input bytes";
-        *bytes = 0;
+    struct input_mode state = {0};
+    const char *error = NULL;
+    if (isatty(STDIN_FILENO)) {
+        if (tcgetattr(STDIN_FILENO, &input_saved))
+            return "cannot read input terminal settings";
+        if (input_saved.c_lflag & ICANON) {
+            /* A canonical terminal can hide pending bytes until Enter. */
+            struct termios mode = input_saved;
+            error = set_input_mode(&state, &mode);
+        }
     }
-    return NULL;
+    if (!error) {
+        int result;
+        do {
+            result = ioctl(STDIN_FILENO, FIONREAD, bytes);
+        } while (result < 0 && errno == EINTR);
+        if (result < 0) {
+            /* Devices such as /dev/null have no input queue to inspect. */
+            if (errno != ENODEV && errno != ENOTTY && errno != EOPNOTSUPP)
+                error = "cannot query pending input bytes";
+            *bytes = 0;
+        }
+    }
+    return restore_input_mode(&state, error);
 }
 
 static int input_available(const char *file, int line, int column)
@@ -4886,20 +4899,8 @@ static int input_available(const char *file, int line, int column)
     if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before input poll");
     if (input_data) return 1;
 
-    struct input_mode state = {0};
-    const char *error = NULL;
-    if (isatty(STDIN_FILENO)) {
-        if (tcgetattr(STDIN_FILENO, &input_saved))
-            numeric_error(file, line, column, "cannot read input terminal settings");
-        if (input_saved.c_lflag & ICANON) {
-            /* A canonical terminal can hide pending bytes until Enter. */
-            struct termios mode = input_saved;
-            error = set_input_mode(&state, &mode);
-        }
-    }
-    int bytes = 0;
-    if (!error) error = pending_stdin_bytes(&bytes);
-    error = restore_input_mode(&state, error);
+    int bytes;
+    const char *error = pending_stdin_bytes(&bytes);
     if (error) numeric_error(file, line, column, error);
     return bytes > 0;
 }

@@ -1188,13 +1188,19 @@ def test_banner(compiler):
     assert frames[len(blank) : 2 * len(blank)] == expected
 
 
-def test_snake(compiler):
+def test_snake(compiler, request):
     source = ROOT / 'tests/programs/snake.b'
     binary = compiler.work / 'snake'
     subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+    master, slave = os.openpty()
+    request.addfinalizer(partial(os.close, master))
+    request.addfinalizer(partial(os.close, slave))
+    original = termios.tcgetattr(slave)
+    original[3] |= termios.ICANON | termios.ECHO
+    termios.tcsetattr(slave, termios.TCSANOW, original)
     with subprocess.Popen(
         [binary],
-        stdin=subprocess.PIPE,
+        stdin=slave,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     ) as process:
@@ -1207,8 +1213,24 @@ def test_snake(compiler):
                 chunk = os.read(process.stdout.fileno(), 4096)
                 assert chunk, 'snake exited before drawing the board'
                 opening.extend(chunk)
-            _, err = process.communicate(input=b'q', timeout=5)
+            os.write(master, b's')
+            output = bytearray()
+            deadline = time.monotonic() + 5
+            while b'v' not in output:
+                remaining = deadline - time.monotonic()
+                assert (
+                    remaining > 0
+                    and select.select([process.stdout], [], [], remaining)[0]
+                ), 'snake did not turn after a single s keystroke'
+                chunk = os.read(process.stdout.fileno(), 4096)
+                assert chunk, 'snake exited before turning'
+                output.extend(chunk)
+            os.write(master, b'q')
+            _, err = process.communicate(timeout=5)
             assert (process.returncode, err) == (1, b'')
+            actual = termios.tcgetattr(slave)
+            actual[3] &= ~getattr(termios, 'PENDIN', 0)
+            assert actual == original
         finally:
             if process.poll() is None:
                 process.kill()

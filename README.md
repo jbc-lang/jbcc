@@ -2455,9 +2455,10 @@ These snippets have yet to be run on a reference jBC implementation.
   ANSI terminal and enter a line to stop. The native test captures the blank
   opening frame and checks every pixel of the next frame before sending input.
 - `snake.b` is a terminal Snake game. Run it with
-  `./jbcc --run tests/programs/snake.b`, steer with W, A, S and D
-  (lowercase), and press Q to quit. The native test checks the opening
-  board and sends `q`.
+  `./jbcc --run tests/programs/snake.b`. Steer with `w`, `a`, `s` and `d`,
+  and press `q` to quit. These keys take effect without pressing Enter.
+  The native test checks the opening board, turns the snake and quits
+  through a pseudo-terminal.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative
@@ -2478,8 +2479,9 @@ the end of the screen, and `@(-4)` to clear to the end of the current line.
 Each returns an ANSI sequence that takes effect when printed.
 `SYSTEM(14)` counts unread DATA bytes, including line endings. Native
 jbcc adds the bytes reported by the POSIX input device to the DATA count
-when both sources have pending input. Querying the count leaves the
-bytes available for later reads. [CLEARDATA](https://jbc-lang.org/pages/cleardata.html).
+when both sources have pending input. On a terminal, it can count
+keystrokes before Enter. Querying the count leaves the bytes available
+for later reads. [CLEARDATA](https://jbc-lang.org/pages/cleardata.html).
 
 Native mode links the math library for programs
 that use SIN, COS, PWR, SQRT, EXP or LN, including infix powers. When compiling their generated C manually, use
