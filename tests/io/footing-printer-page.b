@@ -1,0 +1,12 @@
+HEADING 'Start ^'
+FOOTING "End ^'L'Last"
+FOR I = 1 TO 22
+    PRINT I
+NEXT I
+PAGE 9
+FOOTING ''
+PRINTER ON
+FOOTING ON 2 'Job ^^'
+PRINT ON 2 'body'
+CRT 'screen'
+PRINTER CLOSE ON 2

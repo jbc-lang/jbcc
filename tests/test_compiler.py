@@ -61,12 +61,7 @@ for source in sorted((ROOT / 'tests/snippets').glob('*.b')):
 
 class CompilerTest(NativeCompilerTest):
     def test_heading_terminal_pause(self):
-        source = self.work / 'report.b'
-        source.write_text("""HEADING 'First'
-HEADING "Second'N'"
-PAGE
-CRT 'done'
-""")
+        source = ROOT / 'tests/io/heading-terminal-pause.b'
         binary = self.work / 'report'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -89,14 +84,7 @@ CRT 'done'
                 proc.kill()
 
     def test_lptrhigh_tracks_current_print_destination(self):
-        source = self.work / 'height.b'
-        source.write_text("""CRT @LPTRHIGH
-PRINTER ON ON 7
-CRT @LPTRHIGH
-PRINT @LPTRHIGH
-PRINTER OFF
-CRT @LPTRHIGH
-""")
+        source = ROOT / 'tests/io/lptrhigh-print-destination.b'
         binary = self.work / 'height'
         subprocess.run([CLI, source, '-o', self.c], check=True)
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
@@ -124,42 +112,20 @@ CRT @LPTRHIGH
         self.assertEqual([job.read_bytes() for job in self.work.glob('unit-7-*')], [b'24\n'] * 2)
 
     def test_display_alias_uses_screen_and_crt_formatting(self):
-        source = self.work / 'display.b'
-        source.write_text("""DISPLAY = 'x'
-PRINTER ON
-IF 1 THEN DISPLAY DISPLAY 'L#3', 7: ELSE ABORT
-DISPLAY '!'
-DISPLAY
-DISPLAY:
-PRINT 'printer'
-PRINTER CLOSE
-""")
+        source = ROOT / 'tests/io/display-screen-formatting.b'
         result = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=str(self.work)))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'x  \t7!\n\n', b''))
         self.assertEqual([job.read_bytes() for job in self.work.glob('unit-*-*')], [b'printer\n'])
 
-        source.write_text('DISPLAY Missing\n')
+        source = ROOT / 'tests/io/display-unassigned.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:9: unknown variable or unsupported function 'Missing'",
                       result.stderr)
 
     def test_footing_reserves_rows_and_closes_printer_page(self):
-        source = self.work / 'footing.b'
-        source.write_text("""HEADING 'Start ^'
-FOOTING "End ^'L'Last"
-FOR I = 1 TO 22
-    PRINT I
-NEXT I
-PAGE 9
-FOOTING ''
-PRINTER ON
-FOOTING ON 2 'Job ^^'
-PRINT ON 2 'body'
-CRT 'screen'
-PRINTER CLOSE ON 2
-""")
+        source = ROOT / 'tests/io/footing-printer-page.b'
         run = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=str(self.work)))
         self.assertEqual(run.returncode, 0, run.stderr)
         first_page = b'Start 1\n' + b''.join(f'{i}\n'.encode() for i in range(1, 22))
@@ -170,15 +136,7 @@ PRINTER CLOSE ON 2
         self.assertEqual(run.stderr, b'')
 
     def test_footing_terminal_pause_and_no_pause(self):
-        source = self.work / 'footing.b'
-        source.write_text("""FOOTING 'End ^'
-PRINT 'first'
-PAGE
-FOOTING "End ^'N'"
-PRINT 'second'
-PAGE
-PRINT 'third':
-""")
+        source = ROOT / 'tests/io/footing-terminal-pause.b'
         binary = self.work / 'footing'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         master, slave = os.openpty()
@@ -1475,14 +1433,8 @@ IF Limit # -1 THEN CRT Last
         self.assertIn(f"{source}:1:20: expected 'ELSE'", result.stderr)
 
     def test_precision_call_scope(self):
-        main = self.work / 'main.b'
-        function = self.work / 'LOCAL'
-        sub = self.work / 'CHANGE'
-        main.write_text('DEFFUN LOCAL()\nPRECISION 2\nCALL CHANGE()\n'
-                        'PRINT LOCAL()\nPRINT 2 / 3\n')
-        sub.write_text('SUBROUTINE CHANGE()\nPRINT 2 / 3\nPRECISION 4\nPRINT 2 / 3\n')
-        function.write_text('FUNCTION LOCAL()\nPRECISION 3\nRETURN(2 / 3)\n')
-        run = self.run_native(main, sub, function)
+        sources = ROOT / 'tests/routines/precision-scope'
+        run = self.run_native(sources / 'main.b', sources / 'change.b', sources / 'local.b')
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'0.66\n0.6666\n0.666\n0.66\n')
 
