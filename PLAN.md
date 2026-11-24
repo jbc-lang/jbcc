@@ -2785,6 +2785,22 @@ selector, string values, and the location of an error in an include.
 CONV.DR.DEL now passes strict C99 checking in byte mode, bringing the
 total to 17,160 of 17,336 candidates. All 17,159 previous passes hold.
 
-- [ ] Investigate scalar reads after BEGIN CASE, starting with PROP.CHK
+- [x] Investigate scalar reads after BEGIN CASE, starting with PROP.CHK
   in AA.FIND.DATED.RECORDS. Check how the compiler joins assignments from
   multiple arms and handles the path where no arm runs.
+
+The reference compiler accepts a reduced example with a scalar read
+after a nonexhaustive CASE. jbcc now tracks possible assignments from
+reachable arms, including nested conditionals, and checks the scalar
+when execution reaches the read. Each sibling arm starts with the
+assignments available before the CASE. Native tests cover both matching
+arms, a guard that skips the read, and a missing assignment on a path
+that reaches it. [CASE](https://jbc-lang.org/pages/case.html).
+
+AA.FIND.DATED.RECORDS and 12 other units now pass strict C99 checking
+in byte mode. The total is 17,173 of 17,336 candidates, including all
+17,160 previous passes.
+
+- [ ] Investigate scalar reads after FOR, starting with MATCH.POS in
+  LC.MT1798.HDR.FORMAT. Check the paths that skip the body, exit at an
+  UNTIL guard, or reach NEXT.

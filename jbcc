@@ -2069,27 +2069,32 @@ class Compiler:
                 self.advance()
                 self.expect('CASE')
                 return
+        if self.word != 'CASE':
+            self.error("expected CASE clause", opening)
         before = self.assigned.copy()
+        before_maybe = self.maybe_assigned.copy()
         outcomes = []
+        possible = before_maybe.copy()
         exhaustive = False
         self.emit("do {")
         self.depth += 1
         while self.word == 'CASE':
             self.advance()
             self.assigned = before.copy()
+            self.maybe_assigned = before_maybe.copy()
             condition = self.expression()
             self.emit(f"if (jbc_truth({condition})) {{")
             self.depth += 1
             self.assigned.update(self.assignment_facts.get((condition, True), ()))
             self.sequence({'CASE', 'END'}, opening)
-            if not exhaustive:
+            if not exhaustive and condition not in ('""', '"0"'):
                 outcomes.append(self.assigned)
+                possible.update(self.assigned)
+                possible.update(self.maybe_assigned)
                 exhaustive = condition == '"1"'
             self.emit("break;")
             self.depth -= 1
             self.emit("}")
-        if not outcomes:
-            self.error("expected CASE clause", opening)
         self.expect('END')
         self.expect('CASE')
         self.depth -= 1
@@ -2097,6 +2102,7 @@ class Compiler:
         if not exhaustive:
             outcomes.append(before)
         self.assigned = set.intersection(*outcomes)
+        self.maybe_assigned = (possible - self.assigned) & self.names.keys()
 
     def report_statement(self):
         opening = self.current

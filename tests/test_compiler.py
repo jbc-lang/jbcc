@@ -4295,6 +4295,46 @@ IF NOT(Problem) THEN CRT Value ELSE CRT Problem
                 run = subprocess.run([binary, argument], capture_output=True, timeout=5)
                 self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
+    def test_scalar_reads_after_case_are_checked_at_runtime(self):
+        source = self.work / 'case.b'
+        binary = self.work / 'case'
+        source.write_text("""GET(ARG.) Mode
+BEGIN CASE
+    CASE Mode[1,1] = 'a'
+        IF Mode = 'alpha' THEN Value = 'first'
+    CASE Mode = 'beta'
+        Value = 'second'
+END CASE
+IF Mode # 'skip' THEN CRT Value
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        unassigned = (1, b'', f"{source}:8:27: unassigned variable 'Value'\n".encode())
+        for argument, expected in (
+            ('alpha', (0, b'first\n', b'')),
+            ('beta', (0, b'second\n', b'')),
+            ('skip', (0, b'', b'')),
+            ('absent', unassigned),
+            ('other', unassigned),
+        ):
+            with self.subTest(argument=argument):
+                run = subprocess.run([binary, argument], capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+
+    def test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms(self):
+        source = self.work / 'case.b'
+        for arms, read, location in (
+            ("CASE 0 Value = 1\n", 'CRT Value\n', ':5:5:'),
+            ("CASE 1 CRT 'default'\nCASE Mode Value = 1\n", 'CRT Value\n', ':6:5:'),
+            ("CASE Mode IF Mode = 'a' THEN Value = 1\nCASE 1 CRT Value\n", '', ':4:12:'),
+        ):
+            with self.subTest(arms=arms):
+                source.write_text('GET(ARG.) Mode\nBEGIN CASE\n' + arms + 'END CASE\n' + read)
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}{location} unknown variable or unsupported function 'Value'",
+                              result.stderr)
+
     def test_assignment_probe_does_not_initialize(self):
         source = self.work / 'probe.b'
         for program, location in [('PRINT ASSIGNED(X)\nPRINT X', ':2:7:'),
