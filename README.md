@@ -2268,6 +2268,9 @@ that use SIN, COS, PWR, SQRT, EXP or LN, including infix powers. When compiling 
 
 ## Evidence for the implementation
 
+See [Sources for jbcc](SOURCES.md) for manuals, search filters, local
+reference materials, and the scope of the compiler and runtime probes.
+
 The [grammar investigation](https://github.com/jbc-lang/jbc-language/pull/11)
 contains two token grammars, a lexer keyword table and a function catalogue.
 The preprocessor handles includes, equates and macros. The main parser handles
