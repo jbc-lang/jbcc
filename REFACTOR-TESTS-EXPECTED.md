@@ -336,10 +336,10 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Date, time and clocks (4)
 
-- [ ] `test_timedate_at_local_midnight` — stdout (exact)
-- [ ] `test_timestamp_returns_utc_seconds_at_current_precision` — stdout (exact)
-- [ ] `test_startup_clock_is_shared_across_midnight` — stdout (exact)
-- [ ] `test_sleep_duration_and_default` — stdout (exact), stderr (fragment, interpolated)
+- [x] `test_timedate_at_local_midnight` — stdout (exact)
+- [x] `test_timestamp_returns_utc_seconds_at_current_precision` — stdout (exact)
+- [x] `test_startup_clock_is_shared_across_midnight` — stdout (exact)
+- [x] `test_sleep_duration_and_default` — stdout (exact), stderr (fragment, interpolated)
 
 ## External services and backend diagnostics (15)
 

@@ -1139,7 +1139,7 @@ time_t test_clock(time_t *out)
                         '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)
         run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+1'), capture_output=True,
                              text=True, check=True)
-        self.assertEqual(run.stdout, "23:59:59 31 DEC 2023\n00:00:00 01 JAN 2024\n")
+        self.assertEqual(run.stdout, expected_text('timedate-at-local-midnight.stdout'))
         self.assertEqual(run.stderr, '')
 
     def test_timestamp_returns_utc_seconds_at_current_precision(self):
@@ -1151,7 +1151,7 @@ time_t test_clock(time_t *out)
                         '-Dclock_gettime=test_clock_gettime', self.c, clock, '-o', binary], check=True)
         run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+10'), capture_output=True,
                              text=True, check=True)
-        self.assertEqual(run.stdout, "1704070799.1234\n1704070799\n-1.87\n1704070800.123456789\n")
+        self.assertEqual(run.stdout, expected_text('timestamp-returns-utc-seconds-at-current-precision.stdout'))
         self.assertEqual(run.stderr, '')
 
     def test_unique_key_returns_distinct_uuid_strings(self):
@@ -1179,9 +1179,9 @@ time_t test_clock(time_t *out)
 """)
         binary = self.work / 'startup-clock'
         for name, expected in [
-                ('date-and-time.b', '12-31-2023:86399\n86399\n'),
-                ('time-only.b', '86399\n'),
-                ('date-only.b', '12-31-2023\n')]:
+                ('date-and-time.b', expected_text('startup-clock-is-shared-across-midnight_2.stdout')),
+                ('time-only.b', expected_text('startup-clock-is-shared-across-midnight_3.stdout')),
+                ('date-only.b', expected_text('startup-clock-is-shared-across-midnight_4.stdout'))]:
             with self.subTest(source=name):
                 routine = sources / name
                 subprocess.run([CLI, main, routine, '-o', self.c], check=True)
@@ -1189,7 +1189,7 @@ time_t test_clock(time_t *out)
                                 '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)
                 run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+1'), capture_output=True,
                                      text=True, check=True)
-                self.assertEqual(run.stdout, '01-01-2024:1\n' + expected)
+                self.assertEqual(run.stdout, expected_text('startup-clock-is-shared-across-midnight.stdout') + expected)
                 self.assertEqual(run.stderr, '')
 
     def test_iconv_diagnostics(self):
@@ -4101,13 +4101,13 @@ CRT 'main'
                 run = subprocess.run(['pause', *args], executable=binary, capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 0, run.stderr)
                 self.assertGreaterEqual(time.monotonic() - start, minimum)
-                self.assertEqual(run.stdout, b'awake\n')
-        for value, message in [('-0.1', 'nonnegative duration'), ('later', 'nonnegative duration'),
-                               ('08:30', 'clock time is unsupported')]:
+                self.assertEqual(run.stdout, expected_bytes('sleep-duration-and-default.stdout'))
+        for value, message in [('-0.1', expected_text('sleep-duration-and-default_2.stderr')), ('later', expected_text('sleep-duration-and-default_2.stderr')),
+                               ('08:30', expected_text('sleep-duration-and-default_3.stderr'))]:
             with self.subTest(value=value):
                 run = subprocess.run(['pause', value], executable=binary, capture_output=True, timeout=5)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:2:34: SLEEP'.encode(), run.stderr)
+                self.assertIn(expected_text('sleep-duration-and-default.stderr', source=source).encode(), run.stderr)
                 self.assertIn(message.encode(), run.stderr)
 
     def test_keyin_shares_queued_and_piped_input(self):
