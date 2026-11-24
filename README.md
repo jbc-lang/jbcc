@@ -6,6 +6,60 @@ stubbed, and development and testing take place mainly on macOS. The
 translator is written in Python 3 and emits standalone C99 that the system C
 compiler can build into a native executable.
 
+## What is jBC?
+
+jBC is a dialect of BASIC developed for the jBASE MultiValue database
+system. It follows the Pick BASIC tradition and has built-in operations
+for working with MultiValue records.
+[jBASE BASIC documentation](https://docs.rocketsoftware.com/bundle/jbase_lib_62/page/topics/jbase_basic_jbc_.html).
+
+Temenos used jBC in its T24 core banking software.
+[jBC Programmer’s Reference Guide](https://jbc-lang.org/).
+
+## A quick taste of jBC
+
+[rule110.b](tests/programs/rule110.b) prints 32 generations of the Rule 110
+cellular automaton. It starts with a single live cell and prints each
+generation as a row of `#` and `.` characters. `DIM` declares the arrays,
+`MAT` fills or copies them, and `CRT` prints each row.
+
+```basic
+EQUATE width TO 63
+EQUATE generations TO 32
+
+* The extra cell at each end stays dead.
+DIM cells(width + 1), next_cells(width + 1)
+MAT cells = 0
+MAT next_cells = 0
+cells((width + 1) / 2) = 1
+
+* Rule 110 in binary, ordered from neighborhood 111 down to 000.
+rule = '01101110'
+
+FOR generation = 1 TO generations
+  row = ''
+  FOR x = 1 TO width
+    IF cells(x) THEN
+      row := '#'
+    END ELSE
+      row := '.'
+    END
+
+    neighborhood = 4 * cells(x - 1) + 2 * cells(x) + cells(x + 1)
+    next_cells(x) = rule[8 - neighborhood, 1]
+  NEXT x
+  CRT row
+  MAT cells = MAT next_cells
+NEXT generation
+```
+
+More examples in jBC
+
+- [hello.b](tests/programs/hello.b) prints “Hello, jBC!”
+- [life.b](tests/programs/life.b) animates Conway’s Game of Life.
+- [snake.b](tests/programs/snake.b) lets you play Snake with the WASD keys.
+- [banner.b](tests/programs/banner.b) animates a waving jBC banner.
+
 ## Try the compiler
 
 From the checkout, with Python 3.8+ and a C99 compiler on PATH, build and
