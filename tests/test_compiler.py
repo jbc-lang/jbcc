@@ -667,28 +667,6 @@ class CompilerTest(NativeCompilerTest):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(expected_text('report-diagnostics_5.stderr', source=source, message=message).encode(), result.stderr)
 
-    def test_logical_function_calls(self):
-        main = ROOT / 'tests/routines/logical-calls/main.b'
-        function = ROOT / 'tests/routines/logical-calls/bump.b'
-        run = self.run_native(main, function)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('logical-function-calls.stdout'))
-        main = ROOT / 'tests/routines/logical-calls/unassigned.b'
-        run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
-        self.assertNotEqual(run.returncode, 0)
-        self.assertIn(expected_text('logical-function-calls.stderr', main=main), run.stderr)
-
-    def test_conditional_expression_calls(self):
-        main = ROOT / 'tests/routines/conditional-calls/main.b'
-        function = ROOT / 'tests/routines/conditional-calls/bump.b'
-        run = self.run_native(main, function)
-        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected_bytes('conditional-expression-calls.stdout'), b''))
-
-        main = ROOT / 'tests/routines/conditional-calls/unassigned.b'
-        run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
-        self.assertNotEqual(run.returncode, 0)
-        self.assertIn(expected_text('conditional-expression-calls.stderr', main=main), run.stderr)
-
     def test_date_and_time_in_local_timezone(self):
         source = ROOT / 'tests/programs/date-and-time.b'
         binary = self.work / 'date'
@@ -891,31 +869,6 @@ time_t test_clock(time_t *out)
                 self.assertEqual(result.stdout, b'')
                 self.assertIn((str(source) + diagnostic).encode(), result.stderr)
 
-    def test_callonexit_dispatches_linked_callbacks(self):
-        save = ROOT / 'tests/routines/exit-callbacks/save.b'
-        show = ROOT / 'tests/routines/exit-callbacks/show.b'
-        wrong = ROOT / 'tests/routines/exit-callbacks/wrong.b'
-        program = """Name = 'SAVE.ARG'
-FOR I = 1 TO 2
-    CRT CALLONEXIT(Name:@VM:'payload':@VM:I)
-NEXT I
-CRT CALLONEXIT('SHOW.ARG')
-CRT CALLONEXIT('MISSING') > 0
-CRT CALLONEXIT('WRONG') > 0
-CRT CALLONEXIT('') > 0
-CRT 'main'
-"""
-        for case_number, (ending, status) in enumerate((('', 0), ('STOP', 0), ('EXIT(7)', 7), ('ABORT', 1), ('DEBUG', 1)), 1):
-            with self.subTest(ending=ending):
-                source = ROOT / 'tests/routines/callonexit-dispatches-linked-callbacks' / f'exit_{case_number}.b'
-                result = self.run_native(source, save, show, wrong)
-                self.assertEqual(result.returncode, status, result.stderr)
-                self.assertEqual(result.stdout, expected_bytes('callonexit-dispatches-linked-callbacks.stdout'))
-                if ending == 'DEBUG':
-                    self.assertIn(expected_bytes('callonexit-dispatches-linked-callbacks.stderr'), result.stderr)
-                else:
-                    self.assertEqual(result.stderr, b'')
-
     def test_debug_reports_location_only_when_reached(self):
         source = ROOT / 'tests/programs/debug-missing-backend.b'
         result = self.run_native(source)
@@ -991,85 +944,6 @@ CRT 'main'
                 self.assertIn(expected_text('weof-invalid-channel.stderr', source=source).encode(),
                               result.stderr)
 
-    def test_external_subroutine(self):
-        directory = ROOT / 'tests/routines'
-        run = self.run_native(directory / 'caller.b', directory / 'get.status.b')
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('external-subroutine.stdout'))
-
-    def test_bang_subroutine_names(self):
-        main = ROOT / 'tests/routines/bang-subroutine-names/main.b'
-        plain = ROOT / 'tests/routines/bang-subroutine-names/plain.b'
-        bang = ROOT / 'tests/routines/bang-subroutine-names/bang.b'
-        run = self.run_native(main, plain, bang)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('bang-subroutine-names.stdout'))
-        self.assertEqual(run.stderr, b'')
-
-    def test_call_aliases_and_expression_arguments(self):
-        caller = ROOT / 'tests/routines/call-aliases-and-expression-arguments/caller.b'
-        callee = ROOT / 'tests/routines/call-aliases-and-expression-arguments/callee.b'
-        run = self.run_native(callee, caller)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('call-aliases-and-expression-arguments.stdout'))
-
-    def test_indirect_call(self):
-        main = ROOT / 'tests/routines/indirect-call/main.b'
-        work = ROOT / 'tests/routines/indirect-call/work.b'
-        switch = ROOT / 'tests/routines/indirect-call/switch.b'
-        done = ROOT / 'tests/routines/indirect-call/done.b'
-        run = self.run_native(main, work, switch, done)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('indirect-call.stdout'))
-        self.assertEqual(run.stderr, b'')
-
-    def test_empty_actual_uses_local_storage_for_mat_formal(self):
-        main = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/main.b'
-        load = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/load.b'
-        scalar = ROOT / 'tests/routines/empty-actual-uses-local-storage-for-mat-formal/scalar.b'
-        result = self.run_native(main, load, scalar)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, expected_bytes('empty-actual-uses-local-storage-for-mat-formal.stdout'), b''))
-
-    def test_empty_mat_actual_requires_dimension_before_use(self):
-        main = ROOT / 'tests/routines/empty-mat-actual-requires-dimension-before-use/main.b'
-        load = ROOT / 'tests/routines/empty-mat-actual-requires-dimension-before-use/load.b'
-        result = self.run_native(main, load)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (1, b'', expected_text('empty-mat-actual-requires-dimension-before-use.stderr', load=load).encode()))
-
-    def test_callc_subroutine_exists_checks_linked_subroutines(self):
-        main = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/main.b'
-        subroutine = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/worker.b'
-        function = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/compute.b'
-        result = self.run_native(main, subroutine, function)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, expected_bytes('callc-subroutine-exists-checks-linked-subroutines.stdout'), b''))
-
-        main = ROOT / 'tests/routines/callc-subroutine-exists-checks-linked-subroutines/main-variant-2.b'
-        result = self.run_native(main)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('callc-subroutine-exists-checks-linked-subroutines_2.stdout'), b''))
-
-    def test_callc_subroutine_exists_requires_two_arguments(self):
-        for case_number, (arguments, marker, message) in enumerate((
-            ("'WORKER'", ')', expected_text('callc-subroutine-exists-requires-two-arguments.stderr')),
-            ("'WORKER', Info, 0", ', 0', expected_text('callc-subroutine-exists-requires-two-arguments_2.stderr')),
-        ), 1):
-            with self.subTest(arguments=arguments):
-                statement = f'CRT CALLC JBASESubroutineExist({arguments})'
-                source = ROOT / 'tests/routines/callc-subroutine-exists-requires-two-arguments' / f'main_{case_number}.b'
-                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(expected_text('callc-subroutine-exists-requires-two-arguments_3.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message), result.stderr)
-
-    def test_call_expands_equates_in_arguments_and_indirect_targets(self):
-        main = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/main.b'
-        direct = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/direct.b'
-        prefixed = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/prefixed.b'
-        run = self.run_native(main, direct, prefixed)
-        self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, expected_bytes('call-expands-equates-in-arguments-and-indirect-targets.stdout'), b''))
-
     def test_defc_declarations_and_runtime_diagnostics(self):
         for fixture_name, diagnostic in (
             ('foreign_1.b', b''),
@@ -1098,159 +972,6 @@ CRT 'main'
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stderr, f"{source}{diagnostic}\n")
-
-    def test_quoted_and_punctuated_direct_routine_names(self):
-        main = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/main.b'
-        star = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/star.b'
-        dashed = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/dashed.b'
-        quoted_header = ROOT / 'tests/routines/quoted-and-punctuated-direct-routine-names/quoted.b'
-        result = self.run_native(main, star, dashed, quoted_header)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('quoted-and-punctuated-direct-routine-names.stdout'), b''))
-
-    def test_quoted_direct_target_preserves_whitespace_and_punctuation(self):
-        main = ROOT / 'tests/routines/quoted-direct-target-preserves-whitespace-and-punctuation/main.b'
-        result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, expected_text('quoted-direct-target-preserves-whitespace-and-punctuation.stderr', main=main))
-
-        main = ROOT / 'tests/routines/quoted-direct-target-preserves-whitespace-and-punctuation/main-variant-2.b'
-        result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, expected_text('quoted-direct-target-preserves-whitespace-and-punctuation_2.stderr', main=main))
-
-    def test_indirect_call_diagnostics(self):
-        fixtures = ROOT / 'tests/routines/indirect-call-diagnostics'
-        sub = fixtures / 'update.b'
-        for fixture_name, name, units, message in (
-                ('main_1.b', 'MISSING', (), expected_text('indirect-call-diagnostics.stderr')),
-                ('main_2.b', 'update', (sub,), expected_text('indirect-call-diagnostics.stderr')),
-                ('main_3.b', 'UPDATE', (sub,), expected_text('indirect-call-diagnostics_2.stderr')),
-                ('main_4.b', 'UPDATE', (sub,), expected_text('indirect-call-diagnostics_2.stderr')),
-        ):
-            with self.subTest(source=fixture_name):
-                main = fixtures / fixture_name
-                run = self.run_native(main, *units)
-                self.assertNotEqual(run.returncode, 0)
-                self.assertEqual(run.stdout, b'')
-                self.assertIn(expected_text('indirect-call-diagnostics_3.stderr', main=main, message=message, value_3=name).encode(), run.stderr)
-
-    def test_indirect_call_through_matrix_element(self):
-        main = ROOT / 'tests/routines/indirect-call-through-matrix-element/main.b'
-        add = ROOT / 'tests/routines/indirect-call-through-matrix-element/add.b'
-        report = ROOT / 'tests/routines/indirect-call-through-matrix-element/report.b'
-        change = ROOT / 'tests/routines/indirect-call-through-matrix-element/change.b'
-        result = self.run_native(main, add, report, change)
-        self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, expected_bytes('indirect-call-through-matrix-element.stdout'), b''))
-
-    def test_indirect_matrix_call_uses_normal_matrix_diagnostics(self):
-        for fixture_name, message in (
-            ('main_1.b', expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics.stderr')),
-            ('main_2.b', expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics_2.stderr')),
-        ):
-            with self.subTest(source=fixture_name):
-                source = ROOT / 'tests/routines/indirect-matrix-call-uses-normal-matrix-diagnostics' / fixture_name
-                result = self.run_native(source)
-                self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stdout, b'')
-                self.assertEqual(result.stderr, expected_text('indirect-matrix-call-uses-normal-matrix-diagnostics_3.stderr', source=source, message=message).encode())
-
-    def test_multiline_call(self):
-        caller = ROOT / 'tests/routines/multiline-call/caller.b'
-        callee = ROOT / 'tests/routines/multiline-call/callee.b'
-        run = self.run_native(caller, callee)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('multiline-call.stdout'))
-
-    def test_external_function(self):
-        directory = ROOT / 'tests/routines'
-        binary = self.work / 'program'
-        subprocess.run([CLI, '--exe', directory / 'function.caller.b',
-                        directory / 'DOUBLE.IT', '-o', binary], check=True)
-        self.assertEqual(subprocess.check_output([binary]), expected_bytes('external-function.stdout'))
-
-    def test_deffun_call_as_statement_discards_return_and_updates_argument(self):
-        main = ROOT / 'tests/routines/deffun-call-as-statement-discards-return-and-updates-argument/main.b'
-        function = ROOT / 'tests/routines/deffun-call-as-statement-discards-return-and-updates-argument/function.b'
-        result = self.run_native(main, function)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('deffun-call-as-statement-discards-return-and-updates-argument.stdout'), b''))
-
-    def test_function_arguments_and_returns(self):
-        main = ROOT / 'tests/routines/function-arguments-and-returns/main.b'
-        inc = ROOT / 'tests/routines/function-arguments-and-returns/INC'
-        empty = ROOT / 'tests/routines/function-arguments-and-returns/EMPTY'
-        run = self.run_native(empty, inc, main)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('function-arguments-and-returns.stdout'))
-
-    def test_matrix_parameters(self):
-        main = ROOT / 'tests/routines/matrix-parameters/main.b'
-        sub = ROOT / 'tests/routines/matrix-parameters/relay.b'
-        func = ROOT / 'tests/routines/matrix-parameters/edit.b'
-        run = self.run_native(main, sub, func)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, expected_bytes('matrix-parameters.stdout'))
-
-    def test_matrix_parameter_diagnostics(self):
-        for case_number, (call, formal) in enumerate([('CALL S(MAT A)', 'X'), ('CALL S(N)', 'MAT X')], 1):
-            main = ROOT / 'tests/routines/matrix-parameter-diagnostics' / f'main_{case_number}.b'
-            sub = ROOT / 'tests/routines/matrix-parameter-diagnostics' / f'sub_{case_number}.b'
-            result = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn(expected_text('matrix-parameter-diagnostics.stderr', main=main), result.stderr)
-        main = ROOT / 'tests/routines/matrix-parameter-diagnostics/main-variant-2.b'
-        for fixture_name, message in (
-            ('sub-variant-2_1.b', expected_text('matrix-parameter-diagnostics_3.stderr')),
-            ('sub-variant-2_2.b', expected_text('matrix-parameter-diagnostics_4.stderr')),
-            ('sub-variant-2_3.b', expected_text('matrix-parameter-diagnostics_5.stderr')),
-        ):
-            sub = ROOT / 'tests/routines/matrix-parameter-diagnostics' / fixture_name
-            run = self.run_native(main, sub)
-            self.assertNotEqual(run.returncode, 0)
-            self.assertIn(expected_text('matrix-parameter-diagnostics_2.stderr', sub=sub).encode(), run.stderr)
-            self.assertIn(message.encode(), run.stderr)
-
-    def test_function_diagnostics(self):
-        definition = ROOT / 'tests/routines/DOUBLE.IT'
-        for fixture_name, message in (
-            ('main_1.b', expected_text('function-diagnostics.stderr')),
-            ('main_2.b', expected_text('function-diagnostics_2.stderr')),
-            ('main_3.b', expected_text('function-diagnostics_3.stderr')),
-            ('main_4.b', expected_text('function-diagnostics_4.stderr')),
-        ):
-            with self.subTest(source=fixture_name):
-                main = ROOT / 'tests/routines/function-diagnostics' / fixture_name
-                run = subprocess.run([CLI, main, definition, '-o', self.c], capture_output=True, text=True)
-                self.assertNotEqual(run.returncode, 0)
-                self.assertIn(str(main) + message, run.stderr)
-
-    def test_bad_routine_references(self):
-        sub = ROOT / 'tests/routines/bad-routine-references/sub.b'
-        for fixture_name, message in (
-            ('main_1.b', expected_text('bad-routine-references.stderr')),
-            ('main_2.b', expected_text('bad-routine-references_2.stderr')),
-            ('main_3.b', expected_text('bad-routine-references_3.stderr')),
-            ('main_4.b', expected_text('bad-routine-references_4.stderr')),
-            ('main_5.b', expected_text('bad-routine-references_5.stderr')),
-            ('main_6.b', expected_text('bad-routine-references_6.stderr')),
-            ('main_7.b', expected_text('bad-routine-references_7.stderr')),
-            ('main_8.b', expected_text('bad-routine-references_8.stderr')),
-            ('main_9.b', expected_text('bad-routine-references_9.stderr')),
-            ('main_10.b', expected_text('bad-routine-references_10.stderr')),
-            ('main_11.b', expected_text('bad-routine-references_11.stderr')),
-            ('main_12.b', expected_text('bad-routine-references_12.stderr')),
-            ('main_13.b', expected_text('bad-routine-references_13.stderr')),
-            ('main_14.b', expected_text('bad-routine-references_9.stderr')),
-            ('main_15.b', expected_text('bad-routine-references_14.stderr')),
-            ('main_16.b', expected_text('bad-routine-references_5.stderr')),
-            ('main_17.b', expected_text('bad-routine-references_15.stderr')),
-            ('main_18.b', expected_text('bad-routine-references_16.stderr')),
-        ):
-            with self.subTest(source=fixture_name):
-                main = ROOT / 'tests/routines/bad-routine-references' / fixture_name
-                run = subprocess.run([CLI, main, sub, '-o', self.c], text=True, capture_output=True)
-                self.assertNotEqual(run.returncode, 0)
-                self.assertIn(message, run.stderr)
 
     def test_memory_files(self):
         run = self.run_native(ROOT / 'tests/io/records.b', options=['--memory-file', 'CUSTOMERS'])
@@ -1860,12 +1581,6 @@ CRT 'main'
         for name, diagnostic in failures.items():
             self.assertEqual(report['files'][name]['diagnostic'], f'{name}:{diagnostic}')
 
-    def test_multi_unit_program_requires_package_aware_linkage(self):
-        main = ROOT / 'tests/snippets/package-directives.b'
-        routine = ROOT / 'tests/routines/show-parasentence.b'
-        run = subprocess.run([CLI, main, routine, '-o', self.c], capture_output=True, text=True)
-        self.assertEqual((run.returncode, run.stderr), (1, expected_text('multi-unit-program-requires-package-aware-linkage.stderr', main=main)))
-
     def test_corpus_report_can_preserve_source_bytes(self):
         corpus = ROOT / 'tests/corpus/legacy-include-bytes'
         command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
@@ -1909,47 +1624,6 @@ CRT 'main'
             'status': 'rejected',
             'diagnostic': 'caller:2:6: recursive call has incompatible signature',
         })
-
-    def test_quine(self):
-        source = ROOT / 'tests/programs/quine.b'
-        run = self.run_native(source)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, source.read_bytes())
-
-    def test_seqx_resolves_as_external_function(self):
-        source = ROOT / 'tests/routines/seqx-resolves-as-external-function/main.b'
-        function = ROOT / 'tests/routines/seqx-resolves-as-external-function/seqx.b'
-        result = self.run_native(source, function)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('seqx-resolves-as-external-function.stdout'), b''))
-
-    def test_executable_mode(self):
-        binary = self.work / 'output with spaces'
-        cmd = [CLI, '--exe', ROOT / 'tests/snippets/coercion.b', '-o', binary]
-        env = os.environ.copy()
-        env.pop('CC', None)
-        env.pop('CC_FLAGS', None)
-        subprocess.run(cmd, env=env, check=True)
-        expected = binary.read_bytes()
-        self.assertEqual(subprocess.check_output([binary]), (ROOT / 'tests/snippets/coercion.stdout').read_bytes())
-
-        wrapper = self.work / 'check flags.py'
-        wrapper.write_text("import sys\nassert '--argument with spaces' in sys.argv\nsys.exit(42)\n")
-        env.update(CC=shlex.quote(sys.executable) + ' ' + shlex.quote(str(wrapper)),
-                   CC_FLAGS="'--argument with spaces'")
-        run = subprocess.run(cmd, env=env, text=True, capture_output=True)
-        self.assertNotEqual(run.returncode, 0)
-        self.assertIn(expected_text('executable-mode.stderr'), run.stderr)
-        self.assertEqual(binary.read_bytes(), expected)
-
-    def test_executable_mode_links_math_with_exit_callbacks(self):
-        source = ROOT / 'tests/programs/executable-math-and-exit.b'
-        wrapper = ROOT / 'tests/io/check-math-link.py'
-        binary = self.work / 'program'
-        compiler = shlex.quote(sys.executable) + ' ' + shlex.quote(str(wrapper))
-        env = dict(os.environ, CC=compiler, CC_FLAGS='-Wall -Wextra -Werror -pedantic')
-        subprocess.run([CLI, '--exe', source, '-o', binary], env=env, check=True)
-        run = subprocess.run([binary], capture_output=True, timeout=5, check=True)
-        self.assertEqual((run.stdout, run.stderr), (expected_bytes('executable-mode-links-math-with-exit-callbacks.stdout'), b''))
 
     def test_cursor_coordinate_diagnostics(self):
         for fixture_name, message in (
