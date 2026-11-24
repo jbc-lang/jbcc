@@ -1964,6 +1964,18 @@ CRT ,
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'\t\t\tstart\na\t\tb\nc\t\tde\t\n\t\n', b''))
 
+    def test_end_label_is_a_jump_target_inside_and_outside_blocks(self):
+        source = self.work / 'end-label.b'
+        for program, expected in (
+            ("GOTO END\nCRT 'skipped'\nEND: CRT 'target'\nEND\n", b'target\n'),
+            ("IF 1 THEN\nGOTO END\nCRT 'skipped'\nEND: CRT 'inside'\nEND\nCRT 'outside'\nEND\n",
+             b'inside\noutside\n'),
+        ):
+            with self.subTest(program=program):
+                source.write_text(program)
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
+
     def test_inline_if_ends_at_next_in_the_enclosing_for(self):
         source = self.work / 'inline-next.b'
         source.write_text("""FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ELSE CRT 'other' ; NEXT I

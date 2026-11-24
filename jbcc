@@ -3319,7 +3319,8 @@ class Compiler:
         enclosing_stops = self.statement_stops
         self.statement_stops = stops
         while self.word not in stops or (
-            self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.loop_boundary_is_target()
+            self.word == 'END' and is_label(self.current, self.following)
+            or self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.loop_boundary_is_target()
         ):
             if self.word == '':
                 self.error(f"unterminated {opening.word}", opening)

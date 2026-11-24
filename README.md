@@ -83,7 +83,8 @@ jumps can bypass assignments. Separate statements with a newline or
 semicolon. A statement beginning with `*`, `!` or `REM` comments out
 the rest of its line. These markers
 can follow a named or numeric label directly, as in `setup:* read inputs`
-or `100: REM retry`.
+or `100: REM retry`. `END:` can label a statement, including inside a
+block. A bare `END` closes a block or terminates the source unit.
 
 `CAT` is another spelling of the concatenation operator `:` and has
 the same precedence. An omitted right operand keeps the left value.

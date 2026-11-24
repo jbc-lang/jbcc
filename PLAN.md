@@ -3064,6 +3064,19 @@ The four asset valuation reports and SC.LOAD.CG.BASE now pass strict
 C99 checking in byte mode. The total is 17,209 of 17,336 candidates,
 including all 17,204 previous passes.
 
-- [ ] Investigate END as a label in BL.PARAMETER.CROSSVAL and
+- [x] Investigate END as a label in BL.PARAMETER.CROSSVAL and
   BL.TXN.TYPE.CONDITION.CROSSVAL. Check where the compiler distinguishes
   a label from the final END terminator.
+
+Both T24 routines jump to END: before the bare END. The reference
+compiler emits END: as a jump target at the outer level and within an
+IF block. jbcc recognizes the adjacent colon before consuming an END
+terminator. Native tests check a jump at each level and execution past
+the bare END that closes the IF.
+
+Both routines now pass strict C99 checking in byte mode. The total is
+17,211 of 17,336 candidates, including all 17,209 previous passes.
+
+- [ ] Investigate an empty inline IF arm closed by END in
+  REBUILD.AVAIL.FUNDS.SELECT. Check its effect on the following statement
+  and the surrounding loop.
