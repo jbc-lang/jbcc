@@ -83,46 +83,55 @@ parentheses, arithmetic, concatenation, and compound assignments. A trailing
 backslash or ellipsis joins the next source line, including when a semicolon
 comment follows the continuation marker.
 
-The reference lexer accepts spaces and tabs before the equals sign in `+=`, `-=`, `*=`
-and `/=`. For example, `R<1> + = 1` increments the first field, a form
-used in T24. An assignment target may have whitespace before the opening
-angle bracket. Both `T.SEQU <-1> = A+1` and `T.SEQU < - 1 > = A + 1`
-append a field. The reference grammar allows one to three indices followed
-by an optional substring selector. Reads also allow whitespace, as in `X = R <FIELD>` and
-`LOCATE X IN R <FIELD> SETTING POS`. The reference preprocessor pairs
-angle brackets within an expression and checks for intervening logical
-operators. jbcc keeps a spaced comparison chain such as `A < B > C`
-when an operand follows the closing bracket. Before a binary operator,
-`R <1> + 3` reads field one and adds three. Use `LT` and `GT` to make
-ambiguous comparisons explicit. The reference preprocessor spells LE
-as `#>`, GE as `#<`, and NE as `><` with a space or tab before it.
-For example, `R<1> >< R<2>` compares two fields and `R<1><2>` chains
-selectors. A greater-than sign and equals sign can be separated by
-spaces or tabs when the greater-than sign is a comparison. After
-a field selector, `R<1> = X` still uses the single equals operator.
-The reference lexer spells concatenating
-assignment `:=`. jbcc also accepts spaces or tabs before the equals sign
-in this operator, following usage in T24. A compound assignment to a
-conditionally assigned scalar checks the previous value at runtime.
-This includes updates to a dynamic-array field in that scalar.
-Addition binds more tightly than concatenation. Names are case-sensitive
-and can contain `%` after the first letter. Reads require an assigned value.
-An expression can read a scalar assigned on some paths through a prior
-conditional or loop. jbcc checks the value at runtime, so a later guard
-can protect that read. A FOR body can be skipped by its bounds or its guard.
-Routines with GOTO, GOSUB or RETURN TO also check reads at runtime because
-jumps can bypass assignments. Separate statements with a newline or
-semicolon. A statement beginning with `*`, `!` or `REM` comments out
-the rest of its line. These markers
-can follow a named or numeric label directly, as in `setup:* read inputs`
-or `100: REM retry`. `END:` can label a statement, including inside a
-block. A bare `END` closes a block or terminates the source unit. A single
-`.` at the start of a physical line can stand alone or label a statement
-on that line, with an optional colon. A digit-only label at the start of
-a source line can also omit the colon, including before a comment or
-statement. Separate the digits from a following statement with whitespace
-or a semicolon. A standalone EQUATE reference that expands to digits works
-the same way. Leading zeros are part of the label.
+The reference lexer accepts spaces and tabs before the equals sign in `+=`,
+`-=`, `*=` and `/=`. For example, `R<1> + = 1` increments the first field, a
+form used in T24.
+
+An assignment target may have whitespace before the opening angle bracket.
+Both `T.SEQU <-1> = A+1` and `T.SEQU < - 1 > = A + 1` append a field. The
+reference grammar allows one to three indices followed by an optional
+substring selector. Reads also allow whitespace, as in `X = R <FIELD>` and
+`LOCATE X IN R <FIELD> SETTING POS`.
+
+The reference preprocessor pairs angle brackets within an expression and
+checks for intervening logical operators. jbcc keeps a spaced comparison
+chain such as `A < B > C` when an operand follows the closing bracket.
+Before a binary operator, `R <1> + 3` reads field one and adds three. Use
+`LT` and `GT` to make ambiguous comparisons explicit.
+
+The reference preprocessor spells LE as `#>`, GE as `#<`, and NE as `><`
+with a space or tab before it. For example, `R<1> >< R<2>` compares two
+fields and `R<1><2>` chains selectors. A greater-than sign and equals sign
+can be separated by spaces or tabs when the greater-than sign is a
+comparison. After a field selector, `R<1> = X` still uses the single equals
+operator.
+
+The reference lexer spells concatenating assignment `:=`. jbcc also accepts
+spaces or tabs before the equals sign in this operator, following usage in
+T24. A compound assignment to a conditionally assigned scalar checks the
+previous value at runtime. This includes updates to a dynamic-array field in
+that scalar. Addition binds more tightly than concatenation.
+
+Names are case-sensitive and can contain `%` after the first letter. Reads
+require an assigned value. An expression can read a scalar assigned on some
+paths through a prior conditional or loop. jbcc checks the value at runtime,
+so a later guard can protect that read. A FOR body can be skipped by its
+bounds or its guard. Routines with GOTO, GOSUB or RETURN TO also check reads
+at runtime because jumps can bypass assignments.
+
+Separate statements with a newline or semicolon. A statement beginning with
+`*`, `!` or `REM` comments out the rest of its line. These markers can
+follow a named or numeric label directly, as in `setup:* read inputs` or
+`100: REM retry`.
+
+`END:` can label a statement, including inside a block. A bare `END` closes
+a block or terminates the source unit. A single `.` at the start of a
+physical line can stand alone or label a statement on that line, with an
+optional colon. A digit-only label at the start of a source line can also
+omit the colon, including before a comment or statement. Separate the digits
+from a following statement with whitespace or a semicolon. A standalone
+EQUATE reference that expands to digits works the same way. Leading zeros
+are part of the label.
 
 `CAT` is another spelling of the concatenation operator `:` and has
 the same precedence. An omitted right operand keeps the left value.
@@ -374,26 +383,31 @@ stdin. The child sees EOF after the queued lines and the parent resumes
 with its original stdin. This one-shot handoff is jbcc's native convention.
 [DATA](https://jbc-lang.org/pages/data.html).
 
-`EXECUTE expression` and `PERFORM expression` run the resulting command
-in the native host's default Bourne shell on POSIX. `EXEC` is an alias
-with the same clauses, following the reference grammar's Prime and
-UniVerse spelling. The default streams are inherited from the parent.
-The caller waits for the child and continues
-even if the command exits with a nonzero status. For example,
-`PERFORM './report today'` can invoke another jbcc-built executable.
-The native runtime also accepts the explicit `CHAR(255) : 's'` shell
-prefix. With `CAPTURING variable` alone, the child’s stdout is collected into
-the variable and stderr stays on the caller’s error stream. Each LF,
-including a final LF, becomes one field mark. An empty stream assigns
-an empty string. `RETURNING variable` and `SETTING variable` put the child’s
-exit code in field 1. Either can appear before or after CAPTURING.
-For native commands, jbcc provisionally appends nonempty stderr starting
-in field 2, replacing each LF with a field mark. With empty stderr the
-result is just the status. A signal exit is recorded as 128 plus the
-signal number. If both clauses target the same variable, the status
-result is assigned last. NUL bytes in either collected stream produce a
-runtime diagnostic. Alternate shells and field-mark-separated commands
-remain unsupported.
+`EXECUTE expression` and `PERFORM expression` run the resulting command in
+the native host's default Bourne shell on POSIX. `EXEC` is an alias with
+the same clauses, following the reference grammar's Prime and UniVerse
+spelling.
+
+The default streams are inherited from the parent. The caller waits for the
+child and continues even if the command exits with a nonzero status. For
+example, `PERFORM './report today'` can invoke another jbcc-built
+executable. The native runtime also accepts the explicit `CHAR(255) : 's'`
+shell prefix.
+
+With `CAPTURING variable` alone, the child’s stdout is collected into the
+variable and stderr stays on the caller’s error stream. Each LF, including
+a final LF, becomes one field mark. An empty stream assigns an empty
+string.
+
+`RETURNING variable` and `SETTING variable` put the child’s exit code in
+field 1. Either can appear before or after CAPTURING. For native commands,
+jbcc provisionally appends nonempty stderr starting in field 2, replacing
+each LF with a field mark. With empty stderr the result is just the status.
+A signal exit is recorded as 128 plus the signal number. If both clauses
+target the same variable, the status result is assigned last.
+
+NUL bytes in either collected stream produce a runtime diagnostic.
+Alternate shells and field-mark-separated commands remain unsupported.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
 The command aliases accept `RTNLIST variable` and bare `RTNLIST` for the
@@ -472,25 +486,31 @@ oversized assignment reports its source location. Linked routines share
 the value for the lifetime of the native process, and assigning an empty
 string clears it.
 
-`@USERSTATS` returns a snapshot with attribute numbers from `JBC.h`.
-The native runtime fills fields 1–6 with the port, active program count
-of one, startup time in Unix seconds, PID, account, and login. Fields 8
-and 10 hold the OS terminal type and device. Fields 18–20 count successful
-in-memory opens, record reads and record writes respectively. The read
-count includes READU, READV, READVU, MATREAD and MATREADU, and a field read
-of an existing record counts even when the field is empty. The write count
-includes WRITEV, WRITEU, WRITEVU and MATWRITE.
+`@USERSTATS` returns a snapshot with attribute numbers from `JBC.h`. The
+native runtime fills fields 1–6 with the port, active program count of one,
+startup time in Unix seconds, PID, account, and login. Fields 8 and 10 hold
+the OS terminal type and device.
+
+Fields 18–20 count successful in-memory opens, record reads and record
+writes respectively. The read count includes READU, READV, READVU, MATREAD
+and MATREADU, and a field read of an existing record counts even when the
+field is empty. The write count includes WRITEV, WRITEU, WRITEVU and
+MATWRITE.
+
 Fields 21 and 22 count successful in-memory DELETE and CLEARFILE
 statements. Deleting a missing key or clearing an empty file still counts
 as one operation because the backend reports success. Invalid descriptors
 and lock conflicts leave both counters unchanged.
-Field 23 counts completed EXECUTE, EXEC and PERFORM statements,
-including commands that exit with a nonzero status. Field 24 counts
-INPUTs that complete with a value, including data from the DATA queue
-and the empty value returned at end of input. An INPUT timeout leaves
-the counter unchanged. Field 28 holds the current `@USER.ROOT` value.
-Fields 41–43 hold the native invocation and the line and path where the
-snapshot was taken. Other fields are empty.
+
+Field 23 counts completed EXECUTE, EXEC and PERFORM statements, including
+commands that exit with a nonzero status. Field 24 counts INPUTs that
+complete with a value, including data from the DATA queue and the empty
+value returned at end of input. An INPUT timeout leaves the counter
+unchanged.
+
+Field 28 holds the current `@USER.ROOT` value. Fields 41–43 hold the native
+invocation and the line and path where the snapshot was taken. Other fields
+are empty.
 [@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
 
 `@TTY` returns the POSIX device name for the terminal on standard
@@ -949,36 +969,44 @@ so `IF C THEN 2 ELSE 3 + 10` adds 10 to the selected value. Write
 Use parentheses inside an angle-bracket selector, as in
 `R<(IF C THEN 1 ELSE 2)>`.
 
-FOR supports inclusive bounds, a default step of one, optional STEP,
-and an optional variable name after NEXT. Following the reference parser,
-jbcc warns if that name differs from the innermost FOR counter. The NEXT
-still increments the counter from that FOR header. The limit and step are evaluated
-at the start of each iteration. The captured step increments the counter
-after the body. A scalar read inside FOR can use a value initialized by
-a plain assignment on an earlier iteration. jbcc checks the value at
-the read, including on the first iteration. FOR accepts WHILE and UNTIL
-guards in its header.
-The reference grammar also allows guards between statements in FOR and
-LOOP bodies, with an optional DO after the condition. An inline arm can
-end at a loop guard. `THEN END` and `ELSE END` specify empty arms and
-execution continues after the conditional. In
-`LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,
-the guard tests the ID after READNEXT and its ELSE arm have run. An ELSE
-inside a nested conditional still binds to the nearest eligible THEN.
+FOR supports inclusive bounds, a default step of one, optional STEP, and an
+optional variable name after NEXT. Following the reference parser, jbcc
+warns if that name differs from the innermost FOR counter. The NEXT still
+increments the counter from that FOR header. The limit and step are
+evaluated at the start of each iteration. The captured step increments the
+counter after the body.
+
+A scalar read inside FOR can use a value initialized by a plain assignment
+on an earlier iteration. jbcc checks the value at the read, including on
+the first iteration.
+
+FOR accepts WHILE and UNTIL guards in its header. The reference grammar
+also allows guards between statements in FOR and LOOP bodies, with an
+optional DO after the condition.
+
+An inline arm can end at a loop guard. `THEN END` and `ELSE END` specify
+empty arms and execution continues after the conditional. In `LOOP READNEXT
+ID ELSE ID = "" WHILE ID <> ""`, the guard tests the ID after READNEXT and
+its ELSE arm have run. An ELSE inside a nested conditional still binds to
+the nearest eligible THEN.
+
 An inline arm inside a FOR also ends at the enclosing NEXT. For example,
 `FOR I = 1 TO 3 ; IF I = 2 THEN CRT I ; NEXT I` increments I on every
-iteration and prints only 2. jbcc also recognizes `NEXT = value`
-and `NEXT:` as an assignment and a label where a statement can begin.
-T24 uses
-`UNTIL found` immediately before `NEXT`. When the body reaches that
-guard and `found` is true, the FOR exits with its counter at the current
-value. CONTINUE skips the rest of the innermost iteration.
-In FOR it advances the counter by the captured step. In LOOP it resumes
-at the top, even when a guard appears later in the body. Outside a loop
-it issues a compile-time warning and execution proceeds normally.
-Loop membership follows the location of the statement in the source.
-A `GOSUB` from inside a loop to a label outside it does not bring that
-loop into scope for `CONTINUE`, bare `EXIT` or `BREAK`.
+iteration and prints only 2. jbcc also recognizes `NEXT = value` and
+`NEXT:` as an assignment and a label where a statement can begin.
+
+T24 uses `UNTIL found` immediately before `NEXT`. When the body reaches
+that guard and `found` is true, the FOR exits with its counter at the
+current value.
+
+CONTINUE skips the rest of the innermost iteration. In FOR it advances the
+counter by the captured step. In LOOP it resumes at the top, even when a
+guard appears later in the body. Outside a loop it issues a compile-time
+warning and execution proceeds normally.
+
+Loop membership follows the location of the statement in the source. A
+`GOSUB` from inside a loop to a label outside it does not bring that loop
+into scope for `CONTINUE`, bare `EXIT` or `BREAK`.
 [CONTINUE](https://jbc-lang.org/pages/continue.html). See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
@@ -1014,30 +1042,37 @@ catalogue and distinguishes the statements for calling jCL programs.
 
 DIM and DIMENSION accept comma-separated declarations with positive integer
 bounds, including expanded EQUATE constants. Indices run from zero through
-the declared bound, inclusive, in this subset. Supply one index per dimension.
+the declared bound, inclusive, in this subset. Supply one index per
+dimension.
+
 Local matrices belong to one invocation. Passing an element to CALL passes
-that slot by reference. Matrix references, including MAT call arguments,
-can appear earlier in the source than the DIM or COMMON declaration.
-The compiler determines their rank from the declaration, including in
-inserts. Fixed-size matrices are available from routine entry.
-Runtime-sized matrices still require execution of the declaration before
-use. This follows the reference compiler's assumed-array rule.
+that slot by reference.
+
+Matrix references, including MAT call arguments, can appear earlier in the
+source than the DIM or COMMON declaration. The compiler determines their
+rank from the declaration, including in inserts. Fixed-size matrices are
+available from routine entry. Runtime-sized matrices still require
+execution of the declaration before use. This follows the reference
+compiler's assumed-array rule.
+
 Before a local DIM appears in the source, an unsubscripted assignment,
-expression or CALL argument can use the same name as a scalar.
-jbcc provisionally keeps that scalar value in separate storage from the
-matrix.
+expression or CALL argument can use the same name as a scalar. jbcc
+provisionally keeps that scalar value in separate storage from the matrix.
+
 For T24 sources, jbcc also accepts bounds such as
-`DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s
-`dimvar` rule in dynamic-array mode. The guide describes the constant-bound
-form. Each time execution reaches a declaration with expression bounds,
-jbcc evaluates them. A repeated DIM of a local matrix reuses its slot.
-For a runtime-sized matrix, the first declaration reached binds the
-bounds for that invocation. Subsequent declarations preserve the elements
-when the rank and bounds match. A rank change is a compile-time error.
-Executing a declaration that would change the bounds or using a
-runtime-sized matrix before its declaration has executed reports an
-error. Unassigned reads and out-of-range subscripts also produce runtime
-diagnostics.
+`DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s `dimvar`
+rule in dynamic-array mode. The guide describes the constant-bound form.
+
+Each time execution reaches a declaration with expression bounds, jbcc
+evaluates them. A repeated DIM of a local matrix reuses its slot. For a
+runtime-sized matrix, the first declaration reached binds the bounds for
+that invocation. Subsequent declarations preserve the elements when the
+rank and bounds match.
+
+A rank change is a compile-time error. Executing a declaration that would
+change the bounds or using a runtime-sized matrix before its declaration
+has executed reports an error. Unassigned reads and out-of-range subscripts
+also produce runtime diagnostics.
 
 `MAT A = expression` evaluates the expression once and fills every slot,
 including index zero. `MAT A = MAT B` copies the values of a fully
@@ -1094,21 +1129,26 @@ statement. [INMAT](https://jbc-lang.org/pages/inmat.html).
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
 program. A block name can be an identifier or a sequence of digits,
-including one substituted by `EQUATE`. Leading zeros are part of the
-name. Repeating a scalar or a matrix in the same block within a
-compilation unit reuses its original slot, including when an include is
-expanded twice. This follows the reference parser’s `common_identifier`
-allocation rule and its dynamic-dimension generator. Repeated COMMON
-declarations must agree on rank and bounds. jbcc checks constant bounds
-at compile time and expression bounds when the declaration executes.
-A member listed with and without dimensions in the same block keeps
-the slot of its first occurrence and takes the dimensioned declaration's
+including one substituted by `EQUATE`. Leading zeros are part of the name.
+
+Repeating a scalar or a matrix in the same block within a compilation unit
+reuses its original slot, including when an include is expanded twice. This
+follows the reference parser’s `common_identifier` allocation rule and its
+dynamic-dimension generator.
+
+Repeated COMMON declarations must agree on rank and bounds. jbcc checks
+constant bounds at compile time and expression bounds when the declaration
+executes.
+
+A member listed with and without dimensions in the same block keeps the
+slot of its first occurrence and takes the dimensioned declaration's
 bounds, following the Prime compiler layout.
-For T24 compatibility, a later DIM or DIMENSION of a COMMON matrix
-reuses its original shared slot. The reference compiler accepts changes
-to bounds in resize-enabled emulation. jbcc translates a DIM with the
-same rank and reports a source-located error if execution would change
-the bounds. A rank change is a compile-time error.
+
+For T24 compatibility, a later DIM or DIMENSION of a COMMON matrix reuses
+its original shared slot. The reference compiler accepts changes to bounds
+in resize-enabled emulation. jbcc translates a DIM with the same rank and
+reports a source-located error if execution would change the bounds. A rank
+change is a compile-time error.
 [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
 
 Prime mode emits array accesses with fewer or more subscripts than the
