@@ -70,7 +70,9 @@ spaces or tabs when the greater-than sign is a comparison. After
 a field selector, `R<1> = X` still uses the single equals operator.
 The reference lexer spells concatenating
 assignment `:=`. jbcc also accepts spaces or tabs before the equals sign
-in this operator, following usage in T24.
+in this operator, following usage in T24. A compound assignment to a
+conditionally assigned scalar checks the previous value at runtime.
+This includes updates to a dynamic-array field in that scalar.
 Addition binds more tightly than
 concatenation. Names are case-sensitive. Reads require an assigned value.
 An expression can read a scalar assigned on some paths through a prior

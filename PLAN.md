@@ -2867,7 +2867,22 @@ ARC.RECORDS.SELECT and four other units now pass strict C99 checking
 in byte mode. The total is 17,184 of 17,336 candidates, including all
 17,179 previous passes.
 
-- [ ] Investigate compound assignments to conditionally assigned
+- [x] Investigate compound assignments to conditionally assigned
   scalars, starting with REQ.ID in MB.E.STMT.ENT.DETAIL and YFLD in
   CONV.LOCAL.TABLE.G12.2. Check the read of the previous value when
   the initializing branch runs or is skipped.
+
+A reduced reference program emits an in-place concatenation for both
+patterns. jbcc now checks the previous value at runtime when an earlier
+branch may have initialized the scalar. The same check applies before
+extracting a selected field for a compound update. Native tests cover
+concatenation, arithmetic and a selected field, including the diagnostic
+when initialization is skipped.
+
+MB.E.STMT.ENT.DETAIL and EXPAND.MULTI.AUTOM now pass strict C99
+checking in byte mode. The total is 17,186 of 17,336 candidates,
+including all 17,184 previous passes.
+
+- [ ] Investigate reads that depend on assignments from earlier FOR
+  iterations. Start with YFLD in CONV.LOCAL.TABLE.G12.2, where the first
+  iteration initializes the scalar and a later sibling arm appends to it.

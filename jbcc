@@ -3125,13 +3125,18 @@ class Compiler:
             base = f'({var}.value ? {var}.value : "")'
             if substring and operator.word not in ('=', ':='):
                 self.error("expected '=' or ':=' for substring replacement", operator)
+            compound = operator.word != '='
             text = base
-            if indices and (substring or operator.word != '='):
-                text = self.temporary(f"jbc_array({base}, {indices}, NULL)")
-            if operator.word != '=':
-                if not matrix and start.word not in self.assigned and not self.has_unstructured_jumps:
+            previous = base
+            if compound:
+                if (not matrix and start.word not in self.assigned and start.word not in self.maybe_assigned
+                        and not self.has_unstructured_jumps):
                     self.assignment_error(f"unassigned variable '{start.word}'", start)
-                old = text if indices else self.checked_read(var, start)
+                previous = self.checked_read(var, start)
+            if indices and (substring or compound):
+                text = self.temporary(f"jbc_array({previous}, {indices}, NULL)")
+            if compound:
+                old = text if indices else previous
                 if delimited:
                     text = old
                 else:

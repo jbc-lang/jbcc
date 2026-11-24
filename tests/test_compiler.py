@@ -2919,6 +2919,25 @@ CRT ': ='
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:3: division by zero'.encode(), run.stderr)
 
+    def test_compound_assignment_checks_conditionally_assigned_target(self):
+        source = self.work / 'compound.b'
+        binary = self.work / 'compound'
+        for initial, update, output, expected in (
+            ("'prefix'", "Value := '!'", 'Value', b'prefix!\n'),
+            ('4', 'Value += 2', 'Value', b'6\n'),
+            ("'one':@FM:'two'", "Value<2> := '!'", 'Value<1>, Value<2>', b'one\ttwo!\n'),
+        ):
+            with self.subTest(update=update):
+                source.write_text(f"GET(ARG.) Mode\nIF Mode = 'hit' THEN Value = {initial}\n"
+                                  f"{update}\nCRT {output}\n")
+                subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                               env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+                hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
+                self.assertEqual((hit.returncode, hit.stdout, hit.stderr), (0, expected, b''))
+                miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
+                self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
+                                 (1, b'', f"{source}:3:1: unassigned variable 'Value'\n".encode()))
+
     def test_external_subroutine(self):
         directory = ROOT / 'tests/routines'
         run = self.run_native(directory / 'caller.b', directory / 'get.status.b')
