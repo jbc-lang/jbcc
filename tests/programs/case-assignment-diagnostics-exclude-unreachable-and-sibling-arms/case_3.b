@@ -1,0 +1,5 @@
+GET(ARG.) Mode
+BEGIN CASE
+CASE Mode IF Mode = 'a' THEN Value = 1
+CASE 1 CRT Value
+END CASE

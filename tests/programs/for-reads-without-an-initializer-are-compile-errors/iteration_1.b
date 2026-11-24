@@ -1,0 +1,3 @@
+FOR I = 1 TO 3
+CRT Value
+NEXT I

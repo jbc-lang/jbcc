@@ -1,0 +1,5 @@
+GET(ARG.) Mode
+BEGIN CASE
+CASE 0 Value = 1
+END CASE
+CRT Value

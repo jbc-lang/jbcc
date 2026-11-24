@@ -1,0 +1,5 @@
+Flag = GETENV('JBCC_TEST_DEFERRED_READ')
+IF Flag THEN
+    CRT Missing<1>
+END
+CRT 'done'

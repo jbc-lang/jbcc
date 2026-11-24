@@ -89,30 +89,30 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Control flow and variable assignment (24)
 
-- [ ] `test_stop_and_abort_from_main`
-- [ ] `test_stop_and_abort_from_routine`
-- [ ] `test_loop_exit_control_flow_diagnostics`
-- [ ] `test_increment_and_decrement_expression_values`
-- [ ] `test_increment_and_decrement_diagnostics`
-- [ ] `test_spaced_concatenating_assignment_requires_initial_value`
-- [ ] `test_compound_assignment_checks_conditionally_assigned_target`
-- [ ] `test_indexed_jump_selector`
-- [ ] `test_indexed_jump_range`
-- [ ] `test_jump_discards_step_when_reentering_a_completed_for`
-- [ ] `test_next_after_jump_requires_assigned_counter`
-- [ ] `test_return_to_unwinds_subroutine`
-- [ ] `test_return_to_without_caller`
-- [ ] `test_return_to_bypasses_for_header_with_explicit_step`
-- [ ] `test_deferred_scalar_read_warns_and_fails_only_when_reached`
-- [ ] `test_deferred_reads_still_reject_unknown_functions`
-- [ ] `test_assignment_predicates_on_arguments`
-- [ ] `test_expression_reads_after_conditional_assignment_are_checked_at_runtime`
-- [ ] `test_scalar_reads_after_case_are_checked_at_runtime`
-- [ ] `test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms`
-- [ ] `test_scalar_reads_after_for_are_checked_at_runtime`
-- [ ] `test_for_reads_check_values_from_earlier_iterations`
-- [ ] `test_for_reads_without_an_initializer_are_compile_errors`
-- [ ] `test_assignment_probe_does_not_initialize`
+- [x] `test_stop_and_abort_from_main`
+- [x] `test_stop_and_abort_from_routine`
+- [x] `test_loop_exit_control_flow_diagnostics`
+- [x] `test_increment_and_decrement_expression_values`
+- [x] `test_increment_and_decrement_diagnostics`
+- [x] `test_spaced_concatenating_assignment_requires_initial_value`
+- [x] `test_compound_assignment_checks_conditionally_assigned_target`
+- [x] `test_indexed_jump_selector`
+- [x] `test_indexed_jump_range`
+- [x] `test_jump_discards_step_when_reentering_a_completed_for`
+- [x] `test_next_after_jump_requires_assigned_counter`
+- [x] `test_return_to_unwinds_subroutine`
+- [x] `test_return_to_without_caller`
+- [x] `test_return_to_bypasses_for_header_with_explicit_step`
+- [x] `test_deferred_scalar_read_warns_and_fails_only_when_reached`
+- [x] `test_deferred_reads_still_reject_unknown_functions`
+- [x] `test_assignment_predicates_on_arguments`
+- [x] `test_expression_reads_after_conditional_assignment_are_checked_at_runtime`
+- [x] `test_scalar_reads_after_case_are_checked_at_runtime`
+- [x] `test_case_assignment_diagnostics_exclude_unreachable_and_sibling_arms`
+- [x] `test_scalar_reads_after_for_are_checked_at_runtime`
+- [x] `test_for_reads_check_values_from_earlier_iterations`
+- [x] `test_for_reads_without_an_initializer_are_compile_errors`
+- [x] `test_assignment_probe_does_not_initialize`
 
 ## Arithmetic and numeric builtins (27)
 

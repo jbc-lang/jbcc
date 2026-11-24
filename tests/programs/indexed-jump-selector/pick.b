@@ -1,0 +1,3 @@
+FUNCTION PICK(N)
+N += 1
+RETURN N
