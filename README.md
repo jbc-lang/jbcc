@@ -428,6 +428,13 @@ processing requires a backend. This applies to the in-memory file layer too.
 [TRANSEND](https://jbc-lang.org/pages/transend.html),
 [TRANSABORT](https://jbc-lang.org/pages/transabort.html).
 
+jbcc also accepts `TRANSACTION START` and `TRANSACTION COMMIT` with a
+`THEN` or `ELSE` arm, and bare `TRANSACTION ABORT`. These forms use
+the same source-located transaction-backend diagnostic when reached.
+[START](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_CTRANSACTIONSTART),
+[COMMIT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactioncommit),
+[ABORT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactionabort).
+
 `@PATH` is the current account pathname in the jBASE guide. Native
 jbcc provisionally uses the process's absolute working directory as
 the account path. A failure to resolve it reports the source location.

@@ -2164,6 +2164,23 @@ CRT Response
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:1:15: expected THEN or ELSE\n')
 
+    def test_transaction_dialect_reports_missing_backend(self):
+        source = ROOT / 'tests/programs/transaction-dialect.b'
+        binary = self.work / 'transactions'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        run = subprocess.run([binary, 'skip'], capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'done\n', b''))
+        for operation, line in (('start', 4), ('commit', 6), ('abort', 8)):
+            with self.subTest(operation=operation):
+                run = subprocess.run([binary, operation], capture_output=True, timeout=5)
+                error = f'{source}:{line}:5: TRANSACTION {operation.upper()} requires a transaction backend\n'
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (1, b'', error.encode()))
+
+    def test_transaction_start_requires_a_conditional_arm(self):
+        source = ROOT / 'tests/programs/transaction-start-missing-arm.b'
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual((run.returncode, run.stderr), (1, f'{source}:1:18: expected THEN or ELSE\n'))
+
     def test_weof_invalid_channel(self):
         source = self.work / 'weof.b'
         for operand in ('ON 10', 'UNIT(-1)', "FROM 'text'"):

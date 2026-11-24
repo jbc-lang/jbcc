@@ -3416,8 +3416,18 @@ units also pass with their established scan options.
   passes strict C99 checks for 15,027 of 15,030 units with source fixes
   and the include stub enabled. All previous passes hold, and all
   18,362 extracted files still match the catalog hashes.
-- [ ] Investigate the UniVerse transaction forms in `EB.TRANS`.
-  The jBASE equivalents are commented alongside them. Verify their
-  branch behavior, including the bare `TRANSACTION ABORT`, before
-  mapping them to jbcc's transaction statements.
-  [Rocket UniVerse BASIC User Guide](https://docs-be.rocketsoftware.com/bundle/UniVerse_BASICUserGuide_V1135/raw/resource/enus/UniVerse_BASICUserGuide_V1135.pdf).
+- [x] Support the alternate transaction spellings in `EB.TRANS`.
+  `TRANSACTION START` and `TRANSACTION COMMIT` require a conditional
+  arm, and `TRANSACTION ABORT` stands alone. The native fixtures verify
+  the source-located backend diagnostic for each statement and normal
+  execution when the transaction path is skipped. The full R07 scan
+  passes strict C99 checks for 15,028 of 15,030 units with source fixes
+  and the include stub enabled. All previous passes hold.
+  [START](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_CTRANSACTIONSTART),
+  [COMMIT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactioncommit),
+  [ABORT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactionabort).
+- [ ] Evaluate opt-in decimal expansion for scientific-notation constants
+  in `TU.LIB.STD.CDF` and `TU.LIB.STD.INV`. Temporary copies with exact
+  base-ten expansions pass strict C99 checking. All 61 matches are
+  standalone coefficient assignments. Scope the substitutions to those
+  assignments and retain source locations in the report.
