@@ -553,6 +553,7 @@ class Compiler:
 
         self.depth = 0
         self.assigned = set()
+        self.maybe_assigned = set()
         self.assignment_facts = {}
         self.statement_stops = set()
         self.omitted_concatenations = 0
@@ -594,7 +595,8 @@ class Compiler:
             self.pending_assignment_error = (message, token)
 
     def read_variable(self, token):
-        if token.word not in self.assigned and not self.has_unstructured_jumps:
+        if (token.word not in self.assigned and token.word not in self.maybe_assigned
+                and not self.has_unstructured_jumps):
             self.assignment_error(f"unknown variable or unsupported function '{token.word}'", token)
         var = self.variable(token.word)
         return self.checked_read(var, token)
@@ -1155,10 +1157,13 @@ class Compiler:
         self.advance()
         self.emit(f"if ({'!' if inverted else ''}{condition}) {{")
         before = self.assigned.copy()
+        before_maybe = self.maybe_assigned.copy()
         self.assigned.update(self.assignment_facts.get((expression, not inverted), ()))
         self.clause(opening)
         taken = self.assigned
+        taken_maybe = self.maybe_assigned
         self.assigned = before
+        self.maybe_assigned = before_maybe
         self.assigned.update(self.assignment_facts.get((expression, inverted), ()))
         if not inverted and self.word == 'ELSE':
             self.advance()
@@ -1169,7 +1174,18 @@ class Compiler:
             self.depth += 1
             default_else()
             self.depth -= 1
+        # A later guard can protect a read after conditional initialization.
+        possible = taken | self.assigned
+        if expression in ('""', '"0"', '"1"'):
+            if (expression == '"1"') != inverted:
+                possible, self.maybe_assigned = taken, taken_maybe
+            else:
+                possible = self.assigned
+        else:
+            self.maybe_assigned.update(taken_maybe)
         self.assigned = taken & self.assigned
+        # CLEAR anticipates names even when no variable slot exists yet.
+        self.maybe_assigned.update((possible - self.assigned) & self.names.keys())
         self.emit("}")
 
     def variable_slot(self, token):

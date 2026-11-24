@@ -2755,6 +2755,22 @@ Six callers now pass strict C99 checking in byte mode. IDESC advances
 to the assignment check for I.TYPE. The total is 17,092 of 17,336
 candidates, including all 17,086 previous passes.
 
-- [ ] Investigate the I.TYPE assignment check in IDESC. Trace how
+- [x] Investigate the I.TYPE assignment check in IDESC. Trace how
   DICT.ERR guards access after a successful cache lookup or record
   read, and compare with jbcc's branch assignment analysis.
+
+In IDESC, cache and file-read success supply I.TYPE. The failure arms
+set DICT.ERR before the later guard. A reduced reference program with
+the same pattern compiles. jbcc retains names assigned on one side of
+a conditional join and checks subsequent expression reads at runtime.
+Native tests cover the initialized path, the guard that skips a
+read, and a faulty guard that reaches an unassigned read. Literal
+conditions and the existing CLEAR diagnostics constrain which names
+qualify for these runtime checks.
+
+IDESC and 66 other units now pass strict C99 checking in byte mode.
+The total is 17,159 of 17,336 candidates, including all 17,092
+previous passes. Three other units reach later diagnostics.
+
+- [ ] Investigate EQUATE LIT in CONV.DR.DEL. Check how a quoted
+  statement expands and how the preprocessor records its source location.

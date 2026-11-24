@@ -4241,6 +4241,29 @@ CRT Fixed(2)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'0\n1\n0\n')
 
+    def test_expression_reads_after_conditional_assignment_are_checked_at_runtime(self):
+        source = self.work / 'guard.b'
+        binary = self.work / 'guard'
+        source.write_text("""GET(ARG.) Mode
+Problem = ''
+IF Mode = 'hit' THEN
+    Value = 'ready'
+END ELSE
+    IF Mode = 'skip' THEN Problem = 'missing'
+END
+IF NOT(Problem) THEN CRT Value ELSE CRT Problem
+""")
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                       env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+        for argument, expected in (
+            ('hit', (0, b'ready\n', b'')),
+            ('skip', (0, b'missing\n', b'')),
+            ('broken', (1, b'', f"{source}:8:26: unassigned variable 'Value'\n".encode())),
+        ):
+            with self.subTest(argument=argument):
+                run = subprocess.run([binary, argument], capture_output=True, timeout=5)
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+
     def test_assignment_probe_does_not_initialize(self):
         source = self.work / 'probe.b'
         for program, location in [('PRINT ASSIGNED(X)\nPRINT X', ':2:7:'),
