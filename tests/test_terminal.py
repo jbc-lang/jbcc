@@ -1198,6 +1198,7 @@ def test_snake(compiler, request):
     original = termios.tcgetattr(slave)
     original[3] |= termios.ICANON | termios.ECHO
     termios.tcsetattr(slave, termios.TCSANOW, original)
+    height, width = 20, 40
     with subprocess.Popen(
         [binary],
         stdin=slave,
@@ -1206,7 +1207,7 @@ def test_snake(compiler, request):
     ) as process:
         try:
             opening = bytearray()
-            while opening.count(b'\n') < 2:
+            while opening.count(b'\n') < height + 3:
                 assert select.select([process.stdout], [], [], 10)[0], (
                     'board timeout'
                 )
@@ -1234,9 +1235,13 @@ def test_snake(compiler, request):
         finally:
             if process.poll() is None:
                 process.kill()
-    border, top_row = opening.splitlines()[:2]
-    assert border == b'\x1b[2J\x1b[H' + b'#' * 19
-    assert b'@>' in top_row
+    instructions, *board = opening.splitlines()[: height + 3]
+    assert instructions == (
+        b'\x1b[2J\x1b[HWASD: w up, a left, s down, d right | q quit'
+    )
+    assert board[0] == board[-1] == b'#' * (width + 2)
+    assert all(len(row) == width + 2 for row in board)
+    assert b'@>' in board[1]
 
 
 def test_life(compiler):

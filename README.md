@@ -2494,7 +2494,8 @@ These snippets have yet to be run on a reference jBC implementation.
   `./jbcc --exe tests/programs/banner.b -o /tmp/banner`. Run `/tmp/banner` in an
   ANSI terminal and enter a line to stop. The native test captures the blank
   opening frame and checks every pixel of the next frame before sending input.
-- `snake.b` is a terminal Snake game. Run it with
+- `snake.b` is a terminal Snake game with a 40-column by 20-row field.
+  Run it with
   `./jbcc --run tests/programs/snake.b`. Steer with `w`, `a`, `s` and `d`,
   and press `q` to quit. These keys take effect without pressing Enter.
   The native test checks the opening board, turns the snake and quits

@@ -9,8 +9,8 @@
   MAT a = ' '
   food_x = -1
   food_y = -1
-  N = 13
-  M = 17
+  N = 20
+  M = 40
   speed = 0.3
   game_over = 0
   increase = 0
@@ -111,6 +111,7 @@ clear_snake_on_table:
 
 show_table:
   CRT @(-1):
+  CRT 'WASD: w up, a left, s down, d right | q quit'
   FOR i = 0 TO N + 1
     FOR j = 0 TO M + 1
       c = '.'
