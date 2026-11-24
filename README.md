@@ -2194,6 +2194,11 @@ columns of the text passed to the lexer. The scan reads the original
 files from disk. To include legacy scalar reads in the same scan, pass
 both `--t24-source-fixes` and `--defer-unassigned-reads`.
 
+Use `--quiet-next-warnings` to print one total on stderr for FOR/NEXT
+name mismatches. Other warnings still print individually and the JSON
+report keeps its normal diagnostics. Direct `jbcc` invocations print
+the source location of each mismatch.
+
 The JSON report records a status per relative path, diagnostic locations,
 and counts by first blocker. A translated unit passed C syntax checking.
 With `--defer-unassigned-reads`, the per-file `warnings` list records

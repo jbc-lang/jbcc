@@ -607,12 +607,13 @@ class ForAssignments(NamedTuple):
 
 class Compiler:
     def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False,
-                 defer_unassigned_reads=False):
+                 defer_unassigned_reads=False, next_warning=None):
         self.path = path
         self.unit = unit
         self.encoding = encoding
         self.separate_external_arities = separate_external_arities
         self.defer_unassigned_reads = defer_unassigned_reads
+        self.next_warning = next_warning
         self.warnings = []
         self.routine = None
         self.is_function = False
@@ -2424,8 +2425,12 @@ class Compiler:
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
             if self.word != counter.word:
                 name = self.current
-                print(f"{name.path}:{name.line}:{name.column}: warning: NEXT {name.word} "
-                      f"closes FOR {counter.word}", file=sys.stderr)
+                message = (f"{name.path}:{name.line}:{name.column}: warning: NEXT {name.word} "
+                           f"closes FOR {counter.word}")
+                if self.next_warning is None:
+                    print(message, file=sys.stderr)
+                else:
+                    self.next_warning(message)
             self.advance()
         self.end_loop_body()
         if self.for_stack[-1] in self.saved_steps:
@@ -3796,10 +3801,10 @@ def render_subroutine_exists(units):
 
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
-                 defer_unassigned_reads=False, source_filter=None):
+                 defer_unassigned_reads=False, source_filter=None, next_warning=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
-                    defer_unassigned_reads=defer_unassigned_reads)
+                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning)
     unit.parse(list(Preprocessor(directories, encoding, source_filter=source_filter).read(path)))
     return unit
 

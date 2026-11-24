@@ -10,6 +10,7 @@ import re
 import runpy
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPILER = runpy.run_path(str(ROOT / "jbcc"))
@@ -59,16 +60,24 @@ def group(message):
     return message
 
 
-def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False, t24_source_fixes=False):
+def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
+          t24_source_fixes=False, quiet_next_warnings=False):
     path = root / relative
     fixes = []
     if path.name.startswith("I_"):
-        return relative, "include fragment", "", [], fixes
+        return relative, "include fragment", "", [], fixes, 0
+    suppressed_next_warnings = 0
+
+    def count_next_warning(_message):
+        nonlocal suppressed_next_warnings
+        suppressed_next_warnings += 1
+
     try:
         source_filter = partial(fix_t24_source, root=root, fixes=fixes) if t24_source_fixes else None
         unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
                                        separate_external_arities=True,
-                                       defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter)
+                                       defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
+                                       next_warning=count_next_warning if quiet_next_warnings else None)
         externals = {}
         first_signatures = {}
         linkage_diagnostic = ""
@@ -106,16 +115,16 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes
+            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings
         warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
-        return relative, "translated", linkage_diagnostic, warnings, fixes
+        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail, [], fixes
+        return relative, "rejected", detail, [], fixes, suppressed_next_warnings
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes
+        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings
     except OSError as error:
-        return relative, "I/O error", str(error), [], fixes
+        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings
 
 
 def main():
@@ -129,6 +138,8 @@ def main():
                         help="report warnings for scalar variable reads checked at runtime")
     parser.add_argument("--t24-source-fixes", action="store_true",
                         help="apply the known T24 source fixes in memory and include them in the report")
+    parser.add_argument("--quiet-next-warnings", action="store_true",
+                        help="replace individual FOR/NEXT name mismatch warnings with a total on stderr")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
@@ -137,12 +148,15 @@ def main():
         parser.error("cc is required to check generated C")
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
     scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
-                   defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes)
+                   defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes,
+                   quiet_next_warnings=options.quiet_next_warnings)
     counts = Counter()
     blockers = Counter()
     files = {}
+    suppressed_next_warnings = 0
     with ProcessPoolExecutor(max_workers=options.j) as pool:
-        for name, status, diagnostic, warnings, fixes in pool.map(scan, paths, chunksize=16):
+        for name, status, diagnostic, warnings, fixes, suppressed in pool.map(scan, paths, chunksize=16):
+            suppressed_next_warnings += suppressed
             counts[status] += 1
             files[name] = {"status": status}
             if fixes:
@@ -155,6 +169,8 @@ def main():
                 files[name]["diagnostic"] = diagnostic
                 reason = re.sub(r"^.*?:\d+:\d+: ", "", diagnostic)
                 blockers[group(reason) if status == "rejected" else status] += 1
+    if options.quiet_next_warnings:
+        print(f"Suppressed {suppressed_next_warnings} FOR/NEXT name mismatch warnings.", file=sys.stderr)
     print(json.dumps(dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files),
                      indent=2))
 

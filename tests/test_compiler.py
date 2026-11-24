@@ -3828,6 +3828,26 @@ CRT 'done'
         self.assertEqual(data['first_blockers'], {"expected a dimensioned array 'A'": 1})
         self.assertIn('bad:1:5:', data['files']['bad']['diagnostic'])
 
+    def test_corpus_can_summarize_next_name_mismatch_warnings(self):
+        good = self.work.resolve() / 'good.b'
+        bad = self.work.resolve() / 'bad.b'
+        loop = 'FOR I = 1 TO 1\nCRT I\nNEXT Other\n'
+        good.write_text(loop + 'CONTINUE\n')
+        bad.write_text(loop + 'MAT Missing = 0\n')
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work, '-j', '2']
+        verbose = subprocess.run(command, capture_output=True, text=True, check=True)
+        quiet = subprocess.run(command + ['--quiet-next-warnings'], capture_output=True, text=True, check=True)
+        report = json.loads(quiet.stdout)
+        self.assertEqual(report, json.loads(verbose.stdout))
+        self.assertEqual(report['files']['good.b']['status'], 'translated')
+        self.assertEqual(report['files']['bad.b']['status'], 'rejected')
+        for source in (good, bad):
+            self.assertIn(f'{source}:3:6: warning: NEXT Other closes FOR I', verbose.stderr)
+        self.assertEqual(quiet.stderr.splitlines(), [
+            f'{good}:4:1: warning: CONTINUE outside a loop ignored',
+            'Suppressed 2 FOR/NEXT name mismatch warnings.',
+        ])
+
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = self.work / 'main.b'
         routine = self.work / 'show.b'
