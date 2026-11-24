@@ -3275,3 +3275,27 @@ omitted argument. Recursive calls are checked against the current unit.
 The PB201214 Linux scan reports 17,329 of 17,336 candidates passing strict
 C99 checking. The two FATAL.ERROR callers account for both new passes
 and retain their linkage diagnostics.
+
+### R07 baseline
+
+The R07.003 scan passed strict C99 checking for 14,998 of 15,030 source
+units. The R07 catalog also accounts for 3,322 jBC includes and 10 C headers.
+The scan uses the headers in the extract, byte-mode source decoding and
+`--defer-unassigned-reads`. All 18,362 files matched the catalog hashes.
+
+- Seven first failures are include lookups. Six request `I_F.LA.PARAMETER`,
+  which is absent from the extract. `COMPARE.DB.JBASE` requests
+  `/usr/jbc/include/JBC.h`, while the extract has `GLOBUS.BP/JBC.h`.
+- Five first failures point to one `EQUATE` declaration in
+  `I_F.MM.MONEY.MARKET` at the value of `MM.AUTO.ROLLOVER`.
+  Five other units stop at unassigned reads.
+- `TU.LIB.STD.CDF` and `TU.LIB.STD.INV` stop at scientific notation with
+  signed exponents. Other first failures expose `SELECTE`, `DELETE … LOCKED`,
+  `TRANSACTION START`, `FILEUNLOCK` and `@PARASENTENCE`.
+- The scan warns about two `CONTINUE` statements in `CASH.FLOW.PROJ.FWD`
+  and one `EXIT` in `MM.DETERMINE.ACTIVITY` that jbcc ignores as outside
+  loops. Check their control flow against the reference before relying on
+  the emitted code.
+
+The result measures translation and C syntax. Runtime behavior for these
+routines needs separate checks with their dependencies or focused fixtures.

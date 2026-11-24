@@ -8,6 +8,7 @@ import os
 import pwd
 import shlex
 import struct
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -3873,6 +3874,20 @@ CRT 'done'
         markdown = subprocess.check_output([sys.executable, ROOT / 'tools/api_coverage.py', report_path], text=True)
         self.assertIn('| Expression calls | 3 | 2 | 1 |', markdown)
         self.assertIn('| `ENCRYPT` | method 4 (Base64) | — | 1 | backend required |', markdown)
+
+    def test_corpus_uses_t24_catalog_kinds_for_selected_extract(self):
+        fixture = ROOT / 'tests/corpus/file-catalog'
+        catalog = self.work / 'catalog.sqlite'
+        with sqlite3.connect(catalog) as db:
+            db.executescript((fixture / 'catalog.sql').read_text())
+        root = fixture / 'sample-r07'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', root, '--t24-catalog', catalog]
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['counts'], {'C header': 1, 'include fragment': 1, 'translated': 2})
+        self.assertEqual(report['files']['GLOBUS.BP/Constants.h']['status'], 'include fragment')
+        self.assertEqual(report['files']['GLOBUS.BP/Native.h']['status'], 'C header')
+        self.assertEqual(report['files']['GLOBUS.BP/I_Unit']['status'], 'translated')
+        self.assertEqual(report['files']['GLOBUS.BP/Main.b']['status'], 'translated')
 
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = self.work / 'main.b'

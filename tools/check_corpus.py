@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import closing
 from functools import partial
 import json
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import re
 import runpy
 import shutil
+import sqlite3
 import subprocess
 import sys
 
@@ -65,13 +67,26 @@ def group(message):
     return message
 
 
+def read_file_kinds(catalogue, extract):
+    uri = catalogue.resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        kinds = dict(db.execute("SELECT rel, kind FROM file_path WHERE extract = ?", (extract,)))
+    if not kinds:
+        raise ValueError(f"no files for extract '{extract}' in {catalogue}")
+    return kinds
+
+
 def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
-          t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False):
+          t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False, *, catalog_kind=None):
     path = root / relative
     fixes = []
     calls = []
-    if path.name.startswith("I_"):
+    if catalog_kind == "jbc_include" or (catalog_kind is None and path.name.startswith("I_")):
         return relative, "include fragment", "", [], fixes, 0, calls
+    if catalog_kind == "c_header":
+        return relative, "C header", "", [], fixes, 0, calls
+    if catalog_kind not in (None, "jbc_source"):
+        return relative, "other catalog file", "", [], fixes, 0, calls
     suppressed_next_warnings = 0
 
     def count_next_warning(_message):
@@ -134,6 +149,10 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
         return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls
 
 
+def check_entry(relative, kind, **options):
+    return check(relative, catalog_kind=kind, **options)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
@@ -149,12 +168,20 @@ def main():
                         help="replace individual FOR/NEXT name mismatch warnings with a total on stderr")
     parser.add_argument("--api-catalogue", type=Path, metavar="SPEC_DIR",
                         help="include API coverage using the jbc-language spec directory")
+    parser.add_argument("--t24-catalog", type=Path, metavar="SQLITE",
+                        help="classify files using the catalog entries for the corpus directory name")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
         parser.error("expected a corpus directory and a positive job count")
     if not shutil.which("cc"):
         parser.error("cc is required to check generated C")
+    file_kinds = {}
+    if options.t24_catalog is not None:
+        try:
+            file_kinds = read_file_kinds(options.t24_catalog, root.name)
+        except (sqlite3.Error, OSError, ValueError) as error:
+            parser.error(str(error))
     coverage = None
     if options.api_catalogue is not None:
         try:
@@ -162,7 +189,7 @@ def main():
         except (OSError, ValueError) as error:
             parser.error(str(error))
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
-    scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
+    scan = partial(check_entry, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
                    defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes,
                    quiet_next_warnings=options.quiet_next_warnings, collect_apis=coverage is not None)
     counts = Counter()
@@ -170,7 +197,8 @@ def main():
     files = {}
     suppressed_next_warnings = 0
     with ProcessPoolExecutor(max_workers=options.j) as pool:
-        for name, status, diagnostic, warnings, fixes, suppressed, calls in pool.map(scan, paths, chunksize=16):
+        entries = pool.map(scan, paths, map(file_kinds.get, paths), chunksize=16)
+        for name, status, diagnostic, warnings, fixes, suppressed, calls in entries:
             suppressed_next_warnings += suppressed
             counts[status] += 1
             if coverage is not None:
@@ -199,11 +227,14 @@ def main():
                 coverage.fixture_scan_failures.append({"file": name, "diagnostic": str(error)})
                 continue
             coverage.add_snippet(name, calls)
-        report["api_coverage"] = coverage.report({
+        scan_settings = {
             "corpus": str(root), "includes": [str(path.resolve()) for path in options.includes],
             "source_encoding": options.source_encoding, "defer_unassigned_reads": options.defer_unassigned_reads,
             "t24_source_fixes": options.t24_source_fixes,
-        })
+        }
+        if options.t24_catalog is not None:
+            scan_settings["t24_catalog"] = str(options.t24_catalog.resolve())
+        report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 
 

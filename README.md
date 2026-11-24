@@ -2209,10 +2209,37 @@ Linking its external dependencies and verifying its behavior require separate
 tests. UTF-8 decoding failures are counted separately and identify the
 source or include that could not be decoded.
 
+### R07 corpus
+
+The earlier R07.003 corpus is in `../t24-extract/200707-R07`. Its
+`GLOBUS.BP` and `SENSITIVE.BP` folders are both on the include search
+path. This scan uses the headers in the R07 extract.
+
+```sh
+python3 tools/check_corpus.py ../t24-extract/200707-R07 \
+  -I ../t24-extract/200707-R07/GLOBUS.BP -I ../t24-extract/200707-R07/SENSITIVE.BP \
+  --t24-catalog ../t24-extract/catalog.sqlite -j 12 --source-encoding bytes \
+  --defer-unassigned-reads --quiet-next-warnings --api-catalogue ../temenos-documentation/spec \
+  > /tmp/jbcc-r07.json
+```
+
+`--t24-catalog` reads the SQLite catalog's classifications for the named
+extract. It counts jBC include fragments and C headers separately from
+compilation units. Files absent from the catalog follow the usual `I_`
+name rule. If only `catalog.sqlite.xz` exists, unpack it as described in
+the extraction checkout's README. See the [R07 baseline](PLAN.md#r07-baseline)
+for the first scan's results.
+
+Render the R07 API report with:
+
+```sh
+python3 tools/api_coverage.py /tmp/jbcc-r07.json > /tmp/jbcc-r07-coverage.md
+```
+
 ### API coverage
 
 [COVERAGE.md](COVERAGE.md) summarizes recognized expression and `DEFC` calls
-against the documentation repo's catalogues. Run the scan with
+in R10 against the documentation repo's catalogues. Run the scan with
 `--api-catalogue` to add guide references, forms, counts, source examples,
 and test references to the JSON report. The report uses paths from your
 local checkout and corpus.
