@@ -944,6 +944,10 @@ The compiler determines their rank from the declaration, including in
 inserts. Fixed-size matrices are available from routine entry.
 Runtime-sized matrices still require execution of the declaration before
 use. This follows the reference compiler's assumed-array rule.
+Before a local DIM appears in the source, an unsubscripted assignment,
+expression or CALL argument can use the same name as a scalar.
+jbcc provisionally keeps that scalar value in separate storage from the
+matrix.
 For T24 sources, jbcc also accepts bounds such as
 `DIM Grid(Config<1>, N + 1)`. This follows the reference parser’s
 `dimvar` rule in dynamic-array mode. The guide describes the constant-bound

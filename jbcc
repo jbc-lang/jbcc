@@ -674,8 +674,13 @@ class Compiler:
     def emit(self, line):
         self.body.append("    " * self.depth + line)
 
+    def uses_matrix(self, name, next_word=None):
+        matrix = self.matrices.get(name)
+        return matrix is not None and (next_word == '(' or name not in self.pending_matrices
+                                       or matrix.common_block is not None)
+
     def variable(self, name):
-        if name in self.matrices:
+        if self.uses_matrix(name):
             self.error(f"array '{name}' requires subscripts")
         if name not in self.names:
             self.names[name] = f"frame->v{len(self.names)}"
@@ -804,7 +809,7 @@ class Compiler:
                     self.error(f"unsupported system variable '@{self.word}'")
                 self.error("expected a system variable name")
             value = SYSTEM_CONSTANTS[self.word]
-        elif word in self.matrices:
+        elif self.uses_matrix(word, self.following.word):
             target = self.current
             self.advance()
             slot = self.matrix_slot(target)
@@ -2458,7 +2463,7 @@ class Compiler:
         return f"&(jbc_variable){{{value}, 0, 0}}"
 
     def scalar_argument(self):
-        if self.word in self.matrices:
+        if self.uses_matrix(self.word, self.following.word):
             target = self.identifier()
             slot = self.matrix_slot(target)
             if self.word in (',', ')'):
@@ -2572,7 +2577,7 @@ class Compiler:
             if target.kind not in ('name', 'system_name'):
                 self.error("expected a variable after CALL @")
             self.advance()
-            if target.word in self.matrices:
+            if self.uses_matrix(target.word, self.word):
                 value = self.checked_read(self.matrix_slot(target), target)
             else:
                 value = self.read_variable(target)
@@ -2718,7 +2723,7 @@ class Compiler:
             self.emit(f"jbc_dimension_mat_parameter(&frame->{matrix.field}, &frame->{field}, "
                       f"{len(bounds)}, (const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)});")
             return
-        if name in self.names or (matrix and not pending):
+        if (name in self.names and (common or not pending)) or (matrix and not pending):
             self.error(f"duplicate declaration of '{name}'", token)
         bounds = self.dimension_bounds() if self.word == '(' or not common else ()
         shape = tuple(n if isinstance(n, int) else None for n in bounds)
@@ -3267,7 +3272,7 @@ class Compiler:
             assignments = self.for_assignments[-1] if self.for_assignments else None
             first_read = len(assignments.reads) if assignments else 0
             self.advance()
-            matrix = start.word in self.matrices
+            matrix = self.uses_matrix(start.word, self.word)
             var = self.matrix_slot(start) if matrix else None
             indices = self.assignment_indices()
             substring = None

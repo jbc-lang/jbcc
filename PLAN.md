@@ -3118,7 +3118,22 @@ dot after a semicolon.
 All three T24 units now pass strict C99 checking in byte mode. The
 total is 17,221 of 17,336, including all 17,218 previous passes.
 
-- [ ] Investigate scalar use of a local name before its DIM, starting
+- [x] Investigate scalar use of a local name before its DIM, starting
   with R.PD.PAYMENT.DUE in PD.GET.OVERDUE.DAYS and R.LIMIT in
   LI.CO.UPDATE.I. Check how the reference handles the scalar value and
   the later matrix declaration.
+
+The reference emits a scalar assignment and a scalar CALL argument
+before DIM. It diagnoses a bare reference after DIM. The generator
+uses the same underlying symbol, and the effect on the old scalar
+value depends on the array runtime. jbcc provisionally keeps scalar
+and matrix values in separate storage. Native tests cover assignment,
+by-reference calls, a scalar read before DIM and an element update
+after DIM.
+
+Both T24 routines now pass strict C99 checking in byte mode. The total
+is 17,223 of 17,336 candidates, including all 17,221 previous passes.
+
+- [ ] Investigate the NUL byte in a trailing source comment in
+  START.TRANSACTION. Check the reference lexer and preserve the
+  diagnostic for a NUL byte in active source text.

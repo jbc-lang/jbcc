@@ -4538,6 +4538,29 @@ C(2) := '!'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'rows!:flags!:common!\n', b''))
 
+    def test_scalar_can_be_used_before_a_later_local_dim(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'append.b'
+        main.write_text("""N = 2
+Rows = 'scalar'
+CALL APPEND(Rows)
+CRT Rows
+DIM Rows(N)
+CRT ASSIGNED(Rows(0))
+Rows(1) = 'matrix'
+CALL APPEND(Rows(1))
+CRT Rows(1)
+""")
+        routine.write_text("SUBROUTINE APPEND(Text)\nText := '!'\n")
+        result = self.run_native(main, routine)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'scalar!\n0\nmatrix!\n', b''))
+
+        main.write_text("Rows = 'scalar'\nDIM Rows(2)\nRows = 'after'\n")
+        result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{main}:3:6: expected '('", result.stderr)
+
     def test_forward_fixed_matrix_can_be_used_before_dim_executes(self):
         source = self.work / 'forward.b'
         source.write_text("A(1) = 7\nCRT A(1)\nSTOP\nDIM A(2)\n")
