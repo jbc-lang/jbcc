@@ -1883,14 +1883,14 @@ CRT 'main'
                     with self.subTest(method=method):
                         source = fixtures / f'{function.lower()}-{method}.b'
                         result = self.run_native(source)
-                        self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                        self.assertEqual((result.returncode, result.stdout), (1, expected_bytes('cipher-diagnostics.stdout')))
                         self.assertEqual(result.stderr,
-                                         f'{source}:3:5: {function} requires a backend for this method\n'.encode())
+                                         expected_text('cipher-diagnostics.stderr', source=source, function=function).encode())
 
                 source = fixtures / f'crypt_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stderr, f"{source}:1:5: wrong argument count for '{function}'\n")
+                self.assertEqual(result.stderr, expected_text('cipher-diagnostics_2.stderr', source=source, function=function))
 
     def test_hexadecimal_conversion_diagnostics(self):
         for fixture_name in (
@@ -1901,7 +1901,7 @@ CRT 'main'
                 source = ROOT / 'tests/programs/hexadecimal-conversion-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:5: DTX requires a numeric operand'.encode(), result.stderr)
+                self.assertIn(expected_text('hexadecimal-conversion-diagnostics.stderr', source=source).encode(), result.stderr)
         for fixture_name, function in (
             ('hex-variant-2_1.b', 'DTX'),
             ('hex-variant-2_2.b', 'XTD'),
@@ -1910,7 +1910,7 @@ CRT 'main'
                 source = ROOT / 'tests/programs/hexadecimal-conversion-diagnostics' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for '{function}'", result.stderr)
+                self.assertIn(expected_text('hexadecimal-conversion-diagnostics_2.stderr', source=source, function=function), result.stderr)
 
     def test_mod_requires_numeric_operands(self):
         for fixture_name, name in (
@@ -3184,12 +3184,12 @@ CRT 'main'
         routine = ROOT / 'tests/programs/source-encoding-preserves-legacy-and-utf8-literal-bytes/show.b'
         result = self.run_native(source, routine, options=('--source-encoding', 'bytes'))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'1\n\xc3\xa9\x80\xfe\xfc\n', b''))
+                         (0, expected_bytes('source-encoding-preserves-legacy-and-utf8-literal-bytes.stdout'), b''))
 
     def test_source_nul_is_ignored_in_comments(self):
         source = ROOT / 'tests/programs/source-nul-is-ignored-in-comments/main.b'
         result = self.run_native(source)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'2\n', b''))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('source-nul-is-ignored-in-comments.stdout'), b''))
 
     def test_source_nul_reports_its_location_in_active_text(self):
         fixtures = ROOT / 'tests/programs/source-nul-reports-its-location-in-active-text'
@@ -3200,7 +3200,7 @@ CRT 'main'
                 result = subprocess.run([CLI, '-I', include.parent, source, '-o', self.c],
                                         text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stderr, f'{include}:2:{column}: NUL bytes in source are unsupported\n')
+                self.assertEqual(result.stderr, expected_text('source-nul-reports-its-location-in-active-text.stderr', include=include, column=column))
 
     def test_default_source_encoding_reports_invalid_utf8_in_an_include(self):
         source = ROOT / 'tests/programs/default-source-encoding-reports-invalid-utf8-in-an-include/main.b'
@@ -3208,7 +3208,7 @@ CRT 'main'
         include = ROOT / 'tests/programs/default-source-encoding-reports-invalid-utf8-in-an-include/I_SHARED'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{include}:2:{len(prefix) + 1}: invalid UTF-8 at byte 0x96\n')
+        self.assertEqual(result.stderr, expected_text('default-source-encoding-reports-invalid-utf8-in-an-include.stderr', include=include, value_2=len(prefix) + 1))
         self.assertFalse(self.c.exists())
 
     def test_corpus_report_can_preserve_source_bytes(self):
@@ -3266,8 +3266,8 @@ CRT 'main'
         data = bytes(range(1, 256))
         (self.work / 'bytes').write_bytes(data)
         result = self.run_native(ROOT / 'tests/io/ebcdic.b', cwd=self.work)
-        expected = (b'Hello jBC\n' + data.decode('cp037').encode('latin-1')
-                    + data.decode('latin-1').encode('cp037') + data + data + b'0\t0\n')
+        expected = (expected_bytes('ascii-and-ebcdic.stdout') + data.decode('cp037').encode('latin-1')
+                    + data.decode('latin-1').encode('cp037') + data + data + expected_bytes('ascii-and-ebcdic_2.stdout'))
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
 
     def test_ascii_and_ebcdic_argument_counts(self):
@@ -3279,14 +3279,14 @@ CRT 'main'
                 source = ROOT / 'tests/programs/ascii-and-ebcdic-argument-counts' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
+                self.assertIn(expected_text('ascii-and-ebcdic-argument-counts.stderr', source=source, value_2=name), result.stderr)
 
     def test_utf8_and_latin1_round_trip_all_nonzero_bytes(self):
         data = bytes(range(1, 256))
         (self.work / 'input').write_bytes(data)
         source = ROOT / 'tests/programs/utf8-and-latin1-round-trip-all-nonzero-bytes.b'
         result = self.run_native(source, cwd=self.work)
-        expected = data.decode('latin-1').encode('utf-8') + data + b'\xc3\xbe\xe90\t0\n'
+        expected = data.decode('latin-1').encode('utf-8') + data + expected_bytes('utf8-and-latin1-round-trip-all-nonzero-bytes.stdout')
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
 
     def test_latin1_rejects_malformed_and_unrepresentable_utf8(self):
@@ -3303,14 +3303,14 @@ CRT 'main'
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, (
-                    f'{source}:1:5: LATIN1 requires UTF-8 representable in ISO-8859-1\n'.encode()
+                    expected_text('latin1-rejects-malformed-and-unrepresentable-utf8.stderr', source=source).encode()
                 ))
 
     def test_seq_reads_block_bytes(self):
         (self.work / 'input').write_bytes(b'\x01\xfeAB')
         source = ROOT / 'tests/programs/seq-reads-block-bytes.b'
         result = self.run_native(source, cwd=self.work)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'510\t65\n', b''))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('seq-reads-block-bytes.stdout'), b''))
 
     def test_seqx_resolves_as_external_function(self):
         source = ROOT / 'tests/routines/seqx-resolves-as-external-function/main.b'
@@ -3322,20 +3322,20 @@ CRT 'main'
         source = ROOT / 'tests/programs/seq-wrong-argument-count.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'SEQ'", result.stderr)
+        self.assertIn(expected_text('seq-wrong-argument-count.stderr', source=source), result.stderr)
 
     def test_char_byte_range_diagnostics(self):
         for fixture_name, message in (
-            ('char_1.b', 'embedded NUL'),
-            ('char_2.b', '0 to 255'),
-            ('char_3.b', '0 to 255'),
+            ('char_1.b', expected_text('char-byte-range-diagnostics.stderr')),
+            ('char_2.b', expected_text('char-byte-range-diagnostics_2.stderr')),
+            ('char_3.b', expected_text('char-byte-range-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/char-byte-range-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message.encode(), run.stderr)
-                self.assertIn(f'{source}:1:5:'.encode(), run.stderr)
+                self.assertIn(expected_text('char-byte-range-diagnostics_3.stderr', source=source).encode(), run.stderr)
 
     def test_checksum_argument_diagnostics(self):
         for fixture_name in (
@@ -3346,12 +3346,12 @@ CRT 'main'
                 source = ROOT / 'tests/programs/checksum-argument-diagnostics' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for 'CHECKSUM'", result.stderr)
+                self.assertIn(expected_text('checksum-argument-diagnostics.stderr', source=source), result.stderr)
 
         source = ROOT / 'tests/programs/checksum-argument-diagnostics/checksum-variant-2.b'
         run = self.run_native(source)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (1, b'', f"{source}:1:14: CHAR(0) requires strings with embedded NUL support\n".encode()))
+                         (1, b'', expected_text('checksum-argument-diagnostics_2.stderr', source=source).encode()))
 
     def test_common_storage(self):
         caller = ROOT / 'tests/routines/common-storage/caller.b'
