@@ -27,6 +27,7 @@ ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
 STEP_OPERATORS = {'++', '--'}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
 EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
+C_FUNCTION_TYPES = {'INT', 'FLOAT', 'VAR', 'STRING'}
 COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "><": "!=", "NE": "!=",
                "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
                "#>": "<=", ">": ">", ">=": ">=", "=>": ">=", "GE": ">=", "#<": ">="}
@@ -607,6 +608,7 @@ class Compiler:
         self.routine = None
         self.is_function = False
         self.functions = {}
+        self.c_functions = {}
         self.formals = {}  # Parameter name to matrix/scalar kind, in declaration order.
         self.labels = {}
         self.targets = {}
@@ -834,6 +836,8 @@ class Compiler:
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
+        elif word in self.c_functions and self.following.word == '(':
+            return self.postfix(self.temporary(self.c_function_call()), locate_source)
         elif word == 'GETENV' and self.following.word == '(':
             self.advance()
             self.advance()
@@ -2516,6 +2520,54 @@ class Compiler:
         self.uses_subroutine_exists = True
         return f"jbc_subroutine_exists({name}, {info})"
 
+    def c_function_declaration(self):
+        self.expect('DEFC')
+        if self.word in C_FUNCTION_TYPES:
+            self.advance()
+        function = self.identifier()
+        self.expect('(')
+        argument_types = []
+        if self.word != ')':
+            while True:
+                if self.word not in C_FUNCTION_TYPES:
+                    self.error("expected a DEFC argument type")
+                argument_types.append(self.word)
+                self.advance()
+                if self.word != ',':
+                    break
+                self.advance()
+        self.expect(')')
+        # The reference retains the original declaration when it sees a duplicate.
+        self.c_functions.setdefault(function.word, argument_types)
+
+    def c_function_call(self):
+        target = self.identifier()
+        types = self.c_functions[target.word]
+        self.expect('(')
+        index = 0
+        if self.word != ')':
+            while True:
+                if index >= len(types):
+                    self.error(f"too many arguments for DEFC '{target.word}'", target)
+                if types[index] == 'VAR':
+                    argument, name = self.scalar_argument()
+                    if name is not None:
+                        self.assigned.add(name)
+                else:
+                    argument = self.expression()
+                self.emit(f"(void)({argument});")
+                index += 1
+                if self.word != ',':
+                    break
+                self.advance()
+                if self.word == ')':
+                    self.error("expected call argument")
+        self.expect(')')
+        if index != len(types):
+            self.error(f"too few arguments for DEFC '{target.word}'", target)
+        reason = c_string(f"C function '{target.word}' requires the jBASE C runtime")
+        return f"(numeric_error({self.location(target)}, {reason}), (const char *)NULL)"
+
     def xml_transform_expression(self):
         opening = self.identifier()
         self.expect('(')
@@ -2992,6 +3044,8 @@ class Compiler:
                     kinds.append(self.parameter()[1])
             self.functions[function.word] = tuple(kinds)
             self.expect(')')
+        elif self.word == 'DEFC':
+            self.c_function_declaration()
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
         elif self.word in ('GOSUB', 'GOTO') or (self.word == 'GO' and
@@ -3274,6 +3328,8 @@ class Compiler:
             self.emit(f"jbc_set_user_root({self.expression()}, {self.location(target)});")
         elif self.word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
             self.emit(f"(void){self.subroutine_exists_call()};")
+        elif self.word in self.c_functions and self.following.word == '(':
+            self.emit(f"(void){self.c_function_call()};")
         elif self.word in STEP_OPERATORS:
             self.prefix_step(statement=True)
         elif self.current.kind == 'name':

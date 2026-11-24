@@ -3147,6 +3147,27 @@ diagnostics in an included file.
 START.TRANSACTION now passes strict C99 checking in byte mode. The
 total is 17,224 of 17,336, including all 17,223 previous passes.
 
-- [ ] Trace the missing vendor includes for the corpus. Check for an
-  original jportB.h that matches the available JBC.h and identify which
-  diagnostics it reveals in the 38 dependent units.
+- [x] Trace the missing vendor includes for the corpus using the matching
+  set in the local PB201214 distribution.
+
+PB201214 supplies its own JBC.h alongside the AIX 6 jportB.h it includes
+and the jimiB.h used by T.TRACE and T.REMOTE.TRACE. With this include directory,
+all 40 missing-header diagnostics advance to DEFC. The PB201214 JBC.h is
+a different revision from the standalone reference source's JBC.h.
+
+- [x] Parse DEFC prototypes from the vendor headers and validate calls
+  in expressions and as statements.
+
+The reference compiler accepts an optional return type and argument
+types INT, FLOAT, VAR and STRING. The standalone runtime
+reports an error at a reached C function call. Native tests cover calls
+through includes, skipped calls, invalid types and argument counts.
+[DEFC](https://jbc-lang.org/pages/defc.html).
+
+With the PB201214 include directory, 17,253 of 17,336 candidate units pass
+strict C99 checking in byte mode. This adds 29 passes and preserves all
+17,224 previous passes. The 5,138 include fragments are counted separately.
+
+- [ ] Check ENCRYPT, DECRYPT and BITOR against the guide and the reference
+  compiler. These functions account for the remaining diagnostics in the
+  header-dependent units.

@@ -2128,6 +2128,12 @@ string. The example follows the calling convention in the
 [DEFFUN](https://jbc-lang.org/pages/deffun.html) and
 [FUNCTION](https://jbc-lang.org/pages/function.html) chapters.
 
+`DEFC [type] name([type, ...])` declares a C function. Supported
+types are INT, FLOAT, VAR and STRING. Declarations apply from their source
+position and calls are checked for arity. Executing a declared function
+reports that it requires the jBASE C runtime and exits with the call
+location. [DEFC](https://jbc-lang.org/pages/defc.html).
+
 ## Check a local source corpus
 
 The coverage goal is to translate every program, subroutine and function in
@@ -2147,9 +2153,15 @@ compiler can check the complete generated unit with C99 warnings as errors.
 For indirect calls and exit callbacks it checks the dispatch code using the
 current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
+For a local PB201214 installation, point it at the installation's include
+directory to load `JBC.h`, `jportB.h` and `jimiB.h`.
 The checker accepts the same source encoding option as the compiler.
-For legacy sources, run
-`python3 tools/check_corpus.py ~/Downloads/t24 -j 8 --source-encoding bytes`.
+For legacy T24 sources with those headers, run
+
+```sh
+python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214/include \
+  -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
+```
 
 The JSON report records a status per relative path, diagnostic locations,
 and counts by first blocker. A translated unit passed C syntax checking.

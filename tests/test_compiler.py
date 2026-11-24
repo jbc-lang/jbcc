@@ -3297,6 +3297,43 @@ CRT 'hidden'
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'3\t0\n3\n', b''))
 
+    def test_defc_declarations_and_runtime_diagnostics(self):
+        include = self.work / 'native.h'
+        include.write_text("""DEFC ReadNative(INT, VAR)
+DEFC FLOAT Measure(STRING);
+DEFC VAR LocalNative()
+DEFC ReadNative()
+""")
+        source = self.work / 'foreign.b'
+        for call, diagnostic in (
+            ('IF 0 THEN ReadNative(1, Output)\nCRT "done"\n', b''),
+            ('ReadNative(1, Output)\n', b":2:1: C function 'ReadNative' requires the jBASE C runtime"),
+            ('CRT Measure("abc")\n', b":2:5: C function 'Measure' requires the jBASE C runtime"),
+            ('CRT LocalNative()\n', b":2:5: C function 'LocalNative' requires the jBASE C runtime"),
+        ):
+            with self.subTest(call=call):
+                source.write_text('INCLUDE native.h\n' + call)
+                result = self.run_native(source)
+                if diagnostic:
+                    self.assertEqual((result.returncode, result.stdout), (1, b''))
+                    self.assertEqual(result.stderr, os.fsencode(source) + diagnostic + b'\n')
+                else:
+                    self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                     (0, b'done\n', b''))
+
+    def test_defc_rejects_invalid_types_and_argument_counts(self):
+        source = self.work / 'foreign.b'
+        for program, diagnostic in (
+            ('DEFC Native(INT, Number)\n', ":1:18: expected a DEFC argument type"),
+            ('DEFC Native(INT)\nCRT Native()\n', ":2:5: too few arguments for DEFC 'Native'"),
+            ('DEFC Native(INT)\nNative(1, 2)\n', ":2:1: too many arguments for DEFC 'Native'"),
+        ):
+            with self.subTest(program=program):
+                source.write_text(program)
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr, f"{source}{diagnostic}\n")
+
     def test_preprocessor_define_uses_the_current_replacement(self):
         source = self.work / 'defines.b'
         source.write_text("""Later = 4
