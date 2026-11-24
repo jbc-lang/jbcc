@@ -32,7 +32,7 @@ verify collection before moving to the next group.
 - [x] File I/O, record operations, saved lists, and locks.
 - [x] Command execution, invocation, session state, and user statistics.
 - [x] Clocks, terminal input, PTYs, and process lifecycle.
-- [ ] Verify the full 561-test suite after the framework conversion.
+- [x] Verify the full 561-test suite after the framework conversion.
 
 ## Parametrization and test commands
 
