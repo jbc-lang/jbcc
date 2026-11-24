@@ -3348,8 +3348,20 @@ checking. This includes six units that used the stub, two with in-memory
 source fixes and one enabled by NUMS. All previous passes are preserved,
 and all 18,362 extracted files still match the catalog hashes.
 
-- [ ] Check bare numeric labels at statement boundaries in R07. The
+- [x] Support bare numeric labels at source line boundaries in R07. The
   reference accepts the label before the comment in
-  `EB.UPDATE.ACCT.ACTIVITY` and preserves the label before `CASE` in
-  `LC.ACCOUNT.BALANCES`. It also emits a numeric label for the equated
-  `OTHERWISE` line in `E.GL.DIFF.DETAIL`.
+  `EB.UPDATE.ACCT.ACTIVITY` and emits the label before `CASE` in the
+  preceding arm in `LC.ACCOUNT.BALANCES`. It also emits a numeric label
+  for the equated `OTHERWISE` line in `E.GL.DIFF.DETAIL`. Native
+  fixtures cover these forms, distinct leading-zero labels and numeric
+  arguments on comma continuation lines. The lexer requires a delimiter
+  after the label so `1ST.RECORD` still follows the R10 diagnostic and
+  source-fix behavior.
+
+The full R07 scan now passes strict C99 checks for 15,021 of 15,030
+units with the source fixes and include stub enabled. All 17,336 R10
+units also pass with their established scan options.
+
+- [ ] Accept a quoted list number in `FORMLIST` for `FRA.REPORTS`. The
+  local Prime reference passes the same constant to the runtime for
+  `TO "1"` and `TO 1`.

@@ -166,7 +166,7 @@ def routine_name_at(line, offset, n, path, call):
     return token, bare.end()
 
 
-def lex_line(line, n, path, words, parentheses):
+def lex_line(line, n, path, words, parentheses, *, source_line=False):
     if line.strip() == "//":
         return parentheses
     first_on_line = len(words)
@@ -189,7 +189,9 @@ def lex_line(line, n, path, words, parentheses):
                 and words[-1].word == ',' and words[-1].line == n):
             break
         kind = match.lastgroup
-        if word == '.' and not words:
+        if not words and (word == '.' or (
+                source_line and kind == 'number' and word.isdigit()
+                and line[offset:offset + 1] in ('', ' ', '\t', ':', ';', '*', '!'))):
             kind = 'line_label'
             if line.startswith(':', offset):
                 offset += 1
@@ -352,7 +354,14 @@ class Preprocessor:
             elif statement:
                 if emitted:
                     yield separator
-                yield from self.expand(statement)
+                if separator is None and len(statement) == 1:
+                    expanded = list(self.expand(statement))
+                    if len(expanded) == 1 and expanded[0].kind == 'number' and expanded[0].word.isdigit():
+                        # A standalone EQUATE can expand to a bare numeric label.
+                        expanded[0] = statement[0]._replace(word=expanded[0].word, kind='line_label')
+                    yield from expanded
+                else:
+                    yield from self.expand(statement)
                 emitted = True
 
     def directive(self, match, line, path, n, conditions):
@@ -439,7 +448,7 @@ class Preprocessor:
                     directive_error(newline._replace(column=1), f"recursive include '{name}'")
                 yield from self.read(child, ancestors)
                 continue
-            parentheses = lex_line(line, n, path, words, parentheses)
+            parentheses = lex_line(line, n, path, words, parentheses, source_line=True)
             if words and words[-1].kind == 'symbol' and words[-1].word == ',':
                 continue
             tokens = list(angle_tokens(words))
