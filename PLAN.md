@@ -2740,6 +2740,21 @@ All four units now parse their @FILENAME assignments and reach ITYPE
 as their first blocker. The strict C99 total stays at 17,086 of
 17,336 candidates, with all previous passes intact.
 
-- [ ] Investigate ITYPE in the four @FILENAME callers and the existing
+- [x] Investigate ITYPE in the four @FILENAME callers and the existing
   dictionary callers. Verify its syntax and compiled descriptor
   requirements, then define the behavior without a dictionary backend.
+
+The reference compiler accepts one expression and emits ITYPE_BBBB.
+The guide requires a compiled dictionary descriptor and describes
+evaluation with @FILENAME, @ID and @RECORD. jbcc accepts the syntax and
+reports a source-located runtime error when evaluation is reached.
+Native tests cover skipped calls, reached calls and arity diagnostics.
+[ITYPE](https://jbc-lang.org/pages/itype.html).
+
+Six callers now pass strict C99 checking in byte mode. IDESC advances
+to the assignment check for I.TYPE. The total is 17,092 of 17,336
+candidates, including all 17,086 previous passes.
+
+- [ ] Investigate the I.TYPE assignment check in IDESC. Trace how
+  DICT.ERR guards access after a successful cache lookup or record
+  read, and compare with jbcc's branch assignment analysis.

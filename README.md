@@ -1892,6 +1892,12 @@ destination can set it. An ordinary OPEN or READ leaves the name in
 place. The startup value and sharing policy are provisional.
 [ITYPE](https://jbc-lang.org/pages/itype.html).
 
+`ITYPE(descriptor)` accepts one expression for a compiled dictionary
+descriptor. In jBASE, evaluation uses the current `@FILENAME`, `@ID`,
+and `@RECORD` context. Reaching an ITYPE call in jbcc reports a
+source-located error because dictionary evaluation requires a backend.
+[ITYPE](https://jbc-lang.org/pages/itype.html).
+
 With an explicit string or dynamic array, SELECT makes a list of its fields
 in source order. Value and subvalue marks stay inside their fields. Leading,
 interior and trailing empty fields are entries. jbcc treats a completely

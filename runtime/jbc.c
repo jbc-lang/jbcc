@@ -5977,6 +5977,13 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
     return file_succeeded(status);
 }
 
+const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
+{
+    (void)descriptor;
+    numeric_error(file, line, column, "ITYPE requires a compiled dictionary backend");
+    return "";
+}
+
 const char *jbc_indices(const char *handle, const char *index, const char *file, int line, int column)
 {
     (void)handle;

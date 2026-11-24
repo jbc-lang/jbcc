@@ -1154,6 +1154,8 @@ NEXT I
                                   ("CRT LATIN1('a', 'b')\n", ":1:5: wrong argument count for 'LATIN1'"),
                                   ("CRT LENDP()\n", ":1:5: wrong argument count for 'LENDP'"),
                                   ("CRT LENDP('a', 'b')\n", ":1:5: wrong argument count for 'LENDP'"),
+                                  ("CRT ITYPE()\n", ":1:5: wrong argument count for 'ITYPE'"),
+                                  ("CRT ITYPE('a', 'b')\n", ":1:5: wrong argument count for 'ITYPE'"),
                                   ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
                                   ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
                                   ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
@@ -1779,6 +1781,21 @@ CRT Text
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
+
+    def test_itype_requires_backend_only_when_evaluation_is_reached(self):
+        source = self.work / 'dictionary.b'
+        source.write_text("""@FILENAME = 'records'
+@ID = 'key'
+@RECORD = 'data'
+IF 0 THEN CRT ITYPE('skipped')<1>
+CRT 'before'
+CRT ITYPE('compiled':'-descriptor')
+CRT 'after'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (1, b'before\n',
+                          f'{source}:6:5: ITYPE requires a compiled dictionary backend\n'.encode()))
 
     def test_indices_requires_backend_only_when_a_query_is_reached(self):
         source = self.work / 'indices.b'
