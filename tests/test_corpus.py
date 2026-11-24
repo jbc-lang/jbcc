@@ -1,0 +1,513 @@
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+
+from compiler_support import CLI, ROOT, expected_bytes, expected_text
+
+
+def test_jbasecoredump_requires_an_application_snapshot_backend(compiler, subtests):
+    source = ROOT / 'tests/programs/jbasecoredump-missing-backend.b'
+    result = compiler.run_native(source, cwd=compiler.work)
+    assert (
+        (result.returncode, result.stdout, result.stderr)
+        == (1,
+             expected_bytes('jbasecoredump-requires-an-application-snapshot-backend.stdout'),
+             expected_text('jbasecoredump-requires-an-application-snapshot-backend.stderr', source=source).encode())
+    )
+    assert list(compiler.work.glob('JBASECOREDUMP*')) == []
+
+    for fixture_name in (
+        'snapshot_1.b',
+        'snapshot_2.b',
+    ):
+        with subtests.test(source=fixture_name):
+            source = ROOT / 'tests/programs/jbasecoredump-requires-an-application-snapshot-backend' / fixture_name
+            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            assert result.returncode != 0
+            assert (
+                expected_text('jbasecoredump-requires-an-application-snapshot-backend_2.stderr', source=source)
+                in result.stderr
+            )
+
+
+def test_itype_requires_backend_only_when_evaluation_is_reached(compiler):
+    source = ROOT / 'tests/programs/itype-missing-backend.b'
+    result = compiler.run_native(source)
+    assert (
+        (result.returncode, result.stdout, result.stderr)
+        == (1,
+             expected_bytes('itype-requires-backend-only-when-evaluation-is-reached.stdout'),
+             expected_text('itype-requires-backend-only-when-evaluation-is-reached.stderr', source=source).encode())
+    )
+
+
+def test_xml_transforms_require_a_backend_when_reached(compiler, subtests):
+    for fixture_name, call in (
+        ('xml_1.b', "XMLTOXML('<doc/>', '', Code)"),
+        ('xml_2.b', "XMLTODYN('<array/>', '', Codes(1))"),
+        ('xml_3.b', "XMLTODYN('<array/>', '')"),
+        ('xml_4.b', "DYNTOXML('a':@FM:'b', '', Code)"),
+        ('xml_5.b', "DYNTOXML('a':@FM:'b', '', Codes(1))"),
+        ('xml_6.b', "DYNTOXML('a':@FM:'b', '')"),
+    ):
+        with subtests.test(source=fixture_name):
+            source = ROOT / 'tests/programs/xml-transforms-require-a-backend-when-reached' / fixture_name
+            result = compiler.run_native(source)
+            name = call.split('(', 1)[0]
+            assert (
+                (result.returncode, result.stdout, result.stderr)
+                == (1,
+                     expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'),
+                     expected_text('xml-transforms-require-a-backend-when-reached.stderr', source=source, value_2=name).encode())
+            )
+
+
+def test_xml_transform_argument_diagnostics(compiler, subtests):
+    for case_number, (call, marker, message) in enumerate((
+        ("XMLTODYN('<array/>')", ')', expected_text('xml-transform-argument-diagnostics.stderr')),
+        ("XMLTOXML('<doc/>', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
+        ("XMLTODYN('<array/>', '', Code<1>)", '<1>', expected_text('xml-transform-argument-diagnostics_3.stderr')),
+        ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', expected_text('xml-transform-argument-diagnostics_3.stderr')),
+        ("DYNTOXML('a', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
+    ), 1):
+        with subtests.test(call=call):
+            statement = f'CRT {call}'
+            source = ROOT / 'tests/programs/xml-transform-argument-diagnostics' / f'xml_{case_number}.b'
+            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            assert result.returncode != 0
+            assert (
+                expected_text('xml-transform-argument-diagnostics_4.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message)
+                in result.stderr
+            )
+
+
+def test_indices_requires_backend_only_when_a_query_is_reached(compiler, subtests):
+    for fixture_name in (
+        'indices_1.b',
+        'indices_2.b',
+    ):
+        with subtests.test(source=fixture_name):
+            source = ROOT / 'tests/programs/indices-requires-backend-only-when-a-query-is-reached' / fixture_name
+            result = compiler.run_native(source, options=('--memory-file', 'BOOKS'))
+            assert result.returncode == 1
+            assert (
+                result.stdout
+                == expected_bytes('indices-requires-backend-only-when-a-query-is-reached.stdout')
+            )
+            assert (
+                result.stderr
+                == expected_text('indices-requires-backend-only-when-a-query-is-reached.stderr', source=source).encode()
+            )
+
+
+def test_indices_requires_a_file_variable(compiler):
+    source = ROOT / 'tests/programs/indices-requires-variable.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode == 1
+    assert result.stderr == expected_text('indices-requires-a-file-variable.stderr', source=source)
+
+
+def test_debug_reports_location_only_when_reached(compiler):
+    source = ROOT / 'tests/programs/debug-missing-backend.b'
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert result.stdout == expected_bytes('debug-reports-location-only-when-reached.stdout')
+    assert (
+        result.stderr
+        == expected_text('debug-reports-location-only-when-reached.stderr', source=source).encode()
+    )
+
+
+def test_callj_reports_missing_backend_only_when_reached(compiler):
+    source = ROOT / 'tests/programs/callj-missing-backend.b'
+    result = compiler.run_native(source)
+    assert result.returncode == 1, result.stderr
+    assert result.stdout == expected_bytes('callj-reports-missing-backend-only-when-reached.stdout')
+    assert (
+        result.stderr
+        == expected_text('callj-reports-missing-backend-only-when-reached.stderr', source=source).encode()
+    )
+
+
+def test_callj_requires_setting(compiler):
+    source = ROOT / 'tests/programs/callj-missing-setting.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert result.stderr == expected_text('callj-requires-setting.stderr', source=source)
+
+
+def test_transactions_report_missing_backend_at_the_call(compiler, subtests):
+    statements = (
+        ('TRANSTART', "TRANSTART ELSE CRT 'failure'"),
+        ('TRANSTART', "TRANSTART SYNC THEN CRT 'success'"),
+        ('TRANSTART', "TRANSTART SYNC 'start':Note THEN CRT 'success' ELSE CRT 'failure'"),
+        ('TRANSEND', "TRANSEND Note THEN\n    CRT 'success'\nEND ELSE CRT 'failure'"),
+        ('TRANSABORT', "TRANSABORT 'rollback' ELSE CRT 'failure'"),
+    )
+    for case_number, (keyword, statement) in enumerate(statements, 1):
+        with subtests.test(statement=statement):
+            source = ROOT / 'tests/programs/transactions-report-missing-backend-at-the-call' / f'transactions_{case_number}.b'
+            result = compiler.run_native(source)
+            assert result.returncode == 1, result.stderr
+            assert result.stdout == expected_bytes('transactions-report-missing-backend-at-the-call.stdout')
+            assert (
+                result.stderr
+                == expected_text('transactions-report-missing-backend-at-the-call.stderr', source=source, keyword=keyword).encode()
+            )
+
+
+def test_transactions_require_a_conditional_arm(compiler):
+    source = ROOT / 'tests/programs/transtart-missing-arm.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert result.stderr == expected_text('transactions-require-a-conditional-arm.stderr', source=source)
+
+
+def test_transaction_dialect_reports_missing_backend(compiler, subtests):
+    source = ROOT / 'tests/programs/transaction-dialect.b'
+    binary = compiler.work / 'transactions'
+    subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+    run = subprocess.run([binary, 'skip'], capture_output=True, timeout=5)
+    assert (
+        (run.returncode, run.stdout, run.stderr)
+        == (0,
+             expected_bytes('transaction-dialect-reports-missing-backend.stdout'),
+             b'')
+    )
+    for operation, line in (('start', 4), ('commit', 6), ('abort', 8)):
+        with subtests.test(operation=operation):
+            run = subprocess.run([binary, operation], capture_output=True, timeout=5)
+            error = expected_text('transaction-dialect-reports-missing-backend.stderr', source=source, line=line, value_3=operation.upper())
+            assert (run.returncode, run.stdout, run.stderr) == (1, b'', error.encode())
+
+
+def test_transaction_start_requires_a_conditional_arm(compiler):
+    source = ROOT / 'tests/programs/transaction-start-missing-arm.b'
+    run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    assert (
+        (run.returncode, run.stderr)
+        == (1,
+             expected_text('transaction-start-requires-a-conditional-arm.stderr', source=source))
+    )
+
+
+def test_defc_declarations_and_runtime_diagnostics(compiler, subtests):
+    for fixture_name, diagnostic in (
+        ('foreign_1.b', b''),
+        ('foreign_2.b', expected_bytes('defc-declarations-and-runtime-diagnostics.stderr')),
+        ('foreign_3.b', expected_bytes('defc-declarations-and-runtime-diagnostics_2.stderr')),
+        ('foreign_4.b', expected_bytes('defc-declarations-and-runtime-diagnostics_3.stderr')),
+    ):
+        with subtests.test(source=fixture_name):
+            source = ROOT / 'tests/programs/defc-declarations-and-runtime-diagnostics' / fixture_name
+            result = compiler.run_native(source)
+            if diagnostic:
+                assert (result.returncode, result.stdout) == (1, b'')
+                assert result.stderr == os.fsencode(source) + diagnostic + b'\n'
+            else:
+                assert (
+                    (result.returncode, result.stdout, result.stderr)
+                    == (0,
+                         expected_bytes('defc-declarations-and-runtime-diagnostics.stdout'),
+                         b'')
+                )
+
+
+def test_defc_rejects_invalid_types_and_argument_counts(compiler, subtests):
+    for fixture_name, diagnostic in (
+        ('foreign_1.b', expected_text('defc-rejects-invalid-types-and-argument-counts.stderr')),
+        ('foreign_2.b', expected_text('defc-rejects-invalid-types-and-argument-counts_2.stderr')),
+        ('foreign_3.b', expected_text('defc-rejects-invalid-types-and-argument-counts_3.stderr')),
+    ):
+        with subtests.test(source=fixture_name):
+            source = ROOT / 'tests/programs/defc-rejects-invalid-types-and-argument-counts' / fixture_name
+            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            assert result.returncode == 1
+            assert result.stderr == f'{source}{diagnostic}\n'
+
+
+def test_corpus_reports_deferred_reads_in_includes():
+    corpus = ROOT / 'tests/corpus/deferred-include-reads'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
+    strict = json.loads(subprocess.check_output(command, text=True))
+    assert (
+        strict['files']['main.b']
+        == {'status': 'rejected', 'diagnostic': "I_EXAMPLE:2:5: unknown variable or unsupported function 'Missing'"}
+    )
+    deferred = json.loads(subprocess.check_output(command + ['--defer-unassigned-reads'], text=True))
+    assert deferred['first_blockers'] == {}
+    assert (
+        deferred['files']['main.b']
+        == {'status': 'translated', 'warnings': ["I_EXAMPLE:2:5: warning: read of 'Missing' before assignment is deferred to runtime"]}
+    )
+
+
+def test_corpus_t24_fixes_apply_in_memory_to_known_files(compiler, subtests):
+    cases = {
+        'STEST.AZ.PD.DATES.CHK': (
+            b"EQUATE AZ.SLS.TYPE.I TO 2\r\nA = 'a':@FM:'b'\r\nB = A<.AZ.SLS.TYPE.I,1>\r\nCRT B\r\n",
+            [(3, 7, '.AZ.SLS.TYPE.I', 'AZ.SLS.TYPE.I')],
+        ),
+        'TK.VALIDATE.SYSGEN.FILES': (
+            b'* 1ST.RECORD = 1\n1ST.RECORD = 1\nIF 1ST.RECORD THEN CRT "1ST.RECORD"\n',
+            [(2, 1, '1ST.RECORD', 'FIRST.RECORD'), (3, 4, '1ST.RECORD', 'FIRST.RECORD')],
+        ),
+        'LIST.DATA': (
+            b'THE.ARGS = "F...":FM:"F..."\nCRT THE.ARGS\n',
+            [(1, 19, 'FM', '@FM')],
+        ),
+    }
+    for name, (source, _) in cases.items():
+        (compiler.work / name).write_bytes(source)
+    (compiler.work / 'nested').mkdir()
+    (compiler.work / 'nested/LIST.DATA').write_bytes(cases['LIST.DATA'][0])
+
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', compiler.work]
+    strict = json.loads(subprocess.check_output(command, text=True))
+    reports = json.loads(subprocess.check_output(command + ['--t24-source-fixes'], text=True))['files']
+    for name, (source, edits) in cases.items():
+        with subtests.test(name=name):
+            assert strict['files'][name]['status'] == 'rejected'
+            assert (
+                reports[name]
+                == {'status': 'translated', 'source_fixes': [dict(file=name, line=line, column=column, before=before, after=after) for line, column, before, after in edits]}
+            )
+            assert (compiler.work / name).read_bytes() == source
+    assert reports['nested/LIST.DATA'] == strict['files']['nested/LIST.DATA']
+
+
+def test_r07_corpus_can_apply_source_fixes_and_report_include_stub():
+    fixture = ROOT / 'tests/corpus/r07'
+    root = fixture / '200707-R07'
+    bp = root / 'GLOBUS.BP'
+    original = {path: path.read_bytes() for path in bp.iterdir()}
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root]
+    baseline = json.loads(subprocess.check_output(command, text=True))['files']
+    missing = 'GLOBUS.BP/LA.FIXTURE.b'
+    compare = 'GLOBUS.BP/COMPARE.DB.JBASE'
+    dates = 'GLOBUS.BP/STEST.AZ.PD.DATES.CHK'
+    rates = 'GLOBUS.BP/MG.EOD.REDEFINE.CONTRACT.RATES'
+    cdf = 'GLOBUS.BP/TU.LIB.STD.CDF'
+    inv = 'GLOBUS.BP/TU.LIB.STD.INV'
+    assert "include file 'I_F.LA.PARAMETER' not found" in baseline[missing]['diagnostic']
+    assert baseline[dates]['status'] == 'rejected'
+    assert (
+        baseline[rates]
+        == {'status': 'rejected', 'diagnostic': f"{rates}:5:14: expected 1 subscripts for 'CR.REC'"}
+    )
+    assert baseline[cdf]['status'] == 'rejected'
+    assert baseline[inv]['status'] == 'rejected'
+
+    options = ['--t24-source-fixes', '--stub-r07-la-parameter']
+    report = json.loads(subprocess.check_output(command + options, text=True))['files']
+    assert report[missing] == {'status': 'translated', 'include_stubs': ['I_F.LA.PARAMETER']}
+    assert (
+        report[compare]
+        == {'status': 'translated', 'source_fixes': [dict(file=compare, line=1, column=10, before='/usr/jbc/include/JBC.h', after='JBC.h')]}
+    )
+    assert (
+        report[dates]
+        == {'status': 'translated', 'source_fixes': [dict(file=dates, line=3, column=16, before='.AZ.SLS.TYPE.I', after='AZ.SLS.TYPE.I')]}
+    )
+    assert (
+        report[rates]
+        == {'status': 'translated', 'source_fixes': [dict(file=rates, line=5, column=34, before=',1', after='')]}
+    )
+    assert (
+        report[cdf]
+        == {'status': 'translated', 'source_fixes': [dict(file=cdf, line=1, column=6, before='-3.125e-002', after='-0.03125'), dict(file=cdf, line=2, column=6, before='1.25E2', after='125')]}
+    )
+    assert (
+        report[inv]
+        == {'status': 'translated', 'source_fixes': [dict(file=inv, line=1, column=6, before='1.2300E+02', after='123.00')]}
+    )
+
+    with_real_include = command + options + ['-I', fixture / 'real-includes']
+    report = json.loads(subprocess.check_output(with_real_include, text=True))['files']
+    assert report[missing] == {'status': 'translated'}
+    assert {path: path.read_bytes() for path in bp.iterdir()} == original
+
+
+def test_corpus_report(compiler):
+    (compiler.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
+                                  'X = F(X)\nIF X THEN CALL S(X)\nCALL @X(X)\n')
+    (compiler.work / 'bad').write_text('MAT A = 2\n')
+    (compiler.work / 'I_SHARED').write_text('EQU X TO 1\n')
+    report = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', compiler.work],
+                            capture_output=True, text=True, check=True)
+    data = json.loads(report.stdout)
+    assert data['counts'] == {'translated': 1, 'rejected': 1, 'include fragment': 1}
+    assert data['files']['ok']['status'] == 'translated'
+    assert data['first_blockers'] == {"expected a dimensioned array 'A'": 1}
+    assert 'bad:1:5:' in data['files']['bad']['diagnostic']
+
+
+def test_corpus_can_summarize_next_name_mismatch_warnings():
+    corpus = ROOT / 'tests/corpus/next-name-warnings'
+    good = corpus / 'good.b'
+    bad = corpus / 'bad.b'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus, '-j', '2']
+    verbose = subprocess.run(command, capture_output=True, text=True, check=True)
+    quiet = subprocess.run(command + ['--quiet-next-warnings'], capture_output=True, text=True, check=True)
+    report = json.loads(quiet.stdout)
+    assert report == json.loads(verbose.stdout)
+    assert report['files']['good.b']['status'] == 'translated'
+    assert report['files']['bad.b']['status'] == 'rejected'
+    for source in (good, bad):
+        assert (
+            expected_text('corpus-can-summarize-next-name-mismatch-warnings.stderr', source=source)
+            in verbose.stderr
+        )
+    assert (
+        quiet.stderr.splitlines()
+        == [expected_text('corpus-can-summarize-next-name-mismatch-warnings_2.stderr', good=good), expected_text('corpus-can-summarize-next-name-mismatch-warnings_3.stderr')]
+    )
+
+
+def test_corpus_api_coverage_counts_parsed_calls_by_form(compiler):
+    fixture = ROOT / 'tests/corpus/api-coverage'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'corpus',
+               '--api-catalogue', fixture / 'spec']
+    report = json.loads(subprocess.check_output(command, text=True))
+    entries = {(api['kind'], api['name']): api for api in report['api_coverage']['apis']}
+    assert entries['expression', 'ABS']['guide'] == 'https://jbc-lang.org/pages/abs.html'
+    assert entries['expression', 'ABS']['nominal_arity'] == 1
+    assert not any((form['occurrences'] for form in entries['expression', 'ABS']['forms']))
+    assert entries['defc', 'Unused']['forms'] == []
+    bitor, = entries['expression', 'BITOR']['forms']
+    expected = {'arity': 2, 'occurrences': 4, 'units': 3, 'c99_checked_units': 2}
+    assert {k: bitor[k] for k in expected} == expected
+    assert bitor['example'] == {'unit': 'main.b', 'file': 'I_EXAMPLE', 'line': 1, 'column': 16}
+    native, = entries['defc', 'CExample']['forms']
+    assert (native['occurrences'], native['jbcc_support']) == (1, 'backend required')
+    forms = {form['variant']: form['jbcc_support'] for form in entries['expression', 'ENCRYPT']['forms']}
+    assert forms == {'method 1 (ROT13)': 'ROT13 implemented', 'method 4 (Base64)': 'backend required'}
+    report_path = compiler.work / 'coverage.json'
+    report_path.write_text(json.dumps(report))
+    markdown = subprocess.check_output([sys.executable, ROOT / 'tools/api_coverage.py', report_path], text=True)
+    assert expected_text('corpus-api-coverage-counts-parsed-calls-by-form.stdout') in markdown
+    assert expected_text('corpus-api-coverage-counts-parsed-calls-by-form_2.stdout') in markdown
+
+
+def test_corpus_uses_t24_catalog_kinds_for_selected_extract(compiler):
+    fixture = ROOT / 'tests/corpus/file-catalog'
+    catalog = compiler.work / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript((fixture / 'catalog.sql').read_text())
+    root = fixture / 'sample-r07'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root, '--t24-catalog', catalog]
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['counts'] == {'C header': 1, 'include fragment': 1, 'translated': 2}
+    assert report['files']['GLOBUS.BP/Constants.h']['status'] == 'include fragment'
+    assert report['files']['GLOBUS.BP/Native.h']['status'] == 'C header'
+    assert report['files']['GLOBUS.BP/I_Unit']['status'] == 'translated'
+    assert report['files']['GLOBUS.BP/Main.b']['status'] == 'translated'
+
+
+def test_corpus_index_resolves_and_reports_component_includes(compiler):
+    fixture = ROOT / 'tests/corpus/indexed-includes'
+    catalog = compiler.work / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript((fixture / 'catalog.sql').read_text())
+    root = fixture / 'sample-r19'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root, '--t24-catalog', catalog,
+               '--t24-indexed-includes', '--source-prefix', 'AA/Account', '-j', '2']
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['counts'] == {'translated': 1, 'rejected': 2}
+    assert report['include_lookups'] == {'resolved': 3, 'missing': 1, 'ambiguous': 1}
+    files = report['files']
+    main = 'AA/Account/Private/Main.b'
+    assert (
+        files[main]['package_directives']
+        == [dict(kind='package', name='AA.Account', file=main, line=1, column=10), dict(kind='using', name='BB.Billing', file=main, line=2, column=8)]
+    )
+    traces = files[main]['include_lookups']
+    assert (
+        [(e['file'], e['rule'], e['resolved']) for e in traces]
+        == [(main, 'source directory', 'AA/Account/Private/I_Local'), (main, 'component', 'AA/Account/Public/I_Choice'), ('AA/Account/Public/I_Choice', 'release index', 'BB/Billing/Public/I_Global')]
+    )
+    ambiguous = files['AA/Account/Private/Ambiguous.b']['include_lookups'][0]
+    assert ambiguous['status'] == 'ambiguous'
+    assert ambiguous['candidates'] == ['BB/Billing/Public/I_Tied', 'Flat/I_Tied']
+    missing = files['AA/Account/Private/Missing.b']
+    assert missing['include_lookups'][0]['status'] == 'missing'
+    assert missing['package_directives'][0]['name'] == 'AA.Account'
+
+
+def test_corpus_checks_qualified_component_signatures(compiler):
+    fixture = ROOT / 'tests/corpus/component-calls'
+    catalog = compiler.work / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript((fixture / 'catalog.sql').read_text())
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'sample-r19',
+               '--t24-catalog', catalog, '--t24-component-calls', '-j', '2']
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['counts'] == {'translated': 1, 'rejected': 8}
+    assert report['selection']['component_calls']
+    assert report['files']['Main.b']['status'] == 'translated'
+    failures = {
+        'WrongArity.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getCurrent'",
+        'WrongKind.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
+        'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
+        'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
+        'MissingSharedMember.b': "2:1: unsupported statement 'Shop.Shared.setOnlyHere'",
+        'PrivateTableAccess.b': "2:5: component member 'Shop.Prices.Ledger.Read' has private access",
+        'WrongTableArity.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.Prices.Write'",
+        'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",
+    }
+    for name, diagnostic in failures.items():
+        assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'
+
+
+def test_corpus_report_can_preserve_source_bytes():
+    corpus = ROOT / 'tests/corpus/legacy-include-bytes'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['counts'] == {'encoding': 1, 'include fragment': 1}
+    assert (
+        report['files']['main.b']
+        == {'status': 'encoding', 'diagnostic': 'I_SHARED:1:10: invalid UTF-8 at byte 0xfd'}
+    )
+    report = json.loads(subprocess.check_output(command + ['--source-encoding', 'bytes'], text=True))
+    assert report['counts'] == {'translated': 1, 'include fragment': 1}
+
+
+def test_corpus_matrix_signatures(compiler):
+    (compiler.work / 'forward').write_text('SUBROUTINE F(MAT A)\nCALL EXT(MAT A)\n'
+                                      'IF 0 THEN CALL F(MAT A)\n')
+    (compiler.work / 'mixed').write_text('DIM A(1)\nCALL EXT(MAT A)\nCALL EXT(A(1))\n')
+    result = subprocess.run([sys.executable, ROOT / 'tools/check_corpus.py', compiler.work],
+                            capture_output=True, text=True, check=True)
+    files = json.loads(result.stdout)['files']
+    assert files['forward']['status'] == 'translated'
+    assert 'mixed:3:6: external calls disagree on signature' in files['mixed']['diagnostic']
+
+
+def test_corpus_checks_external_arities_and_reports_the_linkage_conflict(compiler):
+    source = compiler.work / 'caller'
+    source.write_text("CALL Report('')\nCALL Report\n")
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', compiler.work]
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['first_blockers'] == {}
+    assert (
+        report['files']['caller']
+        == {'status': 'translated', 'linkage_diagnostic': "caller:2:6: calls to 'Report' use different argument counts (1 and 0)"}
+    )
+
+    definition = compiler.work / 'report'
+    definition.write_text('SUBROUTINE Report(Value)\nCRT Value\n')
+    result = subprocess.run([CLI, source, definition, '-o', compiler.c], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert (
+        result.stderr
+        == expected_text('corpus-checks-external-arities-and-reports-the-linkage-conflict.stderr', source=source)
+    )
+
+    source.write_text('SUBROUTINE Recur(MAT A)\nCALL Recur\n')
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert (
+        report['files']['caller']
+        == {'status': 'rejected', 'diagnostic': 'caller:2:6: recursive call has incompatible signature'}
+    )
