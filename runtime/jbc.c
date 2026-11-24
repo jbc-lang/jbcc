@@ -622,7 +622,7 @@ int jbc_dimension(const char *text, const char *file, int line, int column)
 }
 
 struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key,
-                                     int rank, const int *bounds,
+                                     int rank, const int *bounds, const char *mismatch,
                                      const char *file, int line, int column)
 {
     size_t count = 1;
@@ -640,8 +640,9 @@ struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key
         memcpy(s->bounds, bounds, bytes);
         s->rank = rank;
     } else if (s->rank != rank || memcmp(s->bounds, bounds, bytes)) {
-        numeric_error(file, line, column, key ? "incompatible COMMON matrix dimensions"
-                                              : "incompatible local matrix dimensions");
+        if (!mismatch) mismatch = key ? "incompatible COMMON matrix dimensions"
+                                      : "incompatible local matrix dimensions";
+        numeric_error(file, line, column, mismatch);
     }
     return s;
 }
@@ -650,7 +651,7 @@ void jbc_dimension_mat_parameter(jbc_matrix *matrix, struct jbc_slots **owned,
                                  int rank, const int *bounds, const char *file, int line, int column)
 {
     if (!matrix->rank) {
-        struct jbc_slots *s = jbc_matrix_storage(NULL, NULL, rank, bounds, file, line, column);
+        struct jbc_slots *s = jbc_matrix_storage(NULL, NULL, rank, bounds, NULL, file, line, column);
         *owned = s;
         *matrix = (jbc_matrix){s->values, s->bounds, s->rank, s->count};
     } else if (matrix->rank != rank || memcmp(matrix->bounds, bounds, (size_t)rank * sizeof *bounds)) {

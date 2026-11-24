@@ -4538,6 +4538,7 @@ Rows(2,3) = 'named'
 Tail = 'tail'
 DIM A(2), Rows(2,3)
 DIMENSION Rows(N,3)
+IF 0 THEN DIM Rows(4,3)
 CALL UPDATE()
 CRT A(2):':':Rows(2,3):':':Tail
 """)
@@ -4553,22 +4554,22 @@ Last := '!'
         self.assertEqual(result.stdout, b'unnamed!:named!:tail!\n')
         self.assertEqual(result.stderr, b'')
 
-    def test_dim_rejects_incompatible_common_matrix_shapes(self):
+    def test_dim_rejects_a_common_matrix_rank_change(self):
         source = self.work / 'shape.b'
-        for bounds in ('3,2', '11'):
-            with self.subTest(bounds=bounds):
-                source.write_text(f'COMMON /X/ A(2,3)\nDIM A({bounds})\n')
-                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
-                self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
+        source.write_text('COMMON /X/ A(2,3)\nDIM A(11)\n')
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
 
-        for initial, redeclared in (('2', 'N'), ('N', '3')):
+    def test_dim_reports_a_reached_common_matrix_resize(self):
+        source = self.work / 'shape.b'
+        for initial, redeclared in (('2', '3'), ('3', '2'), ('2,3', '3,2'), ('2', 'N'), ('N', '3')):
             with self.subTest(initial=initial, redeclared=redeclared):
                 source.write_text(f'N = 2\nCOMMON /X/ A({initial})\nN = 3\nDIM A({redeclared})\n')
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, b'')
-                self.assertEqual(result.stderr, f'{source}:4:5: incompatible COMMON matrix dimensions\n'.encode())
+                self.assertEqual(result.stderr, f'{source}:4:5: COMMON matrix resize is unsupported\n'.encode())
 
     def test_runtime_common_dimensions(self):
         main = self.work / 'main.b'

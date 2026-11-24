@@ -1026,17 +1026,18 @@ same named or unnamed block share slots by position across routines in one
 program. Repeating a scalar or a matrix in the same block within a
 compilation unit reuses its original slot, including when an include is
 expanded twice. This follows the reference parser’s `common_identifier`
-allocation rule and its dynamic-dimension generator. Repeated matrix
+allocation rule and its dynamic-dimension generator. Repeated COMMON
 declarations must agree on rank and bounds. jbcc checks constant bounds
 at compile time and expression bounds when the declaration executes.
 A member listed with and without dimensions in the same block keeps
 the slot of its first occurrence and takes the dimensioned declaration's
 bounds, following the Prime compiler layout.
-For T24 compatibility, a later DIM or DIMENSION that names a COMMON
-matrix also checks its shape and reuses its original shared slot. The
-reference generator accepts a repeated DIM in resize-enabled emulation.
-jbcc provisionally accepts the same shape and diagnoses a size or rank
-change. [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
+For T24 compatibility, a later DIM or DIMENSION of a COMMON matrix
+reuses its original shared slot. The reference compiler accepts changes
+to bounds in resize-enabled emulation. jbcc translates a DIM with the
+same rank and reports a source-located error if execution would change
+the bounds. A rank change is a compile-time error.
+[jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
 
 The compiler also checks member count, rank, and known bounds across
 input files. For T24 declarations such as
@@ -2167,7 +2168,7 @@ The checker accepts the same source encoding option as the compiler.
 For legacy T24 sources with those headers, run
 
 ```sh
-python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214/include \
+python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/include \
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 

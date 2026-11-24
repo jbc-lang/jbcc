@@ -2213,10 +2213,26 @@ Growth probes likewise emitted bounds 2 and 5, using operations 7 and
 8 for named COMMON and 3 and 4 for unnamed COMMON.
 [jBASE emulation documentation](https://docs.rocketsoftware.com/bundle/jbase_lib_59/page/ryu1684869638605.html).
 
+- [x] Translate a later same-rank DIM of a COMMON matrix and diagnose a
+  reached resize at runtime.
+
+The AIX and Linux packages report PB201214.0.0.0 with change level 106034.
+JBC.h is identical. The Linux jportB.h declares the Linux platform key.
+The probe generated C with the standalone compiler in Prime mode and
+linked against the Linux vendor runtime. The runtime stopped at its
+licensed-user-limit check before the BASIC code ran. jbcc translates
+the resize syntax and reports the source location when execution would
+change the bounds. Native tests cover skipped resizes, shrink and grow
+requests, runtime bounds, and a compile-time rank mismatch.
+
+With the Linux headers, 17,313 of 17,336 candidates pass strict C99
+checking in byte mode, including all 17,264 previous passes. Of the 50
+units previously blocked by COMMON dimensions, 49 pass and
+INT.CHARGE.ENTER reaches a local matrix dimension mismatch.
+
 - [ ] Verify shared COMMON resize behavior with the vendor runtime.
   Measure the bound visible to a routine using the original declaration,
-  the elements preserved across shrink and grow, and the effect on MAT
-  aliases. Keep the shape-mismatch diagnostic until those rules are known.
+  the elements preserved across shrink and grow, and the effect on MAT aliases.
 
 - [x] Investigate EXECUTE and PERFORM RTNLIST. Check the explicit and
   default output forms and report when the command backend cannot
