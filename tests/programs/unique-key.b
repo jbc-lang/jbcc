@@ -1,0 +1,3 @@
+FOR I = 1 TO 5
+    CRT UNIQUEKEY()
+NEXT I

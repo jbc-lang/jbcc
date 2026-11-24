@@ -1570,6 +1570,27 @@ time_t test_clock(time_t *out)
         self.assertEqual(run.stdout, "23:59:59 31 DEC 2023\n00:00:00 01 JAN 2024\n")
         self.assertEqual(run.stderr, '')
 
+    def test_timestamp_returns_utc_seconds_at_current_precision(self):
+        source = ROOT / 'tests/programs/timestamp-clock.b'
+        clock = ROOT / 'tests/io/timestamp-clock.c'
+        binary = self.work / 'timestamp'
+        subprocess.run([CLI, source, '-o', self.c], check=True)
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                        '-Dclock_gettime=test_clock_gettime', self.c, clock, '-o', binary], check=True)
+        run = subprocess.run([binary], env=dict(os.environ, TZ='UTC+10'), capture_output=True,
+                             text=True, check=True)
+        self.assertEqual(run.stdout, "1704070799.1234\n1704070799\n-1.87\n1704070800.123456789\n")
+        self.assertEqual(run.stderr, '')
+
+    def test_unique_key_returns_distinct_uuid_strings(self):
+        run = self.run_native(ROOT / 'tests/programs/unique-key.b')
+        self.assertEqual((run.returncode, run.stderr), (0, b''))
+        values = run.stdout.splitlines()
+        self.assertEqual(len(values), 5)
+        self.assertEqual(len(set(values)), 5)
+        for value in values:
+            self.assertRegex(value, rb'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+
     def test_startup_clock_is_shared_across_midnight(self):
         main = self.work / 'main.b'
         routine = self.work / 'show.start.b'
@@ -4055,7 +4076,7 @@ CRT 'done'
         command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'sample-r19',
                    '--t24-catalog', catalog, '--t24-component-calls', '-j', '2']
         report = json.loads(subprocess.check_output(command, text=True))
-        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 7})
+        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 8})
         self.assertTrue(report['selection']['component_calls'])
         self.assertEqual(report['files']['Main.b']['status'], 'translated')
         failures = {
@@ -4063,6 +4084,7 @@ CRT 'done'
             'WrongKind.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
             'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
             'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
+            'MissingSharedMember.b': "2:1: unsupported statement 'Shop.Shared.setOnlyHere'",
             'PrivateTableAccess.b': "2:5: component member 'Shop.Prices.Ledger.Read' has private access",
             'WrongTableArity.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.Prices.Write'",
             'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",

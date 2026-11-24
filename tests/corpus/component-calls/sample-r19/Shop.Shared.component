@@ -1,0 +1,10 @@
+component Shop.Shared
+metamodelVersion 1.6
+public property readwrite Quantity
+
+private table Items {
+    t24: SHOP.ITEMS
+    fields: {
+        Cost(SHOP.ITEM.COST) = 1
+    }
+}

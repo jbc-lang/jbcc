@@ -3471,10 +3471,17 @@ from 47 with the ordinary search path. The other 119 first blockers are
   signatures. Accept dotted parameter names in component methods, as
   declared in `AC.AccountClosure` and `AA.Framework`.
   The same pilot now has 113 strict C99 passes, up from 88.
-- [ ] Resolve the remaining six non-include blockers. Two are at
-  `TIMESTAMP()`, three concern component accessors and one references a
-  field in a private table from another component. Validate package-aware
-  linkage separately.
+- [x] Resolve five more pilot failures. Implement `TIMESTAMP()` and
+  `UNIQUEKEY()` from the Programmer's Reference Guide. Resolve untyped
+  scalar properties shared by the two R19 `TF.ErrorHandling` definitions.
+  Treat table field numbers as available across components, as observed in
+  R19 `AA.Account` and `AB.Framework` references to the private
+  `AA.BundleHierarchy.BundleHierarchy` table. Keep visibility checks on
+  table calls. The pilot now has 118 strict C99 passes.
+- [ ] Find an R19 declaration for `EB.Service.setFComo`. The R07 and
+  R10 versions of the caller set the file handle `F.COMO` directly.
+  The R19 caller uses a setter whose declaration is absent from the
+  catalogued definition. Validate package-aware linkage separately.
 - [ ] Audit unresolved headers against the original export and component
   definitions, then scan all 39,675 catalogued production units.
 - [ ] Select a small deterministic set of `.tut` tests and identify

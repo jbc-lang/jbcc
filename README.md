@@ -526,6 +526,15 @@ TIMEDATE() formats one reading of the local clock as a printable string,
 for example `23:59:59 31 DEC 2023`. jbcc uses the guide’s default layout
 with English month abbreviations. [TIMEDATE](https://jbc-lang.org/pages/timedate.html).
 
+`TIMESTAMP()` returns Unix epoch seconds as a decimal using the POSIX
+realtime clock. jbcc truncates the fraction to the active `PRECISION`,
+with a default of four fractional places and a maximum of nine.
+[TIMESTAMP](https://jbc-lang.org/pages/timestamp.html).
+
+`UNIQUEKEY()` returns a 36-character lowercase UUID. jbcc uses version
+4 UUIDs generated from `/dev/urandom`.
+[UNIQUEKEY](https://jbc-lang.org/pages/uniquekey.html).
+
 ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`
 and `D4`. For example, `ICONV('20121231', 'D')` returns `16437`, the
 number of days since 31 December 1967. The `MT` and `MTS` input masks
@@ -2334,10 +2343,15 @@ property accessors and simple literal constants. It checks visibility
 against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
 accessors such as `getDynArrayFromRNew()`.
+It also recognizes untyped scalar properties. Where the catalog has
+multiple definitions for one component, a member must have the same
+parsed declaration in each.
 
 For `t24:` table declarations, the checker recognizes numbered field
 constants and the observed `Read`, `CacheRead`, `ReadNau`, `Write`,
-`WriteNau`, `WriteHis` and `Delete` call signatures.
+`WriteNau`, `WriteHis` and `Delete` call signatures. Field numbers are
+available across components, as seen in R19 sources that reference
+fields in private tables. Calls still follow the table's visibility.
 
 The pilot checks C syntax one unit at a time, using external prototypes
 for qualified calls. Package-aware linkage and table runtime behavior

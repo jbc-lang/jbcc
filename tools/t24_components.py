@@ -13,7 +13,8 @@ METHOD = re.compile(
 )
 PARAMETER = re.compile(r"(?:INOUT|IN|OUT)\s+[A-Za-z][A-Za-z0-9._$%]*\s+string(\(\))?")
 PROPERTY = re.compile(
-    MEMBER + rf"property[ \t]+(readonly|readwrite|writeonly)[ \t]+({NAME})\s*:\s*string\s*\{{([^{{}}]*)\}}",
+    MEMBER + rf"property[ \t]+(readonly|readwrite|writeonly)[ \t]+({NAME})"
+    r"(?:\s*:\s*string\s*\{([^{}]*)\}|[ \t]*$)",
     re.M
 )
 MATRIX_PROPERTY = re.compile(r"\bjBC:[^\n]*->\s*[\w.$%]+\(\)[ \t]*$", re.M)
@@ -67,7 +68,8 @@ def declarations(source):
         fields = TABLE_FIELDS.search(body)
         if fields:
             for name, number in TABLE_FIELD.findall(fields[1]):
-                yield f"{table}.{name}", (access, "constant", number.lstrip("0") or "0")
+                # R19 source references field numbers across private table boundaries.
+                yield f"{table}.{name}", ("public", "constant", number.lstrip("0") or "0")
 
 
 def read_component_members(catalogue, root):
@@ -80,15 +82,17 @@ def read_component_members(catalogue, root):
         ).fetchall()
     if not components:
         raise ValueError(f"no component definitions for extract '{root.name}' in {catalogue}")
-    counts = Counter(name.casefold() for name, _ in components)
-    members = {}
+    by_component = {}
     for component, relative in components:
         owner = component.casefold()
-        if counts[owner] != 1:
-            continue
         source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
         declared = [(name.casefold(), member) for name, member in declarations(source)]
         names = Counter(name for name, _ in declared)
-        members.update((f"{owner}.{name}", (*member, owner))
-                       for name, member in declared if names[name] == 1)
-    return members
+        current = {name: member for name, member in declared if names[name] == 1}
+        if owner in by_component:
+            # Duplicate definitions can be partial exports of the same component.
+            current = {name: member for name, member in by_component[owner].items()
+                       if current.get(name) == member}
+        by_component[owner] = current
+    return {f"{owner}.{name}": (*member, owner)
+            for owner, declared in by_component.items() for name, member in declared.items()}

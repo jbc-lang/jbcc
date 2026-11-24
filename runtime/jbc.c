@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_SESSION)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_SESSION) || defined(JBC_TIMESTAMP)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -2207,6 +2207,55 @@ static const char *time_from_clock(const struct tm *now)
 const char *jbc_time(const char *file, int line, int column)
 {
     return time_from_clock(local_clock(file, line, column, "TIME cannot read local time"));
+}
+
+#ifdef JBC_TIMESTAMP
+const char *jbc_timestamp(const char *file, int line, int column)
+{
+    struct timespec now;
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0)
+        numeric_error(file, line, column, "TIMESTAMP cannot read the UTC clock");
+    intmax_t seconds = now.tv_sec;
+    long fraction = now.tv_nsec;
+    int negative = seconds < 0;
+    if (negative && fraction) {
+        /* POSIX normalizes the fractional part to a positive value. */
+        ++seconds;
+        fraction = 1000000000L - fraction;
+    }
+    uintmax_t magnitude = seconds < 0 ? (uintmax_t)(-(seconds + 1)) + 1 : (uintmax_t)seconds;
+    char text[sizeof(intmax_t) * CHAR_BIT + 12];
+    snprintf(text, sizeof text, "%s%" PRIuMAX ".%09ld", negative ? "-" : "", magnitude, fraction);
+    struct decimal value;
+    if (!parse_decimal(text, &value))
+        numeric_error(file, line, column, "invalid UTC clock value");
+    limit_places(&value, jbc_precision < 0 ? 4 : jbc_precision);
+    return fmt_decimal(value, value.places);
+}
+#endif
+
+const char *jbc_uniquekey(const char *file, int line, int column)
+{
+    unsigned char bytes[16];
+    FILE *random = fopen("/dev/urandom", "rb");
+    if (!random) numeric_error(file, line, column, "UNIQUEKEY cannot open /dev/urandom");
+    size_t count = fread(bytes, 1, sizeof bytes, random);
+    fclose(random);
+    if (count != sizeof bytes)
+        numeric_error(file, line, column, "UNIQUEKEY cannot read /dev/urandom");
+
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    static const char hex[] = "0123456789abcdef";
+    char *value = allocate(37);
+    char *out = value;
+    for (size_t i = 0; i < sizeof bytes; ++i) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) *out++ = '-';
+        *out++ = hex[bytes[i] >> 4];
+        *out++ = hex[bytes[i] & 0x0f];
+    }
+    *out = '\0';
+    return value;
 }
 
 static int month_length(int year, int month)
