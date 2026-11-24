@@ -4283,6 +4283,42 @@ CRT 'done'
             'warnings': ["I_EXAMPLE:2:5: warning: read of 'Missing' before assignment is deferred to runtime"],
         })
 
+    def test_corpus_t24_fixes_apply_in_memory_to_known_files(self):
+        cases = {
+            'STEST.AZ.PD.DATES.CHK': (
+                b"EQUATE AZ.SLS.TYPE.I TO 2\r\nA = 'a':@FM:'b'\r\nB = A<.AZ.SLS.TYPE.I,1>\r\nCRT B\r\n",
+                [(3, 7, '.AZ.SLS.TYPE.I', 'AZ.SLS.TYPE.I')],
+            ),
+            'TK.VALIDATE.SYSGEN.FILES': (
+                b'* 1ST.RECORD = 1\n1ST.RECORD = 1\nIF 1ST.RECORD THEN CRT "1ST.RECORD"\n',
+                [(2, 1, '1ST.RECORD', 'FIRST.RECORD'), (3, 4, '1ST.RECORD', 'FIRST.RECORD')],
+            ),
+            'LIST.DATA': (
+                b'THE.ARGS = "F...":FM:"F..."\nCRT THE.ARGS\n',
+                [(1, 19, 'FM', '@FM')],
+            ),
+        }
+        for name, (source, _) in cases.items():
+            (self.work / name).write_bytes(source)
+        (self.work / 'nested').mkdir()
+        (self.work / 'nested/LIST.DATA').write_bytes(cases['LIST.DATA'][0])
+
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        strict = json.loads(subprocess.check_output(command, text=True))
+        reports = json.loads(subprocess.check_output(command + ['--t24-source-fixes'], text=True))['files']
+        for name, (source, edits) in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(strict['files'][name]['status'], 'rejected')
+                self.assertEqual(reports[name], {
+                    'status': 'translated',
+                    'source_fixes': [
+                        dict(file=name, line=line, column=column, before=before, after=after)
+                        for line, column, before, after in edits
+                    ],
+                })
+                self.assertEqual((self.work / name).read_bytes(), source)
+        self.assertEqual(reports['nested/LIST.DATA'], strict['files']['nested/LIST.DATA'])
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\nCALL @X(X)\n')

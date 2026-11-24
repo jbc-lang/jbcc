@@ -3243,7 +3243,7 @@ The strict scan with the PB201214 Linux headers retains 17,329 of 17,336
 passes. The opt-in scan reaches 17,334 passes and records one warning in
 each of the five newly translated units.
 
-- [ ] Determine how to handle the two remaining T24 syntax diagnostics.
+- [x] Apply the three verified T24 corrections in memory when requested.
   The files use .AZ.SLS.TYPE.I as an array selector and 1ST.RECORD as
   an assignment target. In the reference output the
   leading-dot selector becomes a string constant, and 1ST.RECORD becomes
@@ -3251,6 +3251,15 @@ each of the five newly translated units.
   Temporary source probes pass strict C99 checking after removing the
   leading dot in STEST.AZ.PD.DATES.CHK, renaming 1ST.RECORD to FIRST.RECORD
   in TK.VALIDATE.SYSGEN.FILES, or using @FM in LIST.DATA.
+  The corpus checker's `--t24-source-fixes` option applies these edits to
+  the source text it passes to the lexer and records their locations in
+  the report. The fixtures verify the original bytes, include line
+  endings and cover a file of the same name outside the corpus root.
+
+With the PB201214 Linux headers, `--t24-source-fixes` and
+`--defer-unassigned-reads`, all 17,336 candidates pass strict C99
+checking in byte mode. The scan reports four replacements across the
+three files. Their on-disk hashes match before and after the scan.
 
 - [x] Check both FATAL.ERROR call arities in the single-unit corpus scan.
 

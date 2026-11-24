@@ -288,9 +288,10 @@ def is_equate(statement):
 
 
 class Preprocessor:
-    def __init__(self, directories, encoding='utf-8'):
+    def __init__(self, directories, encoding='utf-8', *, source_filter=None):
         self.directories = directories
         self.encoding = encoding
+        self.source_filter = source_filter
         self.equates = {}
         self.direct_definitions = set()
 
@@ -403,6 +404,8 @@ class Preprocessor:
             raise SourceEncodingError(
                 f"{path}:{len(lines)}:{len(lines[-1]) + 1}: invalid UTF-8 at byte 0x{byte:02x}"
             ) from error
+        if self.source_filter is not None:
+            source = self.source_filter(path, source)
         words = []
         parentheses = 0
         conditions = []
@@ -3793,11 +3796,11 @@ def render_subroutine_exists(units):
 
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
-                 defer_unassigned_reads=False):
+                 defer_unassigned_reads=False, source_filter=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
                     defer_unassigned_reads=defer_unassigned_reads)
-    unit.parse(list(Preprocessor(directories, encoding).read(path)))
+    unit.parse(list(Preprocessor(directories, encoding, source_filter=source_filter).read(path)))
     return unit
 
 

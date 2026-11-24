@@ -2186,6 +2186,14 @@ python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/incl
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 
+Add `--t24-source-fixes` to apply the three known T24 corrections in memory
+before parsing. The option matches the named files at the corpus root.
+The report's `source_fixes` entries give the original file, line, column,
+and replacement for each edit. Diagnostics on edited lines use the
+columns of the text passed to the lexer. The scan reads the original
+files from disk. To include legacy scalar reads in the same scan, pass
+both `--t24-source-fixes` and `--defer-unassigned-reads`.
+
 The JSON report records a status per relative path, diagnostic locations,
 and counts by first blocker. A translated unit passed C syntax checking.
 With `--defer-unassigned-reads`, the per-file `warnings` list records
