@@ -3173,7 +3173,7 @@ const char *jbc_fmts(const char *source, const char *mask, const char *file, int
     return out;
 }
 
-static const char *array_arithmetic(char op, const char *left, const char *right,
+static const char *array_arithmetic(char op, int warn_on_zero_divisor, const char *left, const char *right,
                                      int reuse_left, int reuse_right,
                                      const char *file, int line, int column)
 {
@@ -3198,7 +3198,7 @@ static const char *array_arithmetic(char op, const char *left, const char *right
             if (op == '+') item = lhs.present ? a : b;
             else if (op == '/' && lhs.present) item = a;
         } else if (*a && *b) {
-            item = arithmetic(op, a, b, op == '/', file, line, column);
+            item = arithmetic(op, a, b, warn_on_zero_divisor, file, line, column);
         }
 
         size_t bytes = strlen(item);
@@ -3229,25 +3229,31 @@ static const char *array_arithmetic(char op, const char *left, const char *right
 const char *jbc_adds(const char *left, const char *right, int reuse_left, int reuse_right,
                      const char *file, int line, int column)
 {
-    return array_arithmetic('+', left, right, reuse_left, reuse_right, file, line, column);
+    return array_arithmetic('+', 0, left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_subs(const char *left, const char *right, int reuse_left, int reuse_right,
                      const char *file, int line, int column)
 {
-    return array_arithmetic('-', left, right, reuse_left, reuse_right, file, line, column);
+    return array_arithmetic('-', 0, left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_muls(const char *left, const char *right, int reuse_left, int reuse_right,
                      const char *file, int line, int column)
 {
-    return array_arithmetic('*', left, right, reuse_left, reuse_right, file, line, column);
+    return array_arithmetic('*', 0, left, right, reuse_left, reuse_right, file, line, column);
 }
 
 const char *jbc_divs(const char *left, const char *right, int reuse_left, int reuse_right,
                      const char *file, int line, int column)
 {
-    return array_arithmetic('/', left, right, reuse_left, reuse_right, file, line, column);
+    return array_arithmetic('/', 1, left, right, reuse_left, reuse_right, file, line, column);
+}
+
+const char *jbc_divide_reuse(const char *left, const char *right, int reuse_left, int reuse_right,
+                             const char *file, int line, int column)
+{
+    return array_arithmetic('/', 0, left, right, reuse_left, reuse_right, file, line, column);
 }
 
 static const char *array_sign(const char *source, int absolute, const char *file, int line, int column)

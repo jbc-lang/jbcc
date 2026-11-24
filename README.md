@@ -1416,6 +1416,11 @@ zero divisor, jbcc warns at the call site, emits zero for that position,
 and continues. Direct `REUSE(scalar)` works on either side.
 [DIVS](https://jbc-lang.org/pages/divs.html).
 
+`array / REUSE(scalar)` and `REUSE(scalar) / array` divide element by
+element, preserving the dynamic-array marks. jbcc evaluates each REUSE
+operand once. A numeric zero divisor reports a runtime error at the
+division operator, following jbcc's scalar `/` rule.
+
 CATS concatenates corresponding fields, values and subvalues. An unmatched
 element is copied through, and a wholly empty operand returns the other
 array. jbcc treats an empty element within an array as contributing zero

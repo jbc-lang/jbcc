@@ -1133,7 +1133,7 @@ NEXT I
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
                                   ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
                                   ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
-                                  ("CRT REUSE(2) + 3\n", ':1:5: REUSE requires a direct multiplication operand'),
+                                  ("CRT REUSE(2) + 3\n", ':1:5: REUSE requires a direct multiplication or division operand'),
                                   ("CRT 2 * REUSE(3) ^ 4\n", ':1:9: REUSE requires a direct multiplication operand'),
                                   ("CRT SDIV(1)\n", ":1:5: wrong argument count for 'SDIV'"),
                                   ("CRT SDIV(1, 2, 3, 4)\n", ":1:5: wrong argument count for 'SDIV'"),
@@ -2403,6 +2403,32 @@ CRT Response
         self.assertEqual(run.stdout, b'0\xfd4\xfd0\xfd\xfd0\ncontinued\n')
         warning = f'{source}:1:5: warning: DIVS: division by zero\n'
         self.assertEqual(run.stderr, warning.encode() * 2)
+
+    def test_infix_division_reuses_scalar_operands(self):
+        source = self.work / 'reuse.b'
+        source.write_text("""A = 6:@VM:'':@SM:8:@FM:12
+CRT A / REUSE(2)
+CRT REUSE(24) / A
+CRT 1 + 12 / REUSE(3) * 2
+CRT REUSE(9) / REUSE(3)
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'3\xfd\xfc4\xfe6\n4\xfd\xfc3\xfe2\n9\n3\n', b''))
+
+    def test_infix_reuse_division_reports_invalid_operands(self):
+        source = self.work / 'reuse.b'
+        for expression, marker, message in (
+            ("(4:@VM:6) / REUSE(0)", '/', 'division by zero'),
+            ("REUSE(8) / (2:@VM:0)", '/', 'division by zero'),
+            ("REUSE(3:@FM:4) / 2", 'REUSE', 'REUSE in division requires a scalar'),
+        ):
+            with self.subTest(expression=expression):
+                statement = f'CRT {expression}'
+                source.write_text(statement + '\n')
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                 (1, b'', f'{source}:1:{statement.index(marker) + 1}: {message}\n'.encode()))
 
     def test_divs_diagnostics(self):
         source = self.work / 'divs.b'

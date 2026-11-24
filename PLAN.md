@@ -2984,6 +2984,20 @@ CHECK.ROUTINE.EXIST now passes strict C99 checking in byte mode.
 The total is 17,197 of 17,336 candidates, including all 17,196
 previous passes.
 
-- [ ] Investigate `array / REUSE(scalar)` in COLLATERAL.ALLOCATION.III.
+- [x] Investigate `array / REUSE(scalar)` in COLLATERAL.ALLOCATION.III.
   Compare the generated reference operation with DIVS and the existing
   infix REUSE multiplication behavior.
+
+The reference compiler emits DIV_BBBB with a REUSE_BB operand on
+either side. It emits DIVS_BBBB for the explicit function. jbcc uses
+its shared element-wise arithmetic and preserves the scalar division
+diagnostic for a zero divisor. Native tests cover both operand orders,
+mixed marks, precedence, and invalid reused operands.
+
+COLLATERAL.ALLOCATION.III now passes strict C99 checking in byte mode.
+The total is 17,198 of 17,336 candidates, including all 17,197
+previous passes.
+
+- [ ] Investigate two subscripts on R.NEW in ACCOUNT.AUTHORISATION.
+  Trace the COMMON declaration and check how the reference compiler
+  treats a second subscript on a one-dimensional matrix.

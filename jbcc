@@ -36,6 +36,7 @@ PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update(dict.fromkeys(CONCATENATION, 5))
 PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9})
 FORMAT_PRECEDENCE = 6  # Identifier precedence in the reference grammar.
+REUSE_OPERATORS = {'*': ('multiplication', 'jbc_muls'), '/': ('division', 'jbc_divide_reuse')}
 
 
 BUILTINS = {"CHECKSUM": (1,), "CALLONEXIT": (1,), "PUTENV": (1,), "LN": (1,), "EXP": (1,), "SQRT": (1,), "PWR": (2,), "RND": (1,), "BITXOR": (2,), "DTX": (1,), "XTD": (1,), "DROUND": (1, 2), "ADDS": (2,), "SUBS": (2,), "MULS": (2,), "SMUL": (2, 3), "SDIV": (2, 3), "DIVS": (2,), "COMPARE": (2, 3), "CATS": (2,), "NES": (2,), "EQS": (2,), "LES": (2,), "LTS": (2,), "GES": (2,), "GTS": (2,), "SORT": (1,), "MATCHFIELD": (3,), "RECORDLOCKED": (2,), "FILEINFO": (2,), "ALPHA": (1,), "ISALPHA": (1,), "ISDIGIT": (1,), "ASCII": (1,), "EBCDIC": (1,), "UTF8": (1,), "LATIN1": (1,), "NUM": (1,), "CHANGE": (3, 4, 5), "EREPLACE": (3, 4, 5), "SWAP": (3, 4, 5), "DELETE": (2, 3, 4), "EXTRACT": (2, 3, 4), "TIMEDATE": (0,), "TIME": (0,), "DATE": (0,), "ITYPE": (1,), "ICONV": (2,), "ICONVS": (2,), "OCONV": (2,), "OCONVS": (2,), "TRIM": (1, 2, 3), "TRIMS": (1,), "TRIMBS": (1,), "TRIMFS": (1,), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "ABSS": (1,), "NEG": (1,), "NEGS": (1,), "DIV": (2,), "MOD": (2,), "REM": (2,), "SUM": (1,), "SUMMATION": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "SPACES": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "SENTENCE": (0, 1), "KEYIN": (0,), "IN": (0,), "STATUS": (0,), "CHAR": (1,), "SEQ": (1,), "LEN": (1,), "BYTELEN": (1,), "LENDP": (1,), "LEFT": (2,), "FOLD": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "FMTS": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "GROUP": (3, 4), "COL1": (0,), "COL2": (0,), "COUNT": (2,), "COUNTS": (2,), "DCOUNT": (2,), "NOT": (1,)}
@@ -1068,12 +1069,14 @@ class Compiler:
         return (self.word == 'REUSE' and self.following.word == '('
                 and 'REUSE' not in self.functions and 'REUSE' not in self.matrices)
 
-    def reuse_scalar(self, context):
+    def reuse_scalar(self, context=None):
         wrapper = self.current
         self.advance()
         self.expect('(')
         scalar = self.expression()
         self.expect(')')
+        if context is None:
+            context = REUSE_OPERATORS.get(self.word, ('an infix expression', None))[0]
         message = c_string(f"REUSE in {context} requires a scalar")
         return self.temporary(f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})")
 
@@ -1081,9 +1084,9 @@ class Compiler:
         reuse_left = self.is_reuse_call()
         if reuse_left:
             wrapper = self.current
-            left = self.reuse_scalar("multiplication")
-            if self.word != '*' or minimum > PRECEDENCE['*']:
-                self.error("REUSE requires a direct multiplication operand", wrapper)
+            left = self.reuse_scalar()
+            if self.word not in REUSE_OPERATORS or minimum > PRECEDENCE[self.word]:
+                self.error("REUSE requires a direct multiplication or division operand", wrapper)
         else:
             left = self.primary(locate_source)
         return self.expression_tail(left, minimum, colon_stops, locate_source, reuse_left, format_stops)
@@ -1131,16 +1134,19 @@ class Compiler:
             if operator in LOGICAL:
                 left = self.logical_expression(left, operator, colon_stops, locate_source, format_stops)
                 continue
-            reuse_right = operator == '*' and self.is_reuse_call()
+            reuse_operator = REUSE_OPERATORS.get(operator)
+            reuse_right = reuse_operator and self.is_reuse_call()
             if reuse_right:
                 wrapper = self.current
-                right = self.reuse_scalar("multiplication")
+                context, _ = reuse_operator
+                right = self.reuse_scalar(context)
                 if PRECEDENCE.get(self.word, 0) > precedence:
-                    self.error("REUSE requires a direct multiplication operand", wrapper)
+                    self.error(f"REUSE requires a direct {context} operand", wrapper)
             else:
                 right = self.expression(precedence + 1, colon_stops, locate_source, format_stops)
             if reuse_left or reuse_right:
-                left = self.temporary(f"jbc_muls({left}, {right}, {int(reuse_left)}, "
+                _, function = reuse_operator
+                left = self.temporary(f"{function}({left}, {right}, {int(reuse_left)}, "
                                       f"{int(reuse_right)}, {self.location(token)})")
                 reuse_left = False
                 continue
