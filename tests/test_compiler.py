@@ -3195,6 +3195,22 @@ SHOW.IT; CRT VALUE, KEEP, SLASH
         self.assertIn(f"{include}:1:{definition.index('MISSING') + 1}: unknown variable".encode(),
                       result.stderr)
 
+    def test_percent_inside_names(self):
+        source = self.work / 'percent.b'
+        source.write_text("""#define FLAG%SET 1
+#ifdef FLAG%SET
+EQUATE Report.%TOTAL TO Value%Sum
+Report.%TOTAL = 4
+GOSUB SHOW%TOTAL
+STOP
+SHOW%TOTAL:
+CRT Value%Sum, FLAG%SET
+RETURN
+#endif
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'4\t1\n', b''))
+
     def test_preprocessor_conditionals_and_include_guards(self):
         source = self.work / 'guarded.b'
         include = self.work / 'I_GUARDED'

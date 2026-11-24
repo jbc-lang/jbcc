@@ -18,7 +18,8 @@ BARE_ROUTINE_NAME = re.compile(r"[ \t]*([^ \t(;]+)")
 QUOTED_ROUTINE_NAME = re.compile(r"""[ \t]*("[^"]*"|'[^']*'|\\[^\\]*\\)""")
 
 
-TOKEN = re.compile(r"""(?P<space>[ \t]+)|(?P<name>[A-Za-z][A-Za-z0-9._$]*)|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)""")
+NAME_PATTERN = r"[A-Za-z][A-Za-z0-9._$%]*"
+TOKEN = re.compile(rf"""(?P<space>[ \t]+)|(?P<name>{NAME_PATTERN})|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)""")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[:+*/-][ \t]*=|\+\+|--)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
@@ -226,7 +227,7 @@ def lex_line(line, n, path, words, parentheses):
 
 INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
 DIRECTIVE = re.compile(r"^[#$][ \t]*(IFDEF|IFNDEF|ELSE|ENDIF|END|DEFINE)\b", re.IGNORECASE | re.ASCII)
-DIRECTIVE_SYMBOL = re.compile(r"[ \t]+([A-Za-z][A-Za-z0-9._$]*)")
+DIRECTIVE_SYMBOL = re.compile(rf"[ \t]+({NAME_PATTERN})")
 
 
 class ConditionalDirective(NamedTuple):

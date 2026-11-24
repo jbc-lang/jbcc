@@ -73,8 +73,8 @@ assignment `:=`. jbcc also accepts spaces or tabs before the equals sign
 in this operator, following usage in T24. A compound assignment to a
 conditionally assigned scalar checks the previous value at runtime.
 This includes updates to a dynamic-array field in that scalar.
-Addition binds more tightly than
-concatenation. Names are case-sensitive. Reads require an assigned value.
+Addition binds more tightly than concatenation. Names are case-sensitive
+and can contain `%` after the first letter. Reads require an assigned value.
 An expression can read a scalar assigned on some paths through a prior
 conditional or loop. jbcc checks the value at runtime, so a later guard
 can protect that read. A FOR body can be skipped by its bounds or its guard.

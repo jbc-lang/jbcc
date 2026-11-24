@@ -3041,6 +3041,29 @@ AZ.BV.INT.PROCESS and four other units now pass strict C99 checking in
 byte mode. The total is 17,204 of 17,336 candidates, including all
 17,199 previous passes.
 
-- [ ] Investigate calls to FATAL.ERROR with and without its SOURCE.INFO
+- [x] Investigate calls to FATAL.ERROR with and without its SOURCE.INFO
   argument. Trace whether the reference supplies an unassigned formal
   for omitted trailing arguments and how the callee detects it.
+
+RE.BALANCE.PRINT and RE.PRINT.DEAL.DETAILS call FATAL.ERROR with both
+zero and one argument. FATAL.ERROR declares one formal and extracts
+fields from SOURCE.INFO directly. The reference compiler emits distinct
+argument descriptors for the two calls and delegates formal binding to
+SUBROUTINE_INIT. The guide requires exact arity, so jbcc diagnoses both
+inconsistent call sites. The standalone reference probe establishes
+the emitted descriptors. [jBASE CALL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CALL.htm).
+
+- [x] Verify percent signs within names used by the asset valuation reports.
+
+The reference lexer accepts percent signs after the first letter.
+A reference compiler probe resolves a variable, an equate and a label
+containing a percent sign. jbcc uses the same name pattern for source
+tokens and preprocessor symbols. A native test exercises all four uses.
+
+The four asset valuation reports and SC.LOAD.CG.BASE now pass strict
+C99 checking in byte mode. The total is 17,209 of 17,336 candidates,
+including all 17,204 previous passes.
+
+- [ ] Investigate END as a label in BL.PARAMETER.CROSSVAL and
+  BL.TXN.TYPE.CONDITION.CROSSVAL. Check where the compiler distinguishes
+  a label from the final END terminator.
