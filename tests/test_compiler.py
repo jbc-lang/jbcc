@@ -5590,6 +5590,32 @@ CRT Changed:':':@USERNO:':':@USER.NO:':':@USER_NO:':':@UDTNO:':':SYSTEM(Code)
             self.assertEqual(stdout, f'{proc.pid}\n0\n'.encode())
             self.assertEqual(stderr, b'')
 
+    def test_user_root_is_shared_with_linked_routines_and_userstats(self):
+        source = self.work / 'main.b'
+        routine = self.work / 'publish.b'
+        source.write_text("""CRT '[':@USER.ROOT:']'
+Before = @USERSTATS
+CALL PUBLISH
+Saved = @USER.ROOT
+Published = @USERSTATS
+@USER.ROOT = 'updated'
+CRT '[':Before<28>:']', LEN(Saved), LEN(Published<28>), @USERSTATS<28>
+CRT Saved = Published<28>
+@USER.ROOT = ''
+CRT '[':@USER.ROOT:']:[':@USERSTATS<28>:']'
+""")
+        routine.write_text("SUBROUTINE PUBLISH\n@USER.ROOT = STR('x',61):'é'\n", encoding='utf-8')
+        run = self.run_native(source, routine, env=dict(os.environ, JBCPORTNO='1'))
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'[]\n[]\t63\t63\tupdated\n1\n[]:[]\n', b''))
+
+    def test_user_root_limit_counts_bytes(self):
+        source = self.work / 'oversize.b'
+        source.write_text("@USER.ROOT = STR('x',62):'é'\n", encoding='utf-8')
+        run = self.run_native(source)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (1, b'', f"{source}:1:1: @USER.ROOT accepts at most 63 bytes\n".encode()))
+
     def test_userstats_native_snapshot_and_record_writes(self):
         source = self.work / 'main.b'
         routine = self.work / 'stats.b'

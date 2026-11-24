@@ -410,6 +410,11 @@ the account path. A failure to resolve it reports the source location.
 `@USERNO` independently.
 [@PID](https://jbc-lang.org/pages/@pid.html).
 
+`@USER.ROOT` starts empty and accepts a string of up to 63 bytes. An
+oversized assignment reports its source location. Linked routines share
+the value for the lifetime of the native process, and assigning an empty
+string clears it.
+
 `@USERSTATS` returns a snapshot with attribute numbers from `JBC.h`.
 The native runtime fills fields 1–6 with the port, active program count
 of one, startup time in Unix seconds, PID, account, and login. Fields 8
@@ -426,7 +431,7 @@ Field 23 counts completed EXECUTE, EXEC and PERFORM statements,
 including commands that exit with a nonzero status. Field 24 counts
 INPUTs that complete with a value, including data from the DATA queue
 and the empty value returned at end of input. An INPUT timeout leaves
-the counter unchanged.
+the counter unchanged. Field 28 holds the current `@USER.ROOT` value.
 Fields 41–43 hold the native invocation and the line and path where the
 snapshot was taken. Other fields are empty.
 [@USERSTATS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).

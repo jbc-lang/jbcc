@@ -766,6 +766,10 @@ class Compiler:
                 self.uses_session = True
                 self.advance()
                 return self.postfix(self.temporary("jbc_process_id()"), locate_source)
+            if self.word == 'USER.ROOT':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_user_root()"), locate_source)
             if self.word == 'USERSTATS':
                 self.uses_session = True
                 self.uses_userstats = True
@@ -3172,6 +3176,13 @@ class Compiler:
             self.advance()
             self.expect('=')
             self.emit(f"assign_value(&{slot}, {self.expression()});")
+        elif self.word == '@' and self.following.word == 'USER.ROOT':
+            target = self.current
+            self.uses_session = True
+            self.advance()
+            self.advance()
+            self.expect('=')
+            self.emit(f"jbc_set_user_root({self.expression()}, {self.location(target)});")
         elif self.word in STEP_OPERATORS:
             self.prefix_step(statement=True)
         elif self.current.kind == 'name':

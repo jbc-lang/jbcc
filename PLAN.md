@@ -2936,6 +2936,21 @@ needs a string representation that can store embedded NUL bytes.
 OS.CHECKSUM.JBASE now passes strict C99 checking in byte mode, bringing
 the total to 17,192 of 17,336 candidates with all previous passes intact.
 
-- [ ] Investigate @USER.ROOT in VALIDATE.SIGN.ON. Check reads, writes,
+- [x] Investigate @USER.ROOT in VALIDATE.SIGN.ON. Check reads, writes,
   the guide's 63-byte limit and the scope a standalone process can
   provide.
+
+The reference compiler reads and writes system variable 32, and the
+guide assigns the published value to USERSTATS attribute 28. Native
+jbcc keeps the value within the process and reports an oversized
+assignment at its source location. Tests cover reads across linked
+routines, clearing, snapshots and the 63-byte boundary with UTF-8.
+[jBASE user information](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
+
+VALIDATE.SIGN.ON now passes strict C99 checking in byte mode. The total
+is 17,193 of 17,336 candidates, including all 17,192 previous passes.
+
+- [ ] Investigate XMLTOXML and XMLTODYN in the T24 corpus. Start with
+  DW.XML.TRANSFORM, EB.TRANSFORM.XML and OS.UPLOAD.EUS.FILE. Verify the
+  writable result arguments and the behavior when no XML backend is
+  available.

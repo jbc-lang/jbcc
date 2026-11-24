@@ -1049,6 +1049,7 @@ static uintmax_t port_number;
 static int invalid_port_number;
 static const char *login_override;
 static const char *account_override;
+static char user_root[64];
 
 #ifdef JBC_USERSTATS
 static time_t session_started;
@@ -1128,6 +1129,19 @@ const char *jbc_terminal_name(void)
     return terminal ? strcpy(allocate(strlen(terminal)), terminal) : "phantom";
 }
 
+const char *jbc_user_root(void)
+{
+    return strcpy(allocate(strlen(user_root)), user_root);
+}
+
+void jbc_set_user_root(const char *value, const char *file, int line, int column)
+{
+    size_t length = strlen(value);
+    if (length >= sizeof user_root)
+        numeric_error(file, line, column, "@USER.ROOT accepts at most 63 bytes");
+    memcpy(user_root, value, length + 1);
+}
+
 #ifdef JBC_USERSTATS
 const char *jbc_userstats(const char *file, int line, int column)
 {
@@ -1150,6 +1164,7 @@ const char *jbc_userstats(const char *file, int line, int column)
     attrs[22].value = size_value(record_clear_count);
     attrs[23].value = size_value(command_count);
     attrs[24].value = size_value(input_count);
+    attrs[28].value = user_root;
     attrs[41].value = jbc_command_line;
     attrs[42].value = size_value((size_t)line);
     attrs[43].value = file;
