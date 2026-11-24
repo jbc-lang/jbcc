@@ -44,7 +44,7 @@ REUSE_POSITIONS = {"ADDS": (0, 1), "SUBS": (0, 1), "MULS": (0, 1), "DIVS": (0, 1
                    "LES": (0, 1), "LTS": (0, 1), "GES": (0, 1), "GTS": (0, 1)}
 
 
-RECORD_VARIABLES = {'ID': 'jbc_record_id', 'RECORD': 'jbc_record'}
+RECORD_VARIABLES = {'ID': 'jbc_record_id', 'RECORD': 'jbc_record', 'FILENAME': 'jbc_filename'}
 
 
 SYSTEM_CONSTANTS = {
@@ -1701,7 +1701,7 @@ class Compiler:
         if self.word == '@':
             self.advance()
             if self.word not in RECORD_VARIABLES:
-                self.error("expected @ID or @RECORD as a record read destination")
+                self.error("expected @ID, @RECORD or @FILENAME as a record read destination")
             slot = RECORD_VARIABLES[self.word]
             self.advance()
             return None, slot

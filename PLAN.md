@@ -2723,6 +2723,23 @@ syTransaction.getMarketValue now passes strict C99 checking in byte mode.
 The total is 17,086 of 17,336 candidates, including all 17,085
 previous passes.
 
-- [ ] Investigate writable @FILENAME in DW.GET.FIELD.VALUE,
+- [x] Investigate writable @FILENAME in DW.GET.FIELD.VALUE,
   ENQ.TRANS, IDESC and MI.FIELD.JOIN. Check its relation to @ID
   and @RECORD and whether reads and writes share state across routines.
+
+Reference probes emit ATFUNC_BI(20) for both assignment and reading.
+They also pass @FILENAME as an explicit READ, READV or OSREAD destination.
+The guide sets the file name alongside @ID and @RECORD before ITYPE.
+jbcc provisionally keeps an initially empty slot shared across
+routines. Native tests cover both directions of sharing, preservation
+through loop cleanup, explicit read destinations and independent
+record context.
+[ITYPE](https://jbc-lang.org/pages/itype.html).
+
+All four units now parse their @FILENAME assignments and reach ITYPE
+as their first blocker. The strict C99 total stays at 17,086 of
+17,336 candidates, with all previous passes intact.
+
+- [ ] Investigate ITYPE in the four @FILENAME callers and the existing
+  dictionary callers. Verify its syntax and compiled descriptor
+  requirements, then define the behavior without a dictionary backend.

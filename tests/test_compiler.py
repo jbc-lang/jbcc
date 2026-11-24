@@ -989,6 +989,33 @@ NEXT I
         self.assertEqual(run.stdout, b'key-4\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_filename_is_shared_and_independent_of_other_record_context(self):
+        main = self.work / 'main.b'
+        routine = self.work / 'filename.b'
+        main.write_text("""CRT '[':@FILENAME:']'
+@FILENAME = 'start'
+@ID = 'key'
+@RECORD = 'record context'
+CALL SET.FILE.NAME()
+OPEN 'records' TO F ELSE ABORT
+WRITE 'data':@FM:'returned-name' TO F, 'key'
+READ Other FROM F, 'key' ELSE ABORT
+CRT @FILENAME, @ID, @RECORD
+READV @FILENAME FROM F, 'key', 2 ELSE ABORT
+CRT @FILENAME, @ID, @RECORD
+READ @FILENAME FROM F, 'missing' THEN ABORT ELSE CRT '[':@FILENAME:']'
+""")
+        routine.write_text("""SUBROUTINE SET.FILE.NAME()
+CRT @FILENAME
+FOR I = 1 TO 4
+    @FILENAME = 'file-':I
+NEXT I
+""")
+        result = self.run_native(main, routine, options=['--memory-file', 'records'])
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'[]\nstart\nfile-4\tkey\trecord context\n'
+                             b'returned-name\tkey\trecord context\n[]\n', b''))
+
     def test_record_context_survives_collection_and_changes_only_on_explicit_writes(self):
         main = self.work / 'main.b'
         routine = self.work / 'seed.b'
@@ -1097,9 +1124,10 @@ NEXT I
                                   ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
                                   ('INPUT X _\n', ':1:9: INPUT underscore requires a length'),
                                   ('@ID += 1\n', ":1:5: expected '='"),
+                                  ('@FILENAME += 1\n', ":1:11: expected '='"),
                                   ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
                                   ("READ @USERNO FROM 'key' ELSE ABORT\n",
-                                   ':1:7: expected @ID or @RECORD as a record read destination'),
+                                   ':1:7: expected @ID, @RECORD or @FILENAME as a record read destination'),
                                   ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
                                   ("CRT DROUND(1, 2, 3)\n", ":1:5: wrong argument count for 'DROUND'"),
                                   ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),

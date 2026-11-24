@@ -1885,6 +1885,13 @@ as an empty string. A missing record read into it clears it, following
 the existing READ destination behavior.
 [ITYPE](https://jbc-lang.org/pages/itype.html).
 
+`@FILENAME` holds the current file name for dictionary evaluation. In
+jbcc it starts empty and is shared across routines in a separate slot
+from `@ID` and `@RECORD`. Whole-value assignment and an explicit read
+destination can set it. An ordinary OPEN or READ leaves the name in
+place. The startup value and sharing policy are provisional.
+[ITYPE](https://jbc-lang.org/pages/itype.html).
+
 With an explicit string or dynamic array, SELECT makes a list of its fields
 in source order. Value and subvalue marks stay inside their fields. Leading,
 interior and trailing empty fields are entries. jbcc treats a completely
