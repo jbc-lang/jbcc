@@ -1,0 +1,25 @@
+OPENDEV GETENV('JBCC_TEST_PTY') TO F ELSE ABORT
+TTYGET Original FROM F ELSE ABORT
+Settings = Original
+Settings<1,1> = 1
+Settings<1,2> = 4
+Settings<1,3> = 300
+Settings<7,1> = 0
+Settings<10,2> = 12
+Settings<10,4> = 2
+TTYSET Settings ON F SETTING S THEN CRT S:':':STATUS() ELSE ABORT
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Settings THEN ABORT
+Bad = Settings
+Bad<7,1> = 1
+Bad<2,1> = 9
+TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
+Bad = Settings
+Bad<1,3> = 301
+TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Settings THEN ABORT
+TTYSET Original ON F ELSE ABORT
+TTYGET Readback FROM F ELSE ABORT
+IF Readback NE Original THEN ABORT
+CLOSESEQ F

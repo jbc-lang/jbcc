@@ -1,0 +1,2 @@
+GETLIST '../order' ELSE CRT 'gone'
+GETLIST 'empty' SETTING N THEN CRT N

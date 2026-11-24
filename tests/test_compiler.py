@@ -407,32 +407,14 @@ class CompilerTest(NativeCompilerTest):
         self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)
 
     def test_fileinfo_memory_handle(self):
-        source = self.work / 'fileinfo.b'
-        source.write_text("""CRT FILEINFO(F, 0)
-OPEN 'missing' TO F THEN STOP
-CRT FILEINFO(F, 0)
-OPEN 'customers' TO F ELSE STOP
-Path = FILEINFO(F, 2)
-CRT FILEINFO(F, 0):':':Path:':':FILEINFO(Path, 0)
-CLOSE F
-CRT FILEINFO(F, 0):'[':FILEINFO(F, 2):']'
-""")
+        source = ROOT / 'tests/io/fileinfo-memory-handle.b'
         run = self.run_native(source, options=['--memory-file', 'customers'])
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'0\n0\n1:customers:0\n0[]\n')
         self.assertEqual(run.stderr, b'')
 
     def test_fileinfo_sequential_handle(self):
-        source = self.work / 'fileinfo.b'
-        source.write_text("""OPENSEQ 'report' TO F THEN STOP
-CRT FILEINFO(F, 0)
-WRITESEQ 'row' TO F ELSE STOP
-CRT FILEINFO(F, 0)
-CRT FILEINFO(F, 2)
-Alias = F
-CLOSESEQ F
-CRT FILEINFO(Alias, 0):'[':FILEINFO(Alias, 2):']'
-""")
+        source = ROOT / 'tests/io/fileinfo-sequential-handle.b'
         run = self.run_native(source, cwd=self.work)
         self.assertEqual(run.returncode, 0, run.stderr)
         path = os.fsencode(self.work.resolve() / 'report')
@@ -440,73 +422,32 @@ CRT FILEINFO(Alias, 0):'[':FILEINFO(Alias, 2):']'
         self.assertEqual(run.stderr, b'')
 
     def test_fileinfo_unsupported_key(self):
-        source = self.work / 'fileinfo.b'
-        source.write_text("CRT FILEINFO(F, 1)\n")
+        source = ROOT / 'tests/io/fileinfo-unsupported-key.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: FILEINFO supports keys 0 and 2'.encode(), run.stderr)
 
     def test_ioctl_filename_returns_text_and_writes_on_success(self):
-        source = self.work / 'ioctl.b'
-        source.write_text("""OPEN 'customers' TO F ELSE ABORT
-OPEN 'customers' ELSE ABORT
-IF IOCTL(F, 100, Name) AND Name = 'customers' THEN CRT Name, FILEINFO(Name, 0) ELSE ABORT
-Name = 'old'
-CRT Name:':':IOCTL(-1, 100, Name):':':Name
-DIM Names(1)
-IF IOCTL(F, 100, Names(1)) THEN CRT Names(1) ELSE ABORT
-CRT IOCTL(F, 100, '')
-CLOSE F
-IF IOCTL(F, 100, Name) THEN ABORT ELSE CRT Name
-CRT IOCTL('customers', 100, Name)
-""")
+        source = ROOT / 'tests/io/ioctl-memory-filename.b'
         run = self.run_native(source, options=['--memory-file', 'customers'])
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'customers\t0\nold:1:customers\ncustomers\n1\ncustomers\n0\n', b''))
 
     def test_ioctl_filename_for_sequential_handle(self):
-        source = self.work / 'ioctl.b'
+        source = ROOT / 'tests/io/ioctl-sequential-filename.b'
         (self.work / 'report').touch()
-        source.write_text("""OPENSEQ 'report' TO F ELSE ABORT
-IF IOCTL(F, 100, Name) THEN CRT Name ELSE ABORT
-CLOSESEQ F
-CRT IOCTL(F, 100, Name)
-""")
         run = self.run_native(source, cwd=self.work)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, os.fsencode(self.work.resolve() / 'report') + b'\n0\n', b''))
 
     def test_ioctl_unsupported_command_diagnostic(self):
-        source = self.work / 'ioctl.b'
-        source.write_text('CRT IOCTL(F, 101, Name)\n')
+        source = ROOT / 'tests/io/ioctl-unsupported-command.b'
         run = self.run_native(source)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (1, b'', f'{source}:1:5: IOCTL supports only command 100\n'.encode()))
 
     def test_data_queues_input_and_hands_it_to_commands(self):
-        source = self.work / 'data.b'
-        source.write_text("""PROMPT ''
-FOR I = 1 TO 2
-    DATA 'item-':I
-NEXT I
-DATA 'abc':@FM:'', 'next'
-INPUT A
-INPUT B
-INPUT Prefix, 2
-INPUT Suffix
-INPUT EmptyLine
-INPUT Last
-CRT A:':':B:':':Prefix:':':Suffix:'[':EmptyLine:']:':Last
-DATA 'child-1':@FM:'child-2', ''
-EXECUTE 'cat' CAPTURING Captured RETURNING Result
-CRT CONVERT(Captured, @FM, '|'):':':Result
-DATA 'direct'
-PERFORM 'cat'
-DATA STR('x', 100000)
-EXECUTE 'true'
-INPUT FromStdin
-CRT FromStdin
-""")
+        source = ROOT / 'tests/io/data-queued-input.b'
         binary = self.work / 'data'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         result = subprocess.run([binary], input=b'fallback\n', capture_output=True, timeout=5)
@@ -543,10 +484,7 @@ CRT FromStdin
         self.assertEqual((self.work / 'new').read_bytes(), b'one\nTWO\nlast\nend\n')
 
     def test_sequential_external_lock_and_fifo(self):
-        source = self.work / 'open.b'
-        source.write_text("""OPENSEQ 'input' READONLY TO F LOCKED CRT 'locked' THEN STOP ELSE STOP
-OPENSEQ 'pipe' TO F SETTING S ON ERROR CRT S THEN STOP ELSE STOP
-""")
+        source = ROOT / 'tests/io/openseq-external-lock-and-fifo.b'
         os.mkfifo(self.work / 'pipe')
         with (self.work / 'input').open('wb') as held:
             fcntl.flock(held, fcntl.LOCK_EX)
@@ -557,13 +495,7 @@ OPENSEQ 'pipe' TO F SETTING S ON ERROR CRT S THEN STOP ELSE STOP
     def test_opendev_regular_file_and_missing_file(self):
         data = self.work / 'data'
         data.write_bytes(b'first\nsecond\n')
-        source = self.work / 'opendev.b'
-        source.write_text("""OPENDEV 'data' TO F THEN CRT 'opened' ELSE ABORT
-READSEQ Line FROM F THEN CRT Line ELSE ABORT
-WRITESEQ 'change' TO F ELSE ABORT
-CLOSESEQ F
-OPENDEV 'missing' TO F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
-""")
+        source = ROOT / 'tests/io/opendev-regular-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'opened\nfirst\n128:128\n', b''))
@@ -574,33 +506,20 @@ OPENDEV 'missing' TO F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
         data = self.work / 'data'
         data.touch()
         os.mkfifo(self.work / 'pipe')
-        source = self.work / 'opendev.b'
-        source.write_text("""OPENDEV 'data' TO F SETTING S LOCKED CRT S THEN ABORT ELSE ABORT
-OPENDEV 'data' TO F THEN ABORT ELSE CRT 'busy'
-OPENDEV 'pipe' TO F SETTING S ON ERROR CRT S THEN ABORT ELSE ABORT
-""")
+        source = ROOT / 'tests/io/opendev-lock-and-fifo.b'
         with data.open('rb') as held:
             fcntl.flock(held, fcntl.LOCK_EX)
             result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'-2\nbusy\n32768\n', b''))
 
-        source.write_text("OPENDEV 'data' TO F\n")
+        source = ROOT / 'tests/io/opendev-missing-branch.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:20: expected THEN or ELSE', result.stderr)
 
     def test_ttyget_reads_pseudoterminal_settings(self):
-        source = self.work / 'ttyget.b'
-        source.write_text("""P = GETENV('JBCC_TEST_PTY')
-OPENDEV P TO F ELSE ABORT
-TTYGET Settings FROM F SETTING S ELSE ABORT
-CRT S:':':STATUS()
-CRT Settings<1,1>:':':Settings<1,2>:':':Settings<1,3>
-CRT Settings<7,1>:':':Settings<10,2>:':':Settings<10,3>
-CRT Settings<10,4>:':':Settings<10,5>:':':Settings<11,1>:':':Settings<11,3>
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/ttyget-settings.b'
         master, slave = os.openpty()
         self.addCleanup(os.close, master)
         self.addCleanup(os.close, slave)
@@ -623,9 +542,7 @@ CLOSESEQ F
         self.assertEqual((noncanonical.returncode, noncanonical.stdout, noncanonical.stderr),
                          (0, b'0:0\n1:3:200\n0:13:8\n1:0:1:1\n', b''))
 
-        source.write_text("""OPENDEV GETENV('JBCC_TEST_PTY') TO F ELSE ABORT
-TIMEOUT F, 1
-""")
+        source = ROOT / 'tests/io/timeout-terminal-handle.b'
         result = self.run_native(source, env=env)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: TIMEOUT is unavailable on terminal handles'.encode(),
@@ -633,18 +550,12 @@ TIMEOUT F, 1
 
     def test_ttyget_failure_arms_and_diagnostic(self):
         (self.work / 'data').touch()
-        source = self.work / 'ttyget.b'
-        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
-Settings = 'old'
-TTYGET Settings FROM F SETTING S THEN ABORT ELSE CRT '[':Settings:'] ':S:':':STATUS()
-CLOSESEQ F
-TTYGET Settings FROM F SETTING S ELSE CRT S
-""")
+        source = ROOT / 'tests/io/ttyget-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'[] 32768:32768\n128\n', b''))
 
-        source.write_text("TTYGET Settings ELSE STOP\n")
+        source = ROOT / 'tests/io/ttyget-missing-from.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:17: expected 'FROM'", result.stderr)
@@ -660,33 +571,7 @@ TTYGET Settings FROM F SETTING S ELSE CRT S
         termios.tcsetattr(slave, termios.TCSANOW, mode)
         original = termios.tcgetattr(slave)
         env = dict(os.environ, JBCC_TEST_PTY=os.ttyname(slave))
-        source = self.work / 'ttyset.b'
-        source.write_text("""OPENDEV GETENV('JBCC_TEST_PTY') TO F ELSE ABORT
-TTYGET Original FROM F ELSE ABORT
-Settings = Original
-Settings<1,1> = 1
-Settings<1,2> = 4
-Settings<1,3> = 300
-Settings<7,1> = 0
-Settings<10,2> = 12
-Settings<10,4> = 2
-TTYSET Settings ON F SETTING S THEN CRT S:':':STATUS() ELSE ABORT
-TTYGET Readback FROM F ELSE ABORT
-IF Readback NE Settings THEN ABORT
-Bad = Settings
-Bad<7,1> = 1
-Bad<2,1> = 9
-TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
-Bad = Settings
-Bad<1,3> = 301
-TTYSET Bad ON F SETTING S THEN ABORT ELSE CRT S
-TTYGET Readback FROM F ELSE ABORT
-IF Readback NE Settings THEN ABORT
-TTYSET Original ON F ELSE ABORT
-TTYGET Readback FROM F ELSE ABORT
-IF Readback NE Original THEN ABORT
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/ttyset-round-trip.b'
         result = self.run_native(source, env=env)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'0:0\n32768:32768\n32768\n', b''))
@@ -698,36 +583,20 @@ CLOSESEQ F
 
     def test_ttyset_failure_arms_and_diagnostic(self):
         (self.work / 'data').touch()
-        source = self.work / 'ttyset.b'
-        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
-TTYSET '1' ON F SETTING S THEN ABORT ELSE CRT S
-CLOSESEQ F
-TTYSET '1' ON F SETTING S ELSE CRT S:':':STATUS()
-""")
+        source = ROOT / 'tests/io/ttyset-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'32768\n128:128\n', b''))
 
-        source.write_text("TTYSET '1' FROM F ELSE STOP\n")
+        source = ROOT / 'tests/io/ttyset-invalid-on.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:12: expected 'ON'", result.stderr)
 
     def test_sequential_routine_lifetime(self):
         (self.work / 'input').write_bytes(b'hello\n')
-        source = self.work / 'main.b'
-        sub = self.work / 'sub.b'
-        source.write_text("""CALL OPENER(0, ARG)
-CALL OPENER(1, ARG)
-READSEQ V FROM ARG ELSE STOP
-CRT V
-CLOSESEQ ARG
-""")
-        sub.write_text("""SUBROUTINE OPENER(KEEP, ARG)
-OPENSEQ 'input' TO LOCAL ELSE STOP
-IF KEEP THEN ARG = LOCAL
-RETURN
-""")
+        source = ROOT / 'tests/routines/sequential-lifetime/main.b'
+        sub = ROOT / 'tests/routines/sequential-lifetime/opener.b'
         result = self.run_native(source, sub, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'hello\n')
@@ -746,22 +615,13 @@ RETURN
         deleted = self.run_native(ROOT / 'tests/io/delete-lists.b', env=env)
         self.assertEqual((deleted.returncode, deleted.stderr), (0, b''))
         self.assertEqual(deleted.stdout, b'4\nfirst\n3\n[]\n7\nmissing 0\ninactive\ncleared\n')
-        check = self.work / 'check.b'
-        check.write_text("GETLIST '../order' ELSE CRT 'gone'\nGETLIST 'empty' SETTING N THEN CRT N\n")
+        check = ROOT / 'tests/io/check-deleted-lists.b'
         after = self.run_native(check, env=env)
         self.assertEqual((after.returncode, after.stdout, after.stderr), (0, b'gone\n0\n', b''))
 
     def test_selected_tracks_default_external_list_across_calls(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'replace.list.b'
-        main.write_text("""WRITELIST 'one' ON ''
-CALL REPLACE.LIST()
-GETLIST 'named' TO L SETTING N THEN CRT N:':':@SELECTED ELSE STOP
-""")
-        routine.write_text("""SUBROUTINE REPLACE.LIST()
-WRITELIST 'two':@FM:'three' ON ''
-WRITELIST 'other' ON 'named'
-""")
+        main = ROOT / 'tests/routines/selected-list/main.b'
+        routine = ROOT / 'tests/routines/selected-list/replace-list.b'
         env = dict(os.environ, JBCC_LIST_DIR=str(self.work))
         run = self.run_native(main, routine, env=env)
         self.assertEqual(run.returncode, 0, run.stderr)
@@ -769,18 +629,7 @@ WRITELIST 'other' ON 'named'
         self.assertEqual(run.stderr, b'')
 
     def test_cleardata_discards_the_queue_and_preserves_standard_input(self):
-        source = self.work / 'cleardata.b'
-        source.write_text("""PROMPT ''
-CLEARDATA
-DATA 'first':@FM:'discard this', 'discard this too'
-INPUT First
-IF First = 'first' THEN CLEARDATA
-INPUT FromPipe
-DATA 'fresh'
-INPUT FromData
-CLEARDATA = 'variable'
-CRT First:':':FromPipe:':':FromData:':':CLEARDATA
-""")
+        source = ROOT / 'tests/io/cleardata-queued-input.b'
         binary = self.work / 'cleardata'
         subprocess.run([CLI, source, '-o', self.c], check=True)
         subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',

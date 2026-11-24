@@ -1,0 +1,5 @@
+OPENSEQ 'data' TO F ELSE ABORT
+Settings = 'old'
+TTYGET Settings FROM F SETTING S THEN ABORT ELSE CRT '[':Settings:'] ':S:':':STATUS()
+CLOSESEQ F
+TTYGET Settings FROM F SETTING S ELSE CRT S

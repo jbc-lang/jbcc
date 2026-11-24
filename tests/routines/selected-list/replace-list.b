@@ -1,0 +1,3 @@
+SUBROUTINE REPLACE.LIST()
+WRITELIST 'two':@FM:'three' ON ''
+WRITELIST 'other' ON 'named'
