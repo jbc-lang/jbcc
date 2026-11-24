@@ -1,0 +1,2 @@
+OPEN 'F' ELSE STOP
+RECORDLOCKU 'busy'

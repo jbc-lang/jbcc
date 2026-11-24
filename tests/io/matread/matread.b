@@ -1,0 +1,1 @@
+MATREAD A FROM 'key' ELSE STOP

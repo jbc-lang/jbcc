@@ -1,0 +1,1 @@
+WRITEU 'value' TO 'key'

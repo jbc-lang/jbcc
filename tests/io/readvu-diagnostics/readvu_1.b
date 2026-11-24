@@ -1,0 +1,2 @@
+OPEN 'F' ELSE STOP
+READVU R FROM 'busy','bad' ELSE STOP

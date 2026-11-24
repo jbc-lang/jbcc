@@ -2783,8 +2783,7 @@ GOTO middle
                                         b'short\t128\nreadonly\t24576\nseq close\t0\n')
 
     def test_status_wrong_argument_count(self):
-        source = self.work / 'status.b'
-        source.write_text('CRT STATUS(1)\n')
+        source = ROOT / 'tests/io/status-wrong-argument-count.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'STATUS'", result.stderr)
@@ -2795,8 +2794,7 @@ GOTO middle
         self.assertEqual(result.stdout, b'0,7,data/customers,MEMORY,24\n[]\n2\n128:[]\n')
 
     def test_status_empty_descriptor(self):
-        source = self.work / 'status.b'
-        source.write_text("STATUS INFO FROM '' ELSE STOP\n")
+        source = ROOT / 'tests/io/status-empty-descriptor.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: STATUS requires a nonempty file descriptor'.encode(), result.stderr)
@@ -2873,8 +2871,7 @@ GOTO middle
         self.assertEqual(run.stdout, b'0\ngone\nkeep\nkeep too\nother\nback\n128\n128\n')
         self.assertEqual(run.stderr, b'')
 
-        source = self.work / 'delete.b'
-        source.write_text("DELETE 'no default descriptor'\n")
+        source = ROOT / 'tests/io/delete-records.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: DELETE failed'.encode(), run.stderr)
@@ -2900,70 +2897,32 @@ GOTO middle
                                      b'reused\nerror 128\n128\nreused\n')
         self.assertEqual(run.stderr, b'')
 
-        source = self.work / 'clearfile.b'
-        source.write_text("CLEARFILE\n")
+        source = ROOT / 'tests/io/clearfile/clearfile.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
 
     def test_clearfile_locked_dispatch_preserves_records(self):
-        source = self.work / 'clearfile.b'
-        source.write_text("""OPEN 'Busy' TO F ELSE ABORT
-OPEN 'Busy' ELSE ABORT
-WRITE 'retained' TO F, 'record'
-CLEARFILE F SETTING Code ON ERROR ABORT LOCKED
-    CRT Code:':':STATUS()
-END
-CLEARFILE LOCKED CRT STATUS()
-READ R FROM F, 'record' THEN CRT R ELSE ABORT
-CRT RECORDLOCKED(F, 'held')
-CLEARFILE F SETTING Code ON ERROR CRT Code:':':STATUS()
-Bad = ''
-CLEARFILE Bad SETTING Code ON ERROR CRT Code:':':STATUS() LOCKED ABORT
-OPEN 'Free' TO F ELSE ABORT
-WRITE 'temporary' TO F, 'record'
-CLEARFILE F SETTING Code ON ERROR ABORT LOCKED ABORT
-CRT '[':Code:'] ':STATUS()
-READ R FROM F, 'record' THEN ABORT ELSE CRT 'cleared'
-""")
+        source = ROOT / 'tests/io/clearfile-locked-dispatch-preserves-records.b'
         result = self.run_native(source, options=['--memory-file', 'Busy', '--memory-file', 'Free',
                                                   '--memory-lock', 'Busy', 'held'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'-2:-2\n-2\nretained\n-2\n32768:32768\n128:128\n[] 0\ncleared\n', b''))
 
     def test_read_setting_uses_record_status_and_branch_order(self):
-        source = self.work / 'read-setting.b'
-        source.write_text("""OPEN 'Sample' TO F ELSE ABORT
-OPEN 'Sample' ELSE ABORT
-WRITE 'value' ON 'key'
-Code = 'old'
-READ R FROM F, 'key' SETTING Code ON ERROR ABORT THEN
-    CRT R, '[':Code:']', STATUS(), RECORDLOCKED(F, 'key')
-END ELSE ABORT
-READ @RECORD FROM 'key' SETTING Code ELSE ABORT
-CRT @RECORD, '[':Code:']', STATUS()
-READ R FROM 'missing' SETTING Code ON ERROR ABORT THEN ABORT ELSE
-    CRT '[':R:']', Code, STATUS()
-END
-Invalid = ''
-READ R FROM Invalid, 'key' SETTING Code ON ERROR ABORT THEN ABORT ELSE
-    CRT '[':R:']', Code, STATUS()
-END
-READ R FROM 'key' ON ERROR ABORT THEN CRT R, STATUS()
-""")
+        source = ROOT / 'tests/io/read-setting-uses-record-status-and-branch-order.b'
         result = self.run_native(source, options=['--memory-file', 'Sample'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'value\t[]\t0\t0\nvalue\t[]\t0\n[]\t128\t128\n'
                              b'[]\t128\t128\nvalue\t0\n', b''))
 
     def test_read_setting_requires_destination_and_conditional_arm(self):
-        source = self.work / 'read-setting.b'
-        for statement, diagnostic in (
-            ("READ R FROM 'key' SETTING 'x' ELSE ABORT", ":1:27: expected a name"),
-            ("READ R FROM 'key' SETTING Code", ':1:31: expected THEN or ELSE'),
+        for fixture_name, diagnostic in (
+            ('read-setting_1.b', ':1:27: expected a name'),
+            ('read-setting_2.b', ':1:31: expected THEN or ELSE'),
         ):
-            with self.subTest(statement=statement):
-                source.write_text(statement + '\n')
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/read-setting-requires-destination-and-conditional-arm' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}{diagnostic}', result.stderr)
@@ -2978,62 +2937,27 @@ READ R FROM 'key' ON ERROR ABORT THEN CRT R, STATUS()
         self.assertEqual(run.stderr, b'')
 
     def test_readu_unhandled_fixture_conflict(self):
-        source = self.work / 'locked.b'
-        source.write_text("OPEN 'F' ELSE STOP\nREADU R FROM 'busy' ELSE STOP\n")
+        source = ROOT / 'tests/io/readu-unhandled-fixture-conflict.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:1: READU cannot wait for a simulated foreign lock'.encode(), run.stderr)
 
     def test_recordlocku_reserves_key_and_reports_contention(self):
-        source = self.work / 'recordlocku.b'
-        source.write_text("""OPEN 'F' TO F ELSE STOP
-OPEN 'F' ELSE STOP
-RECORDLOCKU 'new'
-RECORDLOCKU F, 'new' SETTING S THEN CRT '[':S:']' ELSE STOP
-CRT RECORDLOCKED(F, 'new')
-READ R FROM F, 'new' THEN STOP ELSE CRT 'absent'
-RECORDLOCKU F, 'busy' SETTING S LOCKED CRT S:':':SYSTEM(1036)
-BAD = ''
-RECORDLOCKU BAD, 'new' SETTING S ON ERROR CRT S
-RELEASE F, 'new'
-CRT RECORDLOCKED(F, 'new'):':':RECORDLOCKED(F, 'busy')
-""")
+        source = ROOT / 'tests/io/recordlocku-reserves-key-and-reports-contention.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'[]\n2\nabsent\n-2:1\n32768\n0:-2\n')
         self.assertEqual(run.stderr, b'')
 
     def test_recordlocku_unhandled_contention_reports_call_site(self):
-        source = self.work / 'recordlocku.b'
-        source.write_text("OPEN 'F' ELSE STOP\nRECORDLOCKU 'busy'\n")
+        source = ROOT / 'tests/io/recordlocku-unhandled-contention-reports-call-site.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:1: RECORDLOCKU cannot wait for a simulated foreign lock'.encode(),
                       run.stderr)
 
     def test_release_on_error_reports_invalid_files_and_preserves_foreign_locks(self):
-        source = self.work / 'release.b'
-        source.write_text("""RELEASE 'missing' ON ERROR CRT 'default ':STATUS()
-OPEN 'F' TO F ELSE ABORT
-OPEN 'F' ELSE ABORT
-OPEN 'G' TO G ELSE ABORT
-RECORDLOCKU 'owned'
-RECORDLOCKU F, 'explicit'
-RECORDLOCKU G, 'owned'
-Bad = 'invalid'
-RELEASE Bad, 'owned' ON ERROR
-    CRT STATUS()
-END
-RELEASE Bad, 'owned'
-CRT STATUS():':':RECORDLOCKED(F, 'owned')
-RELEASE F, 'busy' ON ERROR ABORT
-RELEASE F, 'missing' ON ERROR ABORT
-RELEASE F, 'explicit' ON ERROR ABORT
-RELEASE 'owned' ON ERROR ABORT
-CRT STATUS():':':RECORDLOCKED(F, 'owned'):':':RECORDLOCKED(F, 'explicit'):':':RECORDLOCKED(G, 'owned')
-RELEASE ON ERROR ABORT
-CRT STATUS():':':RECORDLOCKED(G, 'owned'):':':RECORDLOCKED(F, 'busy')
-""")
+        source = ROOT / 'tests/io/release-on-error-reports-invalid-files-and-preserves-foreign-locks.b'
         result = self.run_native(source, options=(
             '--memory-file', 'F', '--memory-file', 'G', '--memory-lock', 'F', 'busy',
         ))
@@ -3041,31 +2965,20 @@ CRT STATUS():':':RECORDLOCKED(G, 'owned'):':':RECORDLOCKED(F, 'busy')
                          (0, b'default 128\n128\n128:2\n0:0:0:2\n0:0:-2\n', b''))
 
     def test_assign_system_resets_blocked_record_lock_counter(self):
-        source = self.work / 'assign-system.b'
-        source.write_text("""OPEN 'F' TO F ELSE STOP
-Key = 1036
-CRT SYSTEM(Key)
-FOR I = 1 TO 2
-    READU R FROM F, 'busy' LOCKED NULL THEN STOP ELSE STOP
-NEXT I
-CRT SYSTEM(Key)
-ASSIGN 0 TO SYSTEM(Key)
-CRT SYSTEM(Key)
-CRT RECORDLOCKED(F, 'busy')
-""")
+        source = ROOT / 'tests/io/assign-system-resets-blocked-record-lock-counter.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'0\n2\n0\n-2\n')
         self.assertEqual(run.stderr, b'')
 
     def test_assign_system_diagnostics(self):
-        source = self.work / 'assign-system.b'
-        for statement, diagnostic in [
-                ('ASSIGN 1 TO SYSTEM(1036)', 'SYSTEM(1036) can only be reset to zero'),
-                ('ASSIGN 7 TO SYSTEM(1039)', 'ASSIGN TO SYSTEM(1039) requires a journaling backend'),
-                ('ASSIGN 0 TO SYSTEM(2021)', 'unsupported ASSIGN TO SYSTEM key 2021')]:
-            with self.subTest(statement=statement):
-                source.write_text(statement + '\n')
+        for fixture_name, diagnostic in (
+            ('assign-system_1.b', 'SYSTEM(1036) can only be reset to zero'),
+            ('assign-system_2.b', 'ASSIGN TO SYSTEM(1039) requires a journaling backend'),
+            ('assign-system_3.b', 'unsupported ASSIGN TO SYSTEM key 2021'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/assign-system-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:1: {diagnostic}'.encode(), run.stderr)
@@ -3077,8 +2990,7 @@ CRT RECORDLOCKED(F, 'busy')
                                      b'missing 128 0\ninvalid 128\nfirst status=\ntwo|values\n')
         self.assertEqual(run.stderr, b'')
 
-        source = self.work / 'readv.b'
-        source.write_text("READV R FROM 'id','not numeric' ELSE NULL\n")
+        source = ROOT / 'tests/io/readv/readv.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: READV requires a numeric field number'.encode(), run.stderr)
@@ -3092,11 +3004,12 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(run.stderr, b'')
 
     def test_readvu_diagnostics(self):
-        source = self.work / 'readvu.b'
-        for field, diagnostic in [("'bad'", 'requires a numeric field number'),
-                                  ('1', 'cannot wait for a simulated foreign lock')]:
-            with self.subTest(field=field):
-                source.write_text(f"OPEN 'F' ELSE STOP\nREADVU R FROM 'busy',{field} ELSE STOP\n")
+        for fixture_name, diagnostic in (
+            ('readvu_1.b', 'requires a numeric field number'),
+            ('readvu_2.b', 'cannot wait for a simulated foreign lock'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/readvu-diagnostics' / fixture_name
                 run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: READVU {diagnostic}'.encode(), run.stderr)
@@ -3110,12 +3023,11 @@ CRT RECORDLOCKED(F, 'busy')
                                         b'no record\nbad 128\n128\nupdated\n')
 
     def test_write_on_error_diagnostics(self):
-        source = self.work / 'write.b'
-        source.write_text("WRITE 'value' TO 'key' ON NULL\n")
+        source = ROOT / 'tests/io/write-on-error-diagnostics/write.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:27: expected 'ERROR'", result.stderr)
-        source.write_text("WRITE 'value' TO 'key'\n")
+        source = ROOT / 'tests/io/write-on-error-diagnostics/write-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: WRITE failed'.encode(), run.stderr)
@@ -3129,8 +3041,7 @@ CRT RECORDLOCKED(F, 'busy')
                                         b'no record created\n128\nbad descriptor\nordinary write\n')
 
     def test_writeu_unhandled_failure(self):
-        source = self.work / 'writeu.b'
-        source.write_text("WRITEU 'value' TO 'key'\n")
+        source = ROOT / 'tests/io/writeu-unhandled-failure.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: WRITEU failed'.encode(), result.stderr)
@@ -3144,10 +3055,14 @@ CRT RECORDLOCKED(F, 'busy')
                                         b'32768\t-2\n32768\nmissing\n128\n')
 
     def test_writev_field_number_diagnostics(self):
-        source = self.work / 'writev.b'
-        for op, field in [('WRITEV', "'bad'"), ('WRITEVU', '0'), ('WRITEV', '1.5'), ('WRITEVU', '-1')]:
-            with self.subTest(op=op, field=field):
-                source.write_text(f"{op} 'value' TO 'key',{field}\n")
+        for fixture_name, op in (
+            ('writev_1.b', 'WRITEV'),
+            ('writev_2.b', 'WRITEVU'),
+            ('writev_3.b', 'WRITEV'),
+            ('writev_4.b', 'WRITEVU'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/writev-field-number-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:1:1: {op} requires a positive integer field number'.encode(),
@@ -3162,8 +3077,7 @@ CRT RECORDLOCKED(F, 'busy')
                                         b'2\t2\n0\t2\tz\n2\t2\n2x4\n1\n')
 
     def test_inmat_requires_a_matrix_argument(self):
-        source = self.work / 'inmat.b'
-        source.write_text("X = 1\nCRT INMAT(X)\n")
+        source = ROOT / 'tests/io/inmat-requires-a-matrix-argument.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:2:11: expected a dimensioned array 'X'", result.stderr)
@@ -3174,12 +3088,11 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(run.stdout, b'6\na\t0\tc\td|e|\n128\ta\te\n1\tshort\t0\n0\t0\n128\tkept\n')
         self.assertEqual(run.stderr, b'')
 
-        source = self.work / 'matread.b'
-        source.write_text("MATREAD A FROM 'key' ELSE STOP\n")
+        source = ROOT / 'tests/io/matread/matread.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:9: expected a dimensioned array 'A'", run.stderr)
-        source.write_text("DIM A(2)\nMATREAD A FROM 'key' LOCKED STOP ELSE STOP\n")
+        source = ROOT / 'tests/io/matread/matread-variant-2.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:22: MATREAD LOCKED requires a locking file backend", run.stderr)
@@ -3199,8 +3112,7 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(run.stdout, b'6\tfirst||left/right|four|five|\n4\n6\tfirst\t0\tright\tfour|five|\n'
                                      b'new\tnew\n128\nnew|new|new|new\n0\n')
         self.assertEqual(run.stderr, b'')
-        source = self.work / 'matwrite.b'
-        source.write_text("DIM A(2)\nOPEN 'F' TO F ELSE STOP\nA(1) = 42\nMATWRITE A ON F,'id'\n")
+        source = ROOT / 'tests/io/matwrite/matwrite.b'
         run = self.run_native(source, options=['--memory-file', 'F'])
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:4:1: unassigned element 2 in matrix 'A'".encode(), run.stderr)
@@ -3217,8 +3129,7 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(run.stdout, b'empty\na\t0\t0\na\nc\nd\nc\nd\ndone\nstill done\nc\n'
                                      b'source first c\ncopied d\nsource next d\ncleared\n128\n')
         self.assertEqual(run.stderr, b'')
-        source = self.work / 'select.b'
-        source.write_text("SELECT TO 11\n")
+        source = ROOT / 'tests/io/file-select.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:11: select list number must be between 0 and 10", run.stderr)
@@ -3231,12 +3142,11 @@ CRT RECORDLOCKED(F, 'busy')
                                         b'numbered item1\nitem1\nitem10\nitem2\nbad file 128\ncleared\n')
 
     def test_sselect_diagnostics(self):
-        source = self.work / 'sselect.b'
-        source.write_text("SSELECT TO 11\n")
+        source = ROOT / 'tests/io/sselect-diagnostics/sselect.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:12: select list number must be between 0 and 10", result.stderr)
-        source.write_text("SSELECT\n")
+        source = ROOT / 'tests/io/sselect-diagnostics/sselect-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:1: SSELECT failed".encode(), run.stderr)
@@ -3247,12 +3157,11 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(run.stdout, b'default empty\na\n10\nnumbered empty\nb\nnamed empty\n'
                                      b'a\nzero empty\n11\nsecond\n')
         self.assertEqual(run.stderr, b'')
-        source = self.work / 'clearselect.b'
-        source.write_text("CLEARSELECT 12\n")
+        source = ROOT / 'tests/io/clearselect/clearselect.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:13: select list number must be between 0 and 11", run.stderr)
-        source.write_text("Bad = 'not a list'\nCLEARSELECT Bad\n")
+        source = ROOT / 'tests/io/clearselect/clearselect-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:1: CLEARSELECT requires a select list".encode(), run.stderr)

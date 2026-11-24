@@ -1,0 +1,1 @@
+READ R FROM 'key' SETTING Code

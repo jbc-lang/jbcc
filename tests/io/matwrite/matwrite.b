@@ -1,0 +1,4 @@
+DIM A(2)
+OPEN 'F' TO F ELSE STOP
+A(1) = 42
+MATWRITE A ON F,'id'

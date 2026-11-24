@@ -27,30 +27,30 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Record files, locks and select lists (24)
 
-- [ ] `test_status_wrong_argument_count`
-- [ ] `test_status_empty_descriptor`
-- [ ] `test_delete_records`
-- [ ] `test_clearfile`
-- [ ] `test_clearfile_locked_dispatch_preserves_records`
-- [ ] `test_read_setting_uses_record_status_and_branch_order`
-- [ ] `test_read_setting_requires_destination_and_conditional_arm`
-- [ ] `test_readu_unhandled_fixture_conflict`
-- [ ] `test_recordlocku_reserves_key_and_reports_contention`
-- [ ] `test_recordlocku_unhandled_contention_reports_call_site`
-- [ ] `test_release_on_error_reports_invalid_files_and_preserves_foreign_locks`
-- [ ] `test_assign_system_resets_blocked_record_lock_counter`
-- [ ] `test_assign_system_diagnostics`
-- [ ] `test_readv`
-- [ ] `test_readvu_diagnostics`
-- [ ] `test_write_on_error_diagnostics`
-- [ ] `test_writeu_unhandled_failure`
-- [ ] `test_writev_field_number_diagnostics`
-- [ ] `test_inmat_requires_a_matrix_argument`
-- [ ] `test_matread`
-- [ ] `test_matwrite`
-- [ ] `test_file_select`
-- [ ] `test_sselect_diagnostics`
-- [ ] `test_clearselect`
+- [x] `test_status_wrong_argument_count`
+- [x] `test_status_empty_descriptor`
+- [x] `test_delete_records`
+- [x] `test_clearfile`
+- [x] `test_clearfile_locked_dispatch_preserves_records`
+- [x] `test_read_setting_uses_record_status_and_branch_order`
+- [x] `test_read_setting_requires_destination_and_conditional_arm`
+- [x] `test_readu_unhandled_fixture_conflict`
+- [x] `test_recordlocku_reserves_key_and_reports_contention`
+- [x] `test_recordlocku_unhandled_contention_reports_call_site`
+- [x] `test_release_on_error_reports_invalid_files_and_preserves_foreign_locks`
+- [x] `test_assign_system_resets_blocked_record_lock_counter`
+- [x] `test_assign_system_diagnostics`
+- [x] `test_readv`
+- [x] `test_readvu_diagnostics`
+- [x] `test_write_on_error_diagnostics`
+- [x] `test_writeu_unhandled_failure`
+- [x] `test_writev_field_number_diagnostics`
+- [x] `test_inmat_requires_a_matrix_argument`
+- [x] `test_matread`
+- [x] `test_matwrite`
+- [x] `test_file_select`
+- [x] `test_sselect_diagnostics`
+- [x] `test_clearselect`
 
 ## Routine calls, functions and linkage (22)
 
