@@ -2030,6 +2030,8 @@ forms on a bare variable or matrix element. An exhausted function call
 returns an empty string and code 0. Following the reference grammar,
 the first argument may also be a computed value. jbcc treats that value
 as a fresh array for the call.
+Both forms check a conditionally assigned source at runtime. If the
+source has no value, the diagnostic points to the source operand.
 
 The cursor belongs to the variable. Assigning `record = record` rewinds it,
 and copying the value to another variable starts an independent traversal.

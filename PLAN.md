@@ -2834,7 +2834,23 @@ Both scenario preview routines now pass strict C99 checking in byte
 mode. The total is 17,177 of 17,336 candidates, including all 17,175
 previous passes.
 
-- [ ] Investigate conditionally assigned REMOVE sources in
+- [x] Investigate conditionally assigned REMOVE sources in
   ARC.RECORDS.SELECT, COLLATERAL.LIMIT.EOD and MB.TEXT.CASE.CONVERSION.
   Check extraction and cursor advancement when the source is assigned
   and the runtime diagnostic when the assignment path is skipped.
+
+The reference compiler accepts both forms of REMOVE after conditional
+initialization of the source. jbcc allows the same pattern and checks
+the source before reading the cursor. Native tests alternate both forms
+in both orders and check the delimiter codes, exhaustion and the
+source-located error when initialization is skipped.
+
+COLLATERAL.LIMIT.EOD and MB.TEXT.CASE.CONVERSION now pass strict C99
+checking in byte mode. The total is 17,179 of 17,336 candidates,
+including all 17,177 previous passes. ARC.RECORDS.SELECT reaches its
+first read of R.ARC.RECORDS.SEL after REPEAT.
+
+- [ ] Investigate scalar reads after LOOP, starting with R.ARC.RECORDS.SEL
+  in ARC.RECORDS.SELECT. Check what is assigned when a guard exits
+  before the body reaches the assignment, and when a later iteration
+  exits after the assignment has already run.

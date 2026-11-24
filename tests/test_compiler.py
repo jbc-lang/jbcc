@@ -4436,6 +4436,27 @@ END
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(str(source) + message, result.stderr)
 
+    def test_remove_checks_conditionally_assigned_source(self):
+        source = self.work / 'remove.b'
+        binary = self.work / 'remove'
+        statement = 'REMOVE Piece FROM List SETTING Code'
+        expression = 'Piece = REMOVE(List, Code)'
+        for first, second in ((statement, expression), (expression, statement)):
+            with self.subTest(first=first):
+                source.write_text("GET(ARG.) Mode\n"
+                                  "IF Mode = 'hit' THEN List = 'first':@FM:'second'\n"
+                                  f"{first}\nCRT Piece, Code\n{second}\nCRT Piece, Code\n"
+                                  f"{statement}\nCRT Piece, Code\n")
+                subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                               env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+                hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
+                self.assertEqual((hit.returncode, hit.stdout, hit.stderr),
+                                 (0, b'first\t2\nsecond\t0\nsecond\t0\n', b''))
+                miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
+                column = first.index('List') + 1
+                self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
+                                 (1, b'', f"{source}:3:{column}: unassigned variable 'List'\n".encode()))
+
     def test_matrix_assignment_diagnostics(self):
         source = self.work / 'main.b'
         source.write_text('DIM A(2), B(2)\nB(0) = 0\nMAT A = MAT B\n')

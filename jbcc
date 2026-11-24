@@ -1281,7 +1281,8 @@ class Compiler:
         self.emit(f"jbc_del(&{slot}, {indices}, {c_string(target.word)}, {self.location(target)});")
 
     def remove_source_slot(self, source):
-        if source.word not in self.matrices and source.word not in self.assigned and not self.has_unstructured_jumps:
+        if (source.word not in self.matrices and source.word not in self.assigned
+                and source.word not in self.maybe_assigned and not self.has_unstructured_jumps):
             self.assignment_error(f"unassigned variable '{source.word}'", source)
         return self.variable_slot(source)
 
