@@ -5939,23 +5939,49 @@ const char *jbc_indices(const char *handle, const char *index, const char *file,
     return "";
 }
 
+static int open_file_info(const char *handle, const char **path)
+{
+    struct memory_file *memory = file_for(handle);
+    const char *name;
+    if (memory) {
+        name = memory->name;
+    } else {
+#ifdef JBC_SEQUENTIAL
+        struct sequential_file *sequential = *sequential_slot(handle);
+        if (!sequential || !sequential->stream) return 128;
+        name = path ? sequential_path(sequential->token) : NULL;
+#else
+        return 128;
+#endif
+    }
+    if (!path) return 0;
+    if (!name) return 32768;
+    /* An exposed path is text and must have a different identity from the handle. */
+    *path = strcpy(allocate(strlen(name)), name);
+    return 0;
+}
+
 const char *jbc_fileinfo(const char *handle, const char *key, const char *source, int line, int column)
 {
-    int validity = !jbc_compare(key, "0", -1);
-    if (!validity && jbc_compare(key, "2", -1))
+    if (!jbc_compare(key, "0", -1)) return open_file_info(handle, NULL) ? "0" : "1";
+    if (jbc_compare(key, "2", -1))
         numeric_error(source, line, column, "FILEINFO supports keys 0 and 2");
-    struct memory_file *memory = file_for(handle);
-    const char *path = memory ? memory->name : NULL;
-#ifdef JBC_SEQUENTIAL
-    struct sequential_file *sequential = *sequential_slot(handle);
-    if (validity) return memory || (sequential && sequential->stream) ? "1" : "0";
-    if (sequential && sequential->stream) {
-        path = sequential_path(sequential->token);
-        if (!path) numeric_error(source, line, column, "cannot resolve FILEINFO path");
-    }
-#else
-    if (validity) return memory ? "1" : "0";
-#endif
-    /* An exposed path is text and must have a different identity from the handle. */
-    return path ? strcpy(allocate(strlen(path)), path) : "";
+    const char *path = "";
+    if (open_file_info(handle, &path) == 32768)
+        numeric_error(source, line, column, "cannot resolve FILEINFO path");
+    return path;
+}
+
+const char *jbc_ioctl(const char *handle, const char *command, jbc_variable *output,
+                      const char *source, int line, int column)
+{
+    if (jbc_compare(command, "100", -1))
+        numeric_error(source, line, column, "IOCTL supports only command 100");
+    const char *path;
+    int status = open_file_info(handle, &path);
+    if (status == 128 && handle && !jbc_compare(handle, "-1", -1))
+        status = open_file_info(jbc_default_file.value, &path);
+    if (status) return "0";
+    assign_value(output, path);
+    return "1";
 }

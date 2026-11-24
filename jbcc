@@ -734,6 +734,8 @@ class Compiler:
                 for truth in (True, False):
                     self.assignment_facts[value, truth] = {target.word}
             return self.postfix(value, locate_source)
+        elif word == 'IOCTL' and self.following.word == '(':
+            return self.postfix(self.ioctl_expression(), locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
             return self.postfix(self.remove_expression(), locate_source)
         elif word == 'INDICES' and self.following.word == '(':
@@ -2296,6 +2298,38 @@ class Compiler:
         value = self.temporary(expression)
         return f"&(jbc_variable){{{value}, 0, 0}}"
 
+    def scalar_argument(self):
+        if self.word in self.matrices:
+            target = self.identifier()
+            slot = self.matrix_slot(target)
+            if self.word in (',', ')'):
+                return '&' + slot, None
+            value = self.variable_expression(target, slot)
+            return self.value_argument(self.expression_tail(value)), None
+        if self.current.kind == 'name' and self.following.word in (',', ')'):
+            name = self.identifier().word
+            return '&' + self.variable(name), name
+        return self.value_argument(self.expression()), None
+
+    def ioctl_expression(self):
+        opening = self.identifier()
+        self.expect('(')
+        if (self.current.kind == 'name' and self.following.word == ','
+                and self.word not in self.matrices):
+            slot = self.variable(self.identifier().word)
+            handle = self.temporary(f"{slot}.value")
+        else:
+            handle = self.temporary(self.expression())
+        self.expect(',')
+        command = self.temporary(self.expression())
+        self.expect(',')
+        output, name = self.scalar_argument()
+        self.expect(')')
+        value = self.temporary(f"jbc_ioctl({handle}, {command}, {output}, {self.location(opening)})")
+        if name is not None:
+            self.assignment_facts[value, True] = {name}
+        return value
+
     def call_arguments(self):
         args = []
         kinds = []
@@ -2308,20 +2342,11 @@ class Compiler:
                     self.advance()
                     matrix = self.checked_matrix(self.matrix_name())
                     args.append(matrix.argument())
-                elif self.word in self.matrices:
-                    target_element = self.identifier()
-                    slot = self.matrix_slot(target_element)
-                    if self.word in (',', ')'):
-                        args.append('&' + slot)
-                    else:
-                        value = self.variable_expression(target_element, slot)
-                        args.append(self.value_argument(self.expression_tail(value)))
-                elif self.current.kind == 'name' and self.following.word in (',', ')'):
-                    name = self.identifier().word
-                    args.append('&' + self.variable(name))
-                    self.assigned.add(name)
                 else:
-                    args.append(self.value_argument(self.expression()))
+                    argument, name = self.scalar_argument()
+                    args.append(argument)
+                    if name is not None:
+                        self.assigned.add(name)
                 if self.word != ',':
                     break
                 self.advance()
@@ -3116,7 +3141,7 @@ class Compiler:
     def parse(self, tokens):
         self.has_expression_writes = any(
             t.kind == 'symbol' and t.word in STEP_OPERATORS
-            or t.kind == 'name' and t.word in ('GETENV', 'REMOVE') and tokens[i + 1].word == '('
+            or t.kind == 'name' and t.word in ('GETENV', 'IOCTL', 'REMOVE') and tokens[i + 1].word == '('
             for i, t in enumerate(tokens)
         )
         self.has_unstructured_jumps = any(

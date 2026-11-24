@@ -1587,6 +1587,13 @@ invalid handle. Other keys produce a source-located diagnostic.
 [jBC FILEINFO](https://jbc-lang.org/pages/fileinfo.html),
 [UniVerse BASIC Reference](https://publibfp.boulder.ibm.com/epubs/pdf/c1942790.pdf).
 
+`IOCTL(handle, 100, output)` retrieves the name of an open file. Use
+`-1` for the default record file. On success it returns 1 and stores
+the registered memory-file name or the absolute sequential-file path
+as text. On failure it returns 0 and preserves the output variable.
+Other command numbers produce a source-located diagnostic.
+[jBASE IOCTL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup22_IOCTL.htm).
+
 `INDICES(file)` queries the file's secondary indexes. The optional
 expression in `INDICES(file, indexName)` requests information about one
 index. The file operand is a variable or a matrix element, as in the

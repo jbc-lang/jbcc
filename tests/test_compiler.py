@@ -632,6 +632,43 @@ CRT FILEINFO(Alias, 0):'[':FILEINFO(Alias, 2):']'
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: FILEINFO supports keys 0 and 2'.encode(), run.stderr)
 
+    def test_ioctl_filename_returns_text_and_writes_on_success(self):
+        source = self.work / 'ioctl.b'
+        source.write_text("""OPEN 'customers' TO F ELSE ABORT
+OPEN 'customers' ELSE ABORT
+IF IOCTL(F, 100, Name) AND Name = 'customers' THEN CRT Name, FILEINFO(Name, 0) ELSE ABORT
+Name = 'old'
+CRT Name:':':IOCTL(-1, 100, Name):':':Name
+DIM Names(1)
+IF IOCTL(F, 100, Names(1)) THEN CRT Names(1) ELSE ABORT
+CRT IOCTL(F, 100, '')
+CLOSE F
+IF IOCTL(F, 100, Name) THEN ABORT ELSE CRT Name
+CRT IOCTL('customers', 100, Name)
+""")
+        run = self.run_native(source, options=['--memory-file', 'customers'])
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'customers\t0\nold:1:customers\ncustomers\n1\ncustomers\n0\n', b''))
+
+    def test_ioctl_filename_for_sequential_handle(self):
+        source = self.work / 'ioctl.b'
+        (self.work / 'report').touch()
+        source.write_text("""OPENSEQ 'report' TO F ELSE ABORT
+IF IOCTL(F, 100, Name) THEN CRT Name ELSE ABORT
+CLOSESEQ F
+CRT IOCTL(F, 100, Name)
+""")
+        run = self.run_native(source, cwd=self.work)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, os.fsencode(self.work.resolve() / 'report') + b'\n0\n', b''))
+
+    def test_ioctl_unsupported_command_diagnostic(self):
+        source = self.work / 'ioctl.b'
+        source.write_text('CRT IOCTL(F, 101, Name)\n')
+        run = self.run_native(source)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (1, b'', f'{source}:1:5: IOCTL supports only command 100\n'.encode()))
+
     def test_data_queues_input_and_hands_it_to_commands(self):
         source = self.work / 'data.b'
         source.write_text("""PROMPT ''

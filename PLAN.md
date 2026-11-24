@@ -2610,6 +2610,22 @@ All four affected units now pass strict C99 checking in byte mode.
 The total is 17,077 of 17,336 candidates, including all 17,073
 previous passes.
 
-- [ ] Investigate IOCTL command 100 in PATCH.RELEASE.RUN. Check the
+- [x] Investigate IOCTL command 100 in PATCH.RELEASE.RUN. Check the
   reference signature, parameter assignment, and what the in-memory
   backend can report for a record descriptor.
+
+JBC.h names command 100 JBC_COMMAND_GETFILENAME. The reference compiler
+passes the third operand to IOCTL_IBBB as a variable, matrix element
+or temporary value. jbcc shares open-file lookup with FILEINFO and
+returns 1 with a copied pathname on success. Failed lookups return
+zero and provisionally preserve the output. Tests cover named and
+default files, sequential paths, matrix outputs and unsupported commands.
+[jBASE IOCTL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/sup22_IOCTL.htm).
+
+PATCH.RELEASE.RUN now passes strict C99 checking in byte mode. The
+total is 17,078 of 17,336 candidates, including all 17,077 previous
+passes.
+
+- [ ] Investigate the adjacent operands in the IF condition in
+  POPULATE.BAL.MVMT. Check how the reference parser treats identifier
+  formatting when the format variable is initialized by a GOSUB.
