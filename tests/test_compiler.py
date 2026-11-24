@@ -3717,7 +3717,8 @@ CRT RECORDLOCKED(F, 'busy')
     def test_file_select(self):
         run = self.run_native(ROOT / 'tests/io/select.b', options=['--memory-file', 'F'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'empty\na\t0\t0\na\nc\nd\nc\nd\ndone\nstill done\nc\ncleared\n128\n')
+        self.assertEqual(run.stdout, b'empty\na\t0\t0\na\nc\nd\nc\nd\ndone\nstill done\nc\n'
+                                     b'source first c\ncopied d\nsource next d\ncleared\n128\n')
         self.assertEqual(run.stderr, b'')
         source = self.work / 'select.b'
         source.write_text("SELECT TO 11\n")

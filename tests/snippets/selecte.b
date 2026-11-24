@@ -1,0 +1,16 @@
+FORMLIST 'first':@FM:'second':@FM:'third'
+READNEXT Key THEN CRT Key
+SELECTE TO Copied SETTING Code
+CRT Code, STATUS()
+READNEXT Key FROM Copied THEN CRT 'copy ':Key
+READNEXT Key THEN CRT 'default ':Key
+SELECTE TO "2"
+CLEARSELECT
+READNEXT Key FROM 2 THEN CRT 'numbered ':Key
+READNEXT Key FROM Copied THEN CRT 'copy ':Key
+READNEXT Key FROM Copied ELSE CRT 'copy exhausted'
+SELECTE TO Copied SETTING Code
+READNEXT Key FROM Copied ELSE CRT 'empty ':Code
+FORMLIST 'unchanged'
+SELECTE
+READNEXT Key THEN CRT Key

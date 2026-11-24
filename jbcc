@@ -3245,6 +3245,12 @@ class Compiler:
             dest = self.select_list('TO', quoted_number=True)
             setting = self.file_setting()
             self.emit(f"jbc_formlist({source}, {dest}, {setting});")
+        elif (self.word == 'SELECTE' and self.word not in self.matrices
+              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.advance()
+            dest = self.select_list('TO', quoted_number=True)
+            setting = self.file_setting()
+            self.emit(f"jbc_selecte({dest}, {setting});")
         elif (self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
               and self.following.word not in ASSIGNMENT_PREFIXES):
             if self.word in ('SELECT', 'SSELECT'):

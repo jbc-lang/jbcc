@@ -2024,6 +2024,12 @@ fields available to READNEXT. A standalone `//` line, as used in the
 guide’s CLEARSELECT example, is accepted as a separator. [SELECT](https://jbc-lang.org/pages/select.html),
 [READNEXT](https://jbc-lang.org/pages/readnext.html).
 
+`SELECTE TO L` copies the active default list into a variable or numbered
+list. In jbcc the destination starts at the default list's current
+cursor and the two cursors advance independently. An empty default list
+produces an empty destination. Optional `SETTING Code` receives 0.
+This cursor behavior is provisional for the in-memory backend.
+
 `FORMLIST Keys TO L` starts a fresh cursor over the field-mark-separated
 entries in `Keys`. Omitting `TO` selects the default list. A number from
 0 through 10 selects a numbered list. A quoted decimal integer such as

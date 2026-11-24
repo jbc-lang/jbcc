@@ -3656,6 +3656,15 @@ void jbc_formlist(const char *source, jbc_variable *list, jbc_variable *setting)
     if (setting) assign_value(setting, jbc_dcount(source, "\376"));
 }
 
+void jbc_selecte(jbc_variable *list, jbc_variable *setting)
+{
+    jbc_variable *dest = list_slot(list);
+    if (setting) assign_value(setting, "0");
+    if (select_lists[0].value) *dest = select_lists[0];
+    else assign_value(dest, "");
+    file_result(0);
+}
+
 int jbc_select(const char *source, jbc_variable *list, jbc_variable *setting)
 {
     int use_default = source == NULL;

@@ -3377,6 +3377,15 @@ units also pass with their established scan options.
   assigned input with both spellings. The R07 scan now passes strict C99
   checks for 15,023 of 15,030 units with the source fixes and include stub
   enabled. All previous passes hold.
-- [ ] Investigate `SELECTE TO List` for `BACKUP.DB`. The R07 header
-  describes the default select list as its source. Establish whether it
-  consumes that list and how it handles an already advanced cursor.
+- [x] Support `SELECTE TO List` for `BACKUP.DB`. The R07 header names
+  the default select list as its source. The PB201214 Linux
+  `JLibFSELECTE_VBB` loads through the default slot before storing it
+  in the destination. The in-memory backend provisionally copies the
+  current cursor and leaves the default available for independent reads.
+  Native fixtures check array and file selections after a prior read,
+  numbered destinations, an empty default and `SETTING`. The R07 scan
+  passes strict C99 checks for 15,024 of 15,030 units with the source fixes
+  and include stub enabled. All previous passes hold.
+- [ ] Support `FILELOCK` and `FILEUNLOCK` together for
+  `RE.STAT.LINE.CHANGE.RUN`. The routine acquires a file lock before
+  updating records and releases it on both normal and error paths.

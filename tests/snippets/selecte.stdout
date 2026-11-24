@@ -1,0 +1,9 @@
+first
+0	0
+copy second
+default second
+numbered third
+copy third
+copy exhausted
+empty 0
+unchanged
