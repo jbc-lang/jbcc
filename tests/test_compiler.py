@@ -4665,6 +4665,16 @@ CRT Fixed(2)
         self.assertIn('status 42', run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
 
+    def test_executable_mode_links_math_with_exit_callbacks(self):
+        source = ROOT / 'tests/programs/executable-math-and-exit.b'
+        wrapper = ROOT / 'tests/io/check-math-link.py'
+        binary = self.work / 'program'
+        compiler = shlex.quote(sys.executable) + ' ' + shlex.quote(str(wrapper))
+        env = dict(os.environ, CC=compiler, CC_FLAGS='-Wall -Wextra -Werror -pedantic')
+        subprocess.run([CLI, '--exe', source, '-o', binary], env=env, check=True)
+        run = subprocess.run([binary], capture_output=True, timeout=5, check=True)
+        self.assertEqual((run.stdout, run.stderr), (b'1\n3\n', b''))
+
     def test_assignment_predicates_on_arguments(self):
         caller = self.work / 'caller.b'
         sub = self.work / 'init.b'

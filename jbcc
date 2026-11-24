@@ -4054,7 +4054,10 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     for unit in units:
         for warning in unit.warnings:
             print(warning, file=sys.stderr)
-    return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
+    source = "\n".join([features, runtime] + prototypes
+                       + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
+    libraries = ['-lm'] if any(unit.uses_math for unit in units) else []
+    return source, libraries
 
 
 def runtime_features(units):
@@ -4088,7 +4091,7 @@ def runtime_features(units):
     return "\n".join(flags)
 
 
-def build_executable(source, output):
+def build_executable(source, output, libraries):
     try:
         compiler = shlex.split(os.environ.get('CC') or 'cc')
         flags = shlex.split(os.environ.get('CC_FLAGS', ''))
@@ -4101,7 +4104,6 @@ def build_executable(source, output):
         c_file = Path(directory) / 'program.c'
         binary = Path(directory) / 'program'
         c_file.write_text(source, encoding='utf-8')
-        libraries = ['-lm'] if source.startswith('#define JBC_MATH 1\n') else []
         command = compiler + ['-std=c99', str(c_file)] + libraries + flags + ['-o', str(binary)]
         completed = subprocess.run(command)
         if completed.returncode:
@@ -4129,11 +4131,11 @@ def main():
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts,
-                                 args.memory_locks, source_encoding=args.source_encoding,
-                                 defer_unassigned_reads=args.defer_unassigned_reads)
+        result, libraries = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts,
+                                            args.memory_locks, source_encoding=args.source_encoding,
+                                            defer_unassigned_reads=args.defer_unassigned_reads)
         if args.exe:
-            build_executable(result, args.o)
+            build_executable(result, args.o, libraries)
             return 0
         with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
                                          encoding='utf-8') as output:

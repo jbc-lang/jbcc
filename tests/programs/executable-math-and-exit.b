@@ -1,0 +1,2 @@
+CRT CALLONEXIT("") > 0
+CRT SQRT(9)
