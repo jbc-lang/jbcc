@@ -1,0 +1,1 @@
+CRT CHECKSUM('a', 'b')

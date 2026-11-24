@@ -1,0 +1,1 @@
+CRT CHECKSUM(CHAR(0):'!')

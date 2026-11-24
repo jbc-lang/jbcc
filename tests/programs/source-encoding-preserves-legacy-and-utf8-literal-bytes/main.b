@@ -1,0 +1,3 @@
+$INSERT "I_CAFÉ"
+CRT MARK = @VM
+CALL SHOW()

@@ -203,19 +203,19 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Source encoding and byte-oriented builtins (13)
 
-- [ ] `test_cipher_diagnostics`
-- [ ] `test_hexadecimal_conversion_diagnostics`
-- [ ] `test_source_encoding_preserves_legacy_and_utf8_literal_bytes`
-- [ ] `test_source_nul_is_ignored_in_comments`
-- [ ] `test_source_nul_reports_its_location_in_active_text`
-- [ ] `test_default_source_encoding_reports_invalid_utf8_in_an_include`
-- [ ] `test_ascii_and_ebcdic_argument_counts`
-- [ ] `test_utf8_and_latin1_round_trip_all_nonzero_bytes`
-- [ ] `test_latin1_rejects_malformed_and_unrepresentable_utf8`
-- [ ] `test_seq_reads_block_bytes`
-- [ ] `test_seq_wrong_argument_count`
-- [ ] `test_char_byte_range_diagnostics`
-- [ ] `test_checksum_argument_diagnostics`
+- [x] `test_cipher_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_hexadecimal_conversion_diagnostics`
+- [x] `test_source_encoding_preserves_legacy_and_utf8_literal_bytes`
+- [x] `test_source_nul_is_ignored_in_comments`
+- [x] `test_source_nul_reports_its_location_in_active_text`
+- [x] `test_default_source_encoding_reports_invalid_utf8_in_an_include`
+- [x] `test_ascii_and_ebcdic_argument_counts`
+- [x] `test_utf8_and_latin1_round_trip_all_nonzero_bytes`
+- [x] `test_latin1_rejects_malformed_and_unrepresentable_utf8`
+- [x] `test_seq_reads_block_bytes`
+- [x] `test_seq_wrong_argument_count`
+- [x] `test_char_byte_range_diagnostics`
+- [x] `test_checksum_argument_diagnostics`
 
 ## External services and backend diagnostics (7)
 
