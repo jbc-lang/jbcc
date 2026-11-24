@@ -241,6 +241,11 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
 INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
 DIRECTIVE = re.compile(r"^[#$][ \t]*(IFDEF|IFNDEF|ELSE|ENDIF|END|DEFINE)\b", re.IGNORECASE | re.ASCII)
 DIRECTIVE_SYMBOL = re.compile(rf"[ \t]+({NAME_PATTERN})")
+PACKAGE_DIRECTIVE = re.compile(r"^[ \t]*\$(PACKAGE|USING)\b", re.IGNORECASE | re.ASCII)
+PACKAGE_ARGUMENT = re.compile(
+    r"[ \t]+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
+    r"[ \t]*(?:;[ \t]*(?:(?:[*!]|REM\b).*)?)?", re.IGNORECASE | re.ASCII
+)
 
 
 class ConditionalDirective(NamedTuple):
@@ -290,11 +295,14 @@ def is_equate(statement):
 
 
 class Preprocessor:
-    def __init__(self, directories, encoding='utf-8', *, source_filter=None, include_resolver=None):
+    def __init__(self, directories, encoding='utf-8', *, source_filter=None, include_resolver=None,
+                 package_directives=None):
         self.directories = directories
         self.encoding = encoding
         self.source_filter = source_filter
         self.include_resolver = include_resolver
+        self.package_directives = [] if package_directives is None else package_directives
+        self.package = None
         self.equates = {}
         self.direct_definitions = set()
 
@@ -404,6 +412,19 @@ class Preprocessor:
                     parent_active = not conditions or conditions[-1].active
                     conditions.append(ConditionalDirective(previous.opening, parent_active and not previous.active, True))
 
+    def package_directive(self, directive, line, path, number):
+        kind = directive[1].lower()
+        opening = Token('$' + kind.upper(), 'directive', number, line.index('$') + 1, path)
+        name = PACKAGE_ARGUMENT.fullmatch(line, directive.end())
+        if not name:
+            directive_error(opening, f"expected a package name after {opening.word}")
+        if kind == 'package' and self.package is not None:
+            directive_error(opening, "duplicate $PACKAGE declaration")
+        token = Token(name[1], kind, number, name.start(1) + 1, path)
+        if kind == 'package':
+            self.package = token
+        self.package_directives.append(token)
+
     def read(self, path, parents=()):
         try:
             source = path.read_text(encoding=self.encoding)
@@ -428,6 +449,10 @@ class Preprocessor:
                 self.directive(directive, line, path, n, conditions)
                 continue
             if conditions and not conditions[-1].active:
+                continue
+            package = PACKAGE_DIRECTIVE.match(line)
+            if package and not words:
+                self.package_directive(package, line, path, n)
                 continue
             include = INCLUDE.fullmatch(line)
             if include and not words:
@@ -3907,12 +3932,14 @@ def render_subroutine_exists(units):
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
                  defer_unassigned_reads=False, source_filter=None, include_resolver=None,
-                 next_warning=None, api_call=None):
+                 next_warning=None, api_call=None, package_directives=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
                     defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call)
-    preprocessor = Preprocessor(directories, encoding, source_filter=source_filter, include_resolver=include_resolver)
+    preprocessor = Preprocessor(directories, encoding, source_filter=source_filter, include_resolver=include_resolver,
+                                package_directives=package_directives)
     unit.parse(list(preprocessor.read(path)))
+    unit.package_directives = tuple(preprocessor.package_directives)
     return unit
 
 
@@ -3927,6 +3954,8 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     for i, path in enumerate(paths):
         unit = compile_unit(path, directories, i, source_encoding=source_encoding,
                             defer_unassigned_reads=defer_unassigned_reads)
+        if len(paths) > 1 and unit.package_directives:
+            unit.error("package-aware linkage is unsupported", unit.package_directives[0])
         units.append(unit)
         if unit.routine:
             name = unit.routine.word

@@ -2325,7 +2325,11 @@ Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide
 index. An indexed lookup with multiple matches at the current step
 reports the candidates. The report lists resolved paths and lookup rules
-per unit. Package directives currently stop translation in this pilot.
+per unit. The compiler preserves `$PACKAGE` and `$USING` in source order.
+The JSON reports their names and locations, including directives read
+before a failed include. The pilot checks C syntax one unit at a time.
+An ordinary multi-unit build with package directives currently reports a
+package-linkage diagnostic.
 
 ### API coverage
 

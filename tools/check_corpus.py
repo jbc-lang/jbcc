@@ -112,6 +112,13 @@ def read_file_kinds(catalogue, extract):
     return kinds
 
 
+def display_path(path, root):
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return str(path)
+
+
 class IncludeIndex:
     def __init__(self, catalogue, root):
         self.root = root
@@ -130,20 +137,14 @@ class IncludeIndex:
                 if kind == "jbc_include":
                     self.includes.setdefault(path.name, []).append(path)
 
-    def display(self, path):
-        try:
-            return path.relative_to(self.root).as_posix()
-        except ValueError:
-            return str(path)
-
     def resolve(self, path, name, directories, token, lookups):
-        source = self.display(path)
+        source = display_path(path, self.root)
         entry = {"file": source, "line": token.line, "column": token.column, "target": name}
         lookups.append(entry)
 
         def found(candidate, rule):
             candidate = candidate.resolve()
-            entry.update(status="resolved", rule=rule, resolved=self.display(candidate))
+            entry.update(status="resolved", rule=rule, resolved=display_path(candidate, self.root))
             return candidate
 
         def choose(candidates, rule):
@@ -188,12 +189,13 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
     calls = []
     stubs = []
     lookups = []
+    package_directives = []
     if catalog_kind == "jbc_include" or (catalog_kind is None and path.name.startswith("I_")):
-        return relative, "include fragment", "", [], fixes, 0, calls, stubs, lookups
+        return relative, "include fragment", "", [], fixes, 0, calls, stubs, lookups, package_directives
     if catalog_kind == "c_header":
-        return relative, "C header", "", [], fixes, 0, calls, stubs, lookups
+        return relative, "C header", "", [], fixes, 0, calls, stubs, lookups, package_directives
     if catalog_kind not in (None, "jbc_source"):
-        return relative, "other catalog file", "", [], fixes, 0, calls, stubs, lookups
+        return relative, "other catalog file", "", [], fixes, 0, calls, stubs, lookups, package_directives
     suppressed_next_warnings = 0
 
     def count_next_warning(_message):
@@ -217,6 +219,7 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                        separate_external_arities=True,
                                        defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
                                        include_resolver=resolver,
+                                       package_directives=package_directives,
                                        next_warning=count_next_warning if quiet_next_warnings else None,
                                        api_call=record_calls(calls) if collect_apis else None)
         externals = {}
@@ -256,20 +259,29 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls, stubs, lookups
+            return (relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes,
+                    suppressed_next_warnings, calls, stubs, lookups, package_directives)
         warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
-        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls, stubs, lookups
+        return (relative, "translated", linkage_diagnostic, warnings, fixes,
+                suppressed_next_warnings, calls, stubs, lookups, package_directives)
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls, stubs, lookups
+        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls, stubs, lookups, package_directives
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls, stubs, lookups
+        detail = str(error).replace(str(root) + os.sep, "")
+        return relative, "encoding", detail, [], fixes, suppressed_next_warnings, calls, stubs, lookups, package_directives
     except OSError as error:
-        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls, stubs, lookups
+        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls, stubs, lookups, package_directives
 
 
 def check_entry(relative, kind, **options):
-    return check(relative, catalog_kind=kind, include_index=worker_include_index, **options)
+    *result, directives = check(relative, catalog_kind=kind, include_index=worker_include_index, **options)
+    metadata = [
+        {"kind": token.kind, "name": token.word, "line": token.line, "column": token.column,
+         "file": display_path(token.path, options["root"])}
+        for token in directives
+    ]
+    return (*result, metadata)
 
 
 def main():
@@ -341,7 +353,7 @@ def main():
     suppressed_next_warnings = 0
     with ProcessPoolExecutor(max_workers=options.j, initializer=initialize_worker, initargs=(include_index,)) as pool:
         entries = pool.map(scan, paths, map(file_kinds.get, paths), chunksize=16)
-        for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs, lookups in entries:
+        for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs, lookups, package_directives in entries:
             suppressed_next_warnings += suppressed
             counts[status] += 1
             if coverage is not None:
@@ -354,6 +366,8 @@ def main():
             if lookups:
                 files[name]["include_lookups"] = lookups
                 include_counts.update(lookup["status"] for lookup in lookups)
+            if package_directives:
+                files[name]["package_directives"] = package_directives
             if warnings:
                 files[name]["warnings"] = warnings
             if status == "translated" and diagnostic:

@@ -4030,6 +4030,10 @@ CRT 'done'
         self.assertEqual(report['include_lookups'], {'resolved': 3, 'missing': 1, 'ambiguous': 1})
         files = report['files']
         main = 'AA/Account/Private/Main.b'
+        self.assertEqual(files[main]['package_directives'], [
+            dict(kind='package', name='AA.Account', file=main, line=1, column=10),
+            dict(kind='using', name='BB.Billing', file=main, line=2, column=8),
+        ])
         traces = files[main]['include_lookups']
         self.assertEqual([(e['file'], e['rule'], e['resolved']) for e in traces], [
             (main, 'source directory', 'AA/Account/Private/I_Local'),
@@ -4039,7 +4043,20 @@ CRT 'done'
         ambiguous = files['AA/Account/Private/Ambiguous.b']['include_lookups'][0]
         self.assertEqual(ambiguous['status'], 'ambiguous')
         self.assertEqual(ambiguous['candidates'], ['BB/Billing/Public/I_Tied', 'Flat/I_Tied'])
-        self.assertEqual(files['AA/Account/Private/Missing.b']['include_lookups'][0]['status'], 'missing')
+        missing = files['AA/Account/Private/Missing.b']
+        self.assertEqual(missing['include_lookups'][0]['status'], 'missing')
+        self.assertEqual(missing['package_directives'][0]['name'], 'AA.Account')
+
+    def test_duplicate_package_reports_its_source_location(self):
+        source = ROOT / 'tests/programs/duplicate-package.b'
+        run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual((run.returncode, run.stderr), (1, f'{source}:2:1: duplicate $PACKAGE declaration\n'))
+
+    def test_multi_unit_program_requires_package_aware_linkage(self):
+        main = ROOT / 'tests/snippets/package-directives.b'
+        routine = ROOT / 'tests/routines/show-parasentence.b'
+        run = subprocess.run([CLI, main, routine, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual((run.returncode, run.stderr), (1, f'{main}:4:10: package-aware linkage is unsupported\n'))
 
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = self.work / 'main.b'

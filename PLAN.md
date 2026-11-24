@@ -3453,9 +3453,16 @@ references. The first blocker is an include lookup in 27 units, down
 from 47 with the ordinary search path. The other 119 first blockers are
 `$PACKAGE` directives.
 
-- [ ] Parse `$PACKAGE` and `$USING` and preserve their information for
-  routine resolution. Keep package and visibility checks separate from
-  strict C99 syntax checking.
+- [x] Parse `$PACKAGE` and `$USING` and preserve their information for
+  routine resolution. The same 146-unit pilot now has 20 strict C99
+  passes. It reports directives for all 146 units and records 606
+  `$USING` entries. Twenty-seven units still stop at missing includes.
+- [ ] Resolve qualified component calls in expressions and statements.
+  Fifty-seven of the 59 unexpected opening parentheses follow dotted
+  names such as `AA.Framework.getC_arractivitystatus()`. The other
+  two are at `TIMESTAMP()`. Use component method signatures and visibility
+  to distinguish callable methods from dotted variables. Validate
+  package-aware linkage separately.
 - [ ] Audit unresolved headers against the original export and component
   definitions, then scan all 39,675 catalogued production units.
 - [ ] Select a small deterministic set of `.tut` tests and identify
