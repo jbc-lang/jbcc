@@ -3369,6 +3369,14 @@ units also pass with their established scan options.
   out-of-range quoted number reports the destination's source location.
   R07 now passes strict C99 checks for 15,022 of 15,030 units with
   the source fixes and include stub enabled. All previous passes hold.
-- [ ] Support `INPUT @(column,row):Target` for `IBLC.TRANSFER`. The
+- [x] Support `INPUT @(column,row):Target` for `IBLC.TRANSFER`. The
   guide shows this syntax, and the local Prime reference passes the
   cursor positioning string as the second argument to its input routine.
+  The reference grammar allows an optional colon after the coordinates.
+  The native fixture verifies the cursor escape bytes, prompt order and
+  assigned input with both spellings. The R07 scan now passes strict C99
+  checks for 15,023 of 15,030 units with the source fixes and include stub
+  enabled. All previous passes hold.
+- [ ] Investigate `SELECTE TO List` for `BACKUP.DB`. The R07 header
+  describes the default select list as its source. Establish whether it
+  consumes that list and how it handles an already advanced cursor.

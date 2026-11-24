@@ -4914,6 +4914,14 @@ GET(ARG., '18446744073709551616') Value ELSE CRT 'missing'
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(b'input.b:2:1: INPUT cannot store a NUL byte', run.stderr)
 
+    def test_positioned_input_writes_cursor_before_prompt(self):
+        source = ROOT / 'tests/io/input-positioned.b'
+        binary = self.work / 'input'
+        subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+        run = subprocess.run([binary], input=b'first\nsecond\n', capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'\x1b[4;3Hvalue> [first]\n\x1b[1;1Hnext> [second]\n', b''))
+
     def test_length_limited_input_from_pipe(self):
         binary = self.work / 'input'
         subprocess.run([CLI, '--exe', ROOT / 'tests/io/input-limit.b', '-o', binary], check=True)

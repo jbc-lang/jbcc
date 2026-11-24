@@ -4840,7 +4840,7 @@ const char *jbc_keyin(const char *file, int line, int column)
     return value;
 }
 
-int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, int discard_excess,
+int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int suppress_newline, int discard_excess,
               const char *timeout_text, const char *file, int line, int column)
 {
     struct input_mode state = {0};
@@ -4879,7 +4879,8 @@ int jbc_input(jbc_variable *out, const char *limit_text, int suppress_newline, i
             error = set_input_mode(&state, &mode);
         }
     }
-    if (!error && (fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
+    if (!error && ((cursor && fputs(cursor, stdout) == EOF) ||
+                   fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
         error = "cannot write input prompt";
     while (!error && (discard_excess || !limit_text || length < (uint64_t)limit)) {
         if (!input_data && timeout_text) {

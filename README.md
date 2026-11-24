@@ -650,6 +650,11 @@ HUSH. The native runtime restores the host terminal mode after each read.
 [ECHO](https://jbc-lang.org/pages/echo.html),
 [SYSTEM functions](https://jbc-lang.org/pages/system_functions.html).
 
+`INPUT @(column,row):Target` emits the cursor sequence before the input
+prompt. The colon after the coordinates is optional. Coordinates use the
+same zero-based convention as `CRT @(column,row)`.
+[INPUT](https://jbc-lang.org/pages/input.html).
+
 `INPUTCLEAR` and `CLEARINPUT` clear terminal type-ahead. Queued DATA
 and nonterminal stdin stay available for subsequent reads.
 [INPUTCLEAR](https://jbc-lang.org/pages/inputclear.html).

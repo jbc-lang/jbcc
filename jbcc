@@ -760,6 +760,18 @@ class Compiler:
         if self.api_call is not None:
             self.api_call(token, arity, kind, form)
 
+    def cursor_expression(self, opening):
+        self.terminal = True
+        self.expect('(')
+        col = self.expression()
+        row = "NULL"
+        if self.word == ',':
+            self.advance()
+            row = self.expression()
+        self.expect(')')
+        self.record_api_call(opening, 1 if row == "NULL" else 2)
+        return self.temporary(f"jbc_cursor({col}, {row}, {self.location(opening)})")
+
     def primary(self, locate_source=False):
         word = self.word
         if word in STEP_OPERATORS:
@@ -780,17 +792,7 @@ class Compiler:
             target = self.current
             self.advance()
             if self.word == '(':
-                self.terminal = True
-                self.advance()
-                col = self.expression()
-                row = "NULL"
-                if self.word == ',':
-                    self.advance()
-                    row = self.expression()
-                self.expect(')')
-                self.record_api_call(target, 1 if row == "NULL" else 2)
-                cursor = self.temporary(f"jbc_cursor({col}, {row}, {self.location(target)})")
-                return self.postfix(cursor, locate_source)
+                return self.postfix(self.cursor_expression(target), locate_source)
             if self.word == 'SYSTEM.RETURN.CODE':
                 self.advance()
                 return self.postfix(self.temporary("jbc_system_return_code()"), locate_source)
@@ -3369,6 +3371,13 @@ class Compiler:
             if opening.word == 'PROMPT':
                 self.emit(f"jbc_input_prompt = {self.expression()};")
             else:
+                cursor = 'NULL'
+                if self.word == '@' and self.following.word == '(':
+                    position = self.current
+                    self.advance()
+                    cursor = self.cursor_expression(position)
+                    if self.word == ':':
+                        self.advance()
                 target = self.identifier()
                 slot = self.variable_slot(target)
                 limit = 'NULL'
@@ -3392,7 +3401,7 @@ class Compiler:
                 if self.word == 'FOR':
                     self.advance()
                     timeout = self.expression()
-                call = (f"jbc_input(&{slot}, {limit}, {int(suppress)}, {int(discard_excess)}, "
+                call = (f"jbc_input(&{slot}, {cursor}, {limit}, {int(suppress)}, {int(discard_excess)}, "
                         f"{timeout}, {self.location(opening)})")
                 self.assigned.add(target.word)
                 if timeout == 'NULL':
