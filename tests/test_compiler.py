@@ -2516,6 +2516,36 @@ CRT UPCASE(''):LOWCASE('')
             self.assertIn(f"{source}:1:1: {keyword} occurrence must be a positive integer".encode(),
                           run.stderr)
 
+    def test_swap_function_and_statement(self):
+        source = self.work / 'swap.b'
+        source.write_text("""Text = '::first::second::'
+CRT SWAP(Text, '::', '|')
+CRT Text
+CRT SWAP('aaaaa', 'aa', 'b', 1), SWAP('aaaaa', 'aa', 'b', 1, 2)
+CRT SWAP('tail', '', 'head:')
+R = Text:@FM:'second'
+SWAP '::' WITH '|' IN R<1>
+CRT R<1>, R<2>
+SWAP '|' TO '' IN R<1>
+CRT R<1>
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'|first|second|\n::first::second::\nbaaa\taaba\ntail\n'
+                             b'|first|second|\tsecond\nfirstsecond\n', b''))
+
+    def test_swap_diagnostics(self):
+        source = self.work / 'swap.b'
+        source.write_text("CRT SWAP('abc', 'a')\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'SWAP'".encode(), result.stderr)
+        source.write_text("CRT SWAP('abc', 'a', 'b', 'bad')\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:5: SWAP requires integer occurrence arguments'.encode(),
+                      result.stderr)
+
     def test_ereplace_reuses_occurrence_rules_and_prefixes_an_empty_search(self):
         source = self.work / 'ereplace.b'
         source.write_text("""CRT EREPLACE('aaaaa', 'aa', 'b')

@@ -115,6 +115,13 @@ from TAFC R23 for an empty search. The reference lexer also accepts
 `EREPLACE old TO new IN target` as a spelling of the CHANGE statement.
 [jBASE EREPLACE](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_EREPLACE.htm).
 
+`SWAP(text, old, new [, count [, first]])` returns a new value using
+the same rules as the CHANGE function. The reference compiler accepts
+expressions in the first argument and supports both optional arguments.
+`SWAP old TO new IN target` updates the target in place, with `WITH`
+also accepted in place of `TO`.
+[jBASE SWAP](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SWAP.htm).
+
 Concatenating assignment appends the right-hand value as a string.
 For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
 It also works on matrix elements, dynamic-array fields and substrings.

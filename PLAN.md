@@ -2660,6 +2660,22 @@ EB.RUN.RULE and TEC.POPULATE.EVENT.LIST now pass strict C99 checking in
 byte mode. The total is 17,082 of 17,336 candidates, including all
 17,080 previous passes.
 
-- [ ] Investigate SWAP in E.MB.TRADES.TODAY. Compare its function and
+- [x] Investigate SWAP in E.MB.TRADES.TODAY. Compare its function and
   statement forms with CHANGE and confirm whether either mutates the
   source operand.
+
+The reference compiler emits the same SWAPF_BBBBBII operation as
+CHANGE for function calls, including when the first argument is a
+literal or both optional positions are supplied. It emits the same
+CHANGETO_VBIIIBB operation for statements. jbcc shares those two
+CHANGE implementations. Native tests show that the function returns
+a replacement value, while the statement updates the selected field
+and preserves adjacent fields.
+[jBASE SWAP](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SWAP.htm).
+
+E.MB.TRADES.TODAY now passes strict C99 checking in byte mode.
+The total is 17,083 of 17,336 candidates, including all 17,082
+previous passes.
+
+- [ ] Investigate TRIMBS and TRIMFS, starting with E.DISP.DE.O.MSG.
+  Verify per-element trimming, empty values and preservation of array marks.
