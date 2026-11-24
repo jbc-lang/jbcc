@@ -856,9 +856,9 @@ class CompilerTest(NativeCompilerTest):
 
     def test_ins_diagnostics(self):
         for name, diagnostic in [
-                ('ins_1.b', ":1:9: expected 'BEFORE'"),
-                ('ins_2.b', ':1:17: expected dynamic-array indices'),
-                ('ins_3.b', ':1:17: expected one to three dynamic-array indices')]:
+                ('ins_1.b', expected_text('ins-diagnostics.stderr')),
+                ('ins_2.b', expected_text('ins-diagnostics_2.stderr')),
+                ('ins_3.b', expected_text('ins-diagnostics_3.stderr'))]:
             with self.subTest(source=name):
                 source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
@@ -867,12 +867,12 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/array-diagnostics/ins-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:16: expected a numeric value'.encode(), run.stderr)
+        self.assertIn(expected_text('ins-diagnostics_4.stderr', source=source).encode(), run.stderr)
 
     def test_insert_diagnostics(self):
         for name, message in [
-                ('insert_1.b', ":1:23: expected ';'"),
-                ('insert_2.b', ":1:23: expected ')'")]:
+                ('insert_1.b', expected_text('insert-diagnostics.stderr')),
+                ('insert_2.b', expected_text('insert-diagnostics_2.stderr'))]:
             with self.subTest(source=name):
                 source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
@@ -881,25 +881,25 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/array-diagnostics/insert-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+        self.assertIn(expected_text('insert-diagnostics_3.stderr', source=source).encode(), run.stderr)
 
     def test_delete_function_rejects_nonnumeric_index(self):
         source = ROOT / 'tests/programs/array-diagnostics/delete-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: DELETE requires numeric indices'.encode(), run.stderr)
+        self.assertIn(expected_text('delete-function-rejects-nonnumeric-index.stderr', source=source).encode(), run.stderr)
 
     def test_extract_rejects_nonnumeric_index(self):
         source = ROOT / 'tests/programs/array-diagnostics/extract-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: EXTRACT requires numeric indices'.encode(), run.stderr)
+        self.assertIn(expected_text('extract-rejects-nonnumeric-index.stderr', source=source).encode(), run.stderr)
 
     def test_del_diagnostics(self):
         for name, diagnostic in [
-                ('del_1.b', ":1:5: unassigned variable 'R'"),
-                ('del_2.b', ':2:6: expected dynamic-array indices'),
-                ('del_3.b', ':2:6: expected one to three dynamic-array indices')]:
+                ('del_1.b', expected_text('del-diagnostics.stderr')),
+                ('del_2.b', expected_text('del-diagnostics_2.stderr')),
+                ('del_3.b', expected_text('del-diagnostics_3.stderr'))]:
             with self.subTest(source=name):
                 source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
@@ -908,7 +908,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/array-diagnostics/del-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:2:5: DEL requires numeric indices'.encode(), run.stderr)
+        self.assertIn(expected_text('del-diagnostics_4.stderr', source=source).encode(), run.stderr)
 
     def test_exit_status_from_subroutine(self):
         main = ROOT / 'tests/routines/exit-status/main.b'
@@ -1072,25 +1072,25 @@ class CompilerTest(NativeCompilerTest):
 
     def test_locate_diagnostics(self):
         for fixture_name, message in (
-            ('main_1.b', 'unsupported LOCATE order'),
-            ('main_2.b', 'LOCATE positions start at one'),
-            ('main_3.b', 'LOCATE start must be a positive integer'),
+            ('main_1.b', expected_text('locate-diagnostics.stderr')),
+            ('main_2.b', expected_text('locate-diagnostics_2.stderr')),
+            ('main_3.b', expected_text('locate-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 main = ROOT / 'tests/programs/locate-diagnostics' / fixture_name
                 run = self.run_native(main)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('locate-diagnostics_4.stderr', main=main, message=message).encode(), run.stderr)
 
     def test_locate_subvalue_start_diagnostics(self):
         main = ROOT / 'tests/programs/locate-zero-subvalue.b'
         run = self.run_native(main)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{main}:2:1: LOCATE positions start at one'.encode(), run.stderr)
+        self.assertIn(expected_text('locate-subvalue-start-diagnostics.stderr', main=main).encode(), run.stderr)
         main = ROOT / 'tests/programs/locate-duplicate-start.b'
         result = subprocess.run([CLI, main, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
+        self.assertIn(expected_text('locate-subvalue-start-diagnostics_2.stderr', main=main), result.stderr)
 
     def test_sum_overflow_reports_call_site(self):
         source = ROOT / 'tests/programs/sum-overflow.b'
@@ -1194,76 +1194,76 @@ time_t test_clock(time_t *out)
 
     def test_iconv_diagnostics(self):
         cases = [
-            ("'20121231', 'MD2'", "unsupported ICONV mask 'MD2'"),
-            ("'24:00', 'MT'", "ICONV time requires a valid H:MM or H:MM:SS"),
-            ("'0:00 AM', 'MTS'", "ICONV time requires a valid H:MM or H:MM:SS"),
-            ("'2012123', 'D'", "ICONV date requires YYYYMMDD"),
-            ("'20121231x', 'D'", "ICONV date requires YYYYMMDD"),
-            ("'19000229', 'D4'", "invalid ICONV calendar date"),
-            ("'20120431', 'D'", "invalid ICONV calendar date"),
-            ("'20121301', 'D'", "invalid ICONV calendar date"),
-            ("'00000101', 'D'", "invalid ICONV calendar date"),
+            ("'20121231', 'MD2'", expected_text('iconv-diagnostics.stderr')),
+            ("'24:00', 'MT'", expected_text('iconv-diagnostics_2.stderr')),
+            ("'0:00 AM', 'MTS'", expected_text('iconv-diagnostics_2.stderr')),
+            ("'2012123', 'D'", expected_text('iconv-diagnostics_3.stderr')),
+            ("'20121231x', 'D'", expected_text('iconv-diagnostics_3.stderr')),
+            ("'19000229', 'D4'", expected_text('iconv-diagnostics_4.stderr')),
+            ("'20120431', 'D'", expected_text('iconv-diagnostics_4.stderr')),
+            ("'20121301', 'D'", expected_text('iconv-diagnostics_4.stderr')),
+            ("'00000101', 'D'", expected_text('iconv-diagnostics_4.stderr')),
         ]
         for case_number, (args, message) in enumerate(cases, 1):
             with self.subTest(args=args):
                 source = ROOT / 'tests/programs/iconv-diagnostics' / f'date_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+                self.assertIn(expected_text('iconv-diagnostics_5.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_iconvs_empty_mask_diagnostic(self):
         source = ROOT / 'tests/programs/iconvs-empty-mask.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:5: ICONVS requires a conversion mask'.encode(), result.stderr)
+        self.assertIn(expected_text('iconvs-empty-mask-diagnostic.stderr', source=source).encode(), result.stderr)
 
     def test_oconvs_empty_mask_diagnostic(self):
         source = ROOT / 'tests/programs/oconvs-empty-mask.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:5: OCONVS requires a conversion mask'.encode(), result.stderr)
+        self.assertIn(expected_text('oconvs-empty-mask-diagnostic.stderr', source=source).encode(), result.stderr)
 
     def test_oconv_diagnostics(self):
         for fixture_name, message in (
-            ('date_1.b', "unsupported OCONV mask 'MTH'"),
-            ('date_2.b', 'OCONV time requires whole seconds'),
-            ('date_3.b', 'OCONV time requires whole seconds'),
-            ('date_4.b', 'OCONV time requires whole seconds'),
-            ('date_5.b', "unsupported OCONV mask 'D5/'"),
-            ('date_6.b', 'OCONV date requires an integer day count'),
-            ('date_7.b', 'OCONV date outside years 1 through 9999'),
+            ('date_1.b', expected_text('oconv-diagnostics.stderr')),
+            ('date_2.b', expected_text('oconv-diagnostics_2.stderr')),
+            ('date_3.b', expected_text('oconv-diagnostics_2.stderr')),
+            ('date_4.b', expected_text('oconv-diagnostics_2.stderr')),
+            ('date_5.b', expected_text('oconv-diagnostics_3.stderr')),
+            ('date_6.b', expected_text('oconv-diagnostics_4.stderr')),
+            ('date_7.b', expected_text('oconv-diagnostics_5.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/oconv-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+                self.assertIn(expected_text('oconv-diagnostics_6.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_str_repetition_diagnostics(self):
         for fixture_name, message in (
-            ('repeat_1.b', 'expected a numeric value'),
-            ('repeat_2.b', 'STR result too large'),
+            ('repeat_1.b', expected_text('str-repetition-diagnostics.stderr')),
+            ('repeat_2.b', expected_text('str-repetition-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/str-repetition-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('str-repetition-diagnostics_3.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_spaces_diagnostics(self):
         for fixture_name, message in (
-            ('spaces_1.b', 'SPACES requires nonempty elements'),
-            ('spaces_2.b', 'SPACES requires nonempty elements'),
-            ('spaces_3.b', 'SPACES requires nonempty elements'),
-            ('spaces_4.b', 'SPACES requires nonempty elements'),
-            ('spaces_5.b', 'expected a numeric value'),
-            ('spaces_6.b', 'SPACES result too large'),
+            ('spaces_1.b', expected_text('spaces-diagnostics.stderr')),
+            ('spaces_2.b', expected_text('spaces-diagnostics.stderr')),
+            ('spaces_3.b', expected_text('spaces-diagnostics.stderr')),
+            ('spaces_4.b', expected_text('spaces-diagnostics.stderr')),
+            ('spaces_5.b', expected_text('spaces-diagnostics_2.stderr')),
+            ('spaces_6.b', expected_text('spaces-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/spaces-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:5: {message}'.encode(), result.stderr)
+                self.assertIn(expected_text('spaces-diagnostics_4.stderr', source=source, message=message).encode(), result.stderr)
 
     def test_left_right_require_numeric_length(self):
         for fixture_name in (
@@ -1274,13 +1274,13 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/left-right-require-numeric-length' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+                self.assertIn(expected_text('left-right-require-numeric-length.stderr', source=source).encode(), run.stderr)
 
     def test_suffix_requires_numeric_length(self):
         source = ROOT / 'tests/programs/suffix-nonnumeric-length.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
+        self.assertIn(expected_text('suffix-requires-numeric-length.stderr', source=source).encode(), run.stderr)
 
     def test_counts_requires_two_arguments(self):
         for fixture_name in (
@@ -1291,7 +1291,7 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/counts-requires-two-arguments' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for 'COUNTS'", result.stderr)
+                self.assertIn(expected_text('counts-requires-two-arguments.stderr', source=source), result.stderr)
 
     def test_col_positions_require_no_arguments(self):
         for case_number, name in enumerate(('COL1', 'COL2'), 1):
@@ -1299,21 +1299,21 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/col-positions-require-no-arguments' / f'field-positions_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
+                self.assertIn(expected_text('col-positions-require-no-arguments.stderr', source=source, value_2=name), result.stderr)
 
     def test_delimited_bracket_assignment_diagnostics(self):
         for fixture_name, message in (
-            ('fields_1.b', 'FIELD positions and counts start at one'),
-            ('fields_2.b', 'FIELD requires positive integer positions and counts'),
-            ('fields_3.b', 'cannot extend fields with an empty delimiter'),
-            ('fields_4.b', 'field replacement is too large'),
+            ('fields_1.b', expected_text('delimited-bracket-assignment-diagnostics.stderr')),
+            ('fields_2.b', expected_text('delimited-bracket-assignment-diagnostics_2.stderr')),
+            ('fields_3.b', expected_text('delimited-bracket-assignment-diagnostics_3.stderr')),
+            ('fields_4.b', expected_text('delimited-bracket-assignment-diagnostics_4.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/delimited-bracket-assignment-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'')
-                self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
+                self.assertEqual(result.stderr, expected_text('delimited-bracket-assignment-diagnostics_5.stderr', source=source, message=message).encode())
 
     def test_jbasecoredump_requires_an_application_snapshot_backend(self):
         source = ROOT / 'tests/programs/jbasecoredump-missing-backend.b'
@@ -1396,7 +1396,7 @@ time_t test_clock(time_t *out)
         show = ROOT / 'tests/routines/concat-omitted-operand/show.b'
         result = self.run_native(source, show)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'ab:c\n6:num-2\nfield!\n', b''))
+                         (0, expected_bytes('concatenation-with-an-omitted-right-operand.stdout'), b''))
 
     def test_period_label_diagnostics(self):
         for fixture_name, location in (
@@ -1427,7 +1427,7 @@ time_t test_clock(time_t *out)
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(
-            result.stderr, f'{source}:1:5: expected a variable, integer, string or parenthesized expression\n'
+            result.stderr, expected_text('concatenation-requires-a-left-operand.stderr', source=source)
         )
 
     def test_comparison_signs_keep_reference_spacing_rules(self):
@@ -1449,12 +1449,12 @@ time_t test_clock(time_t *out)
         source = ROOT / 'tests/programs/substring-nonnumeric-index.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:5: expected a numeric value'.encode(), result.stderr)
+        self.assertIn(expected_text('single-index-substring-assignment-diagnostics.stderr', source=source).encode(), result.stderr)
 
         source = ROOT / 'tests/programs/substring-invalid-assignment.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:2:9: expected '=' or ':=' for substring replacement", result.stderr)
+        self.assertIn(expected_text('single-index-substring-assignment-diagnostics_2.stderr', source=source), result.stderr)
 
     def test_substrings_requires_numeric_bounds(self):
         for fixture_name in (
@@ -1465,47 +1465,45 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/substrings-requires-numeric-bounds' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
+                self.assertIn(expected_text('substrings-requires-numeric-bounds.stderr', source=source).encode(), run.stderr)
 
     def test_splice_reuse_scalar(self):
         source = ROOT / 'tests/routines/splice-reuse/main.b'
         bump = ROOT / 'tests/routines/splice-reuse/bump.b'
         run = self.run_native(source, bump)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'1:a\xfe1:b\n1\n')
+        self.assertEqual(run.stdout, expected_bytes('splice-reuse-scalar.stdout'))
 
         source = ROOT / 'tests/programs/splice-reuse-array.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:22: REUSE in SPLICE requires a scalar'.encode(), run.stderr)
+        self.assertIn(expected_text('splice-reuse-scalar.stderr', source=source).encode(), run.stderr)
 
     def test_eqs_reuse_requires_scalar(self):
         source = ROOT / 'tests/programs/eqs-reuse-array.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
+        self.assertIn(expected_text('eqs-reuse-requires-scalar.stderr', source=source).encode(), run.stderr)
 
     def test_ordered_array_comparisons(self):
         source = ROOT / 'tests/routines/ordered-array-comparisons/main.b'
         bump = ROOT / 'tests/routines/ordered-array-comparisons/bump.b'
         result = self.run_native(source, bump)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'1\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n0\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n'
-                             b'1\xfd1\xfc1\xfd\xfd\xfd0\xfe1\n0\xfd1\xfc1\xfd\xfd\xfd0\xfe1\n'
-                             b'1010\n0\xfd1\xfd1\n0\xfd0\xfd1\n2\n[]\n', b''))
+                         (0, expected_bytes('ordered-array-comparisons.stdout'), b''))
 
     def test_ordered_array_comparison_rejects_reuse_of_an_array(self):
         source = ROOT / 'tests/programs/les-reuse-array.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout, b'')
-        self.assertEqual(result.stderr, f'{source}:1:11: REUSE in LES requires a scalar\n'.encode())
+        self.assertEqual(result.stderr, expected_text('ordered-array-comparison-rejects-reuse-of-an-array.stderr', source=source).encode())
 
     def test_compare_invalid_justification(self):
         source = ROOT / 'tests/programs/compare-invalid-justification.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
+        self.assertIn(expected_text('compare-invalid-justification.stderr', source=source).encode(), run.stderr)
 
     def test_fold_invalid_width(self):
         for fixture_name in (
@@ -1517,7 +1515,7 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/fold-invalid-width' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: FOLD width must be a nonnegative integer'.encode(), run.stderr)
+                self.assertIn(expected_text('fold-invalid-width.stderr', source=source).encode(), run.stderr)
 
     def test_fmts_invalid_mask(self):
         for fixture_name, mask in (
@@ -1528,7 +1526,7 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/fmts-invalid-mask' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:1:5: unsupported FMT mask '{mask}'".encode(), run.stderr)
+                self.assertIn(expected_text('fmts-invalid-mask.stderr', source=source, mask=mask).encode(), run.stderr)
 
     def test_dround_diagnostics(self):
         for fixture_name, diagnostic in (
@@ -1928,73 +1926,73 @@ CRT 'main'
 
     def test_trim_diagnostics(self):
         for fixture_name, message in (
-            ('trim_1.b', 'unknown TRIM mode'),
-            ('trim_2.b', 'TRIM requires a single trim byte'),
+            ('trim_1.b', expected_text('trim-diagnostics.stderr')),
+            ('trim_2.b', expected_text('trim-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/trim-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
+                self.assertIn(expected_text('trim-diagnostics_3.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_find_diagnostics(self):
         for fixture_name, error in (
-            ('find_1.b', '1:30: FIND accepts at most three SETTING variables'),
-            ('find_2.b', '1:33: FINDSTR accepts at most three SETTING variables'),
-            ('find_3.b', '1:26: expected THEN or ELSE'),
+            ('find_1.b', expected_text('find-diagnostics.stderr')),
+            ('find_2.b', expected_text('find-diagnostics_2.stderr')),
+            ('find_3.b', expected_text('find-diagnostics_3.stderr')),
         ):
             source = ROOT / 'tests/programs/find-diagnostics' / fixture_name
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
-            self.assertIn(f"{source}:{error}", run.stderr)
+            self.assertIn(expected_text('find-diagnostics_4.stderr', source=source, error=error), run.stderr)
         for case_number, keyword in enumerate(('FIND', 'FINDSTR'), 1):
             source = ROOT / 'tests/programs/find-diagnostics' / f'find-variant-2_{case_number}.b'
             run = self.run_native(source)
             self.assertNotEqual(run.returncode, 0)
-            self.assertIn(f"{source}:1:1: {keyword} occurrence must be a positive integer".encode(),
+            self.assertIn(expected_text('find-diagnostics_5.stderr', source=source, keyword=keyword).encode(),
                           run.stderr)
 
     def test_swap_diagnostics(self):
         source = ROOT / 'tests/programs/swap-diagnostics/swap.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'SWAP'".encode(), result.stderr)
+        self.assertIn(expected_text('swap-diagnostics.stderr', source=source).encode(), result.stderr)
         source = ROOT / 'tests/programs/swap-diagnostics/swap-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:5: SWAP requires integer occurrence arguments'.encode(),
+        self.assertIn(expected_text('swap-diagnostics_2.stderr', source=source).encode(),
                       result.stderr)
 
     def test_ereplace_diagnostics(self):
         source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'EREPLACE'".encode(), result.stderr)
+        self.assertIn(expected_text('ereplace-diagnostics.stderr', source=source).encode(), result.stderr)
         source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:5: EREPLACE requires integer occurrence arguments'.encode(),
+        self.assertIn(expected_text('ereplace-diagnostics_2.stderr', source=source).encode(),
                       result.stderr)
 
     def test_change_diagnostics(self):
         for fixture_name, error in (
-            ('change_1.b', "1:22: unassigned variable 'Missing'"),
-            ('change_2.b', "1:7: wrong argument count for 'CHANGE'"),
+            ('change_1.b', expected_text('change-diagnostics.stderr')),
+            ('change_2.b', expected_text('change-diagnostics_2.stderr')),
         ):
             source = ROOT / 'tests/programs/change-diagnostics' / fixture_name
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
-            self.assertIn(f"{source}:{error}", run.stderr)
+            self.assertIn(expected_text('change-diagnostics_3.stderr', source=source, error=error), run.stderr)
         source = ROOT / 'tests/programs/change-diagnostics/change-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:7: CHANGE requires integer occurrence arguments".encode(), run.stderr)
+        self.assertIn(expected_text('change-diagnostics_4.stderr', source=source).encode(), run.stderr)
 
     def test_string_mutations_check_conditionally_assigned_targets(self):
         binary = self.work / 'mutate'
         for case_number, (statement, expected) in enumerate((
-            ("CONVERT 'a' TO 'x' IN Value", b'left\txxbb!\n'),
-            ("CHANGE 'aa' TO 'x' IN Value<2>", b'left\txbb!\n'),
+            ("CONVERT 'a' TO 'x' IN Value", expected_bytes('string-mutations-check-conditionally-assigned-targets.stdout')),
+            ("CHANGE 'aa' TO 'x' IN Value<2>", expected_bytes('string-mutations-check-conditionally-assigned-targets_2.stdout')),
         ), 1):
             with self.subTest(statement=statement):
                 source = ROOT / 'tests/programs/string-mutations-check-conditionally-assigned-targets' / f'mutate_{case_number}.b'
@@ -2005,7 +2003,7 @@ CRT 'main'
                 missing = subprocess.run([binary, 'missing'], capture_output=True, timeout=5)
                 column = statement.index('Value') + 1
                 self.assertEqual((missing.returncode, missing.stdout, missing.stderr),
-                                 (1, b'', f"{source}:5:{column}: unassigned variable 'Value'\n".encode()))
+                                 (1, b'', expected_text('string-mutations-check-conditionally-assigned-targets.stderr', source=source, column=column).encode()))
 
     def test_neg_substitutes_zero(self):
         source = ROOT / 'tests/programs/neg-substitutes-zero.b'
@@ -2042,7 +2040,7 @@ CRT 'main'
         source = ROOT / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:2:9: unassigned variable 'Mask'".encode(), run.stderr)
+        self.assertIn(expected_text('implicit-format-reports-uninitialized-mask-at-read.stderr', source=source).encode(), run.stderr)
 
     def test_fmt_diagnostics(self):
         for case_number, mask in enumerate(['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T'], 1):
@@ -2050,17 +2048,17 @@ CRT 'main'
                 source = ROOT / 'tests/programs/fmt-diagnostics' / f'fmt_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:2:7: unsupported FMT mask '{mask}'".encode(), run.stderr)
+                self.assertIn(expected_text('fmt-diagnostics.stderr', source=source, mask=mask).encode(), run.stderr)
 
     def test_index_diagnostics(self):
         source = ROOT / 'tests/programs/index-diagnostics/index.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:7: wrong argument count for 'INDEX'", result.stderr)
+        self.assertIn(expected_text('index-diagnostics.stderr', source=source), result.stderr)
         source = ROOT / 'tests/programs/index-diagnostics/index-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:7: expected a numeric value'.encode(), run.stderr)
+        self.assertIn(expected_text('index-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_division_by_zero(self):
         source = ROOT / 'tests/programs/division-by-zero.b'
@@ -2143,7 +2141,7 @@ CRT 'main'
     def test_insert_locations(self):
         fixtures = ROOT / 'tests/programs/insert-locations'
         source = fixtures / 'main.b'
-        for variant, location in (('1', ':1:8:'), ('2', ':1:1:')):
+        for variant, location in (('1', expected_text('insert-locations.stderr')), ('2', expected_text('insert-locations_2.stderr'))):
             with self.subTest(variant=variant):
                 header = fixtures / variant / 'I_BROKEN'
                 run = subprocess.run([CLI, '-I', header.parent, source, '-o', self.c],
@@ -2152,7 +2150,7 @@ CRT 'main'
                 self.assertIn(str(header) + location, run.stderr)
         header = fixtures / '3' / 'I_BROKEN'
         run = self.run_native(fixtures / 'main-variant-2.b', options=('-I', header.parent))
-        self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
+        self.assertIn(expected_text('insert-locations_3.stderr', header=header).encode(), run.stderr)
 
     def test_bang_subroutine_names(self):
         main = ROOT / 'tests/routines/bang-subroutine-names/main.b'
@@ -3705,12 +3703,12 @@ CRT 'main'
         sub = ROOT / 'tests/programs/remove-shared-cursor/take.b'
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'first\nlast\t0\nfirst\n')
+        self.assertEqual(run.stdout, expected_bytes('remove-shared-cursor.stdout'))
 
     def test_remove_expression_diagnostics(self):
         for fixture_name, message in (
-            ('bad_1.b', ":1:12: unassigned variable 'Missing'"),
-            ('bad_2.b', ':1:16: expected a name'),
+            ('bad_1.b', expected_text('remove-expression-diagnostics.stderr')),
+            ('bad_2.b', expected_text('remove-expression-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/remove-expression-diagnostics' / fixture_name
@@ -3728,10 +3726,10 @@ CRT 'main'
                                env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
                 hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
                 self.assertEqual((hit.returncode, hit.stdout, hit.stderr),
-                                 (0, b'first\t2\nsecond\t0\nsecond\t0\n', b''))
+                                 (0, expected_bytes('remove-checks-conditionally-assigned-source.stdout'), b''))
                 miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
                 self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
-                                 (1, b'', f"{source}:3:{column}: unassigned variable 'List'\n".encode()))
+                                 (1, b'', expected_text('remove-checks-conditionally-assigned-source.stderr', source=source, column=column).encode()))
 
     def test_matrix_assignment_diagnostics(self):
         source = ROOT / 'tests/routines/matrix-assignment-diagnostics/main.b'
@@ -4090,7 +4088,7 @@ CRT 'main'
                 source = ROOT / 'tests/programs/matchfield-invalid-field' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: MATCHFIELD requires an integer field number'.encode(), run.stderr)
+                self.assertIn(expected_text('matchfield-invalid-field.stderr', source=source).encode(), run.stderr)
 
     def test_sleep_duration_and_default(self):
         source = ROOT / 'tests/programs/sleep.b'
