@@ -1,7 +1,9 @@
 # Temporary jBC test sources
 
-**238 of 561 collected tests** wrote at least one temporary `.b` file
-during the full suite run. Each checkbox names one test method in
+**Baseline**
+
+238 of 561 collected tests wrote at least one temporary `.b` file
+during the baseline run. Each checkbox names one test method in
 [tests/test_compiler.py](tests/test_compiler.py). A method can create or
 rewrite several sources, including in subtests. This inventory covers
 `.b` paths, so a test that only writes extensionless sources or includes
@@ -12,10 +14,14 @@ that it needs to generate its source. Keep case-specific setup and
 assertions in Python. Use numbered fixtures for fixed variants of one
 case and descriptive names for separate behaviors or linked routines.
 
+**Result**
+
+All 238 tests now compile their checked-in `.b` fixtures directly.
+
 ## Sequential files, printing and tape I/O (10)
 
 - [x] `test_block_io_operand_diagnostics`
-- [x] `test_timeout_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_timeout_diagnostics`
 - [x] `test_seek_empty_operands`
 - [x] `test_report_diagnostics`
 - [x] `test_rewind_invalid_channel`
@@ -65,7 +71,7 @@ case and descriptive names for separate behaviors or linked routines.
 - [x] `test_call_expands_equates_in_arguments_and_indirect_targets`
 - [x] `test_quoted_and_punctuated_direct_routine_names`
 - [x] `test_quoted_direct_target_preserves_whitespace_and_punctuation`
-- [x] `test_indirect_call_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_indirect_call_diagnostics`
 - [x] `test_indirect_call_through_matrix_element`
 - [x] `test_indirect_matrix_call_uses_normal_matrix_diagnostics`
 - [x] `test_multiline_call`
@@ -167,16 +173,16 @@ case and descriptive names for separate behaviors or linked routines.
 - [x] `test_implicit_format_reports_uninitialized_mask_at_read`
 - [x] `test_fmt_diagnostics`
 - [x] `test_index_diagnostics`
-- [x] `test_insert_locations` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_insert_locations`
 - [x] `test_remove_shared_cursor`
 - [x] `test_remove_expression_diagnostics`
-- [x] `test_remove_checks_conditionally_assigned_source` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_remove_checks_conditionally_assigned_source`
 - [x] `test_matchfield_invalid_field`
 
 ## Matrices and COMMON storage (25)
 
-- [x] `test_matbuild_diagnostics` — Stage fixtures in the temporary directory to preserve the test setup.
-- [x] `test_matparse_diagnostics` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_matbuild_diagnostics`
+- [x] `test_matparse_diagnostics`
 - [x] `test_common_storage`
 - [x] `test_conflicting_common_declarations`
 - [x] `test_common_member_keeps_first_slot_when_dimensioned_later`
@@ -203,7 +209,7 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Source encoding and byte-oriented builtins (13)
 
-- [x] `test_cipher_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_cipher_diagnostics`
 - [x] `test_hexadecimal_conversion_diagnostics`
 - [x] `test_source_encoding_preserves_legacy_and_utf8_literal_bytes`
 - [x] `test_source_nul_is_ignored_in_comments`
@@ -219,7 +225,7 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## External services and backend diagnostics (7)
 
-- [x] `test_jbasecoredump_requires_an_application_snapshot_backend` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_jbasecoredump_requires_an_application_snapshot_backend`
 - [x] `test_xml_transforms_require_a_backend_when_reached`
 - [x] `test_xml_transform_argument_diagnostics`
 - [x] `test_indices_requires_backend_only_when_a_query_is_reached`
@@ -235,7 +241,7 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Command execution and piped output (7)
 
-- [x] `test_capture_from_pipe` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_capture_from_pipe`
 - [x] `test_exec_rejects_duplicate_returning_clause`
 - [x] `test_execute_large_stdout_and_stderr`
 - [x] `test_execute_result_diagnostics`

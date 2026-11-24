@@ -1,0 +1,2 @@
+OPENSEQ 'data' TO F ELSE ABORT
+TIMEOUT F, 'text'

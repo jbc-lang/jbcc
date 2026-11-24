@@ -1,0 +1,2 @@
+OPENSEQ 'missing' TO F THEN ABORT
+TIMEOUT F, 1

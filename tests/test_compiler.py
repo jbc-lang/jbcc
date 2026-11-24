@@ -17,7 +17,6 @@ import time
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from shutil import copyfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -385,18 +384,18 @@ class CompilerTest(NativeCompilerTest):
 
     def test_timeout_diagnostics(self):
         (self.work / 'data').write_bytes(b'line\n')
-        source = self.work / 'timeout.b'
-        for setup, operands, message in [
-                ('', "'', 1", 'requires an open sequential handle'),
-                ("OPENSEQ 'missing' TO F THEN ABORT\n", 'F, 1', 'requires an open sequential handle'),
-                ("OPENSEQ 'data' TO F ELSE ABORT\nCLOSESEQ F\n", 'F, 1',
-                 'requires an open sequential handle'),
-                *[("OPENSEQ 'data' TO F ELSE ABORT\n", f'F, {seconds}',
-                   'requires nonnegative decimal seconds') for seconds in ("''", "'text'", '-1')]]:
-            with self.subTest(setup=setup, operands=operands):
-                source.write_text(f'{setup}TIMEOUT {operands}\n')
+        fixtures = ROOT / 'tests/io/timeout-diagnostics'
+        for fixture_name, line, message in (
+                ('timeout_1.b', 1, 'requires an open sequential handle'),
+                ('timeout_2.b', 2, 'requires an open sequential handle'),
+                ('timeout_3.b', 3, 'requires an open sequential handle'),
+                ('timeout_4.b', 2, 'requires nonnegative decimal seconds'),
+                ('timeout_5.b', 2, 'requires nonnegative decimal seconds'),
+                ('timeout_6.b', 2, 'requires nonnegative decimal seconds'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = fixtures / fixture_name
                 result = self.run_native(source, cwd=self.work)
-                line = len(setup.splitlines()) + 1
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:{line}:1: TIMEOUT {message}'.encode(), result.stderr)
 
@@ -828,14 +827,13 @@ class CompilerTest(NativeCompilerTest):
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:19: expected a dimensioned array 'Missing'", build.stderr)
-        source = self.work / 'matbuild.b'
         for fixture_name, message in (
             ('matbuild_1.b', "unassigned element 2 in matrix 'A'"),
             ('matbuild_2.b', 'MATBUILD position out of bounds'),
             ('matbuild_3.b', 'MATBUILD requires integer positions'),
         ):
             with self.subTest(source=fixture_name):
-                copyfile(ROOT / 'tests/routines/matbuild-diagnostics' / fixture_name, source)
+                source = ROOT / 'tests/routines/matbuild-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
@@ -845,13 +843,12 @@ class CompilerTest(NativeCompilerTest):
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:10: expected a dimensioned array 'Missing'", build.stderr)
-        source = self.work / 'matparse.b'
         for fixture_name, message in (
             ('matparse_1.b', 'MATPARSE position out of bounds'),
             ('matparse_2.b', 'MATPARSE requires integer positions'),
         ):
             with self.subTest(source=fixture_name):
-                copyfile(ROOT / 'tests/routines/matparse-diagnostics' / fixture_name, source)
+                source = ROOT / 'tests/routines/matparse-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: {message}'.encode(), run.stderr)
@@ -1325,13 +1322,12 @@ time_t test_clock(time_t *out)
                           f'{source}:3:10: JBASECOREDUMP requires an application snapshot backend\n'.encode()))
         self.assertEqual(list(self.work.glob('JBASECOREDUMP*')), [])
 
-        source = self.work / 'snapshot.b'
         for fixture_name in (
             'snapshot_1.b',
             'snapshot_2.b',
         ):
             with self.subTest(source=fixture_name):
-                copyfile(ROOT / 'tests/programs/jbasecoredump-requires-an-application-snapshot-backend' / fixture_name, source)
+                source = ROOT / 'tests/programs/jbasecoredump-requires-an-application-snapshot-backend' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for 'JBASECOREDUMP'", result.stderr)
@@ -1881,21 +1877,18 @@ CRT 'main'
         self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
 
     def test_cipher_diagnostics(self):
-        source = self.work / 'crypt.b'
+        fixtures = ROOT / 'tests/programs/cipher-diagnostics'
         for case_number, function in enumerate(('ENCRYPT', 'DECRYPT'), 1):
             with self.subTest(function=function):
                 for method in (4, 5):
                     with self.subTest(method=method):
-                        source.write_text(f"""IF 0 THEN CRT {function}('text', '', {method})
-CRT 'before'
-CRT {function}('text', '', {method})
-""")
+                        source = fixtures / f'{function.lower()}-{method}.b'
                         result = self.run_native(source)
                         self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
                         self.assertEqual(result.stderr,
                                          f'{source}:3:5: {function} requires a backend for this method\n'.encode())
 
-                copyfile(ROOT / 'tests/programs/cipher-diagnostics' / f'crypt_{case_number}.b', source)
+                source = fixtures / f'crypt_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stderr, f"{source}:1:5: wrong argument count for '{function}'\n")
@@ -2147,20 +2140,17 @@ CRT {function}('text', '', {method})
         self.assertEqual(run.stdout, b'open\nclosed\n')
 
     def test_insert_locations(self):
-        source = self.work / 'main.b'
-        header = self.work / 'I_BROKEN'
-        copyfile(ROOT / 'tests/programs/insert-locations/main.b', source)
-        for fixture_name, location in (
-            ('I_BROKEN_1', ':1:8:'),
-            ('I_BROKEN_2', ':1:1:'),
-        ):
-            copyfile(ROOT / 'tests/programs/insert-locations' / fixture_name, header)
-            run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
-            self.assertNotEqual(run.returncode, 0)
-            self.assertIn(str(header) + location, run.stderr)
-        copyfile(ROOT / 'tests/programs/insert-locations/I_BROKEN-variant-2', header)
-        copyfile(ROOT / 'tests/programs/insert-locations/main-variant-2.b', source)
-        run = self.run_native(source)
+        fixtures = ROOT / 'tests/programs/insert-locations'
+        source = fixtures / 'main.b'
+        for variant, location in (('1', ':1:8:'), ('2', ':1:1:')):
+            with self.subTest(variant=variant):
+                header = fixtures / variant / 'I_BROKEN'
+                run = subprocess.run([CLI, '-I', header.parent, source, '-o', self.c],
+                                     text=True, capture_output=True)
+                self.assertNotEqual(run.returncode, 0)
+                self.assertIn(str(header) + location, run.stderr)
+        header = fixtures / '3' / 'I_BROKEN'
+        run = self.run_native(fixtures / 'main-variant-2.b', options=('-I', header.parent))
         self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
 
     def test_bang_subroutine_names(self):
@@ -2229,7 +2219,6 @@ CRT {function}('text', '', {method})
                 self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
 
     def test_call_expands_equates_in_arguments_and_indirect_targets(self):
-        include = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/I_NAMES'
         main = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/main.b'
         direct = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/direct.b'
         prefixed = ROOT / 'tests/routines/call-expands-equates-in-arguments-and-indirect-targets/prefixed.b'
@@ -2238,7 +2227,6 @@ CRT {function}('text', '', {method})
                          (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
 
     def test_lit_equates_expand_quoted_source(self):
-        include = ROOT / 'tests/programs/lit-equates-expand-quoted-source/I_LITERALS'
         main = ROOT / 'tests/programs/lit-equates-expand-quoted-source/main.b'
         show = ROOT / 'tests/programs/lit-equates-expand-quoted-source/show.b'
         run = self.run_native(main, show)
@@ -2256,14 +2244,12 @@ CRT {function}('text', '', {method})
                       result.stderr)
 
     def test_preprocessor_conditionals_and_include_guards(self):
-        include = ROOT / 'tests/programs/preprocessor-conditionals-and-include-guards/I_GUARDED'
         source = ROOT / 'tests/programs/preprocessor-conditionals-and-include-guards/guarded.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'3\t0\n3\n', b''))
 
     def test_defc_declarations_and_runtime_diagnostics(self):
-        include = ROOT / 'tests/programs/defc-declarations-and-runtime-diagnostics/native.h'
         for fixture_name, diagnostic in (
             ('foreign_1.b', b''),
             ('foreign_2.b', b":2:1: C function 'ReadNative' requires the jBASE C runtime"),
@@ -2329,15 +2315,16 @@ CRT {function}('text', '', {method})
         self.assertEqual(result.stderr, f'{main}:1:6: unterminated quoted routine name\n')
 
     def test_indirect_call_diagnostics(self):
-        main = self.work / 'main.b'
-        sub = ROOT / 'tests/routines/indirect-call-diagnostics/update.b'
-        for name, args, units, message in [
-                ('MISSING', '', [], 'unknown subroutine'),
-                ('update', '(MAT M)', [sub], 'unknown subroutine'),
-                ('UPDATE', '()', [sub], 'incompatible arguments for subroutine'),
-                ('UPDATE', '(M(1))', [sub], 'incompatible arguments for subroutine')]:
-            with self.subTest(name=name, args=args):
-                main.write_text(f"DIM M(2)\nName = '{name}'\nCALL @Name{args}\n")
+        fixtures = ROOT / 'tests/routines/indirect-call-diagnostics'
+        sub = fixtures / 'update.b'
+        for fixture_name, name, units, message in (
+                ('main_1.b', 'MISSING', (), 'unknown subroutine'),
+                ('main_2.b', 'update', (sub,), 'unknown subroutine'),
+                ('main_3.b', 'UPDATE', (sub,), 'incompatible arguments for subroutine'),
+                ('main_4.b', 'UPDATE', (sub,), 'incompatible arguments for subroutine'),
+        ):
+            with self.subTest(source=fixture_name):
+                main = fixtures / fixture_name
                 run = self.run_native(main, *units)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertEqual(run.stdout, b'')
@@ -3216,14 +3203,12 @@ CRT {function}('text', '', {method})
 
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = ROOT / 'tests/programs/source-encoding-preserves-legacy-and-utf8-literal-bytes/main.b'
-        include = ROOT / 'tests/programs/source-encoding-preserves-legacy-and-utf8-literal-bytes/I_CAFÉ'
         routine = ROOT / 'tests/programs/source-encoding-preserves-legacy-and-utf8-literal-bytes/show.b'
         result = self.run_native(source, routine, options=('--source-encoding', 'bytes'))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'1\n\xc3\xa9\x80\xfe\xfc\n', b''))
 
     def test_source_nul_is_ignored_in_comments(self):
-        include = ROOT / 'tests/programs/source-nul-is-ignored-in-comments/I_VALUE'
         source = ROOT / 'tests/programs/source-nul-is-ignored-in-comments/main.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'2\n', b''))
@@ -3422,7 +3407,6 @@ CRT {function}('text', '', {method})
                          (0, b'row!\tmiddle!\ttail!\n', b''))
 
     def test_repeated_include_reuses_common_matrix_slots(self):
-        include = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/shared.inc'
         main = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/main.b'
         sub = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/check.b'
         result = self.run_native(main, sub)
@@ -3504,7 +3488,6 @@ CRT {function}('text', '', {method})
 
     def test_forward_matrix_declarations_follow_execution_order(self):
         main = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/main.b'
-        include = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/I_ARRAYS'
         routine = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/check.b'
         result = self.run_native(main, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
@@ -3756,23 +3739,17 @@ CRT {function}('text', '', {method})
                 self.assertIn(str(source) + message, result.stderr)
 
     def test_remove_checks_conditionally_assigned_source(self):
-        source = self.work / 'remove.b'
         binary = self.work / 'remove'
-        statement = 'REMOVE Piece FROM List SETTING Code'
-        expression = 'Piece = REMOVE(List, Code)'
-        for first, second in ((statement, expression), (expression, statement)):
-            with self.subTest(first=first):
-                source.write_text("GET(ARG.) Mode\n"
-                                  "IF Mode = 'hit' THEN List = 'first':@FM:'second'\n"
-                                  f"{first}\nCRT Piece, Code\n{second}\nCRT Piece, Code\n"
-                                  f"{statement}\nCRT Piece, Code\n")
+        fixtures = ROOT / 'tests/programs/remove-checks-conditionally-assigned-source'
+        for fixture_name, column in (('statement-first.b', 19), ('expression-first.b', 16)):
+            with self.subTest(source=fixture_name):
+                source = fixtures / fixture_name
                 subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                                env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
                 hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
                 self.assertEqual((hit.returncode, hit.stdout, hit.stderr),
                                  (0, b'first\t2\nsecond\t0\nsecond\t0\n', b''))
                 miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-                column = first.index('List') + 1
                 self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
                                  (1, b'', f"{source}:3:{column}: unassigned variable 'List'\n".encode()))
 
@@ -4037,8 +4014,7 @@ CRT {function}('text', '', {method})
         self.assertEqual(run.stderr, b'diagnostic\n')
 
     def test_capture_from_pipe(self):
-        source = self.work / 'capture.b'
-        copyfile(ROOT / 'tests/programs/capture-from-pipe.b', source)
+        source = ROOT / 'tests/programs/capture-from-pipe.b'
         binary = self.work / 'capture'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         payload = b'x' * (256 * 1024) + b'\r\n\xff'
