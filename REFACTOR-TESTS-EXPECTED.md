@@ -165,14 +165,14 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Compiler diagnostics and preprocessing (8)
 
-- [ ] `test_diagnostics_preserve_existing_output` — stderr (fragment, interpolated)
-- [ ] `test_period_label_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_comparison_signs_keep_reference_spacing_rules` — stderr (exact, interpolated)
-- [ ] `test_lit_equates_expand_quoted_source` — stdout (exact)
-- [ ] `test_lit_equate_diagnostic_points_inside_definition` — stderr (fragment, interpolated)
-- [ ] `test_preprocessor_conditionals_and_include_guards` — stdout (exact)
-- [ ] `test_preprocessor_conditional_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_duplicate_package_reports_its_source_location` — stderr (exact, interpolated)
+- [x] `test_diagnostics_preserve_existing_output` — stderr (fragment, interpolated)
+- [x] `test_period_label_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_comparison_signs_keep_reference_spacing_rules` — stderr (exact, interpolated)
+- [x] `test_lit_equates_expand_quoted_source` — stdout (exact)
+- [x] `test_lit_equate_diagnostic_points_inside_definition` — stderr (fragment, interpolated)
+- [x] `test_preprocessor_conditionals_and_include_guards` — stdout (exact)
+- [x] `test_preprocessor_conditional_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_duplicate_package_reports_its_source_location` — stderr (exact, interpolated)
 
 ## Control flow and variable assignment (34)
 

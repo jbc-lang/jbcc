@@ -708,112 +708,112 @@ class CompilerTest(NativeCompilerTest):
 
     def test_diagnostics_preserve_existing_output(self):
         for fixture_name, location in (
-            ('invalid_1.b', ':2:1:'),
-            ('invalid_2.b', ':1:1: expected CASE clause'),
-            ('invalid_3.b', ":2:5: expected 'CASE'"),
-            ('invalid_4.b', ':1:1: expected CASE clause'),
-            ('invalid_5.b', ':1:18: unfinished EQUATE list'),
-            ('invalid_6.b', ':1:12: expected EQUATE name TO expression'),
-            ('invalid_7.b', ':1:9: unfinished comma continuation'),
-            ('invalid_8.b', ':2:2: expected call argument'),
-            ('invalid_9.b', ":1:9: expected ')'"),
-            ('invalid_10.b', ':1:13: expected THEN or ELSE'),
-            ('invalid_11.b', ':1:9: expected a variable'),
-            ('invalid_12.b', ':1:12: expected THEN or ELSE'),
-            ('invalid_13.b', ':1:8: expected THEN or ELSE'),
-            ('invalid_14.b', ':1:11: expected THEN or ELSE'),
-            ('invalid_15.b', ':1:5: expected THEN or ELSE'),
-            ('invalid_16.b', ":1:7: unexpected '1'"),
-            ('invalid_17.b', ':2:12: unknown variable'),
-            ('invalid_18.b', ":2:1: unexpected 'ELSE'"),
-            ('invalid_19.b', ':3:2: MATREAD LOCKED requires a locking file backend'),
-            ('invalid_20.b', ':1:8:'),
-            ('invalid_21.b', ':2:5: RETURN TO is not allowed'),
-            ('invalid_22.b', ':1:13:'),
-            ('invalid_23.b', ":2:1: unsupported statement 'N'"),
-            ('invalid_24.b', ":2:1: unsupported statement 'N'"),
-            ('invalid_25.b', ':2:16: unknown variable'),
-            ('invalid_26.b', ':2:5:'),
-            ('invalid_27.b', ':1:8:'),
-            ('invalid_28.b', ':1:5:'),
-            ('invalid_29.b', ':1:9: INPUT underscore requires a length'),
-            ('invalid_30.b', ":1:5: expected '='"),
-            ('invalid_31.b', ":1:11: expected '='"),
-            ('invalid_32.b', ":1:11: expected 'ID'"),
-            ('invalid_33.b', ':1:7: expected @ID, @RECORD or @FILENAME as a record read destination'),
-            ('invalid_34.b', ":1:5: wrong argument count for 'RND'"),
-            ('invalid_35.b', ":1:5: wrong argument count for 'DROUND'"),
-            ('invalid_36.b', ":1:5: wrong argument count for 'ADDS'"),
-            ('invalid_37.b', ":1:5: wrong argument count for 'SUBS'"),
-            ('invalid_38.b', ":1:5: wrong argument count for 'MULS'"),
-            ('invalid_39.b', ':1:5: REUSE requires a direct multiplication or division operand'),
-            ('invalid_40.b', ':1:9: REUSE requires a direct multiplication operand'),
-            ('invalid_41.b', ":1:5: wrong argument count for 'SDIV'"),
-            ('invalid_42.b', ":1:5: wrong argument count for 'SDIV'"),
-            ('invalid_43.b', ":1:5: wrong argument count for 'DIVS'"),
-            ('invalid_44.b', ":1:5: wrong argument count for 'CATS'"),
-            ('invalid_45.b', ":1:5: wrong argument count for 'COMPARE'"),
-            ('invalid_46.b', ":1:5: wrong argument count for 'NES'"),
-            ('invalid_47.b', ":1:5: wrong argument count for 'EQS'"),
-            ('invalid_48.b', ":1:5: wrong argument count for 'NUM'"),
-            ('invalid_49.b', ":1:5: wrong argument count for 'NUM'"),
-            ('invalid_50.b', ":1:5: wrong argument count for 'ICONV'"),
-            ('invalid_51.b', ":1:5: wrong argument count for 'FIELDS'"),
-            ('invalid_52.b', ":1:5: wrong argument count for 'GROUP'"),
-            ('invalid_53.b', ":1:5: wrong argument count for 'GROUP'"),
-            ('invalid_54.b', ":1:5: wrong argument count for 'STR'"),
-            ('invalid_55.b', ":1:5: wrong argument count for 'BYTELEN'"),
-            ('invalid_56.b', ":1:5: wrong argument count for 'UTF8'"),
-            ('invalid_57.b', ":1:5: wrong argument count for 'LATIN1'"),
-            ('invalid_58.b', ":1:5: wrong argument count for 'LENDP'"),
-            ('invalid_59.b', ":1:5: wrong argument count for 'LENDP'"),
-            ('invalid_60.b', ":1:5: wrong argument count for 'ITYPE'"),
-            ('invalid_61.b', ":1:5: wrong argument count for 'ITYPE'"),
-            ('invalid_62.b', ":1:24: expected ';'"),
-            ('invalid_63.b', ":1:5: wrong argument count for 'DQUOTE'"),
-            ('invalid_64.b', ":1:5: wrong argument count for 'SQUOTE'"),
-            ('invalid_65.b', ":1:5: wrong argument count for 'LN'"),
-            ('invalid_66.b', ":1:5: wrong argument count for 'EXP'"),
-            ('invalid_67.b', ":1:5: wrong argument count for 'SQRT'"),
-            ('invalid_68.b', ":1:5: wrong argument count for 'PWR'"),
-            ('invalid_69.b', ":1:5: wrong argument count for 'SUMMATION'"),
-            ('invalid_70.b', ":1:5: wrong argument count for 'TRIMS'"),
-            ('invalid_71.b', ":1:5: wrong argument count for 'TRIMBS'"),
-            ('invalid_72.b', ":1:5: wrong argument count for 'TRIMFS'"),
-            ('invalid_73.b', ":1:5: wrong argument count for 'REM'"),
-            ('invalid_74.b', ":1:5: wrong argument count for 'MOD'"),
-            ('invalid_75.b', ":1:5: wrong argument count for 'LEFT'"),
-            ('invalid_76.b', ":1:5: wrong argument count for 'RIGHT'"),
-            ('invalid_77.b', ":1:5: wrong argument count for 'DELETE'"),
-            ('invalid_78.b', ":1:5: wrong argument count for 'DELETE'"),
-            ('invalid_79.b', ":1:5: wrong argument count for 'EXTRACT'"),
-            ('invalid_80.b', ":1:5: wrong argument count for 'EXTRACT'"),
-            ('invalid_81.b', ":1:5: wrong argument count for 'MINIMUM'"),
-            ('invalid_82.b', ":1:5: wrong argument count for 'MAXIMUM'"),
-            ('invalid_83.b', ":1:5: wrong argument count for 'SUBSTRINGS'"),
-            ('invalid_84.b', ":1:5: wrong argument count for 'SPLICE'"),
-            ('invalid_85.b', ":1:5: wrong argument count for 'TRIMF'"),
-            ('invalid_86.b', ":1:5: wrong argument count for 'TRIMB'"),
-            ('invalid_87.b', ":1:5: wrong argument count for 'ALPHA'"),
-            ('invalid_88.b', ":1:5: wrong argument count for 'ALPHA'"),
-            ('invalid_89.b', ":1:5: wrong argument count for 'ISALPHA'"),
-            ('invalid_90.b', ":1:5: wrong argument count for 'ISDIGIT'"),
-            ('invalid_91.b', ":1:5: wrong argument count for 'NEG'"),
-            ('invalid_92.b', ":1:5: wrong argument count for 'NEG'"),
-            ('invalid_93.b', ":1:5: wrong argument count for 'UPCASE'"),
-            ('invalid_94.b', ":1:5: wrong argument count for 'LOWCASE'"),
-            ('invalid_95.b', ':1:17: expected a name'),
-            ('invalid_96.b', ":1:5: wrong argument count for 'PUTENV'"),
-            ('invalid_97.b', ":1:3: expected closing '>' for dynamic-array assignment"),
-            ('invalid_98.b', ':1:3: expected one to three dynamic-array indices'),
-            ('invalid_99.b', ':1:6: expected a name'),
-            ('invalid_100.b', ":1:11: unexpected 'ON'"),
-            ('invalid_101.b', ':1:5:'),
-            ('invalid_102.b', ':1:5:'),
-            ('invalid_103.b', ':1:5:'),
-            ('invalid_104.b', ":2:8: unexpected '='"),
-            ('invalid_105.b', ':1:1:'),
-            ('invalid_106.b', ':2:5:'),
+            ('invalid_1.b', expected_text('diagnostics-preserve-existing-output.stderr')),
+            ('invalid_2.b', expected_text('diagnostics-preserve-existing-output_2.stderr')),
+            ('invalid_3.b', expected_text('diagnostics-preserve-existing-output_3.stderr')),
+            ('invalid_4.b', expected_text('diagnostics-preserve-existing-output_2.stderr')),
+            ('invalid_5.b', expected_text('diagnostics-preserve-existing-output_4.stderr')),
+            ('invalid_6.b', expected_text('diagnostics-preserve-existing-output_5.stderr')),
+            ('invalid_7.b', expected_text('diagnostics-preserve-existing-output_6.stderr')),
+            ('invalid_8.b', expected_text('diagnostics-preserve-existing-output_7.stderr')),
+            ('invalid_9.b', expected_text('diagnostics-preserve-existing-output_8.stderr')),
+            ('invalid_10.b', expected_text('diagnostics-preserve-existing-output_9.stderr')),
+            ('invalid_11.b', expected_text('diagnostics-preserve-existing-output_10.stderr')),
+            ('invalid_12.b', expected_text('diagnostics-preserve-existing-output_11.stderr')),
+            ('invalid_13.b', expected_text('diagnostics-preserve-existing-output_12.stderr')),
+            ('invalid_14.b', expected_text('diagnostics-preserve-existing-output_13.stderr')),
+            ('invalid_15.b', expected_text('diagnostics-preserve-existing-output_14.stderr')),
+            ('invalid_16.b', expected_text('diagnostics-preserve-existing-output_15.stderr')),
+            ('invalid_17.b', expected_text('diagnostics-preserve-existing-output_16.stderr')),
+            ('invalid_18.b', expected_text('diagnostics-preserve-existing-output_17.stderr')),
+            ('invalid_19.b', expected_text('diagnostics-preserve-existing-output_18.stderr')),
+            ('invalid_20.b', expected_text('diagnostics-preserve-existing-output_19.stderr')),
+            ('invalid_21.b', expected_text('diagnostics-preserve-existing-output_20.stderr')),
+            ('invalid_22.b', expected_text('diagnostics-preserve-existing-output_21.stderr')),
+            ('invalid_23.b', expected_text('diagnostics-preserve-existing-output_22.stderr')),
+            ('invalid_24.b', expected_text('diagnostics-preserve-existing-output_22.stderr')),
+            ('invalid_25.b', expected_text('diagnostics-preserve-existing-output_23.stderr')),
+            ('invalid_26.b', expected_text('diagnostics-preserve-existing-output_24.stderr')),
+            ('invalid_27.b', expected_text('diagnostics-preserve-existing-output_19.stderr')),
+            ('invalid_28.b', expected_text('diagnostics-preserve-existing-output_25.stderr')),
+            ('invalid_29.b', expected_text('diagnostics-preserve-existing-output_26.stderr')),
+            ('invalid_30.b', expected_text('diagnostics-preserve-existing-output_27.stderr')),
+            ('invalid_31.b', expected_text('diagnostics-preserve-existing-output_28.stderr')),
+            ('invalid_32.b', expected_text('diagnostics-preserve-existing-output_29.stderr')),
+            ('invalid_33.b', expected_text('diagnostics-preserve-existing-output_30.stderr')),
+            ('invalid_34.b', expected_text('diagnostics-preserve-existing-output_31.stderr')),
+            ('invalid_35.b', expected_text('diagnostics-preserve-existing-output_32.stderr')),
+            ('invalid_36.b', expected_text('diagnostics-preserve-existing-output_33.stderr')),
+            ('invalid_37.b', expected_text('diagnostics-preserve-existing-output_34.stderr')),
+            ('invalid_38.b', expected_text('diagnostics-preserve-existing-output_35.stderr')),
+            ('invalid_39.b', expected_text('diagnostics-preserve-existing-output_36.stderr')),
+            ('invalid_40.b', expected_text('diagnostics-preserve-existing-output_37.stderr')),
+            ('invalid_41.b', expected_text('diagnostics-preserve-existing-output_38.stderr')),
+            ('invalid_42.b', expected_text('diagnostics-preserve-existing-output_38.stderr')),
+            ('invalid_43.b', expected_text('diagnostics-preserve-existing-output_39.stderr')),
+            ('invalid_44.b', expected_text('diagnostics-preserve-existing-output_40.stderr')),
+            ('invalid_45.b', expected_text('diagnostics-preserve-existing-output_41.stderr')),
+            ('invalid_46.b', expected_text('diagnostics-preserve-existing-output_42.stderr')),
+            ('invalid_47.b', expected_text('diagnostics-preserve-existing-output_43.stderr')),
+            ('invalid_48.b', expected_text('diagnostics-preserve-existing-output_44.stderr')),
+            ('invalid_49.b', expected_text('diagnostics-preserve-existing-output_44.stderr')),
+            ('invalid_50.b', expected_text('diagnostics-preserve-existing-output_45.stderr')),
+            ('invalid_51.b', expected_text('diagnostics-preserve-existing-output_46.stderr')),
+            ('invalid_52.b', expected_text('diagnostics-preserve-existing-output_47.stderr')),
+            ('invalid_53.b', expected_text('diagnostics-preserve-existing-output_47.stderr')),
+            ('invalid_54.b', expected_text('diagnostics-preserve-existing-output_48.stderr')),
+            ('invalid_55.b', expected_text('diagnostics-preserve-existing-output_49.stderr')),
+            ('invalid_56.b', expected_text('diagnostics-preserve-existing-output_50.stderr')),
+            ('invalid_57.b', expected_text('diagnostics-preserve-existing-output_51.stderr')),
+            ('invalid_58.b', expected_text('diagnostics-preserve-existing-output_52.stderr')),
+            ('invalid_59.b', expected_text('diagnostics-preserve-existing-output_52.stderr')),
+            ('invalid_60.b', expected_text('diagnostics-preserve-existing-output_53.stderr')),
+            ('invalid_61.b', expected_text('diagnostics-preserve-existing-output_53.stderr')),
+            ('invalid_62.b', expected_text('diagnostics-preserve-existing-output_54.stderr')),
+            ('invalid_63.b', expected_text('diagnostics-preserve-existing-output_55.stderr')),
+            ('invalid_64.b', expected_text('diagnostics-preserve-existing-output_56.stderr')),
+            ('invalid_65.b', expected_text('diagnostics-preserve-existing-output_57.stderr')),
+            ('invalid_66.b', expected_text('diagnostics-preserve-existing-output_58.stderr')),
+            ('invalid_67.b', expected_text('diagnostics-preserve-existing-output_59.stderr')),
+            ('invalid_68.b', expected_text('diagnostics-preserve-existing-output_60.stderr')),
+            ('invalid_69.b', expected_text('diagnostics-preserve-existing-output_61.stderr')),
+            ('invalid_70.b', expected_text('diagnostics-preserve-existing-output_62.stderr')),
+            ('invalid_71.b', expected_text('diagnostics-preserve-existing-output_63.stderr')),
+            ('invalid_72.b', expected_text('diagnostics-preserve-existing-output_64.stderr')),
+            ('invalid_73.b', expected_text('diagnostics-preserve-existing-output_65.stderr')),
+            ('invalid_74.b', expected_text('diagnostics-preserve-existing-output_66.stderr')),
+            ('invalid_75.b', expected_text('diagnostics-preserve-existing-output_67.stderr')),
+            ('invalid_76.b', expected_text('diagnostics-preserve-existing-output_68.stderr')),
+            ('invalid_77.b', expected_text('diagnostics-preserve-existing-output_69.stderr')),
+            ('invalid_78.b', expected_text('diagnostics-preserve-existing-output_69.stderr')),
+            ('invalid_79.b', expected_text('diagnostics-preserve-existing-output_70.stderr')),
+            ('invalid_80.b', expected_text('diagnostics-preserve-existing-output_70.stderr')),
+            ('invalid_81.b', expected_text('diagnostics-preserve-existing-output_71.stderr')),
+            ('invalid_82.b', expected_text('diagnostics-preserve-existing-output_72.stderr')),
+            ('invalid_83.b', expected_text('diagnostics-preserve-existing-output_73.stderr')),
+            ('invalid_84.b', expected_text('diagnostics-preserve-existing-output_74.stderr')),
+            ('invalid_85.b', expected_text('diagnostics-preserve-existing-output_75.stderr')),
+            ('invalid_86.b', expected_text('diagnostics-preserve-existing-output_76.stderr')),
+            ('invalid_87.b', expected_text('diagnostics-preserve-existing-output_77.stderr')),
+            ('invalid_88.b', expected_text('diagnostics-preserve-existing-output_77.stderr')),
+            ('invalid_89.b', expected_text('diagnostics-preserve-existing-output_78.stderr')),
+            ('invalid_90.b', expected_text('diagnostics-preserve-existing-output_79.stderr')),
+            ('invalid_91.b', expected_text('diagnostics-preserve-existing-output_80.stderr')),
+            ('invalid_92.b', expected_text('diagnostics-preserve-existing-output_80.stderr')),
+            ('invalid_93.b', expected_text('diagnostics-preserve-existing-output_81.stderr')),
+            ('invalid_94.b', expected_text('diagnostics-preserve-existing-output_82.stderr')),
+            ('invalid_95.b', expected_text('diagnostics-preserve-existing-output_83.stderr')),
+            ('invalid_96.b', expected_text('diagnostics-preserve-existing-output_84.stderr')),
+            ('invalid_97.b', expected_text('diagnostics-preserve-existing-output_85.stderr')),
+            ('invalid_98.b', expected_text('diagnostics-preserve-existing-output_86.stderr')),
+            ('invalid_99.b', expected_text('diagnostics-preserve-existing-output_87.stderr')),
+            ('invalid_100.b', expected_text('diagnostics-preserve-existing-output_88.stderr')),
+            ('invalid_101.b', expected_text('diagnostics-preserve-existing-output_25.stderr')),
+            ('invalid_102.b', expected_text('diagnostics-preserve-existing-output_25.stderr')),
+            ('invalid_103.b', expected_text('diagnostics-preserve-existing-output_25.stderr')),
+            ('invalid_104.b', expected_text('diagnostics-preserve-existing-output_89.stderr')),
+            ('invalid_105.b', expected_text('diagnostics-preserve-existing-output_90.stderr')),
+            ('invalid_106.b', expected_text('diagnostics-preserve-existing-output_24.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/diagnostics-preserve-existing-output' / fixture_name
@@ -1400,8 +1400,8 @@ time_t test_clock(time_t *out)
 
     def test_period_label_diagnostics(self):
         for fixture_name, location in (
-            ('period_1.b', ':2:2: duplicate label'),
-            ('period_2.b', ':1:13: expected an assignment'),
+            ('period_1.b', expected_text('period-label-diagnostics.stderr')),
+            ('period_2.b', expected_text('period-label-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/period-label-diagnostics' / fixture_name
@@ -1442,7 +1442,7 @@ time_t test_clock(time_t *out)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(
                     result.stderr,
-                    f'{source}:1:{column}: expected a variable, integer, string or parenthesized expression\n'
+                    expected_text('comparison-signs-keep-reference-spacing-rules.stderr', source=source, column=column)
                 )
 
     def test_single_index_substring_assignment_diagnostics(self):
@@ -2232,7 +2232,7 @@ CRT 'main'
         show = ROOT / 'tests/programs/lit-equates-expand-quoted-source/show.b'
         run = self.run_native(main, show)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'record:second\npayload\n3\t1+2\tliteral\n', b''))
+                         (0, expected_bytes('lit-equates-expand-quoted-source.stdout'), b''))
 
     def test_lit_equate_diagnostic_points_inside_definition(self):
         definition = 'EQUATE BROKEN LIT "CRT MISSING"'
@@ -2241,14 +2241,14 @@ CRT 'main'
         result = subprocess.run([str(ROOT / 'jbcc'), str(source), '-o', str(self.work / 'main.c')],
                                 capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{include}:1:{definition.index('MISSING') + 1}: unknown variable".encode(),
+        self.assertIn(expected_text('lit-equate-diagnostic-points-inside-definition.stderr', include=include, value_2=definition.index('MISSING') + 1).encode(),
                       result.stderr)
 
     def test_preprocessor_conditionals_and_include_guards(self):
         source = ROOT / 'tests/programs/preprocessor-conditionals-and-include-guards/guarded.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'3\t0\n3\n', b''))
+                         (0, expected_bytes('preprocessor-conditionals-and-include-guards.stdout'), b''))
 
     def test_defc_declarations_and_runtime_diagnostics(self):
         for fixture_name, diagnostic in (
@@ -2283,11 +2283,11 @@ CRT 'main'
         fixtures = ROOT / 'tests/programs/preprocessor-conditional-diagnostics'
         source = fixtures / 'main.b'
         for variant, location in (
-            ('1', ':1:1: #ELSE without matching'),
-            ('2', ':1:1: expected a symbol'),
-            ('3', ':3:1: duplicate #ELSE'),
-            ('4', ':1:1: missing #ENDIF'),
-            ('5', ':1:1: expected a replacement'),
+            ('1', expected_text('preprocessor-conditional-diagnostics.stderr')),
+            ('2', expected_text('preprocessor-conditional-diagnostics_2.stderr')),
+            ('3', expected_text('preprocessor-conditional-diagnostics_3.stderr')),
+            ('4', expected_text('preprocessor-conditional-diagnostics_4.stderr')),
+            ('5', expected_text('preprocessor-conditional-diagnostics_5.stderr')),
         ):
             with self.subTest(variant=variant):
                 include = fixtures / variant / 'I_BAD'
@@ -3173,7 +3173,7 @@ CRT 'main'
     def test_duplicate_package_reports_its_source_location(self):
         source = ROOT / 'tests/programs/duplicate-package.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
-        self.assertEqual((run.returncode, run.stderr), (1, f'{source}:2:1: duplicate $PACKAGE declaration\n'))
+        self.assertEqual((run.returncode, run.stderr), (1, expected_text('duplicate-package-reports-its-source-location.stderr', source=source)))
 
     def test_multi_unit_program_requires_package_aware_linkage(self):
         main = ROOT / 'tests/snippets/package-directives.b'
