@@ -1032,7 +1032,9 @@ statement. [INMAT](https://jbc-lang.org/pages/inmat.html).
 
 COM and COMMON accept scalars and dimensioned arrays. Declarations of the
 same named or unnamed block share slots by position across routines in one
-program. Repeating a scalar or a matrix in the same block within a
+program. A block name can be an identifier or a sequence of digits,
+including one substituted by `EQUATE`. Leading zeros are part of the
+name. Repeating a scalar or a matrix in the same block within a
 compilation unit reuses its original slot, including when an include is
 expanded twice. This follows the reference parser’s `common_identifier`
 allocation rule and its dynamic-dimension generator. Repeated COMMON

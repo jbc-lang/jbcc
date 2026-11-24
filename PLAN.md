@@ -3304,3 +3304,20 @@ The scan uses the headers in the extract, byte-mode source decoding and
 
 The result measures translation and C syntax. Runtime behavior for these
 routines needs separate checks with their dependencies or focused fixtures.
+
+- [x] Accept digit-only COMMON block names in declarations and matrix
+  lookup. In all five R07 rollover routines the local Prime reference
+  substitutes `MM.AUTO.ROLLOVER` with `90` and emits a block named `90`.
+  It preserves leading zeros in block names. The native fixture checks
+  that `/007/` shares storage with its equated form and differs from `/7/`.
+  The full R07 scan now passes strict C99 checks for 15,003 of 15,030
+  units, including every previous pass.
+- [x] Probe apparent scientific literals in the local Prime reference.
+  It interprets forms like `1.25e-002` as formatting with the variable
+  `e` followed by subtraction, and warns that `e` is unassigned.
+  Keep exponent syntax out of the lexer pending evidence of an R07
+  compiler mode that reads these as scientific constants.
+- [ ] Extend `--defer-unassigned-reads` to compound assignments. All five
+  remaining unassigned-variable diagnostics occur on `+=` or `:=`.
+  Preserve the strict diagnostic and verify that the opt-in still checks
+  the old value at runtime.

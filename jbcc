@@ -558,6 +558,10 @@ def dimension_shape(tokens, opening):
     return (), len(tokens) - 1
 
 
+def is_common_block_name(token):
+    return token.kind == 'name' or (token.kind == 'number' and token.word.isdigit())
+
+
 def matrix_declarations(tokens):
     """Index the dimensions of each member before generating code."""
     members = {}
@@ -574,7 +578,7 @@ def matrix_declarations(tokens):
             block_name = ''
             if tokens[i].word == '/':
                 i += 1
-                if tokens[i].kind == 'name':
+                if is_common_block_name(tokens[i]):
                     block_name = tokens[i].word
                     i += 1
                 if tokens[i].word != '/':
@@ -2808,7 +2812,10 @@ class Compiler:
             if self.word == '/':
                 self.advance()
                 if self.word != '/':
-                    name = self.identifier().word
+                    if not is_common_block_name(self.current):
+                        self.error("expected a name")
+                    name = self.word
+                    self.advance()
                 self.expect('/')
             if name not in self.commons:
                 self.commons[name] = CommonBlock(f"common{len(self.commons)}", opening)
