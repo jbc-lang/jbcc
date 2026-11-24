@@ -611,18 +611,18 @@ class CompilerTest(NativeCompilerTest):
         directory.mkdir()
         env = dict(os.environ, JBCC_LIST_DIR=str(directory))
         written = self.run_native(ROOT / 'tests/io/write-lists.b', options=['--memory-file', 'F'], env=env)
-        self.assertEqual((written.returncode, written.stdout, written.stderr), (0, b'0\nremaining 1,b\n', b''))
+        self.assertEqual((written.returncode, written.stdout, written.stderr), (0, expected_bytes('saved-lists-across-executables.stdout'), b''))
         self.assertFalse((self.work / 'order').exists())
         read = self.run_native(ROOT / 'tests/io/read-lists.b', env=env)
         self.assertEqual((read.returncode, read.stderr), (0, b''))
-        self.assertEqual(read.stdout, b'4\n[first]\n[]\n[last]\n[]\nempty 0\nmissing 0\n7\nkeys 2\na\nb\n')
+        self.assertEqual(read.stdout, expected_bytes('saved-lists-across-executables_2.stdout'))
 
         deleted = self.run_native(ROOT / 'tests/io/delete-lists.b', env=env)
         self.assertEqual((deleted.returncode, deleted.stderr), (0, b''))
-        self.assertEqual(deleted.stdout, b'4\nfirst\n3\n[]\n7\nmissing 0\ninactive\ncleared\n')
+        self.assertEqual(deleted.stdout, expected_bytes('saved-lists-across-executables_3.stdout'))
         check = ROOT / 'tests/io/check-deleted-lists.b'
         after = self.run_native(check, env=env)
-        self.assertEqual((after.returncode, after.stdout, after.stderr), (0, b'gone\n0\n', b''))
+        self.assertEqual((after.returncode, after.stdout, after.stderr), (0, expected_bytes('saved-lists-across-executables_4.stdout'), b''))
 
     def test_selected_tracks_default_external_list_across_calls(self):
         main = ROOT / 'tests/routines/selected-list/main.b'
@@ -630,7 +630,7 @@ class CompilerTest(NativeCompilerTest):
         env = dict(os.environ, JBCC_LIST_DIR=str(self.work))
         run = self.run_native(main, routine, env=env)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'1:2\n')
+        self.assertEqual(run.stdout, expected_bytes('selected-tracks-default-external-list-across-calls.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_cleardata_discards_the_queue_and_preserves_standard_input(self):
@@ -648,7 +648,7 @@ class CompilerTest(NativeCompilerTest):
         routine = ROOT / 'tests/routines/record-id/select-id.b'
         run = self.run_native(main, routine)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'key-4\n')
+        self.assertEqual(run.stdout, expected_bytes('record-id-survives-loop-collection-and-return.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_filename_is_shared_and_independent_of_other_record_context(self):
@@ -656,29 +656,27 @@ class CompilerTest(NativeCompilerTest):
         routine = ROOT / 'tests/routines/record-filename/set-filename.b'
         result = self.run_native(main, routine, options=['--memory-file', 'records'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'[]\nstart\nfile-4\tkey\trecord context\n'
-                             b'returned-name\tkey\trecord context\n[]\n', b''))
+                         (0, expected_bytes('filename-is-shared-and-independent-of-other-record-context.stdout'), b''))
 
     def test_record_context_survives_collection_and_changes_only_on_explicit_writes(self):
         main = ROOT / 'tests/routines/record-context/main.b'
         routine = ROOT / 'tests/routines/record-context/seed.b'
         run = self.run_native(main, routine, options=['--memory-file', 'records'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'[]\ninitial:4\ninitial:4\ninitial:two\n'
-                         b'next:one\nnext:two\nnext:one\nnext:[]\n')
+        self.assertEqual(run.stdout, expected_bytes('record-context-survives-collection-and-changes-only-on-explicit-writes.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_deletelist_requires_named_store(self):
         source = ROOT / 'tests/io/deletelist-missing-store.b'
         result = self.run_native(source, env=dict(os.environ, JBCC_LIST_DIR=''))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:1: DELETELIST requires JBCC_LIST_DIR'.encode(), result.stderr)
+        self.assertIn(expected_text('deletelist-requires-named-store.stderr', source=source).encode(), result.stderr)
 
     def test_saved_list_write_failure(self):
         source = ROOT / 'tests/io/writelist-missing-directory.b'
         env = dict(os.environ, JBCC_LIST_DIR=str(self.work / 'missing'))
         result = self.run_native(source, env=env)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'128\n', b''))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('saved-list-write-failure.stdout'), b''))
 
     def test_print_units(self):
         env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
@@ -2518,8 +2516,7 @@ CRT 'main'
     def test_memory_files(self):
         run = self.run_native(ROOT / 'tests/io/records.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'missing file\nwrite failed\nmissing record\nsaved1\nsaved2\n'
-                                     b'record2\nempty=0\nrecord2\n')
+        self.assertEqual(run.stdout, expected_bytes('memory-files.stdout'))
 
     def test_last_file_status(self):
         (self.work / 'input').write_bytes(b'abc')
@@ -2527,27 +2524,24 @@ CRT 'main'
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'], cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'0\nopen\t128\nopened\t0\nread\t128\nlocked\t-2\n'
-                                        b'write\t32768\nwrote\t0\t0\nfields\t0\t1\nroutine\t128\n'
-                                        b'after call\t128\nMEMORY\t0\nclose\t128\nseq open\t0\nab\t0\n'
-                                        b'short\t128\nreadonly\t24576\nseq close\t0\n')
+        self.assertEqual(result.stdout, expected_bytes('last-file-status.stdout'))
 
     def test_status_wrong_argument_count(self):
         source = ROOT / 'tests/io/status-wrong-argument-count.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'STATUS'", result.stderr)
+        self.assertIn(expected_text('status-wrong-argument-count.stderr', source=source), result.stderr)
 
     def test_record_file_status(self):
         result = self.run_native(ROOT / 'tests/io/file-status.b', options=['--memory-file', 'data/customers'])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'0,7,data/customers,MEMORY,24\n[]\n2\n128:[]\n')
+        self.assertEqual(result.stdout, expected_bytes('record-file-status.stdout'))
 
     def test_status_empty_descriptor(self):
         source = ROOT / 'tests/io/status-empty-descriptor.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:1: STATUS requires a nonempty file descriptor'.encode(), result.stderr)
+        self.assertIn(expected_text('status-empty-descriptor.stderr', source=source).encode(), result.stderr)
 
     def test_sequential_file_status(self):
         path = self.work / 'data'
@@ -2572,14 +2566,13 @@ CRT 'main'
                                  options=['--memory-file', 'data/customers',
                                           '--memory-file', '/records/customers'])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'0\nAda\nupdated\nGrace\n128\ndefault cleared\n'
-                         b'128\ndescriptor cleared\nno dictionary\n')
+        self.assertEqual(result.stdout, expected_bytes('openpath.stdout'))
 
     def test_record_file_close(self):
         result = self.run_native(ROOT / 'tests/io/close.b', options=[
             '--memory-file', 'F', '--memory-file', 'G', '--memory-lock', 'F', 'foreign'])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'0\t0\t2\t-2\nsaved\n0\t0\t0\nalready closed\nordinary\nsaved\n1\n')
+        self.assertEqual(result.stdout, expected_bytes('record-file-close.stdout'))
 
     def test_close_by_reference_retires_local_cleanup(self):
         main = ROOT / 'tests/io/close-by-reference-retires-local-cleanup/main.b'
@@ -2610,66 +2603,63 @@ CRT 'main'
                               options=['--memory-file', 'CUSTOMERS', '--memory-dict', 'CUSTOMERS',
                                        '--memory-file', 'DATA.ONLY', '--memory-dict', 'DICT.ONLY'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'data\ndefinition\nremoved from dictionary\ndata\n'
-                                     b'missing dictionary\ndescriptor cleared\nmissing data file\n')
+        self.assertEqual(run.stdout, expected_bytes('open-sections.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_delete_records(self):
         run = self.run_native(ROOT / 'tests/io/delete.b',
                               options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\ngone\nkeep\nkeep too\nother\nback\n128\n128\n')
+        self.assertEqual(run.stdout, expected_bytes('delete-records.stdout'))
         self.assertEqual(run.stderr, b'')
 
         source = ROOT / 'tests/io/delete-records.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: DELETE failed'.encode(), run.stderr)
+        self.assertIn(expected_text('delete-records.stderr', source=source).encode(), run.stderr)
 
     def test_delete_locked_dispatch(self):
         source = ROOT / 'tests/io/delete-locked.b'
         run = self.run_native(source, options=['--memory-file', 'Records', '--memory-lock', 'Records', 'busy'])
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'locked -2:-2\n-2\nerror 128:128\nvalue\ndeleted 0:0\ngone\n', b''))
+                         (0, expected_bytes('delete-locked-dispatch.stdout'), b''))
 
     def test_file_lock_and_unlock(self):
         source = ROOT / 'tests/io/file-lock.b'
         options = ['--memory-file', 'Free', '--memory-file', 'Busy', '--memory-lock', 'Busy', 'held']
         run = self.run_native(source, options=options)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'0\t0\t2\n2\n0\t2\t0\n0\n0\nvalue\n-2\t-2\t-2\n32768\t32768\n128\n128\n', b''))
+                         (0, expected_bytes('file-lock-and-unlock.stdout'), b''))
 
     def test_clearfile(self):
         run = self.run_native(ROOT / 'tests/io/clearfile.b',
                               options=['--memory-file', 'CUSTOMERS', '--memory-file', 'OTHER'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'gone 1\ngone 2\ngone 3\nretained\ndefault cleared\n'
-                                     b'reused\nerror 128\n128\nreused\n')
+        self.assertEqual(run.stdout, expected_bytes('clearfile.stdout'))
         self.assertEqual(run.stderr, b'')
 
         source = ROOT / 'tests/io/clearfile/clearfile.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: CLEARFILE failed'.encode(), run.stderr)
+        self.assertIn(expected_text('clearfile.stderr', source=source).encode(), run.stderr)
 
     def test_clearfile_locked_dispatch_preserves_records(self):
         source = ROOT / 'tests/io/clearfile-locked-dispatch-preserves-records.b'
         result = self.run_native(source, options=['--memory-file', 'Busy', '--memory-file', 'Free',
                                                   '--memory-lock', 'Busy', 'held'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'-2:-2\n-2\nretained\n-2\n32768:32768\n128:128\n[] 0\ncleared\n', b''))
+                         (0, expected_bytes('clearfile-locked-dispatch-preserves-records.stdout'), b''))
 
     def test_read_setting_uses_record_status_and_branch_order(self):
         source = ROOT / 'tests/io/read-setting-uses-record-status-and-branch-order.b'
         result = self.run_native(source, options=['--memory-file', 'Sample'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'value\t[]\t0\t0\nvalue\t[]\t0\n[]\t128\t128\n'
-                             b'[]\t128\t128\nvalue\t0\n', b''))
+                         (0, expected_bytes('read-setting-uses-record-status-and-branch-order.stdout'), b''))
 
     def test_read_setting_requires_destination_and_conditional_arm(self):
         for fixture_name, diagnostic in (
-            ('read-setting_1.b', ':1:27: expected a name'),
-            ('read-setting_2.b', ':1:31: expected THEN or ELSE'),
+            ('read-setting_1.b', expected_text('read-setting-requires-destination-and-conditional-arm.stderr')),
+            ('read-setting_2.b', expected_text('read-setting-requires-destination-and-conditional-arm_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/read-setting-requires-destination-and-conditional-arm' / fixture_name
@@ -2681,29 +2671,27 @@ CRT 'main'
         run = self.run_native(ROOT / 'tests/io/readu.b', ROOT / 'tests/io/reopen.b',
                               options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'128\t2\n0\nfirst\t2\nown lock\n0\n0\t2\n0\n0\n0\n'
-                                     b'0\t-2\nbusy\t-2\tkept\nerror\t32768\n'
-                                     b'write conflict\t32768\ndelete conflict\t32768\n-2\n')
+        self.assertEqual(run.stdout, expected_bytes('readu.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_readu_unhandled_fixture_conflict(self):
         source = ROOT / 'tests/io/readu-unhandled-fixture-conflict.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:2:1: READU cannot wait for a simulated foreign lock'.encode(), run.stderr)
+        self.assertIn(expected_text('readu-unhandled-fixture-conflict.stderr', source=source).encode(), run.stderr)
 
     def test_recordlocku_reserves_key_and_reports_contention(self):
         source = ROOT / 'tests/io/recordlocku-reserves-key-and-reports-contention.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'[]\n2\nabsent\n-2:1\n32768\n0:-2\n')
+        self.assertEqual(run.stdout, expected_bytes('recordlocku-reserves-key-and-reports-contention.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_recordlocku_unhandled_contention_reports_call_site(self):
         source = ROOT / 'tests/io/recordlocku-unhandled-contention-reports-call-site.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:2:1: RECORDLOCKU cannot wait for a simulated foreign lock'.encode(),
+        self.assertIn(expected_text('recordlocku-unhandled-contention-reports-call-site.stderr', source=source).encode(),
                       run.stderr)
 
     def test_release_on_error_reports_invalid_files_and_preserves_foreign_locks(self):
@@ -2712,97 +2700,92 @@ CRT 'main'
             '--memory-file', 'F', '--memory-file', 'G', '--memory-lock', 'F', 'busy',
         ))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'default 128\n128\n128:2\n0:0:0:2\n0:0:-2\n', b''))
+                         (0, expected_bytes('release-on-error-reports-invalid-files-and-preserves-foreign-locks.stdout'), b''))
 
     def test_assign_system_resets_blocked_record_lock_counter(self):
         source = ROOT / 'tests/io/assign-system-resets-blocked-record-lock-counter.b'
         run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\n2\n0\n-2\n')
+        self.assertEqual(run.stdout, expected_bytes('assign-system-resets-blocked-record-lock-counter.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_assign_system_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('assign-system_1.b', 'SYSTEM(1036) can only be reset to zero'),
-            ('assign-system_2.b', 'ASSIGN TO SYSTEM(1039) requires a journaling backend'),
-            ('assign-system_3.b', 'unsupported ASSIGN TO SYSTEM key 2021'),
+            ('assign-system_1.b', expected_text('assign-system-diagnostics.stderr')),
+            ('assign-system_2.b', expected_text('assign-system-diagnostics_2.stderr')),
+            ('assign-system_3.b', expected_text('assign-system-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/assign-system-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:1: {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('assign-system-diagnostics_4.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_readv(self):
         run = self.run_native(ROOT / 'tests/io/readv.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'two|values\nlast\nid\nlength 0\nlength 0\n0\n0\n'
-                                     b'missing 128 0\ninvalid 128\nfirst status=\ntwo|values\n')
+        self.assertEqual(run.stdout, expected_bytes('readv.stdout'))
         self.assertEqual(run.stderr, b'')
 
         source = ROOT / 'tests/io/readv/readv.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: READV requires a numeric field number'.encode(), run.stderr)
+        self.assertIn(expected_text('readv.stderr', source=source).encode(), run.stderr)
 
     def test_readvu(self):
         run = self.run_native(ROOT / 'tests/io/readvu.b',
                               options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'second|value\t0\t2\nkey\n0\t2\n0\n128\t0\t2\n0\n'
-                                     b'-2\tkept\nfirst\t0\n32768\t0\n')
+        self.assertEqual(run.stdout, expected_bytes('readvu.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_readvu_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('readvu_1.b', 'requires a numeric field number'),
-            ('readvu_2.b', 'cannot wait for a simulated foreign lock'),
+            ('readvu_1.b', expected_text('readvu-diagnostics.stderr')),
+            ('readvu_2.b', expected_text('readvu-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/readvu-diagnostics' / fixture_name
                 run = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:2:1: READVU {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('readvu-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_write_setting_and_on_error(self):
         result = self.run_native(ROOT / 'tests/io/write-error.b',
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'0\t0\ninserted\nthen\nelse\n32768\t-2\n'
-                                        b'no record\nbad 128\n128\nupdated\n')
+        self.assertEqual(result.stdout, expected_bytes('write-setting-and-on-error.stdout'))
 
     def test_write_on_error_diagnostics(self):
         source = ROOT / 'tests/io/write-on-error-diagnostics/write.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:27: expected 'ERROR'", result.stderr)
+        self.assertIn(expected_text('write-on-error-diagnostics.stderr', source=source), result.stderr)
         source = ROOT / 'tests/io/write-on-error-diagnostics/write-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:1: WRITE failed'.encode(), run.stderr)
+        self.assertIn(expected_text('write-on-error-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_writeu(self):
         result = self.run_native(ROOT / 'tests/io/writeu.b',
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'second\t0\t2\nupdated\t2\n0\n0\n0\n32768\t-2\n'
-                                        b'no record created\n128\nbad descriptor\nordinary write\n')
+        self.assertEqual(result.stdout, expected_bytes('writeu.stdout'))
 
     def test_writeu_unhandled_failure(self):
         source = ROOT / 'tests/io/writeu-unhandled-failure.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:1: WRITEU failed'.encode(), result.stderr)
+        self.assertIn(expected_text('writeu-unhandled-failure.stderr', source=source).encode(), result.stderr)
 
     def test_writev_and_writevu(self):
         result = self.run_native(ROOT / 'tests/io/writev.b',
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'0\t2\n0\none|two,extra|three|||six\n||new\n0\n'
-                                        b'32768\t-2\n32768\nmissing\n128\n')
+        self.assertEqual(result.stdout, expected_bytes('writev-and-writevu.stdout'))
 
     def test_writev_field_number_diagnostics(self):
         for fixture_name, op in (
@@ -2815,7 +2798,7 @@ CRT 'main'
                 source = ROOT / 'tests/io/writev-field-number-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:1: {op} requires a positive integer field number'.encode(),
+                self.assertIn(expected_text('writev-field-number-diagnostics.stderr', source=source, op=op).encode(),
                               result.stderr)
 
     def test_inmat_dimensions_and_latest_load(self):
@@ -2823,98 +2806,92 @@ CRT 'main'
                                  options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'0\t3\t2x4\n3\t0\n0\t4\tc|d\n3\t2\n0\n0\n'
-                                        b'2\t2\n0\t2\tz\n2\t2\n2x4\n1\n')
+        self.assertEqual(result.stdout, expected_bytes('inmat-dimensions-and-latest-load.stdout'))
 
     def test_inmat_requires_a_matrix_argument(self):
         source = ROOT / 'tests/io/inmat-requires-a-matrix-argument.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:2:11: expected a dimensioned array 'X'", result.stderr)
+        self.assertIn(expected_text('inmat-requires-a-matrix-argument.stderr', source=source), result.stderr)
 
     def test_matread(self):
         run = self.run_native(ROOT / 'tests/io/matread.b', options=['--memory-file', 'CUSTOMERS'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'6\na\t0\tc\td|e|\n128\ta\te\n1\tshort\t0\n0\t0\n128\tkept\n')
+        self.assertEqual(run.stdout, expected_bytes('matread.stdout'))
         self.assertEqual(run.stderr, b'')
 
         source = ROOT / 'tests/io/matread/matread.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:9: expected a dimensioned array 'A'", run.stderr)
+        self.assertIn(expected_text('matread.stderr', source=source), run.stderr)
         source = ROOT / 'tests/io/matread/matread-variant-2.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:2:22: MATREAD LOCKED requires a locking file backend", run.stderr)
+        self.assertIn(expected_text('matread_2.stderr', source=source), run.stderr)
 
     def test_matreadu(self):
         run = self.run_native(ROOT / 'tests/io/matreadu.b',
                               options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'3\tone\ttwo|three\t2\nupdated\t0\nmissing\t128\tupdated\t2\n'
-                                     b'0\nlocked\t-2\tupdated\ttwo|three\nerror\t32768\tupdated\n')
+        self.assertEqual(run.stdout, expected_bytes('matreadu.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_matwrite(self):
         run = self.run_native(ROOT / 'tests/io/matwrite.b',
                               options=['--memory-file', 'EXPLICIT', '--memory-file', 'DEFAULT'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'6\tfirst||left/right|four|five|\n4\n6\tfirst\t0\tright\tfour|five|\n'
-                                     b'new\tnew\n128\nnew|new|new|new\n0\n')
+        self.assertEqual(run.stdout, expected_bytes('matwrite.stdout'))
         self.assertEqual(run.stderr, b'')
         source = ROOT / 'tests/io/matwrite/matwrite.b'
         run = self.run_native(source, options=['--memory-file', 'F'])
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:4:1: unassigned element 2 in matrix 'A'".encode(), run.stderr)
+        self.assertIn(expected_text('matwrite.stderr', source=source).encode(), run.stderr)
 
     def test_formlist_rejects_out_of_range_quoted_list_number(self):
         source = ROOT / 'tests/programs/formlist-invalid-number.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual((result.returncode, result.stderr),
-                         (1, f"{source}:1:20: select list number must be between 0 and 10\n"))
+                         (1, expected_text('formlist-rejects-out-of-range-quoted-list-number.stderr', source=source)))
 
     def test_file_select(self):
         run = self.run_native(ROOT / 'tests/io/select.b', options=['--memory-file', 'F'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'empty\na\t0\t0\na\nc\nd\nc\nd\ndone\nstill done\nc\n'
-                                     b'source first c\ncopied d\nsource next d\ncleared\n128\n')
+        self.assertEqual(run.stdout, expected_bytes('file-select.stdout'))
         self.assertEqual(run.stderr, b'')
         source = ROOT / 'tests/io/file-select.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:11: select list number must be between 0 and 10", run.stderr)
+        self.assertIn(expected_text('file-select.stderr', source=source), run.stderr)
 
     def test_sselect_file(self):
         result = self.run_native(ROOT / 'tests/io/sselect.b', options=['--memory-file', 'F'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'missing default\n128\nempty\n0\ndefault item1\n'
-                                        b'numbered item1\nitem1\nitem10\nitem2\nbad file 128\ncleared\n')
+        self.assertEqual(result.stdout, expected_bytes('sselect-file.stdout'))
 
     def test_sselect_diagnostics(self):
         source = ROOT / 'tests/io/sselect-diagnostics/sselect.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:12: select list number must be between 0 and 10", result.stderr)
+        self.assertIn(expected_text('sselect-diagnostics.stderr', source=source), result.stderr)
         source = ROOT / 'tests/io/sselect-diagnostics/sselect-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:1: SSELECT failed".encode(), run.stderr)
+        self.assertIn(expected_text('sselect-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_clearselect(self):
         run = self.run_native(ROOT / 'tests/io/clearselect.b', options=['--memory-file', 'F'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'default empty\na\n10\nnumbered empty\nb\nnamed empty\n'
-                                     b'a\nzero empty\n11\nsecond\n')
+        self.assertEqual(run.stdout, expected_bytes('clearselect.stdout'))
         self.assertEqual(run.stderr, b'')
         source = ROOT / 'tests/io/clearselect/clearselect.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:13: select list number must be between 0 and 11", run.stderr)
+        self.assertIn(expected_text('clearselect.stderr', source=source), run.stderr)
         source = ROOT / 'tests/io/clearselect/clearselect-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:2:1: CLEARSELECT requires a select list".encode(), run.stderr)
+        self.assertIn(expected_text('clearselect_2.stderr', source=source).encode(), run.stderr)
 
     def test_deferred_scalar_read_warns_and_fails_only_when_reached(self):
         source = ROOT / 'tests/programs/deferred-scalar-read-warns-and-fails-only-when-reached.b'

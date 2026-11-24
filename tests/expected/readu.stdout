@@ -1,0 +1,15 @@
+128	2
+0
+first	2
+own lock
+0
+0	2
+0
+0
+0
+0	-2
+busy	-2	kept
+error	32768
+write conflict	32768
+delete conflict	32768
+-2

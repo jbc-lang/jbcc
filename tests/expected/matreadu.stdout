@@ -1,0 +1,6 @@
+3	one	two|three	2
+updated	0
+missing	128	updated	2
+0
+locked	-2	updated	two|three
+error	32768	updated

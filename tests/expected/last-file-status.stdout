@@ -1,0 +1,17 @@
+0
+open	128
+opened	0
+read	128
+locked	-2
+write	32768
+wrote	0	0
+fields	0	1
+routine	128
+after call	128
+MEMORY	0
+close	128
+seq open	0
+ab	0
+short	128
+readonly	24576
+seq close	0
