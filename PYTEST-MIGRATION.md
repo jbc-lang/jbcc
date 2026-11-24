@@ -29,7 +29,7 @@ verify collection before moving to the next group.
 - [x] Control flow, variable assignment, matrices, and `COMMON`.
 - [x] Routine calls, functions, linkage, and the compiler driver.
 - [x] Corpus reporting and external backend diagnostics.
-- [ ] File I/O, record operations, saved lists, and locks.
+- [x] File I/O, record operations, saved lists, and locks.
 - [ ] Command execution, invocation, session state, and user statistics.
 - [ ] Clocks, terminal input, PTYs, and process lifecycle.
 - [ ] Verify the full 561-test suite after the framework conversion.
