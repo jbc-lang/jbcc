@@ -4,13 +4,13 @@ set positional-arguments
 default:
     @just --list
 
-# Run the compiler and native execution tests with the Python standard library.
-test:
-    python3 -B -m unittest discover -s tests -v
+# Run the compiler and native execution tests with pytest.
+test *args:
+    uvx --from 'pytest>=9,<10' pytest "$@"
 
 # Run the same tests in parallel, optionally selecting tests with pytest flags.
 test-parallel jobs="auto" *args:
-    @jobs="$1"; shift; uvx --with pytest-xdist pytest -n "$jobs" "$@"
+    @jobs="$1"; shift; uvx --from 'pytest>=9,<10' --with pytest-xdist pytest -n "$jobs" "$@"
 
 # Build a native executable from one or more sources.
 build output +sources:

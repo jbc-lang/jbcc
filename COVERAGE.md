@@ -38,32 +38,32 @@ reference 99 APIs and are indexed in JSON.
 | `MONEndUnitOfWork` | 0 arguments | — | 4 | backend required | Unreviewed |
 | `MONStartUnitOfWork` | 1 argument | — | 4 | backend required | Unreviewed |
 | `BITOR` | 2 arguments | [Guide](https://jbc-lang.org/pages/bitor.html) | 1 | call translates | [Signed 32-bit output checked](tests/snippets/bitor.b) |
-| `DATE` | 0 arguments | [Guide](https://jbc-lang.org/pages/date.html) | 602 | call translates | [Local date and epoch checked](tests/test_compiler.py) |
+| `DATE` | 0 arguments | [Guide](https://jbc-lang.org/pages/date.html) | 602 | call translates | [Local date and epoch checked](tests/test_terminal.py) |
 | `DECRYPT` | computed method | [Guide](https://jbc-lang.org/pages/decrypt.html) | 1 | runtime support depends on method | Unreviewed |
 | `DECRYPT` | method 1 (ROT13) | [Guide](https://jbc-lang.org/pages/decrypt.html) | 0 | ROT13 implemented | [ROT13 output checked](tests/snippets/rot13.b) |
-| `DECRYPT` | method 4 (Base64) | [Guide](https://jbc-lang.org/pages/decrypt.html) | 10 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `DECRYPT` | method 4 (Base64) | [Guide](https://jbc-lang.org/pages/decrypt.html) | 10 | backend required | [Missing-backend diagnostic checked](tests/test_diagnostics.py) |
 | `DECRYPT` | method 6 | [Guide](https://jbc-lang.org/pages/decrypt.html) | 1 | backend required | Unreviewed |
-| `DYNTOXML` | 2 arguments | [Guide](https://jbc-lang.org/pages/dyntoxml.html) | 0 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
-| `DYNTOXML` | 3 arguments | [Guide](https://jbc-lang.org/pages/dyntoxml.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `DYNTOXML` | 2 arguments | [Guide](https://jbc-lang.org/pages/dyntoxml.html) | 0 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
+| `DYNTOXML` | 3 arguments | [Guide](https://jbc-lang.org/pages/dyntoxml.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
 | `ENCRYPT` | method 1 (ROT13) | [Guide](https://jbc-lang.org/pages/encrypt.html) | 0 | ROT13 implemented | [ROT13 output checked](tests/snippets/rot13.b) |
-| `ENCRYPT` | method 4 (Base64) | [Guide](https://jbc-lang.org/pages/encrypt.html) | 8 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `ENCRYPT` | method 4 (Base64) | [Guide](https://jbc-lang.org/pages/encrypt.html) | 8 | backend required | [Missing-backend diagnostic checked](tests/test_diagnostics.py) |
 | `ENCRYPT` | method 6 | [Guide](https://jbc-lang.org/pages/encrypt.html) | 1 | backend required | Unreviewed |
-| `FILEINFO` | 2 arguments | [Guide](https://jbc-lang.org/pages/fileinfo.html) | 8 | call translates | [Handle status and pathname checked](tests/test_compiler.py) |
+| `FILEINFO` | 2 arguments | [Guide](https://jbc-lang.org/pages/fileinfo.html) | 8 | call translates | [Handle status and pathname checked](tests/test_io.py) |
 | `GETENV` | 1 argument | [Guide](https://jbc-lang.org/pages/getenv.html) | 2 | call translates | [Environment lookup checked](tests/io/getenv.b) |
 | `GETENV` | 2 arguments | [Guide](https://jbc-lang.org/pages/getenv.html) | 16 | call translates | [Environment lookup and output parameter checked](tests/io/getenv.b) |
-| `INDICES` | 1 argument | — | 2 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
-| `INDICES` | 2 arguments | — | 1 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `INDICES` | 1 argument | — | 2 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
+| `INDICES` | 2 arguments | — | 1 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
 | `INMAT` | 0 arguments | [Guide](https://jbc-lang.org/pages/inmat.html) | 8 | call translates | [Latest matrix load count checked](tests/io/inmat.b) |
 | `INMAT` | 1 argument | [Guide](https://jbc-lang.org/pages/inmat.html) | 3 | call translates | [Matrix bounds checked](tests/io/inmat.b) |
-| `IOCTL` | 3 arguments | [Guide](https://jbc-lang.org/pages/ioctl.html) | 5 | call translates | [Filename query and output parameter checked](tests/test_compiler.py) |
-| `ITYPE` | 1 argument | [Guide](https://jbc-lang.org/pages/itype.html) | 8 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
-| `JBASECOREDUMP` | 2 arguments | [Guide](https://jbc-lang.org/pages/jbasecoredump.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `IOCTL` | 3 arguments | [Guide](https://jbc-lang.org/pages/ioctl.html) | 5 | call translates | [Filename query and output parameter checked](tests/test_io.py) |
+| `ITYPE` | 1 argument | [Guide](https://jbc-lang.org/pages/itype.html) | 8 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
+| `JBASECOREDUMP` | 2 arguments | [Guide](https://jbc-lang.org/pages/jbasecoredump.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
 | `PUTENV` | 1 argument | [Guide](https://jbc-lang.org/pages/putenv.html) | 7 | call translates | [Environment updates checked](tests/io/putenv.b) |
-| `TIME` | 0 arguments | [Guide](https://jbc-lang.org/pages/time.html) | 344 | call translates | [Local clock checked](tests/test_compiler.py) |
-| `TIMEDATE` | 0 arguments | [Guide](https://jbc-lang.org/pages/timedate.html) | 587 | call translates | [Local midnight rollover checked](tests/test_compiler.py) |
-| `XMLTODYN` | 2 arguments | [Guide](https://jbc-lang.org/pages/xmltodyn.html) | 0 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
-| `XMLTODYN` | 3 arguments | [Guide](https://jbc-lang.org/pages/xmltodyn.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
-| `XMLTOXML` | 3 arguments | [Guide](https://jbc-lang.org/pages/xmltoxml.html) | 2 | backend required | [Missing-backend diagnostic checked](tests/test_compiler.py) |
+| `TIME` | 0 arguments | [Guide](https://jbc-lang.org/pages/time.html) | 344 | call translates | [Local clock checked](tests/test_terminal.py) |
+| `TIMEDATE` | 0 arguments | [Guide](https://jbc-lang.org/pages/timedate.html) | 587 | call translates | [Local midnight rollover checked](tests/test_terminal.py) |
+| `XMLTODYN` | 2 arguments | [Guide](https://jbc-lang.org/pages/xmltodyn.html) | 0 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
+| `XMLTODYN` | 3 arguments | [Guide](https://jbc-lang.org/pages/xmltodyn.html) | 1 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
+| `XMLTOXML` | 3 arguments | [Guide](https://jbc-lang.org/pages/xmltoxml.html) | 2 | backend required | [Missing-backend diagnostic checked](tests/test_corpus.py) |
 
 ## Frequent T24 forms without a linked test
 

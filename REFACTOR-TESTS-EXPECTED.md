@@ -1,8 +1,9 @@
 # Inline expected output
 
-**Baseline.** 362 of 561 collected tests had a fixed, nonempty output expectation in
-[tests/test_compiler.py](tests/test_compiler.py). This is one checkbox per test,
-including tests with several output comparisons or subtests.
+**Baseline.** 362 of 561 collected tests had a fixed, nonempty output expectation
+in the former `tests/test_compiler.py`. The migrated tests live in [tests/](tests/).
+This is one checkbox per original test, including tests with several output
+comparisons or subtests.
 
 - 139 compare stdout or terminal output only.
 - 156 compare stderr only.

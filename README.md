@@ -2379,23 +2379,20 @@ Reviewed runtime assertions are recorded independently.
 
 ## Test corpus
 
-Run the full suite with Python's standard library.
+Run the full suite with pytest 9 through uv.
 
 ```sh
 just test
-# Or run unittest directly.
-python3 -B -m unittest discover -s tests -v
+just test tests/test_io.py
 ```
 
-With uv installed, run the same suite in parallel. The recipe defaults to
+Run the same suite in parallel with pytest-xdist. The recipe defaults to
 automatic worker selection. Pass a worker count and any pytest filters
 after it.
 
 ```sh
 just test-parallel
 just test-parallel 4 -k executable_mode
-# Or run pytest directly.
-uvx --with pytest-xdist pytest -n auto
 ```
 
 Use a full run after changing the compiler, C runtime, or fixtures.
@@ -2403,13 +2400,13 @@ The tests exercise these files through subprocesses, so Python
 test-selection caches alone cannot establish coverage for such changes.
 
 Put self-contained, single-source success cases in `tests/snippets/` as
-`.b` and `.stdout` pairs. Each pair is discovered as an individual test
-by unittest and pytest. The runner invokes the CLI, compiles with strict
+`.b` and `.stdout` pairs. Each pair is a parametrized pytest case named
+after its source file. The runner invokes the CLI, compiles with strict
 C99 warnings, and checks for exit zero, byte-for-byte stdout and empty
 stderr. Python tests cover diagnostics, multiple sources, runtime setup
 and side effects. Keep their static jBC source in checked-in `.b` files
 as well. Generate source in Python when the test needs to construct or
-vary it.
+vary it. Tests are grouped by behavior in `tests/test_*.py`.
 The expected outputs are project expectations. The conversion and printing
 rules draw on the guide's [string variables](https://jbc-lang.org/pages/string_variables.html),
 [numeric variables](https://jbc-lang.org/pages/numeric_variables.html) and

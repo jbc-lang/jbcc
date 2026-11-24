@@ -3,9 +3,10 @@
 **Baseline**
 
 238 of 561 collected tests wrote at least one temporary `.b` file
-during the baseline run. Each checkbox names one test method in
-[tests/test_compiler.py](tests/test_compiler.py). A method can create or
-rewrite several sources, including in subtests. This inventory covers
+during the baseline run. Each checkbox names one test from the former
+`tests/test_compiler.py`. The migrated tests live in [tests/](tests/).
+A test can create or rewrite several sources, including in subtests.
+This inventory covers
 `.b` paths, so a test that only writes extensionless sources or includes
 falls outside this list.
 

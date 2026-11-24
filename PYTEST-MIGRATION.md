@@ -1,9 +1,8 @@
 # Pytest migration
 
-Migrate [tests/test_compiler.py](tests/test_compiler.py) in groups.
-The baseline is 561 collected tests, including 183 snippet cases.
-Keep this count through the framework conversion. Parametrizing
-subtests later can increase the count.
+The former `tests/test_compiler.py` has been split into behavior modules
+in [tests/](tests/). The framework conversion preserved the baseline
+of 561 collected tests, including 183 snippet cases.
 
 ## Shared fixtures and snippet runner
 
@@ -36,11 +35,13 @@ verify collection before moving to the next group.
 
 ## Parametrization and test commands
 
-- [ ] Parametrize fixed variants with independent setup and give them
+- [x] Parametrize fixed variants with independent setup and give them
   descriptive case IDs. Keep loops that deliberately share a binary,
   process, terminal, or file state.
-- [ ] Verify the new collection count against the migrated subtests.
-- [ ] Make `just test` run pytest and retain `just test-parallel` for
+- [x] Verify the new collection count against the migrated subtests.
+  Both recipes collect 888 cases. Parametrizing 87 tests produces
+  414 cases, an increase of 327.
+- [x] Make `just test` run pytest and retain `just test-parallel` for
   xdist. Update the README and remove the legacy unittest test command.
-- [ ] Run the final suite through both recipes and confirm that they
+- [x] Run the final suite through both recipes and confirm that they
   collect and pass the same cases.
