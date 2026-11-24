@@ -4,6 +4,16 @@ set positional-arguments
 default:
     @just --list
 
+# Sort imports and format the Python sources.
+format:
+    uvx ruff check --select I --fix jbcc .
+    uvx ruff format jbcc .
+
+# Check import order and Python formatting.
+check:
+    uvx ruff check --select I jbcc .
+    uvx ruff format --check jbcc .
+
 # Run the compiler and native execution tests with pytest.
 test *args:
     uvx --from 'pytest>=9,<10' pytest "$@"

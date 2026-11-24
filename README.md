@@ -2377,6 +2377,12 @@ translation units. The JSON tracks occurrences and C99-checked units
 separately. Its snippet references identify source that contains a call.
 Reviewed runtime assertions are recorded independently.
 
+## Python formatting
+
+Use `just format` to sort imports and format Python sources, including
+the `jbcc` script. Run `just check` to check both without modifying files.
+Both recipes invoke Ruff through `uvx`.
+
 ## Test corpus
 
 Run the full suite with pytest 9 through uv.
