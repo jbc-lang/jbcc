@@ -822,11 +822,11 @@ class CompilerTest(NativeCompilerTest):
                 self.assertEqual(self.c.read_text(), 'previous output')
 
     def test_matbuild_diagnostics(self):
-        source = self.work / 'matbuild.b'
-        source.write_text("MATBUILD Out FROM Missing\n")
+        source = ROOT / 'tests/programs/matbuild-missing-array.b'
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:19: expected a dimensioned array 'Missing'", build.stderr)
+        source = self.work / 'matbuild.b'
         for bounds, message in [('', "unassigned element 2 in matrix 'A'"),
                                 (', 1, 3', 'MATBUILD position out of bounds'),
                                 (', 1.5', 'MATBUILD requires integer positions')]:
@@ -837,11 +837,11 @@ class CompilerTest(NativeCompilerTest):
                 self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
 
     def test_matparse_diagnostics(self):
-        source = self.work / 'matparse.b'
-        source.write_text('MATPARSE Missing FROM "x"\n')
+        source = ROOT / 'tests/programs/matparse-missing-array.b'
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:10: expected a dimensioned array 'Missing'", build.stderr)
+        source = self.work / 'matparse.b'
         for bounds, message in [(', 1, 3', 'MATPARSE position out of bounds'),
                                 (', 1.5', 'MATPARSE requires integer positions')]:
             with self.subTest(bounds=bounds):
@@ -851,62 +851,57 @@ class CompilerTest(NativeCompilerTest):
                 self.assertIn(f'{source}:2:1: {message}'.encode(), run.stderr)
 
     def test_ins_diagnostics(self):
-        source = self.work / 'ins.b'
-        for program, diagnostic in [
-                ("INS 'x' R<1>", ":1:9: expected 'BEFORE'"),
-                ("INS 'x' BEFORE R", ':1:17: expected dynamic-array indices'),
-                ("INS 'x' BEFORE R<1,1,1,1>", ':1:17: expected one to three dynamic-array indices')]:
-            with self.subTest(program=program):
-                source.write_text(program + '\n')
+        for name, diagnostic in [
+                ('ins_1.b', ":1:9: expected 'BEFORE'"),
+                ('ins_2.b', ':1:17: expected dynamic-array indices'),
+                ('ins_3.b', ':1:17: expected one to three dynamic-array indices')]:
+            with self.subTest(source=name):
+                source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(source) + diagnostic, run.stderr)
-        source.write_text("INS 'x' BEFORE R<1,'bad'>\n")
+        source = ROOT / 'tests/programs/array-diagnostics/ins-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:16: expected a numeric value'.encode(), run.stderr)
 
     def test_insert_diagnostics(self):
-        source = self.work / 'insert.b'
-        for program, message in [
-                ("CRT INSERT('a', 1, 'x')", ":1:23: expected ';'"),
-                ("CRT INSERT('a', 1; 'x', 2)", ":1:23: expected ')'")]:
-            with self.subTest(program=program):
-                source.write_text(program + '\n')
+        for name, message in [
+                ('insert_1.b', ":1:23: expected ';'"),
+                ('insert_2.b', ":1:23: expected ')'")]:
+            with self.subTest(source=name):
+                source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(source) + message, run.stderr)
-        source.write_text("CRT INSERT('a', 'bad'; 'x')\n")
+        source = ROOT / 'tests/programs/array-diagnostics/insert-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
 
     def test_delete_function_rejects_nonnumeric_index(self):
-        source = self.work / 'delete.b'
-        source.write_text("CRT DELETE('a', 99, 'bad', 0)\n")
+        source = ROOT / 'tests/programs/array-diagnostics/delete-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: DELETE requires numeric indices'.encode(), run.stderr)
 
     def test_extract_rejects_nonnumeric_index(self):
-        source = self.work / 'extract.b'
-        source.write_text("CRT EXTRACT('a', 99, 'bad', 0)\n")
+        source = ROOT / 'tests/programs/array-diagnostics/extract-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: EXTRACT requires numeric indices'.encode(), run.stderr)
 
     def test_del_diagnostics(self):
-        source = self.work / 'del.b'
-        for program, diagnostic in [
-                ('DEL R<1>', ":1:5: unassigned variable 'R'"),
-                ('R = 1\nDEL R', ':2:6: expected dynamic-array indices'),
-                ('R = 1\nDEL R<1,1,1,1>', ':2:6: expected one to three dynamic-array indices')]:
-            with self.subTest(program=program):
-                source.write_text(program + '\n')
+        for name, diagnostic in [
+                ('del_1.b', ":1:5: unassigned variable 'R'"),
+                ('del_2.b', ':2:6: expected dynamic-array indices'),
+                ('del_3.b', ':2:6: expected one to three dynamic-array indices')]:
+            with self.subTest(source=name):
+                source = ROOT / 'tests/programs/array-diagnostics' / name
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(str(source) + diagnostic, run.stderr)
-        source.write_text("R = 1\nDEL R<2,'bad'>\n")
+        source = ROOT / 'tests/programs/array-diagnostics/del-nonnumeric-index.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:2:5: DEL requires numeric indices'.encode(), run.stderr)
@@ -1099,8 +1094,7 @@ class CompilerTest(NativeCompilerTest):
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
 
     def test_date_and_time_in_local_timezone(self):
-        source = self.work / 'date.b'
-        source.write_text("PRINT DATE()\nPRINT OCONV(DATE(),'D-')\nPRINT OCONV(TIME(),'MTS')\n")
+        source = ROOT / 'tests/programs/date-and-time.b'
         binary = self.work / 'date'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         epoch = date(1967, 12, 31)
@@ -1121,8 +1115,7 @@ class CompilerTest(NativeCompilerTest):
                 self.assertEqual(run.stderr, '')
 
     def test_timedate_at_local_midnight(self):
-        source = self.work / 'timedate.b'
-        source.write_text("PRINT TIMEDATE()\nPRINT TIMEDATE()\n")
+        source = ROOT / 'tests/programs/timedate-midnight.b'
         subprocess.run([CLI, source, '-o', self.c], check=True)
 
         # Advance one second per read, starting at 2024-01-01 00:59:59 UTC.
@@ -1166,9 +1159,8 @@ time_t test_clock(time_t *out)
             self.assertRegex(value, rb'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
 
     def test_startup_clock_is_shared_across_midnight(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'show.start.b'
-        main.write_text("CRT OCONV(DATE(),'D-'):':':TIME()\nCALL SHOW.START()\n")
+        sources = ROOT / 'tests/routines/startup-clock'
+        main = sources / 'main.b'
         # Start one second before midnight in UTC+1.
         clock = self.work / 'clock.c'
         clock.write_text("""#include <time.h>
@@ -1181,12 +1173,12 @@ time_t test_clock(time_t *out)
 }
 """)
         binary = self.work / 'startup-clock'
-        for statements, expected in [
-                ("CRT OCONV(@DATE,'D-'):':':@TIME\nCRT @TIME", '12-31-2023:86399\n86399\n'),
-                ('CRT @TIME', '86399\n'),
-                ("CRT OCONV(@DATE,'D-')", '12-31-2023\n')]:
-            with self.subTest(statements=statements):
-                routine.write_text('SUBROUTINE SHOW.START()\n' + statements + '\n')
+        for name, expected in [
+                ('date-and-time.b', '12-31-2023:86399\n86399\n'),
+                ('time-only.b', '86399\n'),
+                ('date-only.b', '12-31-2023\n')]:
+            with self.subTest(source=name):
+                routine = sources / name
                 subprocess.run([CLI, main, routine, '-o', self.c], check=True)
                 subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
                                 '-Dtime=test_clock', self.c, clock, '-o', binary], check=True)

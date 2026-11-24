@@ -1,0 +1,2 @@
+CRT OCONV(DATE(),'D-'):':':TIME()
+CALL SHOW.START()
