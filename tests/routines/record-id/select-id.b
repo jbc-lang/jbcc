@@ -1,0 +1,4 @@
+SUBROUTINE SELECT.ID()
+FOR I = 1 TO 4
+    @ID = 'key-':I
+NEXT I

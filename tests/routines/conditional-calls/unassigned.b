@@ -1,0 +1,3 @@
+DEFFUN BUMP()
+Value = IF 0 THEN BUMP(X) ELSE 7
+CRT X

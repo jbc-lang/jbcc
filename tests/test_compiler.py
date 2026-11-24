@@ -639,73 +639,24 @@ class CompilerTest(NativeCompilerTest):
                          (0, b'first:pipe:fresh:variable\n', b''))
 
     def test_record_id_survives_loop_collection_and_return(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'select.id.b'
-        main.write_text('CALL SELECT.ID()\nCRT @ID\n')
-        routine.write_text("""SUBROUTINE SELECT.ID()
-FOR I = 1 TO 4
-    @ID = 'key-':I
-NEXT I
-""")
+        main = ROOT / 'tests/routines/record-id/main.b'
+        routine = ROOT / 'tests/routines/record-id/select-id.b'
         run = self.run_native(main, routine)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'key-4\n')
         self.assertEqual(run.stderr, b'')
 
     def test_filename_is_shared_and_independent_of_other_record_context(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'filename.b'
-        main.write_text("""CRT '[':@FILENAME:']'
-@FILENAME = 'start'
-@ID = 'key'
-@RECORD = 'record context'
-CALL SET.FILE.NAME()
-OPEN 'records' TO F ELSE ABORT
-WRITE 'data':@FM:'returned-name' TO F, 'key'
-READ Other FROM F, 'key' ELSE ABORT
-CRT @FILENAME, @ID, @RECORD
-READV @FILENAME FROM F, 'key', 2 ELSE ABORT
-CRT @FILENAME, @ID, @RECORD
-READ @FILENAME FROM F, 'missing' THEN ABORT ELSE CRT '[':@FILENAME:']'
-""")
-        routine.write_text("""SUBROUTINE SET.FILE.NAME()
-CRT @FILENAME
-FOR I = 1 TO 4
-    @FILENAME = 'file-':I
-NEXT I
-""")
+        main = ROOT / 'tests/routines/record-filename/main.b'
+        routine = ROOT / 'tests/routines/record-filename/set-filename.b'
         result = self.run_native(main, routine, options=['--memory-file', 'records'])
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'[]\nstart\nfile-4\tkey\trecord context\n'
                              b'returned-name\tkey\trecord context\n[]\n', b''))
 
     def test_record_context_survives_collection_and_changes_only_on_explicit_writes(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'seed.b'
-        main.write_text("""CRT '[':@RECORD:']'
-@ID = 'initial'
-CALL SEED()
-CRT @ID:':':@RECORD<2>
-OPEN 'records' TO F ELSE ABORT
-WRITE 'one':@FM:'two' TO F, 'key' ELSE ABORT
-READ Other FROM F, 'key' ELSE ABORT
-CRT @ID:':':@RECORD<2>
-READ @RECORD FROM F, 'key' ELSE ABORT
-CRT @ID:':':@RECORD<2>
-SELECT 'next'
-READNEXT @ID ELSE ABORT
-CRT @ID:':':@RECORD<1>
-READV @RECORD FROM F, 'key', 2 ELSE ABORT
-CRT @ID:':':@RECORD
-READU @RECORD FROM F, 'key' ELSE ABORT
-CRT @ID:':':@RECORD<1>
-READ @RECORD FROM F, 'missing' THEN ABORT ELSE CRT @ID:':[':@RECORD:']'
-""")
-        routine.write_text("""SUBROUTINE SEED()
-FOR I = 1 TO 4
-    @RECORD = 'seed':@FM:I
-NEXT I
-""")
+        main = ROOT / 'tests/routines/record-context/main.b'
+        routine = ROOT / 'tests/routines/record-context/seed.b'
         run = self.run_native(main, routine, options=['--memory-file', 'records'])
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'[]\ninitial:4\ninitial:4\ninitial:two\n'
@@ -713,15 +664,13 @@ NEXT I
         self.assertEqual(run.stderr, b'')
 
     def test_deletelist_requires_named_store(self):
-        source = self.work / 'delete.b'
-        source.write_text("DELETELIST 'batch'\n")
+        source = ROOT / 'tests/io/deletelist-missing-store.b'
         result = self.run_native(source, env=dict(os.environ, JBCC_LIST_DIR=''))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:1: DELETELIST requires JBCC_LIST_DIR'.encode(), result.stderr)
 
     def test_saved_list_write_failure(self):
-        source = self.work / 'failed.b'
-        source.write_text("WRITELIST 'item' TO 'name' SETTING S ON ERROR CRT S\n")
+        source = ROOT / 'tests/io/writelist-missing-directory.b'
         env = dict(os.environ, JBCC_LIST_DIR=str(self.work / 'missing'))
         result = self.run_native(source, env=env)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'128\n', b''))
@@ -963,14 +912,12 @@ NEXT I
         self.assertIn(f'{source}:2:5: DEL requires numeric indices'.encode(), run.stderr)
 
     def test_exit_status_from_subroutine(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'finish.b'
-        main.write_text("CALL FINISH(20)\nPRINT 'unreachable'\n")
-        sub.write_text("SUBROUTINE FINISH(N)\nLOOP\nPRINT 'done'\nEXIT(N + 3.75)\nREPEAT\n")
+        main = ROOT / 'tests/routines/exit-status/main.b'
+        sub = ROOT / 'tests/routines/exit-status/finish.b'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 23, run.stderr)
         self.assertEqual(run.stdout, b'done\n')
-        sub.write_text("SUBROUTINE FINISH(N)\nEXIT('bad')\n")
+        sub = ROOT / 'tests/routines/exit-status/finish-invalid-value.b'
         run = self.run_native(main, sub)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{sub}:2:1: expected a numeric value'.encode(), run.stderr)
@@ -988,9 +935,8 @@ NEXT I
                 self.assertEqual((run.returncode, run.stdout, run.stderr), (status, b'before\n', message))
 
     def test_stop_and_abort_from_routine(self):
-        main = self.work / 'main.b'
+        main = ROOT / 'tests/routines/stop-and-abort/main.b'
         sub = self.work / 'finish.b'
-        main.write_text("CALL FINISH('data')\nPRINT 'unreachable caller'\n")
         for statement, status, message in [
             ("IF 1 THEN STOP 201, Name ELSE STOP", 0, b"STOP [201] data\n"),
             ("IF 0 THEN STOP ELSE ABORT 'missing', Name", 1, b"missing data\n"),
@@ -1001,8 +947,7 @@ NEXT I
                 self.assertEqual((run.returncode, run.stdout, run.stderr), (status, b'', message))
 
     def test_stop_missing_message_argument(self):
-        source = self.work / 'main.b'
-        source.write_text("STOP 201,, 'file'\n")
+        source = ROOT / 'tests/programs/stop-missing-message-argument.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:10: expected a variable", result.stderr)
@@ -1036,18 +981,8 @@ NEXT I
                 self.assertEqual(subprocess.check_output([binary]), b'after\n')
 
     def test_scalar_reads_after_loop_check_earlier_iterations(self):
-        source = self.work / 'loop.b'
+        source = ROOT / 'tests/programs/loop-scalar-read.b'
         binary = self.work / 'loop'
-        source.write_text("""GET(ARG.) Limit
-Count = 0
-LOOP
-WHILE Count < Limit
-    Count += 1
-    Last = Count
-UNTIL Limit = 2
-REPEAT
-IF Limit # -1 THEN CRT Last
-""")
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
         for limit, expected in (
@@ -1061,8 +996,7 @@ IF Limit # -1 THEN CRT Last
                 self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
     def test_continue_outside_loop(self):
-        source = self.work / 'continue.b'
-        source.write_text('FOR I = 1 TO 1\nNEXT I\n  CONTINUE\nPRINT I\n')
+        source = ROOT / 'tests/programs/continue-outside-loop.b'
         binary = self.work / 'program'
         build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
         self.assertEqual(build.returncode, 0, build.stderr)
@@ -1095,40 +1029,29 @@ IF Limit # -1 THEN CRT Last
                 self.assertIn(f'{source}:1:{len(text) + 6}:'.encode(), run.stderr)
 
     def test_logical_function_calls(self):
-        main = self.work / 'main.b'
-        function = self.work / 'BUMP'
-        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN(N)\n')
-        main.write_text('DEFFUN BUMP()\nN = 0\n'
-                        'PRINT 1 OR BUMP(N), 0 AND BUMP(N), N\n'
-                        'PRINT 0 OR BUMP(N), 1 AND BUMP(N), N\n'
-                        'PRINT BUMP(N) OR BUMP(N), N\n')
+        main = ROOT / 'tests/routines/logical-calls/main.b'
+        function = ROOT / 'tests/routines/logical-calls/bump.b'
         run = self.run_native(main, function)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'1\t0\t0\n1\t1\t2\n1\t3\n')
-        main.write_text('DEFFUN BUMP()\nPRINT 1 OR BUMP(X)\nPRINT X\n')
+        main = ROOT / 'tests/routines/logical-calls/unassigned.b'
         run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:3:7: unknown variable', run.stderr)
 
     def test_conditional_expression_calls(self):
-        main = self.work / 'main.b'
-        function = self.work / 'BUMP'
-        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN(N)\n')
-        main.write_text("DEFFUN BUMP()\nN = 0\n"
-                        "CRT IF 0 THEN BUMP(N) ELSE 7, N\n"
-                        "CRT IF 1 THEN BUMP(N) ELSE BUMP(N), N\n"
-                        "CRT N + (IF N THEN BUMP(N) ELSE 0), N\n")
+        main = ROOT / 'tests/routines/conditional-calls/main.b'
+        function = ROOT / 'tests/routines/conditional-calls/bump.b'
         run = self.run_native(main, function)
         self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'7\t0\n1\t1\n3\t2\n', b''))
 
-        main.write_text("DEFFUN BUMP()\nValue = IF 0 THEN BUMP(X) ELSE 7\nCRT X\n")
+        main = ROOT / 'tests/routines/conditional-calls/unassigned.b'
         run = subprocess.run([CLI, main, function, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:3:5: unknown variable', run.stderr)
 
     def test_conditional_expression_requires_else(self):
-        source = self.work / 'bad.b'
-        source.write_text("Value = IF 1 THEN 2\n")
+        source = ROOT / 'tests/programs/conditional-missing-else.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:20: expected 'ELSE'", result.stderr)
@@ -1160,19 +1083,17 @@ IF Limit # -1 THEN CRT Last
                 self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
 
     def test_locate_subvalue_start_diagnostics(self):
-        main = self.work / 'main.b'
-        main.write_text("R = 'x'\nLOCATE 'x' IN R<1,1,0> SETTING P ELSE NULL\n")
+        main = ROOT / 'tests/programs/locate-zero-subvalue.b'
         run = self.run_native(main)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:2:1: LOCATE positions start at one'.encode(), run.stderr)
-        main.write_text("R = 'x'\nLOCATE 'x' IN R<1,1,1>,2 SETTING P ELSE NULL\n")
+        main = ROOT / 'tests/programs/locate-duplicate-start.b'
         result = subprocess.run([CLI, main, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{main}:2:23: LOCATE with both a subvalue start and a separate start', result.stderr)
 
     def test_sum_overflow_reports_call_site(self):
-        source = self.work / 'sum.b'
-        source.write_text("PRINT SUM('9223372036854775807' : @FM : 1)\n")
+        source = ROOT / 'tests/programs/sum-overflow.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)

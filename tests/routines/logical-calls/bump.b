@@ -1,0 +1,3 @@
+FUNCTION BUMP(N)
+N += 1
+RETURN(N)

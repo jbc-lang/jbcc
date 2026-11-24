@@ -1,0 +1,2 @@
+CALL SELECT.ID()
+CRT @ID

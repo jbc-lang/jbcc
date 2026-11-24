@@ -1,0 +1,4 @@
+SUBROUTINE SEED()
+FOR I = 1 TO 4
+    @RECORD = 'seed':@FM:I
+NEXT I

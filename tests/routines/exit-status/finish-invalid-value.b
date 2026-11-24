@@ -1,0 +1,2 @@
+SUBROUTINE FINISH(N)
+EXIT('bad')

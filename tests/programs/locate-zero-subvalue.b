@@ -1,0 +1,2 @@
+R = 'x'
+LOCATE 'x' IN R<1,1,0> SETTING P ELSE NULL

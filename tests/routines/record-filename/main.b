@@ -1,0 +1,12 @@
+CRT '[':@FILENAME:']'
+@FILENAME = 'start'
+@ID = 'key'
+@RECORD = 'record context'
+CALL SET.FILE.NAME()
+OPEN 'records' TO F ELSE ABORT
+WRITE 'data':@FM:'returned-name' TO F, 'key'
+READ Other FROM F, 'key' ELSE ABORT
+CRT @FILENAME, @ID, @RECORD
+READV @FILENAME FROM F, 'key', 2 ELSE ABORT
+CRT @FILENAME, @ID, @RECORD
+READ @FILENAME FROM F, 'missing' THEN ABORT ELSE CRT '[':@FILENAME:']'
