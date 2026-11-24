@@ -292,8 +292,8 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## User statistics (5)
 
-- [ ] `test_userstats_native_snapshot_and_record_writes`
-- [ ] `test_userstats_open_and_read_counters`
-- [ ] `test_userstats_delete_and_clearfile_counters`
-- [ ] `test_userstats_execute_and_input_counters`
-- [ ] `test_userstats_reports_invalid_port_at_reference`
+- [x] `test_userstats_native_snapshot_and_record_writes`
+- [x] `test_userstats_open_and_read_counters`
+- [x] `test_userstats_delete_and_clearfile_counters`
+- [x] `test_userstats_execute_and_input_counters`
+- [x] `test_userstats_reports_invalid_port_at_reference`

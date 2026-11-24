@@ -4596,30 +4596,9 @@ CRT {function}('text', '', {method})
                          (1, b'', f"{source}:1:1: @USER.ROOT accepts at most 63 bytes\n".encode()))
 
     def test_userstats_native_snapshot_and_record_writes(self):
-        source = self.work / 'main.b'
-        routine = self.work / 'stats.b'
         binary = self.work / 'stats'
-        source.write_text("""CALL SNAPSHOT(Before)
-OPEN 'F' TO F ELSE ABORT
-WRITE 'new' TO F,'one'
-WRITEU 'updated' TO F,'one'
-WRITEV 'tail' TO F,'one',2
-DIM A(1)
-A(1) = 'matrix'
-MATWRITE A TO F,'two'
-WRITE 'blocked' TO F,'held' ON ERROR NULL
-DELETE F,'two'
-CALL SNAPSHOT(After)
-CRT Before<20>:':':After<20>:':':DCOUNT(After,@FM)
-CRT After<1>:':':After<2>:':':After<4>
-CRT After<3>
-CRT After<5>:':':After<6>:':':After<8>:':':After<10>
-CRT '[':After<7>:']:[':After<19>:']'
-CRT After<41>
-CRT After<42>
-CRT After<43>
-""")
-        routine.write_text("SUBROUTINE SNAPSHOT(Value)\nValue = @USERSTATS\n")
+        source = ROOT / 'tests/programs/userstats-native-snapshot-and-record-writes/main.b'
+        routine = ROOT / 'tests/programs/userstats-native-snapshot-and-record-writes/stats.b'
         env = dict(os.environ, JBCPORTNO='93', JBCLOGNAME='stats-user', TERM='stats-terminal')
         subprocess.run([CLI, '--exe', '--memory-file', 'F', '--memory-lock', 'F', 'held',
                         source, routine, '-o', binary], check=True,
@@ -4638,60 +4617,14 @@ CRT After<43>
                 f'{binary} two words'.encode(), b'2', str(routine).encode()])
 
     def test_userstats_open_and_read_counters(self):
-        source = self.work / 'read-stats.b'
-        source.write_text("""Before = @USERSTATS
-OPEN 'F' TO F ELSE ABORT
-OPENPATH 'F' ELSE ABORT
-OPEN 'missing' TO Missing THEN ABORT
-WRITE 'value' TO F,'key'
-READ R FROM F,'key' ELSE ABORT
-READV R FROM 'key',1 ELSE ABORT
-READV R FROM 'key',2 THEN CRT '[':R:']' ELSE ABORT
-READU R FROM 'key' ELSE ABORT
-READVU R FROM 'key',1 ELSE ABORT
-DIM A(1)
-MATREAD A FROM 'key' ELSE ABORT
-MATREADU A FROM 'key' ELSE ABORT
-READ R FROM 'missing' THEN ABORT
-READU R FROM 'held' LOCKED NULL THEN ABORT ELSE ABORT
-READVU R FROM 'held',1 LOCKED NULL THEN ABORT ELSE ABORT
-MATREADU A FROM 'held' LOCKED NULL THEN ABORT ELSE ABORT
-After = @USERSTATS
-CRT Before<18>:':':Before<19>:':':Before<20>
-CRT (After<18>-Before<18>):':':(After<19>-Before<19>):':':(After<20>-Before<20>)
-""")
+        source = ROOT / 'tests/programs/userstats-open-and-read-counters.b'
         result = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'held'],
                                  env=dict(os.environ, JBCPORTNO='1'))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'[]\n0:0:0\n2:7:1\n', b''))
 
     def test_userstats_delete_and_clearfile_counters(self):
-        source = self.work / 'delete-stats.b'
-        source.write_text("""OPEN 'F' TO F ELSE ABORT
-OPEN 'Busy' TO Busy ELSE ABORT
-WRITE 'one' TO F,'first'
-WRITE 'two' TO F,'second'
-WRITE 'keep' TO Busy,'record'
-Before = @USERSTATS
-DELETE F,'first' ON ERROR ABORT
-CLEARFILE F ON ERROR ABORT
-After = @USERSTATS
-CRT Before<21>:':':Before<22>
-CRT After<21>:':':After<22>
-READ R FROM F,'first' THEN ABORT
-READ R FROM F,'second' THEN ABORT
-DELETE F,'missing' ON ERROR ABORT
-CLEARFILE F ON ERROR ABORT
-CRT @USERSTATS<21>:':':@USERSTATS<22>
-Bad = ''
-DELETE Bad,'first' ON ERROR NULL
-CLEARFILE Bad ON ERROR NULL
-DELETE Busy,'held' ON ERROR NULL
-CLEARFILE Busy ON ERROR ABORT LOCKED NULL
-X = DELETE('value',1)
-READ R FROM Busy,'record' THEN CRT R ELSE ABORT
-CRT @USERSTATS<21>:':':@USERSTATS<22>
-""")
+        source = ROOT / 'tests/programs/userstats-delete-and-clearfile-counters.b'
         result = self.run_native(source, options=['--memory-file', 'F', '--memory-file', 'Busy',
                                                   '--memory-lock', 'Busy', 'held'],
                                  env=dict(os.environ, JBCPORTNO='1'))
@@ -4699,22 +4632,8 @@ CRT @USERSTATS<21>:':':@USERSTATS<22>
                          (0, b'0:0\n1:1\n2:2\nkeep\n2:2\n', b''))
 
     def test_userstats_execute_and_input_counters(self):
-        source = self.work / 'terminal-stats.b'
         binary = self.work / 'terminal-stats'
-        source.write_text("""Start = @USERSTATS
-EXECUTE ':'
-EXEC 'exit 7' RETURNING Code
-DATA 'command input'
-PERFORM 'cat' CAPTURING Captured
-CRT Start<23>:':':Start<24>
-CRT @USERSTATS<23>:':':Code<1>:':':Captured<1>
-PROMPT ''
-DATA 'queued'
-INPUT Value
-INPUT Waited FOR 0 THEN ABORT ELSE CRT Value:':':@USERSTATS<24>
-INPUT Ended
-CRT '[':Ended:'] ':@USERSTATS<24>
-""")
+        source = ROOT / 'tests/programs/userstats-execute-and-input-counters.b'
         env = dict(os.environ, JBCPORTNO='1')
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                        env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
@@ -4738,8 +4657,7 @@ CRT '[':Ended:'] ':@USERSTATS<24>
                     proc.kill()
 
     def test_userstats_reports_invalid_port_at_reference(self):
-        source = self.work / 'stats.b'
-        source.write_text('CRT @USERSTATS<1>\n')
+        source = ROOT / 'tests/programs/userstats-reports-invalid-port-at-reference.b'
         result = self.run_native(source, env=dict(os.environ, JBCPORTNO='bad'))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: JBCPORTNO requires'.encode(), result.stderr)
