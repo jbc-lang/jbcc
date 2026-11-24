@@ -3073,6 +3073,40 @@ CRT ': ='
         self.assertEqual(run.stdout, b'6\t8\ndone\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_empty_actual_uses_local_storage_for_mat_formal(self):
+        main = self.work / 'main.b'
+        load = self.work / 'load.b'
+        scalar = self.work / 'scalar.b'
+        main.write_text("""DIM Values(2)
+Name = 'LOAD.VALUES'
+CALL LOAD.VALUES('', 3, Result)
+CRT Result
+CALL @Name("", 4, Result)
+CRT Result
+CALL LOAD.VALUES(MAT Values, 2, Result)
+CRT Result, Values(2)
+CALL CHECK.SCALAR('', Result)
+CRT '[':Result:']'
+""")
+        load.write_text("""SUBROUTINE LOAD.VALUES(MAT Items, Size, Answer)
+DIM Items(Size)
+MAT Items = 'filled'
+Answer = INMAT(Items):':':Items(Size)
+""")
+        scalar.write_text("SUBROUTINE CHECK.SCALAR(Value, Report)\nReport = Value\n")
+        result = self.run_native(main, load, scalar)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'3:filled\n4:filled\n2:filled\tfilled\n[]\n', b''))
+
+    def test_empty_mat_actual_requires_dimension_before_use(self):
+        main = self.work / 'main.b'
+        load = self.work / 'load.b'
+        main.write_text("CALL LOAD.VALUES('')\n")
+        load.write_text("SUBROUTINE LOAD.VALUES(MAT Items)\nCRT Items(1)\n")
+        result = self.run_native(main, load)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (1, b'', f'{load}:2:5: MAT parameter requires a matrix argument or DIM\n'.encode()))
+
     def test_callc_subroutine_exists_checks_linked_subroutines(self):
         main = self.work / 'main.b'
         subroutine = self.work / 'worker.b'

@@ -608,6 +608,7 @@ class Compiler:
         self.matrices = {}
         self.pending_matrices = {}
         self.local_arrays = {}
+        self.mat_parameter_storage = set()
         self.commons = {}
         self.common_scalars = {}
         self.body = []
@@ -802,9 +803,10 @@ class Compiler:
             target = self.identifier()
             args, kinds = self.call_arguments()
             declared = self.functions[word]
-            if declared and (any(declared) or any(kinds)) and kinds != declared:
+            if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
                 self.error(f"arguments disagree with DEFFUN for '{word}'", target)
             self.calls.append((target, kinds, True))
+            args = direct_arguments(target.word, args, kinds)
             result = self.temporary("NULL")
             self.emit(f"{routine_symbol(word)}({', '.join(['&' + result] + args)});")
             return self.postfix(result, locate_source)
@@ -2511,12 +2513,18 @@ class Compiler:
             self.advance()
             while self.word != ')':
                 matrix_argument = self.word == 'MAT'
-                kinds.append(matrix_argument)
                 if matrix_argument:
+                    kinds.append(True)
                     self.advance()
                     matrix = self.checked_matrix(self.matrix_name())
                     args.append(matrix.argument())
+                elif (self.current.kind == 'string' and len(self.word) == 2
+                      and self.following.word in (',', ')')):
+                    kinds.append(None)
+                    self.advance()
+                    args.append(EMPTY_SCALAR_ARGUMENT)
                 else:
+                    kinds.append(False)
                     argument, name = self.scalar_argument()
                     args.append(argument)
                     if name is not None:
@@ -2565,7 +2573,7 @@ class Compiler:
         target = self.subroutine_name()
         args, kinds = self.call_arguments()
         self.calls.append((target, kinds, False))
-        self.emit(f"{routine_symbol(target.word)}({', '.join(args)});")
+        self.emit(f"{routine_symbol(target.word)}({', '.join(direct_arguments(target.word, args, kinds))});")
 
     def label_number(self, name):
         return self.targets.setdefault(name, len(self.targets) + 1)
@@ -2685,10 +2693,10 @@ class Compiler:
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
             matrix = self.matrices[name]
-            self.emit(f"if ({matrix.rank} != {len(bounds)} || "
-                      f"memcmp({matrix.limits}, (const int[]){{{', '.join(map(str, bounds))}}}, "
-                      f"{len(bounds)} * sizeof(int))) numeric_error({self.location(token)}, "
-                      '"incompatible MAT parameter dimensions");')
+            field = f"{matrix.field}_storage"
+            self.mat_parameter_storage.add(field)
+            self.emit(f"jbc_dimension_mat_parameter(&frame->{matrix.field}, &frame->{field}, "
+                      f"{len(bounds)}, (const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)});")
             return
         if name in self.names or (matrix and not pending):
             self.error(f"duplicate declaration of '{name}'", token)
@@ -2754,7 +2762,10 @@ class Compiler:
 
     def checked_matrix(self, token):
         matrix = self.matrices[token.word]
-        if matrix.shape is not None and None in matrix.shape:
+        if matrix.shape is None:
+            self.emit(f'if (!{matrix.rank}) numeric_error({self.location(token)}, '
+                      '"MAT parameter requires a matrix argument or DIM");')
+        elif None in matrix.shape:
             kind = "COMMON" if matrix.common_block is not None else "local"
             self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
                       f'"{kind} matrix declaration has not executed");')
@@ -3424,6 +3435,7 @@ class Compiler:
         fields += [f"jbc_variable {var.split('->')[1]};" for var in local_scalars]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
         fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.shape is not None]
+        fields += [f"struct jbc_slots *{field};" for field in sorted(self.mat_parameter_storage)]
         lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
         if self.clear_assignments is not None:
             lines.extend([f"static void clear_locals_{u}(struct frame_{u} *frame)", "{", "    (void)frame;"])
@@ -3505,6 +3517,8 @@ class Compiler:
             lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:
             lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
+        for field in sorted(self.mat_parameter_storage):
+            lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
         if seq_scope:
             roots = [f"&arg{i}->value" for i, matrix in enumerate(self.formals.values()) if not matrix]
             if self.is_function:
@@ -3535,8 +3549,36 @@ def argument_fields(kinds):
     return ["matrix" if matrix else "scalar" for matrix in kinds]
 
 
+EMPTY_SCALAR_ARGUMENT = '(&(jbc_variable){"", 0, 0})'
+
+
+def empty_argument_name(name, index):
+    return f"JBCC_EMPTY_{routine_symbol(name)}_{index}"
+
+
+def direct_arguments(name, args, kinds):
+    return [empty_argument_name(name, i) if kind is None else arg
+            for i, (arg, kind) in enumerate(zip(args, kinds))]
+
+
+def compatible_call_kinds(actual, expected):
+    return len(actual) == len(expected) and all(a is None or a == b for a, b in zip(actual, expected))
+
+
+def render_empty_arguments(units, signatures):
+    definitions = {}
+    for unit in units:
+        for target, kinds, _ in unit.calls:
+            for i, kind in enumerate(kinds):
+                if kind is None:
+                    matrix = signatures[target.word][i]
+                    definitions[empty_argument_name(target.word, i)] = (
+                        '((jbc_matrix){0})' if matrix else EMPTY_SCALAR_ARGUMENT)
+    return "\n".join(f"#define {name} {value}" for name, value in definitions.items())
+
+
 def kind_string(kinds):
-    return c_string("".join("M" if matrix else "S" for matrix in kinds))
+    return c_string("".join("E" if matrix is None else "M" if matrix else "S" for matrix in kinds))
 
 
 def render_indirect_calls(units):
@@ -3544,6 +3586,12 @@ def render_indirect_calls(units):
         return ""
     lines = [
         "typedef union { jbc_variable *scalar; jbc_matrix matrix; } jbc_argument;",
+        "int jbc_match_call_kinds(const char *actual, const char *expected)",
+        "{",
+        "    for (; *actual && *expected; ++actual, ++expected)",
+        "        if (*actual != 'E' && *actual != *expected) return 0;",
+        "    return *actual == *expected;",
+        "}",
         "static void jbc_call_indirect(const char *name, const char *kinds, const jbc_argument *args,",
         "                              const char *file, int line, int column)",
         "{",
@@ -3556,10 +3604,12 @@ def render_indirect_calls(units):
             continue
         name = unit.routine.word
         kinds = tuple(unit.formals.values())
-        args = ", ".join(f"args[{i}].{field}" for i, field in enumerate(argument_fields(kinds)))
+        args = ", ".join(
+            f"(kinds[{i}] == 'E' ? (jbc_matrix){{0}} : args[{i}].matrix)" if matrix
+            else f"args[{i}].scalar" for i, matrix in enumerate(kinds))
         lines.extend([
             f"    if (strcmp(name, {c_string(name, unit.encoding)}) == 0) {{",
-            f"        if (strcmp(kinds, {kind_string(kinds)}) == 0) {{",
+            f"        if (jbc_match_call_kinds(kinds, {kind_string(kinds)})) {{",
             f"            {routine_symbol(name)}({args});",
             "            return;",
             "        }",
@@ -3655,13 +3705,14 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
                 unit.error(f"unknown {kind} '{target.word}'", target)
             if len(kinds) != len(routines[target.word].formals):
                 unit.error(f"wrong argument count for '{target.word}'", target)
-            if kinds != tuple(routines[target.word].formals.values()):
+            if not compatible_call_kinds(kinds, tuple(routines[target.word].formals.values())):
                 unit.error(f"scalar/MAT argument mismatch for '{target.word}'", target)
     runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
+    prototypes.append(render_empty_arguments(units, {name: tuple(u.formals.values()) for name, u in routines.items()}))
     features = runtime_features(units)
     return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
 

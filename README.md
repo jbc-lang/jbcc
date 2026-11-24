@@ -2099,6 +2099,9 @@ matrices and calls that forward the parameter. When a DEFFUN lists
 parameters, mark its matrix parameters with MAT as well. T24 routines
 often repeat DIM for a MAT parameter. Pending a reference run, jbcc
 checks that such a declaration matches the caller’s dimensions exactly.
+An empty string literal can stand in for a MAT argument. Executing DIM
+for that parameter allocates storage local to the invocation. Using the
+parameter as a matrix before DIM reports a source-located error.
 
 ```sh
 ./jbcc --exe tests/routines/function.caller.b tests/routines/DOUBLE.IT -o /tmp/function-caller

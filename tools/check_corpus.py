@@ -35,11 +35,17 @@ def check(relative, root, directories, source_encoding='utf-8'):
         externals = {}
         for target, kinds, is_function in unit.calls:
             if unit.routine and unit.routine.word == target.word:
-                if (kinds, is_function) != (tuple(unit.formals.values()), unit.is_function):
+                formals = tuple(unit.formals.values())
+                if is_function != unit.is_function or not COMPILER["compatible_call_kinds"](kinds, formals):
                     unit.error("recursive call has incompatible signature", target)
-            signature = (kinds, is_function)
-            if externals.setdefault(target.word, signature) != signature:
-                unit.error("external calls disagree on signature", target)
+                kinds = formals
+            if target.word in externals:
+                previous, previous_is_function = externals[target.word]
+                if (is_function != previous_is_function or len(previous) != len(kinds)
+                        or any(a is not None and b is not None and a != b for a, b in zip(previous, kinds))):
+                    unit.error("external calls disagree on signature", target)
+                kinds = tuple(b if a is None else a for a, b in zip(previous, kinds))
+            externals[target.word] = kinds, is_function
         prototypes = [COMPILER["routine_signature"](name, kinds, is_function) + ";"
                       for name, (kinds, is_function) in externals.items()]
         if unit.routine and (unit.has_indirect_call or unit.uses_callonexit):
@@ -47,6 +53,7 @@ def check(relative, root, directories, source_encoding='utf-8'):
         prototypes.append(COMPILER["render_indirect_calls"]([unit]))
         prototypes.append(COMPILER["render_exit_callbacks"]([unit]))
         prototypes.append(COMPILER["render_subroutine_exists"]([unit]))
+        prototypes.append(COMPILER["render_empty_arguments"]([unit], {name: kinds for name, (kinds, _) in externals.items()}))
         generated = "\n".join([COMPILER["runtime_features"]([unit]), RUNTIME] + prototypes + [unit.render()])
         result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],

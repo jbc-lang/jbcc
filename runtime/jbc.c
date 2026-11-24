@@ -646,6 +646,18 @@ struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key
     return s;
 }
 
+void jbc_dimension_mat_parameter(jbc_matrix *matrix, struct jbc_slots **owned,
+                                 int rank, const int *bounds, const char *file, int line, int column)
+{
+    if (!matrix->rank) {
+        struct jbc_slots *s = jbc_matrix_storage(NULL, NULL, rank, bounds, file, line, column);
+        *owned = s;
+        *matrix = (jbc_matrix){s->values, s->bounds, s->rank, s->count};
+    } else if (matrix->rank != rank || memcmp(matrix->bounds, bounds, (size_t)rank * sizeof *bounds)) {
+        numeric_error(file, line, column, "incompatible MAT parameter dimensions");
+    }
+}
+
 void jbc_release(jbc_variable *slots)
 {
     struct jbc_slots **link = &storages;

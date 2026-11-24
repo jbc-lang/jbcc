@@ -3024,6 +3024,23 @@ skipped calls, reached calls and arity.
 FATAL.ERROR now passes strict C99 checking in byte mode. The total is
 17,199 of 17,336 candidates, including all 17,198 previous passes.
 
-- [ ] Investigate an empty scalar argument in a MAT parameter position.
+- [x] Investigate an empty scalar argument in a MAT parameter position.
   Start with the two EB.READ.PARAMETER calls in AZ.BV.INT.PROCESS and
   verify how the callee handles the absent matrix.
+
+The reference compiler emits a scalar descriptor for the empty literal
+and a matrix descriptor for MAT. EB.READ.PARAMETER executes DIM before
+assigning or parsing into its MAT formal. jbcc provisionally represents
+the empty literal as an absent matrix in that position. DIM allocates
+invocation-local storage, and use before DIM reports a runtime error.
+Native tests cover direct and indirect calls, caller-owned matrix updates,
+an ordinary empty scalar argument and reads before DIM.
+[CALL](https://jbc-lang.org/pages/call.html).
+
+AZ.BV.INT.PROCESS and four other units now pass strict C99 checking in
+byte mode. The total is 17,204 of 17,336 candidates, including all
+17,199 previous passes.
+
+- [ ] Investigate calls to FATAL.ERROR with and without its SOURCE.INFO
+  argument. Trace whether the reference supplies an unassigned formal
+  for omitted trailing arguments and how the callee detects it.
