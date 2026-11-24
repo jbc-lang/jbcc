@@ -1,0 +1,2 @@
+M = "R20"
+PRINT FMT(42,M)

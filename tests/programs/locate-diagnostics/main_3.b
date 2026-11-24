@@ -1,0 +1,1 @@
+LOCATE 'x' IN 'x' ,1.5 SETTING P ELSE NULL

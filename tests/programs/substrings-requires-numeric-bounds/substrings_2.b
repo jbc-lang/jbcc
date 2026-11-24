@@ -1,0 +1,1 @@
+CRT SUBSTRINGS('', 1, 'x')

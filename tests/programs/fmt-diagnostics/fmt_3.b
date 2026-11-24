@@ -1,0 +1,2 @@
+M = "R%"
+PRINT FMT(42,M)

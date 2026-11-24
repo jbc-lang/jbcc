@@ -1,0 +1,1 @@
+PRINT CHANGE('a','a')

@@ -1,0 +1,1 @@
+PRINT ICONV('0:00 AM', 'MTS')

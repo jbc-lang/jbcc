@@ -1,0 +1,1 @@
+PRINT ICONV('24:00', 'MT')

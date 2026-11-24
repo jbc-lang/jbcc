@@ -1,0 +1,1 @@
+FIND 'a' IN 'a',0 SETTING F THEN PRINT F

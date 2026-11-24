@@ -1,0 +1,1 @@
+CRT FOLD('text', 'bad')

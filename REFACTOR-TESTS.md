@@ -146,32 +146,32 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Strings, conversion, formatting and dynamic arrays (26)
 
-- [ ] `test_locate_diagnostics`
-- [ ] `test_iconv_diagnostics`
-- [ ] `test_oconv_diagnostics`
-- [ ] `test_str_repetition_diagnostics`
-- [ ] `test_spaces_diagnostics`
-- [ ] `test_left_right_require_numeric_length`
-- [ ] `test_counts_requires_two_arguments`
-- [ ] `test_col_positions_require_no_arguments`
-- [ ] `test_delimited_bracket_assignment_diagnostics`
-- [ ] `test_substrings_requires_numeric_bounds`
-- [ ] `test_fold_invalid_width`
-- [ ] `test_fmts_invalid_mask`
-- [ ] `test_trim_diagnostics`
-- [ ] `test_find_diagnostics`
-- [ ] `test_swap_diagnostics`
-- [ ] `test_ereplace_diagnostics`
-- [ ] `test_change_diagnostics`
-- [ ] `test_string_mutations_check_conditionally_assigned_targets`
-- [ ] `test_implicit_format_reports_uninitialized_mask_at_read`
-- [ ] `test_fmt_diagnostics`
-- [ ] `test_index_diagnostics`
-- [ ] `test_insert_locations`
-- [ ] `test_remove_shared_cursor`
-- [ ] `test_remove_expression_diagnostics`
-- [ ] `test_remove_checks_conditionally_assigned_source`
-- [ ] `test_matchfield_invalid_field`
+- [x] `test_locate_diagnostics`
+- [x] `test_iconv_diagnostics`
+- [x] `test_oconv_diagnostics`
+- [x] `test_str_repetition_diagnostics`
+- [x] `test_spaces_diagnostics`
+- [x] `test_left_right_require_numeric_length`
+- [x] `test_counts_requires_two_arguments`
+- [x] `test_col_positions_require_no_arguments`
+- [x] `test_delimited_bracket_assignment_diagnostics`
+- [x] `test_substrings_requires_numeric_bounds`
+- [x] `test_fold_invalid_width`
+- [x] `test_fmts_invalid_mask`
+- [x] `test_trim_diagnostics`
+- [x] `test_find_diagnostics`
+- [x] `test_swap_diagnostics`
+- [x] `test_ereplace_diagnostics`
+- [x] `test_change_diagnostics`
+- [x] `test_string_mutations_check_conditionally_assigned_targets`
+- [x] `test_implicit_format_reports_uninitialized_mask_at_read`
+- [x] `test_fmt_diagnostics`
+- [x] `test_index_diagnostics`
+- [x] `test_insert_locations` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_remove_shared_cursor`
+- [x] `test_remove_expression_diagnostics`
+- [x] `test_remove_checks_conditionally_assigned_source` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_matchfield_invalid_field`
 
 ## Matrices and COMMON storage (25)
 

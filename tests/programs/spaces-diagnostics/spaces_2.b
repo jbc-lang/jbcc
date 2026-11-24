@@ -1,0 +1,1 @@
+CRT SPACES(@FM:2)

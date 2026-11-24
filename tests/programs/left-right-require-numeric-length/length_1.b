@@ -1,0 +1,1 @@
+CRT LEFT('', 'bad')

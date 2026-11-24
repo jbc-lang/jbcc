@@ -17,6 +17,7 @@ import time
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from shutil import copyfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1068,12 +1069,13 @@ class CompilerTest(NativeCompilerTest):
                 self.assertIn(f'{source}:2:1: PRECISION'.encode(), run.stderr)
 
     def test_locate_diagnostics(self):
-        main = self.work / 'main.b'
-        for clause, message in [("BY 'XX'", 'unsupported LOCATE order'),
-                                (',0', 'LOCATE positions start at one'),
-                                (',1.5', 'LOCATE start must be a positive integer')]:
-            with self.subTest(clause=clause):
-                main.write_text(f"LOCATE 'x' IN 'x' {clause} SETTING P ELSE NULL\n")
+        for fixture_name, message in (
+            ('main_1.b', 'unsupported LOCATE order'),
+            ('main_2.b', 'LOCATE positions start at one'),
+            ('main_3.b', 'LOCATE start must be a positive integer'),
+        ):
+            with self.subTest(source=fixture_name):
+                main = ROOT / 'tests/programs/locate-diagnostics' / fixture_name
                 run = self.run_native(main)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{main}:1:1: {message}'.encode(), run.stderr)
@@ -1189,7 +1191,6 @@ time_t test_clock(time_t *out)
                 self.assertEqual(run.stderr, '')
 
     def test_iconv_diagnostics(self):
-        source = self.work / 'date.b'
         cases = [
             ("'20121231', 'MD2'", "unsupported ICONV mask 'MD2'"),
             ("'24:00', 'MT'", "ICONV time requires a valid H:MM or H:MM:SS"),
@@ -1201,9 +1202,9 @@ time_t test_clock(time_t *out)
             ("'20121301', 'D'", "invalid ICONV calendar date"),
             ("'00000101', 'D'", "invalid ICONV calendar date"),
         ]
-        for args, message in cases:
+        for case_number, (args, message) in enumerate(cases, 1):
             with self.subTest(args=args):
-                source.write_text(f"PRINT ICONV({args})\n")
+                source = ROOT / 'tests/programs/iconv-diagnostics' / f'date_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
@@ -1221,51 +1222,54 @@ time_t test_clock(time_t *out)
         self.assertIn(f'{source}:1:5: OCONVS requires a conversion mask'.encode(), result.stderr)
 
     def test_oconv_diagnostics(self):
-        source = self.work / 'date.b'
-        for args, message in [("0,'MTH'", "unsupported OCONV mask 'MTH'"),
-                              ("86400,'MT'", "OCONV time requires whole seconds"),
-                              ("0.5,'MTS'", "OCONV time requires whole seconds"),
-                              ("-1,'MTS'", "OCONV time requires whole seconds"),
-                              ("0,'D5/'", "unsupported OCONV mask 'D5/'"),
-                              ("1.5,'D'", "OCONV date requires an integer day count"),
-                              ("2933629,'D'", "OCONV date outside years 1 through 9999")]:
-            with self.subTest(args=args):
-                source.write_text(f"PRINT OCONV({args})\n")
+        for fixture_name, message in (
+            ('date_1.b', "unsupported OCONV mask 'MTH'"),
+            ('date_2.b', 'OCONV time requires whole seconds'),
+            ('date_3.b', 'OCONV time requires whole seconds'),
+            ('date_4.b', 'OCONV time requires whole seconds'),
+            ('date_5.b', "unsupported OCONV mask 'D5/'"),
+            ('date_6.b', 'OCONV date requires an integer day count'),
+            ('date_7.b', 'OCONV date outside years 1 through 9999'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/oconv-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
     def test_str_repetition_diagnostics(self):
-        source = self.work / 'repeat.b'
-        for count, message in [("'two'", 'expected a numeric value'),
-                               ("'9223372036854775807'", 'STR result too large')]:
-            with self.subTest(count=count):
-                source.write_text(f"CRT STR('abc', {count})\n")
+        for fixture_name, message in (
+            ('repeat_1.b', 'expected a numeric value'),
+            ('repeat_2.b', 'STR result too large'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/str-repetition-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), run.stderr)
 
     def test_spaces_diagnostics(self):
-        source = self.work / 'spaces.b'
-        for argument, message in [
-            ("''", 'SPACES requires nonempty elements'),
-            ('@FM:2', 'SPACES requires nonempty elements'),
-            ('2:@VM:@SM:3', 'SPACES requires nonempty elements'),
-            ('2:@SM', 'SPACES requires nonempty elements'),
-            ("2:@FM:'bad'", 'expected a numeric value'),
-            ('9223372036854775807:@FM:9223372036854775807', 'SPACES result too large'),
-        ]:
-            with self.subTest(argument=argument):
-                source.write_text(f'CRT SPACES({argument})\n')
+        for fixture_name, message in (
+            ('spaces_1.b', 'SPACES requires nonempty elements'),
+            ('spaces_2.b', 'SPACES requires nonempty elements'),
+            ('spaces_3.b', 'SPACES requires nonempty elements'),
+            ('spaces_4.b', 'SPACES requires nonempty elements'),
+            ('spaces_5.b', 'expected a numeric value'),
+            ('spaces_6.b', 'SPACES result too large'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/spaces-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:1:5: {message}'.encode(), result.stderr)
 
     def test_left_right_require_numeric_length(self):
-        source = self.work / 'length.b'
-        for name in ('LEFT', 'RIGHT'):
-            with self.subTest(name=name):
-                source.write_text(f"CRT {name}('', 'bad')\n")
+        for fixture_name in (
+            'length_1.b',
+            'length_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/left-right-require-numeric-length' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
@@ -1277,33 +1281,33 @@ time_t test_clock(time_t *out)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
 
     def test_counts_requires_two_arguments(self):
-        source = self.work / 'counts.b'
-        for args in ("'ab'", "'ab', 'b', 1"):
-            with self.subTest(args=args):
-                source.write_text(f'CRT COUNTS({args})\n')
+        for fixture_name in (
+            'counts_1.b',
+            'counts_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/counts-requires-two-arguments' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for 'COUNTS'", result.stderr)
 
     def test_col_positions_require_no_arguments(self):
-        source = self.work / 'field-positions.b'
-        for name in ('COL1', 'COL2'):
+        for case_number, name in enumerate(('COL1', 'COL2'), 1):
             with self.subTest(name=name):
-                source.write_text(f'CRT {name}(1)\n')
+                source = ROOT / 'tests/programs/col-positions-require-no-arguments' / f'field-positions_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for '{name}'", result.stderr)
 
     def test_delimited_bracket_assignment_diagnostics(self):
-        source = self.work / 'fields.b'
-        for args, message in (
-            ("'/',0,1", 'FIELD positions and counts start at one'),
-            ("'/',1,'bad'", 'FIELD requires positive integer positions and counts'),
-            ("'',2,1", 'cannot extend fields with an empty delimiter'),
-            ("'---',9223372036854775807,1", 'field replacement is too large'),
+        for fixture_name, message in (
+            ('fields_1.b', 'FIELD positions and counts start at one'),
+            ('fields_2.b', 'FIELD requires positive integer positions and counts'),
+            ('fields_3.b', 'cannot extend fields with an empty delimiter'),
+            ('fields_4.b', 'field replacement is too large'),
         ):
-            with self.subTest(args=args):
-                source.write_text(f"Text = 'a/b'\nText[{args}] = 'x'\n")
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/delimited-bracket-assignment-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'')
@@ -1459,10 +1463,12 @@ CRT 'after'
         self.assertIn(f"{source}:2:9: expected '=' or ':=' for substring replacement", result.stderr)
 
     def test_substrings_requires_numeric_bounds(self):
-        source = self.work / 'substrings.b'
-        for args in ("'x', 1", "1, 'x'"):
-            with self.subTest(args=args):
-                source.write_text(f"CRT SUBSTRINGS('', {args})\n")
+        for fixture_name in (
+            'substrings_1.b',
+            'substrings_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/substrings-requires-numeric-bounds' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
@@ -1508,19 +1514,24 @@ CRT 'after'
         self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
 
     def test_fold_invalid_width(self):
-        source = self.work / 'fold.b'
-        for width in ("-1", "1.5", "'bad'"):
-            with self.subTest(width=width):
-                source.write_text(f"CRT FOLD('text', {width})\n")
+        for fixture_name in (
+            'fold_1.b',
+            'fold_2.b',
+            'fold_3.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/fold-invalid-width' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: FOLD width must be a nonnegative integer'.encode(), run.stderr)
 
     def test_fmts_invalid_mask(self):
-        source = self.work / 'fmts.b'
-        for args, mask in [("1:@FM:2, ''", ''), ("'', 'R?'", 'R?')]:
-            with self.subTest(mask=mask):
-                source.write_text(f"CRT FMTS({args})\n")
+        for fixture_name, mask in (
+            ('fmts_1.b', ''),
+            ('fmts_2.b', 'R?'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/fmts-invalid-mask' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:5: unsupported FMT mask '{mask}'".encode(), run.stderr)
@@ -1924,86 +1935,77 @@ CRT {function}('text', '', {method})
                 self.assertIn(f'{source}:1:5: {name} requires numeric operands'.encode(), run.stderr)
 
     def test_trim_diagnostics(self):
-        source = self.work / 'trim.b'
-        for args, message in [("' ', 'X'", 'unknown TRIM mode'),
-                              ("'xx', 'A'", 'TRIM requires a single trim byte')]:
-            with self.subTest(args=args):
-                source.write_text(f"PRINT TRIM('abc', {args})\n")
+        for fixture_name, message in (
+            ('trim_1.b', 'unknown TRIM mode'),
+            ('trim_2.b', 'TRIM requires a single trim byte'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/trim-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
     def test_find_diagnostics(self):
-        source = self.work / 'find.b'
-        for line, error in [("FIND 'a' IN 'a' SETTING F,V,S,X THEN NULL",
-                             "1:30: FIND accepts at most three SETTING variables"),
-                            ("FINDSTR 'a' IN 'a' SETTING F,V,S,X THEN NULL",
-                             "1:33: FINDSTR accepts at most three SETTING variables"),
-                            ("FIND 'a' IN 'a' SETTING F", "1:26: expected THEN or ELSE")]:
-            source.write_text(line + '\n')
+        for fixture_name, error in (
+            ('find_1.b', '1:30: FIND accepts at most three SETTING variables'),
+            ('find_2.b', '1:33: FINDSTR accepts at most three SETTING variables'),
+            ('find_3.b', '1:26: expected THEN or ELSE'),
+        ):
+            source = ROOT / 'tests/programs/find-diagnostics' / fixture_name
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(f"{source}:{error}", run.stderr)
-        for keyword in ('FIND', 'FINDSTR'):
-            source.write_text(f"{keyword} 'a' IN 'a',0 SETTING F THEN PRINT F\n")
+        for case_number, keyword in enumerate(('FIND', 'FINDSTR'), 1):
+            source = ROOT / 'tests/programs/find-diagnostics' / f'find-variant-2_{case_number}.b'
             run = self.run_native(source)
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(f"{source}:1:1: {keyword} occurrence must be a positive integer".encode(),
                           run.stderr)
 
     def test_swap_diagnostics(self):
-        source = self.work / 'swap.b'
-        source.write_text("CRT SWAP('abc', 'a')\n")
+        source = ROOT / 'tests/programs/swap-diagnostics/swap.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'SWAP'".encode(), result.stderr)
-        source.write_text("CRT SWAP('abc', 'a', 'b', 'bad')\n")
+        source = ROOT / 'tests/programs/swap-diagnostics/swap-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: SWAP requires integer occurrence arguments'.encode(),
                       result.stderr)
 
     def test_ereplace_diagnostics(self):
-        source = self.work / 'ereplace.b'
-        source.write_text("CRT EREPLACE('ab', 'a')\n")
+        source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'EREPLACE'".encode(), result.stderr)
-        source.write_text("CRT EREPLACE('ab', '', 'x', 1, 'bad')\n")
+        source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: EREPLACE requires integer occurrence arguments'.encode(),
                       result.stderr)
 
     def test_change_diagnostics(self):
-        source = self.work / 'change.b'
-        for program, error in [("CHANGE 'x' TO 'y' IN Missing", "1:22: unassigned variable 'Missing'"),
-                               ("PRINT CHANGE('a','a')", "1:7: wrong argument count for 'CHANGE'")]:
-            source.write_text(program + '\n')
+        for fixture_name, error in (
+            ('change_1.b', "1:22: unassigned variable 'Missing'"),
+            ('change_2.b', "1:7: wrong argument count for 'CHANGE'"),
+        ):
+            source = ROOT / 'tests/programs/change-diagnostics' / fixture_name
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(f"{source}:{error}", run.stderr)
-        source.write_text("PRINT CHANGE('x','x','y',1,'bad')\n")
+        source = ROOT / 'tests/programs/change-diagnostics/change-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:1:7: CHANGE requires integer occurrence arguments".encode(), run.stderr)
 
     def test_string_mutations_check_conditionally_assigned_targets(self):
-        source = self.work / 'mutate.b'
         binary = self.work / 'mutate'
-        for statement, expected in (
+        for case_number, (statement, expected) in enumerate((
             ("CONVERT 'a' TO 'x' IN Value", b'left\txxbb!\n'),
             ("CHANGE 'aa' TO 'x' IN Value<2>", b'left\txbb!\n'),
-        ):
+        ), 1):
             with self.subTest(statement=statement):
-                source.write_text("""GET(ARG.) Key
-LOCATE Key IN 'found' SETTING Pos THEN
-    Value = 'left':@FM:'aabb'
-END
-""" + statement + """
-Value := '!'
-CRT Value<1>, Value<2>
-""")
+                source = ROOT / 'tests/programs/string-mutations-check-conditionally-assigned-targets' / f'mutate_{case_number}.b'
                 subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
                                env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
                 found = subprocess.run([binary, 'found'], capture_output=True, timeout=5)
@@ -2045,34 +2047,25 @@ CRT Value<1>, Value<2>
         self.assertIn(f'{source}:1:5: ABSS requires numeric elements'.encode(), run.stderr)
 
     def test_implicit_format_reports_uninitialized_mask_at_read(self):
-        source = self.work / 'format.b'
-        source.write_text("""IF 0 THEN GOSUB INIT.MASK
-CRT 'Y' Mask
-STOP
-INIT.MASK:
-Mask = '2L'
-RETURN
-""")
+        source = ROOT / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:9: unassigned variable 'Mask'".encode(), run.stderr)
 
     def test_fmt_diagnostics(self):
-        source = self.work / 'fmt.b'
-        for mask in ['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T']:
+        for case_number, mask in enumerate(['D4/', 'R20', 'R%', "3'xx'R", 'R2,', '0T'], 1):
             with self.subTest(mask=mask):
-                source.write_text(f'M = "{mask}"\nPRINT FMT(42,M)\n')
+                source = ROOT / 'tests/programs/fmt-diagnostics' / f'fmt_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:2:7: unsupported FMT mask '{mask}'".encode(), run.stderr)
 
     def test_index_diagnostics(self):
-        source = self.work / 'index.b'
-        source.write_text("PRINT INDEX('abc', 'b')\n")
+        source = ROOT / 'tests/programs/index-diagnostics/index.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:7: wrong argument count for 'INDEX'", result.stderr)
-        source.write_text("PRINT INDEX('abc', 'b', 'two')\n")
+        source = ROOT / 'tests/programs/index-diagnostics/index-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:7: expected a numeric value'.encode(), run.stderr)
@@ -2158,14 +2151,17 @@ RETURN
     def test_insert_locations(self):
         source = self.work / 'main.b'
         header = self.work / 'I_BROKEN'
-        source.write_text('$INSERT I_BROKEN\n')
-        for content, location in [('CRT 1 +\n', ':1:8:'), ('$INSERT I_BROKEN\n', ':1:1:')]:
-            header.write_text(content)
+        copyfile(ROOT / 'tests/programs/insert-locations/main.b', source)
+        for fixture_name, location in (
+            ('I_BROKEN_1', ':1:8:'),
+            ('I_BROKEN_2', ':1:1:'),
+        ):
+            copyfile(ROOT / 'tests/programs/insert-locations' / fixture_name, header)
             run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(str(header) + location, run.stderr)
-        header.write_text('EQU BAD TO 1 / 0\n')
-        source.write_text('$INSERT I_BROKEN\nPRINT BAD\n')
+        copyfile(ROOT / 'tests/programs/insert-locations/I_BROKEN-variant-2', header)
+        copyfile(ROOT / 'tests/programs/insert-locations/main-variant-2.b', source)
         run = self.run_native(source)
         self.assertIn(f'{header}:1:14: division by zero'.encode(), run.stderr)
 
@@ -3914,37 +3910,19 @@ CRT Fixed(2)
                 self.assertIn(str(source) + location, result.stderr)
 
     def test_remove_shared_cursor(self):
-        caller = self.work / 'caller.b'
-        sub = self.work / 'take.b'
-        caller.write_text("""COMMON /R/ List
-List = 'first' : @AM : 'last'
-CALL TAKE(List, Part)
-PRINT Part
-REMOVE Part FROM List SETTING D
-PRINT Part, D
-CALL TAKE(List, Part)
-PRINT Part
-""")
-        sub.write_text("""SUBROUTINE TAKE(Arg, Out)
-COMMON /R/ Shared
-Out = REMOVE(Arg,D)
-IF D EQ 0 THEN
-  Shared = Shared
-  REMOVE Out FROM Arg SETTING D
-END
-""")
+        caller = ROOT / 'tests/programs/remove-shared-cursor/caller.b'
+        sub = ROOT / 'tests/programs/remove-shared-cursor/take.b'
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'first\nlast\t0\nfirst\n')
 
     def test_remove_expression_diagnostics(self):
-        source = self.work / 'bad.b'
-        for statement, message in [
-            ('CRT REMOVE(Missing,D)', ":1:12: unassigned variable 'Missing'"),
-            ("CRT REMOVE('a',1)", ':1:16: expected a name'),
-        ]:
-            with self.subTest(statement=statement):
-                source.write_text(statement + '\n')
+        for fixture_name, message in (
+            ('bad_1.b', ":1:12: unassigned variable 'Missing'"),
+            ('bad_2.b', ':1:16: expected a name'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/remove-expression-diagnostics' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(str(source) + message, result.stderr)
@@ -4394,10 +4372,13 @@ CRT 'after'
                 self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
 
     def test_matchfield_invalid_field(self):
-        source = self.work / 'matchfield.b'
-        for field in ("''", "'two'", '1.5'):
-            with self.subTest(field=field):
-                source.write_text(f"CRT MATCHFIELD('12', '2N', {field})\n")
+        for fixture_name in (
+            'matchfield_1.b',
+            'matchfield_2.b',
+            'matchfield_3.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/matchfield-invalid-field' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:5: MATCHFIELD requires an integer field number'.encode(), run.stderr)

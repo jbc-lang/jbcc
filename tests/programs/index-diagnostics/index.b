@@ -1,0 +1,1 @@
+PRINT INDEX('abc', 'b')

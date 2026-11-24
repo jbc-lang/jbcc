@@ -1,0 +1,7 @@
+SUBROUTINE TAKE(Arg, Out)
+COMMON /R/ Shared
+Out = REMOVE(Arg,D)
+IF D EQ 0 THEN
+  Shared = Shared
+  REMOVE Out FROM Arg SETTING D
+END

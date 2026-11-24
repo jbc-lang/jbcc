@@ -1,0 +1,1 @@
+PRINT TRIM('abc', ' ', 'X')

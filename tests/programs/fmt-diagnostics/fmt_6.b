@@ -1,0 +1,2 @@
+M = "0T"
+PRINT FMT(42,M)

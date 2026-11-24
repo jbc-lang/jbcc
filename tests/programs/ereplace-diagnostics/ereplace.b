@@ -1,0 +1,1 @@
+CRT EREPLACE('ab', 'a')

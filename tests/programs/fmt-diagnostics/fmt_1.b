@@ -1,0 +1,2 @@
+M = "D4/"
+PRINT FMT(42,M)

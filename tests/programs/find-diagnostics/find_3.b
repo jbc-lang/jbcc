@@ -1,0 +1,1 @@
+FIND 'a' IN 'a' SETTING F

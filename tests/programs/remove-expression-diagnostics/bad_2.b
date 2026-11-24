@@ -1,0 +1,1 @@
+CRT REMOVE('a',1)
