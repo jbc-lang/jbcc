@@ -79,13 +79,13 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Compiler diagnostics and preprocessing (7)
 
-- [ ] `test_diagnostics_preserve_existing_output`
-- [ ] `test_period_label_diagnostics`
-- [ ] `test_comparison_signs_keep_reference_spacing_rules`
-- [ ] `test_lit_equates_expand_quoted_source`
-- [ ] `test_lit_equate_diagnostic_points_inside_definition`
-- [ ] `test_preprocessor_conditionals_and_include_guards`
-- [ ] `test_preprocessor_conditional_diagnostics`
+- [x] `test_diagnostics_preserve_existing_output`
+- [x] `test_period_label_diagnostics`
+- [x] `test_comparison_signs_keep_reference_spacing_rules`
+- [x] `test_lit_equates_expand_quoted_source`
+- [x] `test_lit_equate_diagnostic_points_inside_definition`
+- [x] `test_preprocessor_conditionals_and_include_guards`
+- [x] `test_preprocessor_conditional_diagnostics`
 
 ## Control flow and variable assignment (24)
 

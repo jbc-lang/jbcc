@@ -1,0 +1,5 @@
+#ifndef Seen
+#define Seen 0
+$ define Delta Base + 2
+Total += Delta
+#endif

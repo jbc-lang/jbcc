@@ -1,0 +1,1 @@
+CRT ISDIGIT(1, 2)

@@ -1,0 +1,1 @@
+CRT TRIMS('a', 'b')

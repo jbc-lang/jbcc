@@ -1,0 +1,1 @@
+OPEN '',, 'X' ELSE STOP

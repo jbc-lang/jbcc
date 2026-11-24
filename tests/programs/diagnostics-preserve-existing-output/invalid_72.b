@@ -1,0 +1,1 @@
+CRT TRIMFS('a', 'b')

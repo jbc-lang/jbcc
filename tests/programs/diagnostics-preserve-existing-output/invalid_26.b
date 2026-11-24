@@ -1,0 +1,2 @@
+PROGRAM GOTO
+CRT NeverAssigned

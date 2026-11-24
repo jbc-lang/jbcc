@@ -706,117 +706,116 @@ class CompilerTest(NativeCompilerTest):
                 self.assertIn(f"{source}:1:1: {message}".encode(), result.stderr)
 
     def test_diagnostics_preserve_existing_output(self):
-        source = self.work / 'invalid.b'
-        for program, location in [('N = 2\nIF N THEN\n', ':2:1:'),
-                                  ('BEGIN CASE\nCRT 1\nEND CASE\n', ':1:1: expected CASE clause'),
-                                  ('BEGIN CASE\nEND IF\n', ":2:5: expected 'CASE'"),
-                                  ('BEGIN CASE END CASE\n', ':1:1: expected CASE clause'),
-                                  ('CRT 1; EQU X TO 2,\n', ':1:18: unfinished EQUATE list'),
-                                  ('CRT 1; EQU X TO; CRT 2\n', ':1:12: expected EQUATE name TO expression'),
-                                  ('CALL F(1,\n', ':1:9: unfinished comma continuation'),
-                                  ('CALL F(1,\n )\n', ':2:2: expected call argument'),
-                                  ('CALL F(1\n, 2)\n', ":1:9: expected ')'"),
-                                  ("OPEN '', 'F', 'X' ELSE STOP\n", ':1:13: expected THEN or ELSE'),
-                                  ("OPEN '',, 'X' ELSE STOP\n", ':1:9: expected a variable'),
-                                  ('REWIND ON 2\n', ':1:12: expected THEN or ELSE'),
-                                  ('READT X\n', ':1:8: expected THEN or ELSE'),
-                                  ("WRITET 'x'\n", ':1:11: expected THEN or ELSE'),
-                                  ('WEOF\n', ':1:5: expected THEN or ELSE'),
-                                  ('DEBUG 1\n', ":1:7: unexpected '1'"),
-                                  ("IF 1 THEN CRT 1\n  ELSE CRT Missing\n", ":2:12: unknown variable"),
-                                  ("CRT 'done'\nELSE CRT 1\n", ":2:1: unexpected 'ELSE'"),
-                                  ("DIM A(2)\nMATREAD A FROM 'id'\n LOCKED STOP ELSE STOP\n",
-                                   ":3:2: MATREAD LOCKED requires a locking file backend"),
-                                  ('PROGRAM\n', ':1:8:'),
-                                  ('FUNCTION F()\nF1: RETURN TO F1\n', ':2:5: RETURN TO is not allowed'),
-                                  ('PROGRAM one two\n', ':1:13:'),
-                                  ('N = 1\nN :\n= 2\n', ":2:1: unsupported statement 'N'"),
-                                  ('N = 1\nN +\n= 2\n', ":2:1: unsupported statement 'N'"),
-                                  ('GO = 1\nIF GO THEN CRT Missing\n', ':2:16: unknown variable'),
-                                  ('PROGRAM GOTO\nCRT NeverAssigned\n', ':2:5:'),
-                                  ('CRT 1 +\n', ':1:8:'),
-                                  ('CRT UNKNOWN.FUNCTION(3)\n', ':1:5:'),
-                                  ('INPUT X _\n', ':1:9: INPUT underscore requires a length'),
-                                  ('@ID += 1\n', ":1:5: expected '='"),
-                                  ('@FILENAME += 1\n', ":1:11: expected '='"),
-                                  ('READNEXT @USERNO ELSE STOP\n', ":1:11: expected 'ID'"),
-                                  ("READ @USERNO FROM 'key' ELSE ABORT\n",
-                                   ':1:7: expected @ID, @RECORD or @FILENAME as a record read destination'),
-                                  ("CRT RND()\n", ":1:5: wrong argument count for 'RND'"),
-                                  ("CRT DROUND(1, 2, 3)\n", ":1:5: wrong argument count for 'DROUND'"),
-                                  ("CRT ADDS('x')\n", ":1:5: wrong argument count for 'ADDS'"),
-                                  ("CRT SUBS(1)\n", ":1:5: wrong argument count for 'SUBS'"),
-                                  ("CRT MULS(1, 2, 3)\n", ":1:5: wrong argument count for 'MULS'"),
-                                  ("CRT REUSE(2) + 3\n", ':1:5: REUSE requires a direct multiplication or division operand'),
-                                  ("CRT 2 * REUSE(3) ^ 4\n", ':1:9: REUSE requires a direct multiplication operand'),
-                                  ("CRT SDIV(1)\n", ":1:5: wrong argument count for 'SDIV'"),
-                                  ("CRT SDIV(1, 2, 3, 4)\n", ":1:5: wrong argument count for 'SDIV'"),
-                                  ("CRT DIVS(1)\n", ":1:5: wrong argument count for 'DIVS'"),
-                                  ("CRT CATS('x')\n", ":1:5: wrong argument count for 'CATS'"),
-                                  ("CRT COMPARE('x')\n", ":1:5: wrong argument count for 'COMPARE'"),
-                                  ("CRT NES(1, 2, 3)\n", ":1:5: wrong argument count for 'NES'"),
-                                  ("CRT EQS('x')\n", ":1:5: wrong argument count for 'EQS'"),
-                                  ('CRT NUM()\n', ":1:5: wrong argument count for 'NUM'"),
-                                  ('CRT NUM(1, 2)\n', ":1:5: wrong argument count for 'NUM'"),
-                                  ("CRT ICONV('20121231')\n", ":1:5: wrong argument count for 'ICONV'"),
-                                  ("CRT FIELDS('x', ':')\n", ":1:5: wrong argument count for 'FIELDS'"),
-                                  ("CRT GROUP('x', ':')\n", ":1:5: wrong argument count for 'GROUP'"),
-                                  ("CRT GROUP('x', ':', 1, 1, 1)\n", ":1:5: wrong argument count for 'GROUP'"),
-                                  ("CRT STR('x')\n", ":1:5: wrong argument count for 'STR'"),
-                                  ("CRT BYTELEN()\n", ":1:5: wrong argument count for 'BYTELEN'"),
-                                  ("CRT UTF8()\n", ":1:5: wrong argument count for 'UTF8'"),
-                                  ("CRT LATIN1('a', 'b')\n", ":1:5: wrong argument count for 'LATIN1'"),
-                                  ("CRT LENDP()\n", ":1:5: wrong argument count for 'LENDP'"),
-                                  ("CRT LENDP('a', 'b')\n", ":1:5: wrong argument count for 'LENDP'"),
-                                  ("CRT ITYPE()\n", ":1:5: wrong argument count for 'ITYPE'"),
-                                  ("CRT ITYPE('a', 'b')\n", ":1:5: wrong argument count for 'ITYPE'"),
-                                  ("CRT REPLACE('a', 1, 'x')\n", ":1:24: expected ';'"),
-                                  ("CRT DQUOTE()\n", ":1:5: wrong argument count for 'DQUOTE'"),
-                                  ("CRT SQUOTE(1, 2)\n", ":1:5: wrong argument count for 'SQUOTE'"),
-                                  ("CRT LN()\n", ":1:5: wrong argument count for 'LN'"),
-                                  ("CRT EXP()\n", ":1:5: wrong argument count for 'EXP'"),
-                                  ("CRT SQRT(1, 2)\n", ":1:5: wrong argument count for 'SQRT'"),
-                                  ("CRT PWR(2)\n", ":1:5: wrong argument count for 'PWR'"),
-                                  ("CRT SUMMATION(1, 2)\n", ":1:5: wrong argument count for 'SUMMATION'"),
-                                  ("CRT TRIMS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMS'"),
-                                  ("CRT TRIMBS()\n", ":1:5: wrong argument count for 'TRIMBS'"),
-                                  ("CRT TRIMFS('a', 'b')\n", ":1:5: wrong argument count for 'TRIMFS'"),
-                                  ("CRT REM(1)\n", ":1:5: wrong argument count for 'REM'"),
-                                  ("CRT MOD(1)\n", ":1:5: wrong argument count for 'MOD'"),
-                                  ("CRT LEFT('x')\n", ":1:5: wrong argument count for 'LEFT'"),
-                                  ("CRT RIGHT('x',1,2)\n", ":1:5: wrong argument count for 'RIGHT'"),
-                                  ("CRT DELETE('a')\n", ":1:5: wrong argument count for 'DELETE'"),
-                                  ("CRT DELETE('a',1,2,3,4)\n", ":1:5: wrong argument count for 'DELETE'"),
-                                  ("CRT EXTRACT('a')\n", ":1:5: wrong argument count for 'EXTRACT'"),
-                                  ("CRT EXTRACT('a',1,2,3,4)\n", ":1:5: wrong argument count for 'EXTRACT'"),
-                                  ("CRT MINIMUM()\n", ":1:5: wrong argument count for 'MINIMUM'"),
-                                  ("CRT MAXIMUM(1, 2)\n", ":1:5: wrong argument count for 'MAXIMUM'"),
-                                  ("CRT SUBSTRINGS('x', 1)\n", ":1:5: wrong argument count for 'SUBSTRINGS'"),
-                                  ("CRT SPLICE('a', 'b')\n", ":1:5: wrong argument count for 'SPLICE'"),
-                                  ("CRT TRIMF()\n", ":1:5: wrong argument count for 'TRIMF'"),
-                                  ("CRT TRIMB('a', 'b')\n", ":1:5: wrong argument count for 'TRIMB'"),
-                                  ("CRT ALPHA()\n", ":1:5: wrong argument count for 'ALPHA'"),
-                                  ("CRT ALPHA('a', 'b')\n", ":1:5: wrong argument count for 'ALPHA'"),
-                                  ("CRT ISALPHA()\n", ":1:5: wrong argument count for 'ISALPHA'"),
-                                  ("CRT ISDIGIT(1, 2)\n", ":1:5: wrong argument count for 'ISDIGIT'"),
-                                  ("CRT NEG()\n", ":1:5: wrong argument count for 'NEG'"),
-                                  ("CRT NEG(1, 2)\n", ":1:5: wrong argument count for 'NEG'"),
-                                  ("CRT UPCASE()\n", ":1:5: wrong argument count for 'UPCASE'"),
-                                  ("CRT LOWCASE(1, 2)\n", ":1:5: wrong argument count for 'LOWCASE'"),
-                                  ('CRT GETENV("x", 1)\n', ':1:17: expected a name'),
-                                  ('CRT PUTENV("A", "B")\n', ":1:5: wrong argument count for 'PUTENV'"),
-                                  ('R <1 = 2\n', ":1:3: expected closing '>' for dynamic-array assignment"),
-                                  ('R <1,2,3,4> = 0\n', ':1:3: expected one to three dynamic-array indices'),
-                                  ('CLOSE\n', ':1:6: expected a name'),
-                                  ('CLOSE F,G ON ERROR NULL\n', ":1:11: unexpected 'ON'"),
-                                  ('CRT DATE(1)\n', ':1:5:'),
-                                  ('CRT TIME(1)\n', ':1:5:'),
-                                  ('CRT TIMEDATE(1)\n', ':1:5:'),
-                                  ('FOR I = 1 TO 2\nNEXT J = 7\n', ":2:8: unexpected '='"),
-                                  ('LOOP WHILE 0\n', ':1:1:'),
-                                  ('IF 0 THEN X = 1\nCRT X\n', ':2:5:')]:
-            with self.subTest(program=program):
-                source.write_text(program)
+        for fixture_name, location in (
+            ('invalid_1.b', ':2:1:'),
+            ('invalid_2.b', ':1:1: expected CASE clause'),
+            ('invalid_3.b', ":2:5: expected 'CASE'"),
+            ('invalid_4.b', ':1:1: expected CASE clause'),
+            ('invalid_5.b', ':1:18: unfinished EQUATE list'),
+            ('invalid_6.b', ':1:12: expected EQUATE name TO expression'),
+            ('invalid_7.b', ':1:9: unfinished comma continuation'),
+            ('invalid_8.b', ':2:2: expected call argument'),
+            ('invalid_9.b', ":1:9: expected ')'"),
+            ('invalid_10.b', ':1:13: expected THEN or ELSE'),
+            ('invalid_11.b', ':1:9: expected a variable'),
+            ('invalid_12.b', ':1:12: expected THEN or ELSE'),
+            ('invalid_13.b', ':1:8: expected THEN or ELSE'),
+            ('invalid_14.b', ':1:11: expected THEN or ELSE'),
+            ('invalid_15.b', ':1:5: expected THEN or ELSE'),
+            ('invalid_16.b', ":1:7: unexpected '1'"),
+            ('invalid_17.b', ':2:12: unknown variable'),
+            ('invalid_18.b', ":2:1: unexpected 'ELSE'"),
+            ('invalid_19.b', ':3:2: MATREAD LOCKED requires a locking file backend'),
+            ('invalid_20.b', ':1:8:'),
+            ('invalid_21.b', ':2:5: RETURN TO is not allowed'),
+            ('invalid_22.b', ':1:13:'),
+            ('invalid_23.b', ":2:1: unsupported statement 'N'"),
+            ('invalid_24.b', ":2:1: unsupported statement 'N'"),
+            ('invalid_25.b', ':2:16: unknown variable'),
+            ('invalid_26.b', ':2:5:'),
+            ('invalid_27.b', ':1:8:'),
+            ('invalid_28.b', ':1:5:'),
+            ('invalid_29.b', ':1:9: INPUT underscore requires a length'),
+            ('invalid_30.b', ":1:5: expected '='"),
+            ('invalid_31.b', ":1:11: expected '='"),
+            ('invalid_32.b', ":1:11: expected 'ID'"),
+            ('invalid_33.b', ':1:7: expected @ID, @RECORD or @FILENAME as a record read destination'),
+            ('invalid_34.b', ":1:5: wrong argument count for 'RND'"),
+            ('invalid_35.b', ":1:5: wrong argument count for 'DROUND'"),
+            ('invalid_36.b', ":1:5: wrong argument count for 'ADDS'"),
+            ('invalid_37.b', ":1:5: wrong argument count for 'SUBS'"),
+            ('invalid_38.b', ":1:5: wrong argument count for 'MULS'"),
+            ('invalid_39.b', ':1:5: REUSE requires a direct multiplication or division operand'),
+            ('invalid_40.b', ':1:9: REUSE requires a direct multiplication operand'),
+            ('invalid_41.b', ":1:5: wrong argument count for 'SDIV'"),
+            ('invalid_42.b', ":1:5: wrong argument count for 'SDIV'"),
+            ('invalid_43.b', ":1:5: wrong argument count for 'DIVS'"),
+            ('invalid_44.b', ":1:5: wrong argument count for 'CATS'"),
+            ('invalid_45.b', ":1:5: wrong argument count for 'COMPARE'"),
+            ('invalid_46.b', ":1:5: wrong argument count for 'NES'"),
+            ('invalid_47.b', ":1:5: wrong argument count for 'EQS'"),
+            ('invalid_48.b', ":1:5: wrong argument count for 'NUM'"),
+            ('invalid_49.b', ":1:5: wrong argument count for 'NUM'"),
+            ('invalid_50.b', ":1:5: wrong argument count for 'ICONV'"),
+            ('invalid_51.b', ":1:5: wrong argument count for 'FIELDS'"),
+            ('invalid_52.b', ":1:5: wrong argument count for 'GROUP'"),
+            ('invalid_53.b', ":1:5: wrong argument count for 'GROUP'"),
+            ('invalid_54.b', ":1:5: wrong argument count for 'STR'"),
+            ('invalid_55.b', ":1:5: wrong argument count for 'BYTELEN'"),
+            ('invalid_56.b', ":1:5: wrong argument count for 'UTF8'"),
+            ('invalid_57.b', ":1:5: wrong argument count for 'LATIN1'"),
+            ('invalid_58.b', ":1:5: wrong argument count for 'LENDP'"),
+            ('invalid_59.b', ":1:5: wrong argument count for 'LENDP'"),
+            ('invalid_60.b', ":1:5: wrong argument count for 'ITYPE'"),
+            ('invalid_61.b', ":1:5: wrong argument count for 'ITYPE'"),
+            ('invalid_62.b', ":1:24: expected ';'"),
+            ('invalid_63.b', ":1:5: wrong argument count for 'DQUOTE'"),
+            ('invalid_64.b', ":1:5: wrong argument count for 'SQUOTE'"),
+            ('invalid_65.b', ":1:5: wrong argument count for 'LN'"),
+            ('invalid_66.b', ":1:5: wrong argument count for 'EXP'"),
+            ('invalid_67.b', ":1:5: wrong argument count for 'SQRT'"),
+            ('invalid_68.b', ":1:5: wrong argument count for 'PWR'"),
+            ('invalid_69.b', ":1:5: wrong argument count for 'SUMMATION'"),
+            ('invalid_70.b', ":1:5: wrong argument count for 'TRIMS'"),
+            ('invalid_71.b', ":1:5: wrong argument count for 'TRIMBS'"),
+            ('invalid_72.b', ":1:5: wrong argument count for 'TRIMFS'"),
+            ('invalid_73.b', ":1:5: wrong argument count for 'REM'"),
+            ('invalid_74.b', ":1:5: wrong argument count for 'MOD'"),
+            ('invalid_75.b', ":1:5: wrong argument count for 'LEFT'"),
+            ('invalid_76.b', ":1:5: wrong argument count for 'RIGHT'"),
+            ('invalid_77.b', ":1:5: wrong argument count for 'DELETE'"),
+            ('invalid_78.b', ":1:5: wrong argument count for 'DELETE'"),
+            ('invalid_79.b', ":1:5: wrong argument count for 'EXTRACT'"),
+            ('invalid_80.b', ":1:5: wrong argument count for 'EXTRACT'"),
+            ('invalid_81.b', ":1:5: wrong argument count for 'MINIMUM'"),
+            ('invalid_82.b', ":1:5: wrong argument count for 'MAXIMUM'"),
+            ('invalid_83.b', ":1:5: wrong argument count for 'SUBSTRINGS'"),
+            ('invalid_84.b', ":1:5: wrong argument count for 'SPLICE'"),
+            ('invalid_85.b', ":1:5: wrong argument count for 'TRIMF'"),
+            ('invalid_86.b', ":1:5: wrong argument count for 'TRIMB'"),
+            ('invalid_87.b', ":1:5: wrong argument count for 'ALPHA'"),
+            ('invalid_88.b', ":1:5: wrong argument count for 'ALPHA'"),
+            ('invalid_89.b', ":1:5: wrong argument count for 'ISALPHA'"),
+            ('invalid_90.b', ":1:5: wrong argument count for 'ISDIGIT'"),
+            ('invalid_91.b', ":1:5: wrong argument count for 'NEG'"),
+            ('invalid_92.b', ":1:5: wrong argument count for 'NEG'"),
+            ('invalid_93.b', ":1:5: wrong argument count for 'UPCASE'"),
+            ('invalid_94.b', ":1:5: wrong argument count for 'LOWCASE'"),
+            ('invalid_95.b', ':1:17: expected a name'),
+            ('invalid_96.b', ":1:5: wrong argument count for 'PUTENV'"),
+            ('invalid_97.b', ":1:3: expected closing '>' for dynamic-array assignment"),
+            ('invalid_98.b', ':1:3: expected one to three dynamic-array indices'),
+            ('invalid_99.b', ':1:6: expected a name'),
+            ('invalid_100.b', ":1:11: unexpected 'ON'"),
+            ('invalid_101.b', ':1:5:'),
+            ('invalid_102.b', ':1:5:'),
+            ('invalid_103.b', ':1:5:'),
+            ('invalid_104.b', ":2:8: unexpected '='"),
+            ('invalid_105.b', ':1:1:'),
+            ('invalid_106.b', ':2:5:'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/diagnostics-preserve-existing-output' / fixture_name
                 self.c.write_text('previous output')
                 run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(run.returncode, 0)
@@ -1402,13 +1401,12 @@ CRT 'after'
                          (0, b'ab:c\n6:num-2\nfield!\n', b''))
 
     def test_period_label_diagnostics(self):
-        source = self.work / 'period.b'
-        for program, location in (
-            ('.\n . Amount = 1\n', ':2:2: duplicate label'),
-            ('Amount = 1; . Amount = 2\n', ':1:13: expected an assignment'),
+        for fixture_name, location in (
+            ('period_1.b', ':2:2: duplicate label'),
+            ('period_2.b', ':1:13: expected an assignment'),
         ):
-            with self.subTest(program=program):
-                source.write_text(program)
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/period-label-diagnostics' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(str(source) + location, result.stderr)
@@ -1435,10 +1433,13 @@ CRT 'after'
         )
 
     def test_comparison_signs_keep_reference_spacing_rules(self):
-        source = self.work / 'compare.b'
-        for expression, column in (('1><2', 7), ('1 # > 2', 9), ('1 < = 2', 9)):
-            with self.subTest(expression=expression):
-                source.write_text(f'CRT {expression}\n')
+        for fixture_name, column in (
+            ('compare_1.b', 7),
+            ('compare_2.b', 9),
+            ('compare_3.b', 9),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/comparison-signs-keep-reference-spacing-rules' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(
@@ -2268,30 +2269,17 @@ CRT Old:':':New:':':Current
                          (0, b'direct 7\nprefixed 8\ndirect 9\ndirect 10\n7\n', b''))
 
     def test_lit_equates_expand_quoted_source(self):
-        main = self.work / 'main.b'
-        show = self.work / 'show.b'
-        include = self.work / 'I_LITERALS'
-        include.write_text(r"""EQUATE POS LIT '2', TEXT LITERALLY "'payload'", KEEP TO '1+2'
-EQUATE PICK LIT "REC<POS>", VALUE LIT "1+POS", SLASH LIT \literal\
-EQUATE SHOW.IT LIT "CALL SHOW('record', PICK); CRT TEXT"
-EQUATE NOTHING LIT ""
-""")
-        main.write_text("""$INSERT I_LITERALS
-REC = 'first':@FM:'second'
-NOTHING
-SHOW.IT; CRT VALUE, KEEP, SLASH
-""")
-        show.write_text("SUBROUTINE SHOW(LABEL.TEXT, VALUE.TEXT)\nCRT LABEL.TEXT:':':VALUE.TEXT\n")
+        include = ROOT / 'tests/programs/lit-equates-expand-quoted-source/I_LITERALS'
+        main = ROOT / 'tests/programs/lit-equates-expand-quoted-source/main.b'
+        show = ROOT / 'tests/programs/lit-equates-expand-quoted-source/show.b'
         run = self.run_native(main, show)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
                          (0, b'record:second\npayload\n3\t1+2\tliteral\n', b''))
 
     def test_lit_equate_diagnostic_points_inside_definition(self):
-        source = self.work / 'main.b'
-        include = self.work / 'I_INVALID'
         definition = 'EQUATE BROKEN LIT "CRT MISSING"'
-        include.write_text(definition + '\n')
-        source.write_text('$INSERT I_INVALID\nBROKEN\n')
+        include = ROOT / 'tests/programs/lit-equate-diagnostic-points-inside-definition/I_INVALID'
+        source = ROOT / 'tests/programs/lit-equate-diagnostic-points-inside-definition/main.b'
         result = subprocess.run([str(ROOT / 'jbcc'), str(source), '-o', str(self.work / 'main.c')],
                                 capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -2299,39 +2287,8 @@ SHOW.IT; CRT VALUE, KEEP, SLASH
                       result.stderr)
 
     def test_preprocessor_conditionals_and_include_guards(self):
-        source = self.work / 'guarded.b'
-        include = self.work / 'I_GUARDED'
-        include.write_text("""#ifndef Seen
-#define Seen 0
-$ define Delta Base + 2
-Total += Delta
-#endif
-""")
-        source.write_text("""EQUATE Base TO 1
-Total = 0
-$INSERT I_GUARDED
-$INSERT I_GUARDED
-#ifdef Seen
-#ifndef seen
-CRT Total, Seen
-#end
-#else
-CRT 'inactive'
-#endif
-#ifdef Missing
-#define Hidden 1
-#ifndef AlsoMissing
-#else
-$INSERT MissingFile
-INCORRECT (
-#endif
-#else
-CRT Delta
-#endif
-#ifdef Hidden
-CRT 'hidden'
-#endif
-""")
+        include = ROOT / 'tests/programs/preprocessor-conditionals-and-include-guards/I_GUARDED'
+        source = ROOT / 'tests/programs/preprocessor-conditionals-and-include-guards/guarded.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'3\t0\n3\n', b''))
@@ -2374,19 +2331,19 @@ DEFC ReadNative()
                 self.assertEqual(result.stderr, f"{source}{diagnostic}\n")
 
     def test_preprocessor_conditional_diagnostics(self):
-        source = self.work / 'main.b'
-        include = self.work / 'I_BAD'
-        source.write_text('$INSERT I_BAD\n')
-        for program, location in (
-            ('#else\n', ':1:1: #ELSE without matching'),
-            ('#ifdef\n', ':1:1: expected a symbol'),
-            ('#ifndef Flag\n#else\n#else\n#endif\n', ':3:1: duplicate #ELSE'),
-            ('#ifndef Flag\nCRT 1\n', ':1:1: missing #ENDIF'),
-            ('#define Flag\n', ':1:1: expected a replacement'),
+        fixtures = ROOT / 'tests/programs/preprocessor-conditional-diagnostics'
+        source = fixtures / 'main.b'
+        for variant, location in (
+            ('1', ':1:1: #ELSE without matching'),
+            ('2', ':1:1: expected a symbol'),
+            ('3', ':3:1: duplicate #ELSE'),
+            ('4', ':1:1: missing #ENDIF'),
+            ('5', ':1:1: expected a replacement'),
         ):
-            with self.subTest(program=program):
-                include.write_text(program)
-                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+            with self.subTest(variant=variant):
+                include = fixtures / variant / 'I_BAD'
+                result = subprocess.run([CLI, '-I', include.parent, source, '-o', self.c],
+                                        text=True, capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(str(include) + location, result.stderr)
 

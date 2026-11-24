@@ -1,0 +1,1 @@
+CRT SQUOTE(1, 2)

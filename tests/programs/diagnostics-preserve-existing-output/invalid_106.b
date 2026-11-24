@@ -1,0 +1,2 @@
+IF 0 THEN X = 1
+CRT X
