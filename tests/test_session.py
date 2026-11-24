@@ -4,6 +4,8 @@ import select
 import subprocess
 import time
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -217,29 +219,31 @@ def test_execute_result_diagnostics(compiler):
     assert expected_text('execute-result-diagnostics_2.stderr', source=source).encode() in run.stderr
 
 
-def test_execute_rtnlist_requires_backend_before_running_command(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('select_1.b', id='select-1'),
+        pytest.param('select_2.b', id='select-2'),
+        pytest.param('select_3.b', id='select-3'),
+        pytest.param('select_4.b', id='select-4'),
+        pytest.param('select_5.b', id='select-5'),
+        pytest.param('select_6.b', id='select-6'),
+    ],
+)
+def test_execute_rtnlist_requires_backend_before_running_command(compiler, fixture_name):
     marker = compiler.work / 'child-ran'
-    for fixture_name in (
-        'select_1.b',
-        'select_2.b',
-        'select_3.b',
-        'select_4.b',
-        'select_5.b',
-        'select_6.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/execute-rtnlist-requires-backend-before-running-command' / fixture_name
-            run = compiler.run_native(source, cwd=compiler.work)
-            assert run.returncode == 1, run.stderr
-            assert (
-                run.stdout
-                == expected_bytes('execute-rtnlist-requires-backend-before-running-command.stdout')
-            )
-            assert (
-                run.stderr
-                == expected_text('execute-rtnlist-requires-backend-before-running-command.stderr', source=source).encode()
-            )
-            assert not marker.exists()
+    source = ROOT / 'tests/programs/execute-rtnlist-requires-backend-before-running-command' / fixture_name
+    run = compiler.run_native(source, cwd=compiler.work)
+    assert run.returncode == 1, run.stderr
+    assert (
+        run.stdout
+        == expected_bytes('execute-rtnlist-requires-backend-before-running-command.stdout')
+    )
+    assert (
+        run.stderr
+        == expected_text('execute-rtnlist-requires-backend-before-running-command.stderr', source=source).encode()
+    )
+    assert not marker.exists()
 
 
 def test_execute_child_program(compiler):
@@ -255,19 +259,22 @@ def test_execute_child_program(compiler):
     assert run.stderr == b''
 
 
-def test_execute_command_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('command_1.b', expected_text('execute-command-diagnostics.stderr')),
-        ('command_2.b', expected_text('execute-command-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/execute-command-diagnostics' / fixture_name
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (
-                expected_text('execute-command-diagnostics_3.stderr', source=source, message=message).encode()
-                in run.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('command_1.b', 'execute-command-diagnostics.stderr', id='command-1'),
+        pytest.param('command_2.b', 'execute-command-diagnostics_2.stderr', id='command-2'),
+    ],
+)
+def test_execute_command_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/programs/execute-command-diagnostics' / fixture_name
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (
+        expected_text('execute-command-diagnostics_3.stderr', source=source, message=message).encode()
+        in run.stderr
+    )
 
 
 def test_account_path_uses_working_directory(compiler):
@@ -281,37 +288,48 @@ def test_account_path_uses_working_directory(compiler):
     assert result.stderr == b''
 
 
-def test_terminal_type_aliases_follow_term(compiler, subtests):
+@pytest.mark.parametrize(
+    'term',
+    [
+        pytest.param('xterm-256color', id='xterm-256color'),
+        pytest.param('', id='case-2'),
+        pytest.param(None, id='case-3'),
+    ],
+)
+def test_terminal_type_aliases_follow_term(compiler, term):
     source = ROOT / 'tests/programs/terminal-type-aliases-follow-term.b'
-    for term in ('xterm-256color', '', None):
-        with subtests.test(term=term):
-            env = dict(os.environ)
-            if term is None:
-                env.pop('TERM', None)
-            else:
-                env['TERM'] = term
-            result = compiler.run_native(source, env=env)
-            assert result.returncode == 0, result.stderr
-            name = term or ''
-            assert (
-                result.stdout
-                == expected_text('terminal-type-aliases-follow-term.stdout', value_1=name).encode()
-            )
-            assert result.stderr == b''
+    env = dict(os.environ)
+    if term is None:
+        env.pop('TERM', None)
+    else:
+        env['TERM'] = term
+    result = compiler.run_native(source, env=env)
+    assert result.returncode == 0, result.stderr
+    name = term or ''
+    assert (
+        result.stdout
+        == expected_text('terminal-type-aliases-follow-term.stdout', value_1=name).encode()
+    )
+    assert result.stderr == b''
 
 
-def test_port_number_aliases_use_startup_environment(compiler, subtests):
+@pytest.mark.parametrize(
+    'variant, setting',
+    [
+        pytest.param(1, '00042', id='00042'),
+        pytest.param(2, '0', id='0'),
+    ],
+)
+def test_port_number_aliases_use_startup_environment(compiler, variant, setting):
     main = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/main.b'
     routine = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/show.port.b'
-    for variant, setting in enumerate(('00042', '0'), 1):
-        with subtests.test(setting=setting):
-            run = compiler.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
-            assert run.returncode == 0, run.stderr
-            assert (
-                run.stdout
-                == expected_bytes(f'port-number-aliases-use-startup-environment_{variant}.stdout')
-            )
-            assert run.stderr == b''
+    run = compiler.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
+    assert run.returncode == 0, run.stderr
+    assert (
+        run.stdout
+        == expected_bytes(f'port-number-aliases-use-startup-environment_{variant}.stdout')
+    )
+    assert run.stderr == b''
 
 
 def test_pid_uses_native_process_id_with_port_override(compiler):
@@ -477,20 +495,25 @@ def test_invalid_port_number_reports_call_site(compiler, subtests):
             )
 
 
-def test_who_uses_startup_login_name(compiler, subtests):
+@pytest.mark.parametrize(
+    'name, legacy, expected_fixture',
+    [
+        pytest.param('MainAccount', 'Fallback', 'who-uses-startup-login-name.stdout', id='mainaccount'),
+        pytest.param('', 'GuideAccount', 'who-uses-startup-login-name_2.stdout', id='case-2'),
+    ],
+)
+def test_who_uses_startup_login_name(compiler, name, legacy, expected_fixture):
     main = ROOT / 'tests/programs/who-uses-startup-login-name/main.b'
     routine = ROOT / 'tests/programs/who-uses-startup-login-name/show.login.b'
-    for name, legacy, expected in [('MainAccount', 'Fallback', expected_text('who-uses-startup-login-name.stdout')),
-                                   ('', 'GuideAccount', expected_text('who-uses-startup-login-name_2.stdout'))]:
-        with subtests.test(name=name):
-            env = dict(os.environ, JBCLOGNAME=name, JBASICLOGNAME=legacy)
-            run = compiler.run_native(main, routine, env=env)
-            assert run.returncode == 0, run.stderr
-            assert (
-                run.stdout
-                == expected_text('who-uses-startup-login-name_3.stdout', expected=expected).encode()
-            )
-            assert run.stderr == b''
+    expected = expected_text(expected_fixture)
+    env = dict(os.environ, JBCLOGNAME=name, JBASICLOGNAME=legacy)
+    run = compiler.run_native(main, routine, env=env)
+    assert run.returncode == 0, run.stderr
+    assert (
+        run.stdout
+        == expected_text('who-uses-startup-login-name_3.stdout', expected=expected).encode()
+    )
+    assert run.stderr == b''
 
 
 def test_who_defaults_to_posix_user_name(compiler):
@@ -508,23 +531,26 @@ def test_who_defaults_to_posix_user_name(compiler):
     assert run.stderr == b''
 
 
-def test_account_aliases_use_startup_account_name(compiler, subtests):
+@pytest.mark.parametrize(
+    'override, unix_name, account, login',
+    [
+        pytest.param('Pseudo', 'Unix', 'Pseudo', 'Pseudo', id='pseudo'),
+        pytest.param('', 'Unix', 'Unix', 'GuideLogin', id='case-2'),
+        pytest.param('', '', 'GuideLogin', 'GuideLogin', id='case-3'),
+    ],
+)
+def test_account_aliases_use_startup_account_name(compiler, override, unix_name, account, login):
     main = ROOT / 'tests/programs/account-aliases-use-startup-account-name/main.b'
     routine = ROOT / 'tests/programs/account-aliases-use-startup-account-name/show.account.b'
-    for override, unix_name, account, login in [
-            ('Pseudo', 'Unix', 'Pseudo', 'Pseudo'),
-            ('', 'Unix', 'Unix', 'GuideLogin'),
-            ('', '', 'GuideLogin', 'GuideLogin')]:
-        with subtests.test(override=override, unix_name=unix_name):
-            env = dict(os.environ, JBCLOGNAME=override, LOGNAME=unix_name,
-                       JBASICLOGNAME='GuideLogin')
-            run = compiler.run_native(main, routine, env=env)
-            assert run.returncode == 0, run.stderr
-            assert (
-                run.stdout
-                == expected_text('account-aliases-use-startup-account-name.stdout', account=account, login=login).encode()
-            )
-            assert run.stderr == b''
+    env = dict(os.environ, JBCLOGNAME=override, LOGNAME=unix_name,
+               JBASICLOGNAME='GuideLogin')
+    run = compiler.run_native(main, routine, env=env)
+    assert run.returncode == 0, run.stderr
+    assert (
+        run.stdout
+        == expected_text('account-aliases-use-startup-account-name.stdout', account=account, login=login).encode()
+    )
+    assert run.stderr == b''
 
 
 def test_account_defaults_to_posix_user_name(compiler):
