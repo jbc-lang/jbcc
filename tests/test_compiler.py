@@ -1976,6 +1976,24 @@ CRT ,
                 result = self.run_native(source)
                 self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
 
+    def test_period_label_at_start_of_line(self):
+        source = self.work / 'period.b'
+        for label in ('  .\n', '  . ', '  .: '):
+            with self.subTest(label=label):
+                source.write_text(f"{label}Amount = .5\nCRT Amount\n")
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0.5\n', b''))
+
+        for program, location in (
+            ('.\n . Amount = 1\n', ':2:2: duplicate label'),
+            ('Amount = 1; . Amount = 2\n', ':1:13: expected an assignment'),
+        ):
+            with self.subTest(program=program):
+                source.write_text(program)
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(str(source) + location, result.stderr)
+
     def test_empty_inline_arms_closed_by_end(self):
         source = self.work / 'empty-arm.b'
         source.write_text("""Total = 0

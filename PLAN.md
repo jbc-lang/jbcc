@@ -3105,6 +3105,20 @@ the neighboring scalars. [COMMON](https://jbc-lang.org/pages/common.html).
 All six RE.STAT.REP.LINE routines now pass strict C99 checking in byte
 mode. The total is 17,218 of 17,336, including all 17,212 previous passes.
 
-- [ ] Investigate a bare dot in MD.EOD.ACCRUAL and before an assignment
+- [x] Investigate a bare dot in MD.EOD.ACCRUAL and before an assignment
   in E.CALC.DAILY.PERF and E.AM.CALC.DAILY.PERF.GRP. Check the reference
   treatment of period labels without a colon.
+
+The reference emits a label for a single dot at the start of a physical
+line, including after indentation and before a statement. The colon is
+optional. jbcc recognizes the same positions and reports duplicate period
+labels. Native tests also cover a leading-dot decimal and reject a bare
+dot after a semicolon.
+
+All three T24 units now pass strict C99 checking in byte mode. The
+total is 17,221 of 17,336, including all 17,218 previous passes.
+
+- [ ] Investigate scalar use of a local name before its DIM, starting
+  with R.PD.PAYMENT.DUE in PD.GET.OVERDUE.DAYS and R.LIMIT in
+  LI.CO.UPDATE.I. Check how the reference handles the scalar value and
+  the later matrix declaration.
