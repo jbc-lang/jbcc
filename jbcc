@@ -23,6 +23,7 @@ NAME_PATTERN = r"[A-Za-z][A-Za-z0-9._$%]*"
 TOKEN = re.compile(
     rf"""(?P<space>[ \t]+)|(?P<name>{NAME_PATTERN})|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)"""
 )
+SOURCE_CONTINUATION = re.compile(r"(?:\\|\.\.\.)[ \t]*(?:;.*)?$")
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
 PROGRAM_NAME = re.compile(
@@ -390,7 +391,8 @@ def routine_name_at(line, offset, n, path, call):
 
 def lex_line(line, n, path, words, parentheses, *, source_line=False):
     if line.strip() == "//":
-        return parentheses
+        return parentheses, False
+    continued = False
     first_on_line = len(words)
     statement_start = 0
     offset = 0
@@ -423,6 +425,13 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
         ):
             break
         kind = match.lastgroup
+        if (
+            source_line
+            and word in ('\\', '.')
+            and SOURCE_CONTINUATION.fullmatch(line, match.start())
+        ):
+            continued = True
+            break
         if not words and (
             word == '.'
             or (
@@ -492,7 +501,7 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
             statement_start = len(words)
     while words and words[-1].kind == 'symbol' and words[-1].word == ';':
         words.pop()
-    return parentheses
+    return parentheses, continued
 
 
 INCLUDE = re.compile(
@@ -811,10 +820,12 @@ class Preprocessor:
                     )
                 yield from self.read(child, ancestors)
                 continue
-            parentheses = lex_line(
+            parentheses, continued = lex_line(
                 line, n, path, words, parentheses, source_line=True
             )
-            if words and words[-1].kind == 'symbol' and words[-1].word == ',':
+            if continued or (
+                words and words[-1].kind == 'symbol' and words[-1].word == ','
+            ):
                 continue
             tokens = list(angle_tokens(words))
             yield from self.expand_line(tokens)

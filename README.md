@@ -79,8 +79,11 @@ just corpus ../t24-extract/201001-R10 > /tmp/jbcc-corpus.json
 
 Use scalar assignment, PRINT and CRT, decimal numeric
 literals, quoted strings (single, double or backslash delimiters),
-parentheses, arithmetic, concatenation, and compound assignments. The reference
-lexer accepts spaces and tabs before the equals sign in `+=`, `-=`, `*=`
+parentheses, arithmetic, concatenation, and compound assignments. A trailing
+backslash or ellipsis joins the next source line, including when a semicolon
+comment follows the continuation marker.
+
+The reference lexer accepts spaces and tabs before the equals sign in `+=`, `-=`, `*=`
 and `/=`. For example, `R<1> + = 1` increments the first field, a form
 used in T24. An assignment target may have whitespace before the opening
 angle bracket. Both `T.SEQU <-1> = A+1` and `T.SEQU < - 1 > = A + 1`
