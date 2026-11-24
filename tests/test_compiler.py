@@ -201,24 +201,13 @@ class CompilerTest(NativeCompilerTest):
         self.assertEqual((self.work / 'zero').read_bytes(), b'')
 
     def test_create_null_handle(self):
-        source = self.work / 'null.b'
-        source.write_text("F = ''\nCREATE F ELSE CRT 'failed'\n")
+        source = ROOT / 'tests/io/create-null-handle.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: CREATE requires an OPENSEQ handle'.encode(), result.stderr)
 
     def test_flush_sequential_file(self):
-        source = self.work / 'flush.b'
-        source.write_text("""OPENSEQ 'report' TO F THEN STOP
-FLUSH F SETTING S THEN STOP ELSE CRT S:':':STATUS()
-EXECUTE 'test ! -e report' RETURNING Check
-CRT Check
-WRITESEQ 'visible' TO F ELSE STOP
-FLUSH F SETTING S THEN CRT S:':':STATUS() ELSE STOP
-FLUSH F
-EXECUTE 'cat report'
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/flush-sequential-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
@@ -229,21 +218,7 @@ CLOSESEQ F
         directory.mkdir()
         data = directory / 'payload'
         data.write_bytes(b'old\nsecond\n')
-        source = self.work / 'osopen.b'
-        source.write_text("""OSOPEN 'payload' READONLY TO F SETTING S THEN CRT S ELSE ABORT
-Alias = F
-READSEQ Line FROM Alias THEN CRT Line ELSE ABORT
-WRITESEQ 'denied' TO F SETTING S THEN ABORT ELSE CRT S
-OSCLOSE F
-CRT FILEINFO(Alias, 0)
-OSCLOSE Alias ON ERROR CRT STATUS()
-OSOPEN 'payload' WRITEONLY TO F ELSE ABORT
-READSEQ Line FROM F SETTING S ELSE CRT S
-WRITESEQ 'new' TO F ELSE ABORT
-CLOSESEQ F
-OSOPEN EXISTING 'missing' TO F SETTING S ELSE CRT '[':F:'] ':S
-OSOPEN '.' TO F SETTING S ON ERROR CRT S ELSE ABORT
-""")
+        source = ROOT / 'tests/io/osopen-access-modes.b'
         result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'0\nold\n24576\n0\n128\n24576\n[] 128\n32768\n', b''))
@@ -251,48 +226,21 @@ OSOPEN '.' TO F SETTING S ON ERROR CRT S ELSE ABORT
         self.assertFalse((self.work / 'missing').exists())
 
     def test_osclose_invalid_handle_reports_location(self):
-        source = self.work / 'osclose.b'
-        source.write_text("F = ''\nOSCLOSE F\n")
+        source = ROOT / 'tests/io/osclose-invalid-handle.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: OSCLOSE failed'.encode(), result.stderr)
 
     def test_osbread_offsets_short_reads_and_nul_conversion(self):
         (self.work / 'data').write_bytes(b'X\0Y\nline\nz')
-        source = self.work / 'osbread.b'
-        source.write_text("""OSOPEN 'data' READONLY TO F ELSE ABORT
-AT = 1
-LENGTH = 2
-OSBREAD B FROM F AT AT LENGTH LENGTH SETTING S
-CRT SEQ(B[1,1]):':':SEQ(B[2,1]):':':S
-OSBREAD B FROM F LENGTH 1
-CRT SEQ(B)
-READSEQ Line FROM F THEN CRT Line ELSE ABORT
-OSBREAD B FROM F LENGTH 10000
-CRT B:':':STATUS()
-OSBREAD B FROM F LENGTH 1
-CRT '[':B:'] ':STATUS()
-OSBREAD B FROM F AT 0 LENGTH 0
-OSBREAD B FROM F LENGTH 1
-CRT B
-OSCLOSE F
-""")
+        source = ROOT / 'tests/io/osbread-offsets.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'128:89:0\n10\nline\nz:0\n[] 0\nX\n', b''))
 
     def test_osbread_error_arms_and_diagnostic(self):
         (self.work / 'data').touch()
-        source = self.work / 'osbread.b'
-        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
-OSBREAD B FROM F AT -1 LENGTH 1 SETTING S ON ERROR CRT S
-OSBREAD B FROM F LENGTH 1.5 SETTING S ON ERROR CRT S
-OSCLOSE F
-OSBREAD B FROM F LENGTH 1 SETTING S ON ERROR CRT S
-OSOPEN 'data' WRITEONLY TO F ELSE ABORT
-OSBREAD B FROM F LENGTH 1 SETTING S ON ERROR CRT S
-OSBREAD B FROM F LENGTH 1
-""")
+        source = ROOT / 'tests/io/osbread-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'32768\n32768\n128\n24576\n')
@@ -301,24 +249,7 @@ OSBREAD B FROM F LENGTH 1
     def test_osbwrite_round_trips_bytes_and_advances_cursor(self):
         data = self.work / 'data'
         data.write_bytes(b'0123456789')
-        source = self.work / 'osbwrite.b'
-        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
-AT = 2
-NODELAY = 1
-OSBWRITE 'A':CHAR(128):'B' TO F AT AT NODELAY SETTING S
-CRT S:':':STATUS()
-OSBWRITE 'C' ON F
-OSBREAD B FROM F AT 1 LENGTH 6
-CRT B
-OSBWRITE 'Z' TO F
-OSBWRITE 'Q' TO F AT 12
-OSBREAD B FROM F AT 10 LENGTH 20
-CRT B
-OSBWRITE '' TO F AT 4
-OSBREAD B FROM F LENGTH 2
-CRT B
-OSCLOSE F
-""")
+        source = ROOT / 'tests/io/osbwrite-offsets.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'0:0\n1A\x80BC6\n\x80\x80Q\nBC\n', b''))
@@ -327,15 +258,7 @@ OSCLOSE F
     def test_osbwrite_error_arms_and_diagnostic(self):
         data = self.work / 'data'
         data.write_bytes(b'unchanged')
-        source = self.work / 'osbwrite.b'
-        source.write_text("""OSOPEN 'data' TO F ELSE ABORT
-OSBWRITE 'x' TO F AT -1 SETTING S ON ERROR CRT S:':':STATUS()
-OSCLOSE F
-OSBWRITE 'x' TO F SETTING S ON ERROR CRT S
-OSOPEN 'data' READONLY TO F ELSE ABORT
-OSBWRITE 'x' TO F SETTING S ON ERROR CRT S
-OSBWRITE 'x' TO F
-""")
+        source = ROOT / 'tests/io/osbwrite-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'32768:32768\n128\n24576\n')
@@ -348,14 +271,7 @@ OSBWRITE 'x' TO F
         data = directory / 'payload'
         data.write_bytes(b'old contents that should be replaced')
         (self.work / 'empty').write_bytes(b'old')
-        source = self.work / 'oswrite.b'
-        source.write_text("""OSWRITE 'new':CHAR(128) TO 'payload' SETTING S
-CRT S:':':STATUS()
-OSWRITE CHAR(10):'tail' APPEND ON 'payload'
-OSREAD B FROM 'payload' THEN CRT B ELSE ABORT
-OSWRITE 'created' TO 'new'
-OSWRITE '' TO 'empty'
-""")
+        source = ROOT / 'tests/io/oswrite-regular-files.b'
         result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0:0\nnew\x80\ntail\n', b''))
         self.assertEqual(data.read_bytes(), b'new\0\ntail')
@@ -366,11 +282,7 @@ OSWRITE '' TO 'empty'
     def test_oswrite_reports_errors_before_truncating_a_locked_file(self):
         data = self.work / 'data'
         data.write_bytes(b'unchanged')
-        source = self.work / 'oswrite.b'
-        source.write_text("""OSWRITE 'x' TO 'data' SETTING S ON ERROR CRT S:':':STATUS()
-OSWRITE 'x' TO 'missing/file' SETTING S ON ERROR CRT S
-OSWRITE 'x' TO '.'
-""")
+        source = ROOT / 'tests/io/oswrite-lock-errors.b'
         with data.open('rb') as locked:
             fcntl.flock(locked, fcntl.LOCK_EX)
             result = self.run_native(source, cwd=self.work)
@@ -385,15 +297,7 @@ OSWRITE 'x' TO '.'
         for path in (self.work / 'local', directory / 'local', directory / 'payload',
                      directory / 'explicit', directory / 'search'):
             path.write_bytes(b'data')
-        source = self.work / 'osdelete.b'
-        source.write_text("""OSDELETE 'local' SETTING S ON ERROR ABORT
-CRT S:':':STATUS()
-OSDELETE 'payload' ON ERROR ABORT
-OSDELETE './explicit' SETTING S ON ERROR CRT S:':':STATUS()
-OSDELETE 'search' SETTING S ON ERROR CRT S:':':STATUS()
-OSDELETE 'search/explicit'
-CRT STATUS()
-""")
+        source = ROOT / 'tests/io/osdelete-path-resolution.b'
         search_path = f":{self.work / 'missing'}::{directory}:"
         result = self.run_native(source, cwd=self.work,
                                  env=dict(os.environ, JEDIFILEPATH=search_path))
@@ -406,20 +310,14 @@ CRT STATUS()
         self.assertEqual((directory / 'search').read_bytes(), b'data')
 
     def test_osdelete_missing_file_and_diagnostics(self):
-        source = self.work / 'osdelete.b'
-        source.write_text("""OSDELETE 'missing' SETTING S ON ERROR
-    CRT S:':':STATUS()
-END
-OSDELETE 'missing' SETTING S
-CRT 'unreachable'
-""")
+        source = ROOT / 'tests/io/osdelete-missing.b'
         result = self.run_native(source, cwd=self.work,
                                  env=dict(os.environ, JEDIFILEPATH=''))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'1:1\n')
         self.assertIn(f'{source}:4:1: OSDELETE failed'.encode(), result.stderr)
 
-        source.write_text("OSDELETE 'missing' ON NULL\n")
+        source = ROOT / 'tests/io/osdelete-invalid-clause.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:23: expected 'ERROR'", result.stderr)
@@ -430,24 +328,14 @@ CRT 'unreachable'
         (directory / 'payload').write_bytes(b'a' * 5000 + b'\n\0z\n\n')
         (self.work / 'empty').touch()
         os.mkfifo(self.work / 'fifo')
-        source = self.work / 'osread.b'
-        source.write_text("""OSREAD @RECORD FROM 'payload' SETTING S THEN
-    CRT LEN(@RECORD):':':SEQ(@RECORD[5001,1]):':':SEQ(@RECORD[5002,1]):':':SEQ(RIGHT(@RECORD,1)):':':S
-END ELSE ABORT
-OSREAD Value FROM 'empty' THEN CRT '[':Value:']' ELSE ABORT
-OSREAD Value FROM 'missing' SETTING S THEN ABORT ELSE CRT '[':Value:'] ':S:':':STATUS()
-OSREAD Value FROM 'fifo' SETTING S ON ERROR
-    CRT '[':Value:'] ':S:':':STATUS()
-END THEN ABORT ELSE ABORT
-""")
+        source = ROOT / 'tests/io/osread-regular-file.b'
         env = dict(os.environ, JEDIFILEPATH=f'missing-first:{directory}')
         result = self.run_native(source, cwd=self.work, env=env)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'5004:10:128:10:0\n[]\n[] 128:128\n[] 32768:32768\n', b''))
 
     def test_osread_fatal_error_requires_handler(self):
-        source = self.work / 'osread.b'
-        source.write_text("OSREAD Value FROM '.' ELSE CRT 'unexpected branch'\n")
+        source = ROOT / 'tests/io/osread-unhandled-error.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'')
@@ -456,21 +344,7 @@ END THEN ABORT ELSE ABORT
     def test_nobuf_uses_unbuffered_sequential_io(self):
         data = self.work / 'data'
         data.write_bytes(b'first\nold\n')
-        source = self.work / 'nobuf.b'
-        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
-Alias = F
-NOBUF Alias SETTING S ELSE ABORT
-READSEQ Line FROM F ELSE ABORT
-CRT Line:':':S
-PROMPT ''
-INPUT Answer
-READSEQ Line FROM F ELSE ABORT
-NOBUF F
-WRITESEQ 'visible' TO F ELSE ABORT
-CRT Line
-INPUT Answer
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/nobuf-sequential-file.b'
         binary = self.work / 'nobuf'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         with subprocess.Popen([binary], cwd=self.work, stdin=subprocess.PIPE,
@@ -495,15 +369,7 @@ CLOSESEQ F
     def test_nobuf_failure_status_and_diagnostic(self):
         data = self.work / 'data'
         data.write_bytes(b'line\n')
-        source = self.work / 'nobuf.b'
-        source.write_text("""OPENSEQ 'missing' TO Pending THEN ABORT
-NOBUF Pending SETTING S THEN ABORT ELSE CRT S:':':STATUS()
-OPENSEQ 'data' TO F ELSE ABORT
-READSEQ Line FROM F ELSE ABORT
-NOBUF F SETTING S
-CRT S:':':STATUS()
-NOBUF F
-""")
+        source = ROOT / 'tests/io/nobuf-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'128:128\n32768:32768\n')
@@ -511,20 +377,7 @@ NOBUF F
 
     def test_timeout_on_regular_sequential_file(self):
         (self.work / 'data').write_bytes(b'line\nblock')
-        source = self.work / 'timeout.b'
-        source.write_text("""OPENSEQ 'data' TO F ELSE ABORT
-Alias = F
-TIMEOUT Alias, 60
-READSEQ Line FROM F THEN CRT Line ELSE ABORT
-TIMEOUT F, .5
-READBLK Block FROM Alias, 5 THEN CRT Block ELSE ABORT
-TIMEOUT F, 60
-READSEQ Line FROM F SETTING S THEN ABORT ELSE CRT S:':':STATUS()
-TIMEOUT Alias, 0
-CRT STATUS()
-READBLK Block FROM F, 1 SETTING S THEN ABORT ELSE CRT S:':':STATUS()
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/timeout-sequential-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'line\nblock\n128:128\n128\n128:128\n')
@@ -548,8 +401,7 @@ CLOSESEQ F
                 self.assertIn(f'{source}:{line}:1: TIMEOUT {message}'.encode(), result.stderr)
 
     def test_flush_null_handle(self):
-        source = self.work / 'flush.b'
-        source.write_text("F = ''\nFLUSH F ELSE CRT 'failed'\n")
+        source = ROOT / 'tests/io/flush-null-handle.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)

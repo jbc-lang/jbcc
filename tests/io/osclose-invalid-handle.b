@@ -1,0 +1,2 @@
+F = ''
+OSCLOSE F

@@ -1,0 +1,3 @@
+OSWRITE 'x' TO 'data' SETTING S ON ERROR CRT S:':':STATUS()
+OSWRITE 'x' TO 'missing/file' SETTING S ON ERROR CRT S
+OSWRITE 'x' TO '.'
