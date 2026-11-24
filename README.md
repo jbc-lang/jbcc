@@ -2306,6 +2306,27 @@ Render the R07 API report with:
 python3 tools/api_coverage.py /tmp/jbcc-r07.json > /tmp/jbcc-r07-coverage.md
 ```
 
+### R19 pilot
+
+`201809-R19` contains component directories and flat folders. Select
+production sources from the catalog and use byte mode for the source
+encoding. Repeat `--source-prefix` to select specific paths, or omit it
+to select every catalogued production source with indexed lookup.
+
+```sh
+python3 tools/check_corpus.py ../t24-extract/201809-R19 \
+  --t24-catalog ../t24-extract/catalog.sqlite --t24-indexed-includes \
+  --source-prefix AA/AA_Account --source-prefix OB_AFW \
+  --source-prefix PP/PP_PaymentFinalisationService \
+  --source-encoding bytes -j 6 > /tmp/jbcc-r19-pilot.json
+```
+
+Indexed lookup checks the including file's directory, its catalogued
+component, the ordinary include search paths and then the release-wide
+index. An indexed lookup with multiple matches at the current step
+reports the candidates. The report lists resolved paths and lookup rules
+per unit. Package directives currently stop translation in this pilot.
+
 ### API coverage
 
 [COVERAGE.md](COVERAGE.md) summarizes recognized expression and `DEFC` calls

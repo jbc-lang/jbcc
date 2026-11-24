@@ -4017,6 +4017,30 @@ CRT 'done'
         self.assertEqual(report['files']['GLOBUS.BP/I_Unit']['status'], 'translated')
         self.assertEqual(report['files']['GLOBUS.BP/Main.b']['status'], 'translated')
 
+    def test_corpus_index_resolves_and_reports_component_includes(self):
+        fixture = ROOT / 'tests/corpus/indexed-includes'
+        catalog = self.work / 'catalog.sqlite'
+        with sqlite3.connect(catalog) as db:
+            db.executescript((fixture / 'catalog.sql').read_text())
+        root = fixture / 'sample-r19'
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', root, '--t24-catalog', catalog,
+                   '--t24-indexed-includes', '--source-prefix', 'AA/Account', '-j', '2']
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 2})
+        self.assertEqual(report['include_lookups'], {'resolved': 3, 'missing': 1, 'ambiguous': 1})
+        files = report['files']
+        main = 'AA/Account/Private/Main.b'
+        traces = files[main]['include_lookups']
+        self.assertEqual([(e['file'], e['rule'], e['resolved']) for e in traces], [
+            (main, 'source directory', 'AA/Account/Private/I_Local'),
+            (main, 'component', 'AA/Account/Public/I_Choice'),
+            ('AA/Account/Public/I_Choice', 'release index', 'BB/Billing/Public/I_Global'),
+        ])
+        ambiguous = files['AA/Account/Private/Ambiguous.b']['include_lookups'][0]
+        self.assertEqual(ambiguous['status'], 'ambiguous')
+        self.assertEqual(ambiguous['candidates'], ['BB/Billing/Public/I_Tied', 'Flat/I_Tied'])
+        self.assertEqual(files['AA/Account/Private/Missing.b']['include_lookups'][0]['status'], 'missing')
+
     def test_source_encoding_preserves_legacy_and_utf8_literal_bytes(self):
         source = self.work / 'main.b'
         routine = self.work / 'show.b'

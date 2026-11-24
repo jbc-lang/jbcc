@@ -1,0 +1,2 @@
+EQU AccountValue TO 2
+$INSERT I_Global

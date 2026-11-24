@@ -3439,3 +3439,24 @@ All 15,030 R07 source units now pass strict C99 syntax checking with
 source fixes and the include stub enabled. Five use in-memory edits and
 six use the stub. The report records linkage diagnostics for 18 units.
 All 18,362 extracted files match the catalog hashes.
+
+### R19 pilot
+
+- [x] Select production units from the `201809-R19` catalog. Add indexed
+  include lookup by source directory, component, explicit search path and
+  unique release-wide name. Record resolved paths, ambiguous candidates
+  and missing includes with their source locations.
+
+The pilot selects 146 sources across `AA/AA_Account`, `OB_AFW` and
+`PP/PP_PaymentFinalisationService`. Indexed lookup resolves 165 include
+references. The first blocker is an include lookup in 27 units, down
+from 47 with the ordinary search path. The other 119 first blockers are
+`$PACKAGE` directives.
+
+- [ ] Parse `$PACKAGE` and `$USING` and preserve their information for
+  routine resolution. Keep package and visibility checks separate from
+  strict C99 syntax checking.
+- [ ] Audit unresolved headers against the original export and component
+  definitions, then scan all 39,675 catalogued production units.
+- [ ] Select a small deterministic set of `.tut` tests and identify
+  their target routines and required `.d` records.

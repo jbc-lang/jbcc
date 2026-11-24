@@ -290,10 +290,11 @@ def is_equate(statement):
 
 
 class Preprocessor:
-    def __init__(self, directories, encoding='utf-8', *, source_filter=None):
+    def __init__(self, directories, encoding='utf-8', *, source_filter=None, include_resolver=None):
         self.directories = directories
         self.encoding = encoding
         self.source_filter = source_filter
+        self.include_resolver = include_resolver
         self.equates = {}
         self.direct_definitions = set()
 
@@ -437,12 +438,14 @@ class Preprocessor:
                     source_nul_error(path, n, include.start(group) + nul)
                 if self.encoding == 'latin-1':
                     name = os.fsdecode(name.encode(self.encoding))
-                for directory in (path.parent, *self.directories):
-                    child = directory / name
-                    if child.is_file():
-                        break
+                opening = newline._replace(column=1)
+                if self.include_resolver is None:
+                    candidates = (directory / name for directory in (path.parent, *self.directories))
+                    child = next((candidate for candidate in candidates if candidate.is_file()), None)
                 else:
-                    directive_error(newline._replace(column=1), f"include file '{name}' not found")
+                    child = self.include_resolver(path, name, self.directories, opening)
+                if child is None:
+                    directive_error(opening, f"include file '{name}' not found")
                 ancestors = parents + (path.resolve(),)
                 if child.resolve() in ancestors:
                     directive_error(newline._replace(column=1), f"recursive include '{name}'")
@@ -3903,11 +3906,13 @@ def render_subroutine_exists(units):
 
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
-                 defer_unassigned_reads=False, source_filter=None, next_warning=None, api_call=None):
+                 defer_unassigned_reads=False, source_filter=None, include_resolver=None,
+                 next_warning=None, api_call=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
                     defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call)
-    unit.parse(list(Preprocessor(directories, encoding, source_filter=source_filter).read(path)))
+    preprocessor = Preprocessor(directories, encoding, source_filter=source_filter, include_resolver=include_resolver)
+    unit.parse(list(preprocessor.read(path)))
     return unit
 
 

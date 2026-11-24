@@ -97,7 +97,7 @@ def group(message):
     # Preserve keyword spellings for unsupported statements. Group arbitrary
     # user identifiers together and retain full diagnostics in the file report.
     for prefix in ("unknown variable or unsupported function", "unknown label",
-                   "include file", "unassigned variable"):
+                   "include file", "ambiguous include file", "unassigned variable"):
         if message.startswith(prefix):
             return prefix
     return message
@@ -112,19 +112,88 @@ def read_file_kinds(catalogue, extract):
     return kinds
 
 
+class IncludeIndex:
+    def __init__(self, catalogue, root):
+        self.root = root
+        self.scopes = {}
+        self.includes = {}
+        uri = catalogue.resolve().as_uri() + "?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True)) as db:
+            rows = db.execute(
+                "SELECT rel, kind, module, component FROM file_path WHERE extract = ? "
+                "AND kind IN ('jbc_source', 'jbc_include') ORDER BY rel", (root.name,)
+            )
+            for relative, kind, module, component in rows:
+                path = Path(relative)
+                if component:
+                    self.scopes[path] = (module, component)
+                if kind == "jbc_include":
+                    self.includes.setdefault(path.name, []).append(path)
+
+    def display(self, path):
+        try:
+            return path.relative_to(self.root).as_posix()
+        except ValueError:
+            return str(path)
+
+    def resolve(self, path, name, directories, token, lookups):
+        source = self.display(path)
+        entry = {"file": source, "line": token.line, "column": token.column, "target": name}
+        lookups.append(entry)
+
+        def found(candidate, rule):
+            candidate = candidate.resolve()
+            entry.update(status="resolved", rule=rule, resolved=self.display(candidate))
+            return candidate
+
+        def choose(candidates, rule):
+            if len(candidates) == 1:
+                return found(self.root / candidates[0], rule)
+            names = [candidate.as_posix() for candidate in candidates]
+            entry.update(status="ambiguous", rule=rule, candidates=names)
+            COMPILER["directive_error"](token, f"ambiguous include file '{name}': {', '.join(names)}")
+
+        candidate = path.parent / name
+        if candidate.is_file():
+            return found(candidate, "source directory" if not Path(name).is_absolute() else "absolute path")
+        candidates = [relative for relative in self.includes.get(name, [])
+                      if (self.root / relative).is_file()]
+        scope = self.scopes.get(Path(source))
+        local = [relative for relative in candidates if scope and self.scopes.get(relative) == scope]
+        if local:
+            return choose(local, "component")
+        for directory in directories:
+            candidate = directory / name
+            if candidate.is_file():
+                return found(candidate, "include search path")
+        if candidates:
+            return choose(candidates, "release index")
+        entry.update(status="missing")
+        return None
+
+
+worker_include_index = None
+
+
+def initialize_worker(include_index):
+    global worker_include_index
+    worker_include_index = include_index
+
+
 def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
           t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False, *,
-          catalog_kind=None, stub_r07_la_parameter=False):
+          catalog_kind=None, stub_r07_la_parameter=False, include_index=None):
     path = root / relative
     fixes = []
     calls = []
     stubs = []
+    lookups = []
     if catalog_kind == "jbc_include" or (catalog_kind is None and path.name.startswith("I_")):
-        return relative, "include fragment", "", [], fixes, 0, calls, stubs
+        return relative, "include fragment", "", [], fixes, 0, calls, stubs, lookups
     if catalog_kind == "c_header":
-        return relative, "C header", "", [], fixes, 0, calls, stubs
+        return relative, "C header", "", [], fixes, 0, calls, stubs, lookups
     if catalog_kind not in (None, "jbc_source"):
-        return relative, "other catalog file", "", [], fixes, 0, calls, stubs
+        return relative, "other catalog file", "", [], fixes, 0, calls, stubs, lookups
     suppressed_next_warnings = 0
 
     def count_next_warning(_message):
@@ -143,9 +212,11 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
         if stub_r07_la_parameter:
             directories = [*directories, R07_LA_PARAMETER_STUB.parent]
         source_filter = filter_source if t24_source_fixes or stub_r07_la_parameter else None
+        resolver = partial(include_index.resolve, lookups=lookups) if include_index is not None else None
         unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
                                        separate_external_arities=True,
                                        defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
+                                       include_resolver=resolver,
                                        next_warning=count_next_warning if quiet_next_warnings else None,
                                        api_call=record_calls(calls) if collect_apis else None)
         externals = {}
@@ -185,20 +256,20 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls, stubs
+            return relative, "C diagnostic", result.stderr.splitlines()[0], [], fixes, suppressed_next_warnings, calls, stubs, lookups
         warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
-        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls, stubs
+        return relative, "translated", linkage_diagnostic, warnings, fixes, suppressed_next_warnings, calls, stubs, lookups
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls, stubs
+        return relative, "rejected", detail, [], fixes, suppressed_next_warnings, calls, stubs, lookups
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls, stubs
+        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), [], fixes, suppressed_next_warnings, calls, stubs, lookups
     except OSError as error:
-        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls, stubs
+        return relative, "I/O error", str(error), [], fixes, suppressed_next_warnings, calls, stubs, lookups
 
 
 def check_entry(relative, kind, **options):
-    return check(relative, catalog_kind=kind, **options)
+    return check(relative, catalog_kind=kind, include_index=worker_include_index, **options)
 
 
 def main():
@@ -220,6 +291,10 @@ def main():
                         help="include API coverage using the jbc-language spec directory")
     parser.add_argument("--t24-catalog", type=Path, metavar="SQLITE",
                         help="classify files using the catalog entries for the corpus directory name")
+    parser.add_argument("--t24-indexed-includes", action="store_true",
+                        help="resolve includes by component and release, and report each lookup")
+    parser.add_argument("--source-prefix", action="append", default=[], metavar="RELATIVE_PATH",
+                        help="scan catalogued production sources under this path (repeatable)")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
@@ -227,9 +302,14 @@ def main():
     if not shutil.which("cc"):
         parser.error("cc is required to check generated C")
     file_kinds = {}
+    include_index = None
+    if (options.source_prefix or options.t24_indexed_includes) and options.t24_catalog is None:
+        parser.error("--source-prefix and --t24-indexed-includes require --t24-catalog")
     if options.t24_catalog is not None:
         try:
             file_kinds = read_file_kinds(options.t24_catalog, root.name)
+            if options.t24_indexed_includes:
+                include_index = IncludeIndex(options.t24_catalog, root)
         except (sqlite3.Error, OSError, ValueError) as error:
             parser.error(str(error))
     coverage = None
@@ -238,18 +318,30 @@ def main():
             coverage = Coverage(read_catalogues(options.api_catalogue), root)
         except (OSError, ValueError) as error:
             parser.error(str(error))
-    paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
+    prefix_paths = [Path(prefix) for prefix in options.source_prefix]
+    if any(prefix.is_absolute() or ".." in prefix.parts for prefix in prefix_paths):
+        parser.error("--source-prefix must be a path inside the corpus")
+    prefixes = [prefix.as_posix() for prefix in prefix_paths]
+    if prefixes or include_index is not None:
+        paths = sorted(relative for relative, kind in file_kinds.items() if kind == "jbc_source"
+                       and (not prefixes or any(p == "." or relative == p or relative.startswith(p + "/")
+                                                for p in prefixes)))
+        if not paths:
+            parser.error("no catalogued production sources match the selection")
+    else:
+        paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
     scan = partial(check_entry, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
                    defer_unassigned_reads=options.defer_unassigned_reads, t24_source_fixes=options.t24_source_fixes,
                    quiet_next_warnings=options.quiet_next_warnings, collect_apis=coverage is not None,
                    stub_r07_la_parameter=options.stub_r07_la_parameter)
     counts = Counter()
     blockers = Counter()
+    include_counts = Counter()
     files = {}
     suppressed_next_warnings = 0
-    with ProcessPoolExecutor(max_workers=options.j) as pool:
+    with ProcessPoolExecutor(max_workers=options.j, initializer=initialize_worker, initargs=(include_index,)) as pool:
         entries = pool.map(scan, paths, map(file_kinds.get, paths), chunksize=16)
-        for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs in entries:
+        for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs, lookups in entries:
             suppressed_next_warnings += suppressed
             counts[status] += 1
             if coverage is not None:
@@ -259,6 +351,9 @@ def main():
                 files[name]["source_fixes"] = fixes
             if stubs:
                 files[name]["include_stubs"] = stubs
+            if lookups:
+                files[name]["include_lookups"] = lookups
+                include_counts.update(lookup["status"] for lookup in lookups)
             if warnings:
                 files[name]["warnings"] = warnings
             if status == "translated" and diagnostic:
@@ -270,6 +365,10 @@ def main():
     if options.quiet_next_warnings:
         print(f"Suppressed {suppressed_next_warnings} FOR/NEXT name mismatch warnings.", file=sys.stderr)
     report = dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files)
+    if prefixes or include_index is not None:
+        report["selection"] = {"source_prefixes": prefixes, "indexed_includes": include_index is not None}
+    if include_index is not None:
+        report["include_lookups"] = dict(include_counts)
     if coverage is not None:
         for path in sorted((ROOT / "tests/snippets").glob("*.b")):
             calls = []
@@ -285,6 +384,7 @@ def main():
             "source_encoding": options.source_encoding, "defer_unassigned_reads": options.defer_unassigned_reads,
             "t24_source_fixes": options.t24_source_fixes,
         }
+        scan_settings.update(report.get("selection", {}))
         if options.t24_catalog is not None:
             scan_settings["t24_catalog"] = str(options.t24_catalog.resolve())
         if options.stub_r07_la_parameter:
