@@ -1,0 +1,2 @@
+CRT PWR(10, 10000)
+CRT 'done'

@@ -1,0 +1,2 @@
+P = "text"
+PRECISION P

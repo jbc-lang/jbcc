@@ -1,0 +1,2 @@
+P = -1
+PRECISION P

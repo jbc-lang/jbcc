@@ -116,33 +116,33 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Arithmetic and numeric builtins (27)
 
-- [ ] `test_integer_limits`
-- [ ] `test_invalid_precision`
-- [ ] `test_dround_diagnostics`
-- [ ] `test_smul_diagnostics`
-- [ ] `test_sdiv_diagnostics`
-- [ ] `test_adds_diagnostics`
-- [ ] `test_infix_reuse_requires_scalar`
-- [ ] `test_muls_diagnostics`
-- [ ] `test_divs_substitutes_zero_for_zero_divisors`
-- [ ] `test_infix_reuse_division_reports_invalid_operands`
-- [ ] `test_divs_diagnostics`
-- [ ] `test_subs_diagnostics`
-- [ ] `test_ln_diagnostics`
-- [ ] `test_exp_diagnostics`
-- [ ] `test_sqrt_diagnostics`
-- [ ] `test_power_domain_and_diagnostics`
-- [ ] `test_randomize_wrong_argument_count`
-- [ ] `test_rnd_invalid_bound`
-- [ ] `test_bitxor_diagnostics`
-- [ ] `test_mod_requires_numeric_operands`
-- [ ] `test_neg_substitutes_zero`
-- [ ] `test_negs_warns_for_nonnumeric_elements`
-- [ ] `test_abs_diagnostics`
-- [ ] `test_abss_diagnostics`
-- [ ] `test_division_by_zero`
-- [ ] `test_div_requires_nonzero_numeric_operands`
-- [ ] `test_compound_division_by_zero`
+- [x] `test_integer_limits`
+- [x] `test_invalid_precision`
+- [x] `test_dround_diagnostics`
+- [x] `test_smul_diagnostics`
+- [x] `test_sdiv_diagnostics`
+- [x] `test_adds_diagnostics`
+- [x] `test_infix_reuse_requires_scalar`
+- [x] `test_muls_diagnostics`
+- [x] `test_divs_substitutes_zero_for_zero_divisors`
+- [x] `test_infix_reuse_division_reports_invalid_operands`
+- [x] `test_divs_diagnostics`
+- [x] `test_subs_diagnostics`
+- [x] `test_ln_diagnostics`
+- [x] `test_exp_diagnostics`
+- [x] `test_sqrt_diagnostics`
+- [x] `test_power_domain_and_diagnostics`
+- [x] `test_randomize_wrong_argument_count`
+- [x] `test_rnd_invalid_bound`
+- [x] `test_bitxor_diagnostics`
+- [x] `test_mod_requires_numeric_operands`
+- [x] `test_neg_substitutes_zero`
+- [x] `test_negs_warns_for_nonnumeric_elements`
+- [x] `test_abs_diagnostics`
+- [x] `test_abss_diagnostics`
+- [x] `test_division_by_zero`
+- [x] `test_div_requires_nonzero_numeric_operands`
+- [x] `test_compound_division_by_zero`
 
 ## Strings, conversion, formatting and dynamic arrays (26)
 

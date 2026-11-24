@@ -1,0 +1,1 @@
+RANDOMIZE(1, 2)
