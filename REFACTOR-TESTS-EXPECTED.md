@@ -379,14 +379,14 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Arguments and invocation strings (8)
 
-- [ ] `test_invocation_sentence` — stdout (exact, interpolated)
-- [ ] `test_command_system_variable_uses_the_invocation_in_a_subroutine` — stdout (exact, interpolated)
-- [ ] `test_sentence_function_reads_invocation_in_a_subroutine` — stdout (exact, interpolated)
-- [ ] `test_parasentence_uses_launch_context_or_invocation` — stdout (exact, interpolated)
-- [ ] `test_sentence_function_preserves_get_argument_cursor` — stdout (exact)
-- [ ] `test_sentence_function_diagnostics` — stderr (fragment, interpolated)
-- [ ] `test_get_argument_preserves_argv_and_shares_cursor_across_routines` — stdout (exact)
-- [ ] `test_get_argument_failures_and_diagnostics` — stdout (exact), stderr (fragment, interpolated)
+- [x] `test_invocation_sentence` — stdout (exact, interpolated)
+- [x] `test_command_system_variable_uses_the_invocation_in_a_subroutine` — stdout (exact, interpolated)
+- [x] `test_sentence_function_reads_invocation_in_a_subroutine` — stdout (exact, interpolated)
+- [x] `test_parasentence_uses_launch_context_or_invocation` — stdout (exact, interpolated)
+- [x] `test_sentence_function_preserves_get_argument_cursor` — stdout (exact)
+- [x] `test_sentence_function_diagnostics` — stderr (fragment, interpolated)
+- [x] `test_get_argument_preserves_argv_and_shares_cursor_across_routines` — stdout (exact)
+- [x] `test_get_argument_failures_and_diagnostics` — stdout (exact), stderr (fragment, interpolated)
 
 ## Terminal input, echo and polling (25)
 

@@ -3780,7 +3780,7 @@ CRT 'main'
             subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
             for args, sentence, first in [
                     ([], b'./invocation', b''),
-                    (['42', 'two words', '', 'last'], b'./invocation 42 two words  last', b'42')]:
+                    (['42', 'two words', '', 'last'], b'./invocation 42 two words  last', expected_bytes('invocation-sentence.stdout'))]:
                 with self.subTest(direct_read=direct_read, args=args):
                     run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True)
                     self.assertEqual(run.returncode, 0, run.stderr)
@@ -3791,12 +3791,12 @@ CRT 'main'
         source = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/caller.b'
         routine = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/command.b'
         subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
-        for args, tail in (([], b''), (['first', 'two words', '', 'last'], b'first two words  last')):
+        for args, tail in (([], b''), (['first', 'two words', '', 'last'], expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine_2.stdout'))):
             with self.subTest(args=args):
                 run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True, timeout=5)
                 sentence = b'./invocation' + (b' ' + tail if args else b'')
                 self.assertEqual((run.returncode, run.stdout, run.stderr),
-                                 (0, sentence + b'\n[' + tail + b']\n', b''))
+                                 (0, sentence + expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine.stdout') + tail + expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine_3.stdout'), b''))
 
     def test_sentence_function_reads_invocation_in_a_subroutine(self):
         binary = self.work / 'invocation'
@@ -3825,7 +3825,7 @@ CRT 'main'
                 if supplied is not None:
                     env['JBCC_PARASENTENCE'] = supplied
                 invocation = './invocation two words'
-                expected = f"[{supplied or invocation}]\n[{invocation}]\n".encode() * 2
+                expected = expected_text('parasentence-uses-launch-context-or-invocation.stdout', value_1=supplied or invocation, invocation=invocation).encode() * 2
                 run = subprocess.run(['./invocation', 'two words'], cwd=self.work, env=env,
                                      capture_output=True, timeout=5)
                 self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected, b''))
@@ -3835,13 +3835,13 @@ CRT 'main'
         source = ROOT / 'tests/routines/sentence-function-preserves-get-argument-cursor.b'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary, 'one', 'two', 'three'], capture_output=True, timeout=5)
-        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'one\nth\ntwo\n', b''))
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected_bytes('sentence-function-preserves-get-argument-cursor.stdout'), b''))
 
     def test_sentence_function_diagnostics(self):
         source = ROOT / 'tests/routines/sentence-function-diagnostics/sentence.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'SENTENCE'".encode(), result.stderr)
+        self.assertIn(expected_text('sentence-function-diagnostics.stderr', source=source).encode(), result.stderr)
         for fixture_name in (
             'sentence-variant-2_1.b',
             'sentence-variant-2_2.b',
@@ -3850,7 +3850,7 @@ CRT 'main'
                 source = ROOT / 'tests/routines/sentence-function-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: SENTENCE requires an integer index'.encode(), run.stderr)
+                self.assertIn(expected_text('sentence-function-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_get_argument_preserves_argv_and_shares_cursor_across_routines(self):
         binary = self.work / 'args'
@@ -3861,21 +3861,21 @@ CRT 'main'
         result = subprocess.run([binary, 'first', 'two words', '', 'last'],
                                 capture_output=True, timeout=5)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'first\n[two words] []\nprevious\nlast\n[]\nfirst\n', b''))
+                         (0, expected_bytes('get-argument-preserves-argv-and-shares-cursor-across-routines.stdout'), b''))
 
     def test_get_argument_failures_and_diagnostics(self):
         source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'[]\nmissing\nmissing\n', b''))
+                         (0, expected_bytes('get-argument-failures-and-diagnostics.stdout'), b''))
         source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-2.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:1: GET (ARG.) requires an integer index'.encode(), result.stderr)
+        self.assertIn(expected_text('get-argument-failures-and-diagnostics.stderr', source=source).encode(), result.stderr)
         source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-3.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:10: expected a variable', result.stderr)
+        self.assertIn(expected_text('get-argument-failures-and-diagnostics_2.stderr', source=source), result.stderr)
 
     def test_input_from_pipe(self):
         binary = self.work / 'input'
