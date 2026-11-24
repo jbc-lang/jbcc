@@ -2635,6 +2635,46 @@ CRT '[':BITXOR('', 5):'] [':BITXOR('other', ''):']'
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
 
+    def test_bitor_uses_signed_32_bit_words(self):
+        source = self.work / 'bitor.b'
+        source.write_text("""CRT BITOR('6.9', 12.9), BITOR(2147483648, 1)
+CRT BITOR(-1.9, 5), BITOR(4294967296, 7), BITOR(6, XTD(40000000))
+CRT '[':BITOR('', 'other'):']'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'14\t-2147483647\n-1\t7\t1073741830\n[]\n', b''))
+
+    def test_encrypt_and_decrypt_rot13(self):
+        source = self.work / 'rot13.b'
+        source.write_text("""EQUATE ROTATION TO 1
+Encoded = ENCRYPT('Abc Nop 123!', 'unused', ROTATION)
+CRT Encoded
+CRT DECRYPT(Encoded, '', ROTATION)
+CRT '[':ENCRYPT('', '', ROTATION):']'
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'Nop Abc 123!\nAbc Nop 123!\n[]\n', b''))
+
+    def test_cipher_diagnostics(self):
+        source = self.work / 'crypt.b'
+        for function in ('ENCRYPT', 'DECRYPT'):
+            with self.subTest(function=function):
+                source.write_text(f"""IF 0 THEN CRT {function}('text', '', 4)
+CRT 'before'
+CRT {function}('text', '', 5)
+""")
+                result = self.run_native(source)
+                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                self.assertEqual(result.stderr,
+                                 f'{source}:3:5: {function} requires a backend for this method\n'.encode())
+
+                source.write_text(f"CRT {function}('text', '')\n")
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stderr, f"{source}:1:5: wrong argument count for '{function}'\n")
+
     def test_hexadecimal_conversion_uses_32_bit_words(self):
         source = self.work / 'hex.b'
         source.write_text("""CRT DTX(0), DTX('171.9'), DTX(-2.9), DTX(2147483648)

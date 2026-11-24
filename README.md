@@ -254,12 +254,19 @@ expression without generating a seed operation. jbcc checks the
 expression at compile time and skips it at runtime. `RND` continues to
 draw from `/dev/urandom`.
 
-`BITXOR(left, right)` truncates numeric operands toward zero and returns
-an empty value if either operand is empty. The guide specifies a 32-bit
+`BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
+toward zero and return an empty value if either operand is empty.
+The guide specifies a 32-bit
 two's-complement operation. jbcc takes the low 32 bits of each truncated
 operand and returns the result as a signed integer on every target.
 Nonempty, nonnumeric operands produce a source-located error.
-[BITXOR](https://jbc-lang.org/pages/bitxor.html).
+[BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
+
+`ENCRYPT(text, key, method)` and `DECRYPT(text, key, method)` implement
+ROT13 (method 1 in PB201214's JBC.h). They rotate ASCII letters, preserve
+other bytes and ignore the key for that method. All other methods,
+including Base64, report a source-located error when called.
+[ENCRYPT](https://jbc-lang.org/pages/encrypt.html), [DECRYPT](https://jbc-lang.org/pages/decrypt.html).
 
 `DTX(number)` returns uppercase hexadecimal digits. `XTD(text)` reads
 hexadecimal digits in either case up to the first other character and

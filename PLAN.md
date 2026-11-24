@@ -3168,6 +3168,26 @@ With the PB201214 include directory, 17,253 of 17,336 candidate units pass
 strict C99 checking in byte mode. This adds 29 passes and preserves all
 17,224 previous passes. The 5,138 include fragments are counted separately.
 
-- [ ] Check ENCRYPT, DECRYPT and BITOR against the guide and the reference
+- [x] Check ENCRYPT, DECRYPT and BITOR against the guide and the reference
   compiler. These functions account for the remaining diagnostics in the
   header-dependent units.
+
+The reference compiler emits two-argument BITOR and three-argument
+ENCRYPT and DECRYPT calls with the PB201214 JBC.h equates expanded.
+jbcc implements signed 32-bit BITOR with the same conversions as BITXOR.
+ENCRYPT and DECRYPT implement ROT13. Other methods report their call
+location at runtime. Native tests check ROT13, both call diagnostics and
+the BITOR expression used to combine a cipher with the Base64 mask.
+[BITOR](https://jbc-lang.org/pages/bitor.html),
+[ENCRYPT](https://jbc-lang.org/pages/encrypt.html),
+[DECRYPT](https://jbc-lang.org/pages/decrypt.html).
+
+The PB201214 corpus scan now passes strict C99 checking in byte mode for
+17,263 of 17,336 candidates. Ten additional units pass, and all 17,253
+previous passes are preserved.
+
+- [ ] Add DYNTOXML to the XML transform parser. Reference probes accept
+  two arguments, or three with a writable scalar or matrix element in
+  the last position. EB.SYSTEM.INFO now reaches this call.
+- [ ] Implement Base64 for ENCRYPT and DECRYPT, including how the runtime
+  should handle decoded bytes that contain NUL.

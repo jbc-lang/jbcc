@@ -4231,6 +4231,15 @@ const char *jbc_bitxor(const char *left, const char *right, const char *file, in
     return signed_word_value(lhs ^ rhs);
 }
 
+const char *jbc_bitor(const char *left, const char *right, const char *file, int line, int column)
+{
+    if (!*left || !*right) return "";
+    const char *message = "BITOR requires numeric operands";
+    uint32_t lhs = decimal_word(left, message, file, line, column);
+    uint32_t rhs = decimal_word(right, message, file, line, column);
+    return signed_word_value(lhs | rhs);
+}
+
 const char *jbc_dtx(const char *value, const char *file, int line, int column)
 {
     uint32_t bits = decimal_word(value, "DTX requires a numeric operand", file, line, column);
@@ -6028,6 +6037,26 @@ const char *jbc_jbasecoredump(const char *suffix, const char *mode, const char *
     (void)mode;
     numeric_error(file, line, column, "JBASECOREDUMP requires an application snapshot backend");
     return "";
+}
+
+const char *jbc_crypt(const char *value, const char *key, const char *method, int decrypt,
+                      const char *file, int line, int column)
+{
+    enum { JBASE_CRYPT_ROT13 = 1 };
+    (void)key;
+    if (truncated(method, file, line, column) != JBASE_CRYPT_ROT13)
+        numeric_error(file, line, column, decrypt ? "DECRYPT requires a backend for this method"
+                                                  : "ENCRYPT requires a backend for this method");
+    size_t length = strlen(value);
+    char *out = allocate(length);
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char byte = (unsigned char)value[i];
+        if (byte >= 'A' && byte <= 'Z') byte = 'A' + (byte - 'A' + 13) % 26;
+        else if (byte >= 'a' && byte <= 'z') byte = 'a' + (byte - 'a' + 13) % 26;
+        out[i] = (char)byte;
+    }
+    out[length] = '\0';
+    return out;
 }
 
 const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
