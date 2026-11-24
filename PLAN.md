@@ -10,6 +10,13 @@ The first T24-style milestone is to compile and run a subroutine that reads a
 field from a dynamic array, makes a decision, and returns a result through
 an argument.
 
+## Current focus
+
+Keep C99 as the target. Focus on compiler build speed, test speed, and
+project cleanup. Use `just test-parallel` for native behavior checks and
+keep R07 and R10 as translation regressions. Leave R19 exploration and
+broader T24 runtime work parked until explicitly resumed.
+
 ## Standalone programs
 
 - [x] **Comparisons and truth values.** Implement `EQ`, `NE`, `LT`, `LE`,
