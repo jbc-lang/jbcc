@@ -4055,7 +4055,7 @@ CRT 'done'
         command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'sample-r19',
                    '--t24-catalog', catalog, '--t24-component-calls', '-j', '2']
         report = json.loads(subprocess.check_output(command, text=True))
-        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 5})
+        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 7})
         self.assertTrue(report['selection']['component_calls'])
         self.assertEqual(report['files']['Main.b']['status'], 'translated')
         failures = {
@@ -4063,6 +4063,8 @@ CRT 'done'
             'WrongKind.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
             'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
             'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
+            'PrivateTableAccess.b': "2:5: component member 'Shop.Prices.Ledger.Read' has private access",
+            'WrongTableArity.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.Prices.Write'",
             'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",
         }
         for name, diagnostic in failures.items():

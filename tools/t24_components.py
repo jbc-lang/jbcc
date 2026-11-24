@@ -11,7 +11,7 @@ METHOD = re.compile(
     MEMBER + rf"method[ \t]+({NAME})\s*\(((?:[^(){{}}]|\(\))*)\)"
     r"\s*(?::\s*(string))?\s*\{", re.M
 )
-PARAMETER = re.compile(rf"(?:INOUT|IN|OUT)\s+{NAME}\s+string(\(\))?")
+PARAMETER = re.compile(r"(?:INOUT|IN|OUT)\s+[A-Za-z][A-Za-z0-9._$%]*\s+string(\(\))?")
 PROPERTY = re.compile(
     MEMBER + rf"property[ \t]+(readonly|readwrite|writeonly)[ \t]+({NAME})\s*:\s*string\s*\{{([^{{}}]*)\}}",
     re.M
@@ -21,6 +21,19 @@ CONSTANT = re.compile(
     MEMBER + rf"constant[ \t]+({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*(.*)$", re.M
 )
 LITERAL = re.compile(r"""[+-]?[0-9]+(?:\.[0-9]+)?|[-_./:]|"[^"]*"|'[^']*'""")
+TABLE = re.compile(MEMBER + rf"table[ \t]+({NAME})\s*\{{((?:[^{{}}]|\{{[^{{}}]*\}})*)\}}", re.M)
+TABLE_BINDING = re.compile(r"^[ \t]*t24:[ \t]*[\w.$%]+[ \t]*$", re.M)
+TABLE_FIELDS = re.compile(r"^[ \t]*fields\s*:\s*\{([^{}]*)\}", re.M)
+TABLE_FIELD = re.compile(rf"^[ \t]*({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*([0-9]+)[ \t]*$", re.M)
+TABLE_METHODS = {
+    "Read": ("function", (False, False)),
+    "CacheRead": ("function", (False, False)),
+    "ReadNau": ("function", (False, False)),
+    "Write": ("subroutine", (False, False)),
+    "WriteNau": ("subroutine", (False, False)),
+    "WriteHis": ("subroutine", (False, False)),
+    "Delete": ("subroutine", (False,)),
+}
 
 
 def declarations(source):
@@ -46,6 +59,15 @@ def declarations(source):
         value = value.strip()
         if LITERAL.fullmatch(value):
             yield name, (access, "constant", value[1:-1] if value[0] in "\"'" else value)
+    for access, table, body in TABLE.findall(source):
+        if not TABLE_BINDING.search(body):
+            continue
+        for method, (kind, signature) in TABLE_METHODS.items():
+            yield f"{table}.{method}", (access, kind, signature)
+        fields = TABLE_FIELDS.search(body)
+        if fields:
+            for name, number in TABLE_FIELD.findall(fields[1]):
+                yield f"{table}.{name}", (access, "constant", number.lstrip("0") or "0")
 
 
 def read_component_members(catalogue, root):
@@ -61,11 +83,12 @@ def read_component_members(catalogue, root):
     counts = Counter(name.casefold() for name, _ in components)
     members = {}
     for component, relative in components:
-        if counts[component.casefold()] != 1:
+        owner = component.casefold()
+        if counts[owner] != 1:
             continue
         source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
         declared = [(name.casefold(), member) for name, member in declarations(source)]
         names = Counter(name for name, _ in declared)
-        members.update((f"{component.casefold()}.{name}", member)
+        members.update((f"{owner}.{name}", (*member, owner))
                        for name, member in declared if names[name] == 1)
     return members

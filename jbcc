@@ -1094,8 +1094,8 @@ class Compiler:
             target = self.identifier()
             return self.variable_expression(target, self.variable(target.word), locate_source)
         elif self.component_constant(word):
-            access, _, literal = self.component_members[word.casefold()]
-            self.check_component_access(self.current, access)
+            access, _, literal, owner = self.component_members[word.casefold()]
+            self.check_component_access(self.current, access, owner)
             value = c_string(literal)
         elif self.current.kind == 'name':
             value = self.read_variable(self.current, possible_function=self.following.word == '(')
@@ -2678,16 +2678,15 @@ class Compiler:
         member = self.component_members.get(word.casefold()) if self.component_members else None
         return member if member and member[1] == "constant" else None
 
-    def check_component_access(self, target, access):
-        component = target.word.casefold().rsplit('.', 1)[0]
-        if (access == "public" or component == self.package
-                or access == "module" and component.split('.')[0] == self.package.split('.')[0]):
+    def check_component_access(self, target, access, owner):
+        if (access == "public" or owner == self.package
+                or access == "module" and owner.split('.')[0] == self.package.split('.')[0]):
             return
         self.error(f"component member '{target.word}' has {access} access", target)
 
     def component_call(self, target, *, expression=False):
-        access, kind, signature = self.component_call_member(target.word)
-        self.check_component_access(target, access)
+        access, kind, signature, owner = self.component_call_member(target.word)
+        self.check_component_access(target, access, owner)
         is_function = kind == "function"
         if expression and not is_function:
             self.error(f"component method '{target.word}' has no return value", target)

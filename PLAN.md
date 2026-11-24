@@ -3464,11 +3464,17 @@ from 47 with the ordinary search path. The other 119 first blockers are
   arity and scalar or matrix arguments for the supported forms.
   The same pilot now has 88 strict C99 passes, up from 20, with
   27 missing includes and 22 unexpected opening parentheses.
-- [ ] Resolve generated table methods and field constants from component
-  table definitions. Twenty of the 22 unexpected opening parentheses
-  follow table calls such as `AC.AccountOpening.Account.Read()`.
-  The other two follow `TIMESTAMP()`. Check the remaining qualified
-  methods against their declarations and validate package-aware linkage.
+- [x] Resolve generated table methods and field constants from component
+  table definitions. The R19 `AC.AccountOpening` and `AA.Account`
+  definitions give the table bindings and field numbers. The R19
+  `AA.Account` and `OB_AFW` sources show the read, write and delete
+  signatures. Accept dotted parameter names in component methods, as
+  declared in `AC.AccountClosure` and `AA.Framework`.
+  The same pilot now has 113 strict C99 passes, up from 88.
+- [ ] Resolve the remaining six non-include blockers. Two are at
+  `TIMESTAMP()`, three concern component accessors and one references a
+  field in a private table from another component. Validate package-aware
+  linkage separately.
 - [ ] Audit unresolved headers against the original export and component
   definitions, then scan all 39,675 catalogued production units.
 - [ ] Select a small deterministic set of `.tut` tests and identify

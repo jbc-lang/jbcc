@@ -9,7 +9,7 @@ public property readwrite Items : string {
 }
 public constant Separator(SHOP$SEP) = -
 public method Format (
-    IN Input string,
+    IN Input.Label string,
     INOUT Rows string()
 ) : string {
     jBC: FORMAT.PRICE
@@ -19,4 +19,15 @@ module method Clear () {
 }
 private method Reset () {
     jBC: RESET.PRICE
+}
+
+public table Prices {
+    t24: SHOP.PRICES
+    fields: {
+        UnitPrice(SHOP.UNIT.PRICE) = 2
+    }
+}
+
+private table Ledger {
+    t24: SHOP.LEDGER
 }

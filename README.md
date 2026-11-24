@@ -2335,9 +2335,13 @@ against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
 accessors such as `getDynArrayFromRNew()`.
 
+For `t24:` table declarations, the checker recognizes numbered field
+constants and the observed `Read`, `CacheRead`, `ReadNau`, `Write`,
+`WriteNau`, `WriteHis` and `Delete` call signatures.
+
 The pilot checks C syntax one unit at a time, using external prototypes
-for qualified calls. Package-aware linkage and generated table APIs are
-still pending.
+for qualified calls. Package-aware linkage and table runtime behavior
+are still pending.
 
 ### API coverage
 

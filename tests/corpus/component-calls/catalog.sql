@@ -6,4 +6,6 @@ INSERT INTO file_path VALUES
   ('sample-r19', 'WrongKind.b', 'jbc_source', NULL),
   ('sample-r19', 'PrivateAccess.b', 'jbc_source', NULL),
   ('sample-r19', 'ModuleAccess.b', 'jbc_source', NULL),
+  ('sample-r19', 'PrivateTableAccess.b', 'jbc_source', NULL),
+  ('sample-r19', 'WrongTableArity.b', 'jbc_source', NULL),
   ('sample-r19', 'VoidExpression.b', 'jbc_source', NULL);
