@@ -32,12 +32,7 @@ emit-c output +sources:
 
 # Compile and run a program in a temporary directory.
 run +sources:
-    #!/usr/bin/env sh
-    set -eu
-    work=$(mktemp -d)
-    trap 'rm -rf "$work"' EXIT
-    ./jbcc --exe -o "$work/program" "$@"
-    "$work/program"
+    @./jbcc --run "$@"
 
 # Run the terminal animation. Press Enter to stop.
 banner: (run "tests/programs/banner.b")

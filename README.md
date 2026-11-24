@@ -1,11 +1,29 @@
 # jbcc
 
-jbcc is a jBC-to-C compiler project. Its first target is a native executable
-built with the system C compiler. The first translator is written in Python 3 and emits standalone C99.
+jbcc is an experimental jBC-to-C compiler prototype. Its grammar has been
+tested against the T24 R07 and R10 source corpora. Some system calls are
+stubbed, and development and testing take place mainly on macOS. The
+translator is written in Python 3 and emits standalone C99 that the system C
+compiler can build into a native executable.
 
 ## Try the compiler
 
-From the checkout, with Python 3.8+ and a C99 compiler on PATH:
+From the checkout, with Python 3.8+ and a C99 compiler on PATH, build and
+start the banner animation. Press Enter to stop it.
+
+```sh
+./jbcc --exe -o banner tests/programs/banner.b && ./banner
+```
+
+Use `--run` to build and launch in one command. By default, jbcc removes the
+temporary executable after the program exits. Use `-o` to keep it.
+
+```sh
+./jbcc --run tests/programs/banner.b
+./jbcc --run -o banner tests/programs/banner.b
+```
+
+To inspect the generated C, try the coercion example.
 
 ```sh
 ./jbcc tests/snippets/coercion.b -o /tmp/coercion.c
@@ -18,7 +36,9 @@ Native builds default to `cc -std=c99`. Set `CC` to select the compiler and
 `CC_FLAGS` to pass additional compile or link options, for example
 `CC=clang CC_FLAGS="-O2 -Wall" ./jbcc --exe tests/snippets/coercion.b -o /tmp/coercion`.
 Both variables accept shell-style quoting. The compiler is invoked directly
-with the resulting arguments.
+with the resulting arguments. Add `-v` (or `--verbose`) to print each external
+command to stderr before it runs. With `--run`, jbcc returns the program's
+exit status.
 
 Source files and their includes are read as strict UTF-8 by default.
 Use `./jbcc --source-encoding bytes legacy.b -o /tmp/legacy.c` for

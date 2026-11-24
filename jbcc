@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 from collections import deque
+from contextlib import nullcontext
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -5496,7 +5497,13 @@ def runtime_features(units):
     return "\n".join(flags)
 
 
-def build_executable(source, output, libraries):
+def run_driver_command(command, *, verbose):
+    if verbose:
+        print(shlex.join(command), file=sys.stderr, flush=True)
+    return subprocess.run(command)
+
+
+def build_executable(source, output, libraries, *, verbose):
     try:
         compiler = shlex.split(os.environ.get('CC') or 'cc')
         flags = shlex.split(os.environ.get('CC_FLAGS', ''))
@@ -5516,7 +5523,7 @@ def build_executable(source, output, libraries):
             + flags
             + ['-o', str(binary)]
         )
-        completed = subprocess.run(command)
+        completed = run_driver_command(command, verbose=verbose)
         if completed.returncode:
             raise Diagnostic(
                 f"C compiler exited with status {completed.returncode}"
@@ -5576,10 +5583,25 @@ def main():
         action='store_true',
         help='build a native executable using CC and CC_FLAGS',
     )
-    cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
+    cli.add_argument(
+        '--run',
+        action='store_true',
+        help='build and run a native executable (temporary if -o is omitted)',
+    )
+    cli.add_argument(
+        '-v',
+        '--verbose',
+        action='store_true',
+        help='print external commands to stderr before running them',
+    )
+    cli.add_argument('-o', type=Path, metavar='OUTPUT')
     args = cli.parse_args()
+    if args.o is None and not args.run:
+        cli.error('the following arguments are required: -o')
     try:
-        if any(args.o.resolve() == p.resolve() for p in args.source):
+        if args.o is not None and any(
+            args.o.resolve() == p.resolve() for p in args.source
+        ):
             raise Diagnostic("source and output paths must differ")
         result, libraries = compile_program(
             args.source,
@@ -5590,8 +5612,23 @@ def main():
             source_encoding=args.source_encoding,
             defer_unassigned_reads=args.defer_unassigned_reads,
         )
-        if args.exe:
-            build_executable(result, args.o, libraries)
+        if args.exe or args.run:
+            destination = (
+                tempfile.TemporaryDirectory(prefix='jbcc-')
+                if args.o is None
+                else nullcontext()
+            )
+            with destination as directory:
+                binary = args.o or Path(directory) / 'program'
+                build_executable(
+                    result, binary, libraries, verbose=args.verbose
+                )
+                if args.run:
+                    completed = run_driver_command(
+                        [str(binary.absolute())], verbose=args.verbose
+                    )
+                    status = completed.returncode
+                    return status if status >= 0 else 128 - status
             return 0
         with tempfile.NamedTemporaryFile(
             dir=args.o.parent, delete=False, mode='w', encoding='utf-8'

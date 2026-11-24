@@ -689,10 +689,64 @@ def test_executable_mode(compiler):
         CC=shlex.quote(sys.executable) + ' ' + shlex.quote(str(wrapper)),
         CC_FLAGS="'--argument with spaces'",
     )
-    run = subprocess.run(cmd, env=env, text=True, capture_output=True)
+    run = subprocess.run(
+        [CLI, '--run', '-v', *cmd[2:]],
+        env=env,
+        text=True,
+        capture_output=True,
+    )
     assert run.returncode != 0
-    assert expected_text('executable-mode.stderr') in run.stderr
+    command, diagnostic = run.stderr.splitlines()
+    arguments = shlex.split(command)
+    assert arguments[:2] == [sys.executable, str(wrapper)]
+    assert '--argument with spaces' in arguments
+    assert expected_text('executable-mode.stderr') in diagnostic
+    assert run.stdout == ''
     assert binary.read_bytes() == expected
+
+
+@pytest.mark.parametrize(
+    ('keep_output', 'verbose'),
+    [(True, False), (True, True), (False, True)],
+)
+def test_run_mode(compiler, keep_output, verbose):
+    root = ROOT / 'tests/routines/exit-status'
+    binary = compiler.work / 'output with spaces'
+    flags = ['-v'] if verbose else []
+    output = ['-o', binary.name] if keep_output else []
+    env = dict(os.environ, CC='cc', CC_FLAGS='', TMPDIR=str(compiler.work))
+    run = subprocess.run(
+        [
+            CLI,
+            '--run',
+            *flags,
+            *output,
+            root / 'main.b',
+            root / 'finish.b',
+        ],
+        cwd=compiler.work,
+        env=env,
+        capture_output=True,
+        timeout=10,
+    )
+    assert run.returncode == 23, run.stderr
+    assert run.stdout == expected_bytes('exit-status-from-subroutine.stdout')
+    if keep_output:
+        assert binary.is_file()
+    else:
+        assert list(compiler.work.iterdir()) == []
+    if verbose:
+        compile_line, run_line = run.stderr.decode().splitlines()
+        assert shlex.split(compile_line)[:2] == ['cc', '-std=c99']
+        (executable,) = shlex.split(run_line)
+        if keep_output:
+            assert executable == str(binary)
+        else:
+            assert os.path.dirname(os.path.dirname(executable)) == str(
+                compiler.work
+            )
+    else:
+        assert run.stderr == b''
 
 
 def test_executable_mode_links_math_with_exit_callbacks(compiler):
