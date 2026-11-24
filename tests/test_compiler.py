@@ -4539,7 +4539,7 @@ CRT 'main'
         routine = ROOT / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/publish.b'
         run = self.run_native(source, routine, env=dict(os.environ, JBCPORTNO='1'))
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'[]\n[]\t63\t63\tupdated\n1\n[]:[]\n', b''))
+                         (0, expected_bytes('user-root-is-shared-with-linked-routines-and-userstats.stdout'), b''))
 
     def test_user_root_limit_counts_bytes(self):
         source = ROOT / 'tests/programs/user-root-limit-counts-bytes.b'
@@ -4561,19 +4561,19 @@ CRT 'main'
             stdout, stderr = proc.communicate(timeout=5)
             self.assertEqual((proc.returncode, stderr), (0, b''))
             lines = stdout.splitlines()
-            self.assertEqual(lines[:2], [b'0:4:52', f'93:1:{proc.pid}'.encode()])
+            self.assertEqual(lines[:2], [expected_bytes('userstats-native-snapshot-and-record-writes.stdout'), expected_text('userstats-native-snapshot-and-record-writes_2.stdout', value_1=proc.pid).encode()])
             self.assertLessEqual(start, int(lines[2]))
             self.assertLessEqual(int(lines[2]), int(time.time()))
             self.assertEqual(lines[3:], [
-                b'stats-user:stats-user:stats-terminal:phantom', b'[]:[0]',
-                f'{binary} two words'.encode(), b'2', str(routine).encode()])
+                expected_bytes('userstats-native-snapshot-and-record-writes_3.stdout'), expected_bytes('userstats-native-snapshot-and-record-writes_4.stdout'),
+                expected_text('userstats-native-snapshot-and-record-writes_5.stdout', binary=binary).encode(), expected_bytes('userstats-native-snapshot-and-record-writes_6.stdout'), str(routine).encode()])
 
     def test_userstats_open_and_read_counters(self):
         source = ROOT / 'tests/programs/userstats-open-and-read-counters.b'
         result = self.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'held'],
                                  env=dict(os.environ, JBCPORTNO='1'))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'[]\n0:0:0\n2:7:1\n', b''))
+                         (0, expected_bytes('userstats-open-and-read-counters.stdout'), b''))
 
     def test_userstats_delete_and_clearfile_counters(self):
         source = ROOT / 'tests/programs/userstats-delete-and-clearfile-counters.b'
@@ -4581,7 +4581,7 @@ CRT 'main'
                                                   '--memory-lock', 'Busy', 'held'],
                                  env=dict(os.environ, JBCPORTNO='1'))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:0\n1:1\n2:2\nkeep\n2:2\n', b''))
+                         (0, expected_bytes('userstats-delete-and-clearfile-counters.stdout'), b''))
 
     def test_userstats_execute_and_input_counters(self):
         binary = self.work / 'terminal-stats'
@@ -4592,7 +4592,7 @@ CRT 'main'
         with subprocess.Popen([binary], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE) as proc:
             try:
-                expected = b'0:0\n3:7:command input\nqueued:1\n'
+                expected = expected_bytes('userstats-execute-and-input-counters.stdout')
                 received = bytearray()
                 while len(received) < len(expected):
                     self.assertTrue(select.select([proc.stdout], [], [], 5)[0], received)
@@ -4603,7 +4603,7 @@ CRT 'main'
                 proc.stdin.close()
                 proc.stdin = None
                 output, errors = proc.communicate(timeout=5)
-                self.assertEqual((proc.returncode, output, errors), (0, b'[] 2\n', b''))
+                self.assertEqual((proc.returncode, output, errors), (0, expected_bytes('userstats-execute-and-input-counters_2.stdout'), b''))
             finally:
                 if proc.poll() is None:
                     proc.kill()
@@ -4612,7 +4612,7 @@ CRT 'main'
         source = ROOT / 'tests/programs/userstats-reports-invalid-port-at-reference.b'
         result = self.run_native(source, env=dict(os.environ, JBCPORTNO='bad'))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:5: JBCPORTNO requires'.encode(), result.stderr)
+        self.assertIn(expected_text('userstats-reports-invalid-port-at-reference.stderr', source=source).encode(), result.stderr)
 
     def test_port_number_defaults_to_process_id(self):
         source = ROOT / 'tests/programs/port-number-defaults-to-process-id.b'

@@ -431,12 +431,12 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## User statistics (6)
 
-- [ ] `test_user_root_is_shared_with_linked_routines_and_userstats` — stdout (exact)
-- [ ] `test_userstats_native_snapshot_and_record_writes` — stdout (exact, interpolated)
-- [ ] `test_userstats_open_and_read_counters` — stdout (exact)
-- [ ] `test_userstats_delete_and_clearfile_counters` — stdout (exact)
-- [ ] `test_userstats_execute_and_input_counters` — stdout (exact)
-- [ ] `test_userstats_reports_invalid_port_at_reference` — stderr (fragment, interpolated)
+- [x] `test_user_root_is_shared_with_linked_routines_and_userstats` — stdout (exact)
+- [x] `test_userstats_native_snapshot_and_record_writes` — stdout (exact, interpolated)
+- [x] `test_userstats_open_and_read_counters` — stdout (exact)
+- [x] `test_userstats_delete_and_clearfile_counters` — stdout (exact)
+- [x] `test_userstats_execute_and_input_counters` — stdout (exact)
+- [x] `test_userstats_reports_invalid_port_at_reference` — stderr (fragment, interpolated)
 
 ## Executable build and compiler driver (2)
 
