@@ -827,32 +827,32 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/matbuild-missing-array.b'
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
-        self.assertIn(f"{source}:1:19: expected a dimensioned array 'Missing'", build.stderr)
+        self.assertIn(expected_text('matbuild-diagnostics.stderr', source=source), build.stderr)
         for fixture_name, message in (
-            ('matbuild_1.b', "unassigned element 2 in matrix 'A'"),
-            ('matbuild_2.b', 'MATBUILD position out of bounds'),
-            ('matbuild_3.b', 'MATBUILD requires integer positions'),
+            ('matbuild_1.b', expected_text('matbuild-diagnostics_2.stderr')),
+            ('matbuild_2.b', expected_text('matbuild-diagnostics_3.stderr')),
+            ('matbuild_3.b', expected_text('matbuild-diagnostics_4.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/routines/matbuild-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('matbuild-diagnostics_5.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_matparse_diagnostics(self):
         source = ROOT / 'tests/programs/matparse-missing-array.b'
         build = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(build.returncode, 0)
-        self.assertIn(f"{source}:1:10: expected a dimensioned array 'Missing'", build.stderr)
+        self.assertIn(expected_text('matparse-diagnostics.stderr', source=source), build.stderr)
         for fixture_name, message in (
-            ('matparse_1.b', 'MATPARSE position out of bounds'),
-            ('matparse_2.b', 'MATPARSE requires integer positions'),
+            ('matparse_1.b', expected_text('matparse-diagnostics_2.stderr')),
+            ('matparse_2.b', expected_text('matparse-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/routines/matparse-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:2:1: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('matparse-diagnostics_4.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_ins_diagnostics(self):
         for name, diagnostic in [
@@ -3358,11 +3358,11 @@ CRT 'main'
         sub = ROOT / 'tests/routines/common-storage/sub.b'
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'caller12\tmatrix12\tmatrix12\tok2\n')
+        self.assertEqual(run.stdout, expected_bytes('common-storage.stdout'))
         sub = ROOT / 'tests/routines/common-storage/sub-variant-2.b'
         result = subprocess.run([CLI, caller, sub, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('incompatible COMMON layout', result.stderr)
+        self.assertIn(expected_text('common-storage.stderr'), result.stderr)
 
     def test_conflicting_common_declarations(self):
         for fixture_name in (
@@ -3375,28 +3375,28 @@ CRT 'main'
                 source = ROOT / 'tests/routines/conflicting-common-declarations' / fixture_name
                 run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f"{source}:2:12: duplicate declaration of 'A'", run.stderr)
+                self.assertIn(expected_text('conflicting-common-declarations.stderr', source=source), run.stderr)
 
     def test_common_member_keeps_first_slot_when_dimensioned_later(self):
         main = ROOT / 'tests/routines/common-member-keeps-first-slot-when-dimensioned-later/main.b'
         sub = ROOT / 'tests/routines/common-member-keeps-first-slot-when-dimensioned-later/update.b'
         result = self.run_native(main, sub)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'row!\tmiddle!\ttail!\n', b''))
+                         (0, expected_bytes('common-member-keeps-first-slot-when-dimensioned-later.stdout'), b''))
 
     def test_repeated_include_reuses_common_matrix_slots(self):
         main = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/main.b'
         sub = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/check.b'
         result = self.run_native(main, sub)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'row!:fixed!:tail!:2\n')
+        self.assertEqual(result.stdout, expected_bytes('repeated-include-reuses-common-matrix-slots.stdout'))
         self.assertEqual(result.stderr, b'')
 
     def test_repeated_common_matrix_rejects_incompatible_dimensions(self):
         source = ROOT / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions/bad.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
+        self.assertIn(expected_text('repeated-common-matrix-rejects-incompatible-dimensions.stderr', source=source).encode(), result.stderr)
 
         for fixture_name in (
             'bad-variant-2_1.b',
@@ -3406,21 +3406,21 @@ CRT 'main'
                 source = ROOT / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:4:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
+                self.assertIn(expected_text('repeated-common-matrix-rejects-incompatible-dimensions_2.stderr', source=source).encode(), result.stderr)
 
     def test_dim_reuses_named_and_unnamed_common_matrix_slots(self):
         main = ROOT / 'tests/routines/dim-reuses-named-and-unnamed-common-matrix-slots/main.b'
         sub = ROOT / 'tests/routines/dim-reuses-named-and-unnamed-common-matrix-slots/update.b'
         result = self.run_native(main, sub)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'unnamed!:named!:tail!\n')
+        self.assertEqual(result.stdout, expected_bytes('dim-reuses-named-and-unnamed-common-matrix-slots.stdout'))
         self.assertEqual(result.stderr, b'')
 
     def test_dim_rejects_a_common_matrix_rank_change(self):
         source = ROOT / 'tests/routines/dim-rejects-a-common-matrix-rank-change.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
+        self.assertEqual(result.stderr, expected_text('dim-rejects-a-common-matrix-rank-change.stderr', source=source))
 
     def test_common_matrix_subscript_mismatches_report_when_reached(self):
         for fixture_name in (
@@ -3430,9 +3430,9 @@ CRT 'main'
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/routines/common-matrix-subscript-mismatches-report-when-reached' / fixture_name
                 result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
+                self.assertEqual((result.returncode, result.stdout), (1, expected_bytes('common-matrix-subscript-mismatches-report-when-reached.stdout')))
                 self.assertEqual(result.stderr,
-                                 f'{source}:4:1: COMMON matrix subscript count is unsupported\n'.encode())
+                                 expected_text('common-matrix-subscript-mismatches-report-when-reached.stderr', source=source).encode())
 
     def test_dim_reports_a_reached_common_matrix_resize(self):
         for fixture_name in (
@@ -3447,14 +3447,14 @@ CRT 'main'
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, b'')
-                self.assertEqual(result.stderr, f'{source}:4:5: COMMON matrix resize is unsupported\n'.encode())
+                self.assertEqual(result.stderr, expected_text('dim-reports-a-reached-common-matrix-resize.stderr', source=source).encode())
 
     def test_runtime_common_dimensions(self):
         main = ROOT / 'tests/routines/runtime-common-dimensions/main.b'
         sub = ROOT / 'tests/routines/runtime-common-dimensions/change.b'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'head\tedge!\tedge!\ttail!\textra!\n')
+        self.assertEqual(run.stdout, expected_bytes('runtime-common-dimensions.stdout'))
 
     def test_local_dimensions_per_invocation(self):
         main = ROOT / 'tests/routines/local-dimensions-per-invocation/main.b'
@@ -3462,51 +3462,51 @@ CRT 'main'
         bump = ROOT / 'tests/routines/local-dimensions-per-invocation/bump.b'
         run = self.run_native(main, routine, bump)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'2\t0\n2\t1\n2\t2\n')
+        self.assertEqual(run.stdout, expected_bytes('local-dimensions-per-invocation.stdout'))
 
     def test_forward_matrix_declarations_follow_execution_order(self):
         main = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/main.b'
         routine = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/check.b'
         result = self.run_native(main, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'rows!:flags!:common!\n', b''))
+                         (0, expected_bytes('forward-matrix-declarations-follow-execution-order.stdout'), b''))
 
     def test_scalar_can_be_used_before_a_later_local_dim(self):
         main = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/main.b'
         routine = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/append.b'
         result = self.run_native(main, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'scalar!\n0\nmatrix!\n', b''))
+                         (0, expected_bytes('scalar-can-be-used-before-a-later-local-dim.stdout'), b''))
 
         main = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/main-variant-2.b'
         result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{main}:3:6: expected '('", result.stderr)
+        self.assertIn(expected_text('scalar-can-be-used-before-a-later-local-dim.stderr', main=main), result.stderr)
 
     def test_forward_matrix_errors_use_reference_location(self):
         source = ROOT / 'tests/routines/forward-matrix-errors-use-reference-location/forward.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{source}:1:1: local matrix declaration has not executed\n'.encode())
+        self.assertEqual(result.stderr, expected_text('forward-matrix-errors-use-reference-location.stderr', source=source).encode())
 
         source = ROOT / 'tests/routines/forward-matrix-errors-use-reference-location/forward-variant-2.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f"{source}:1:5: expected 1 subscripts for 'A'\n")
+        self.assertEqual(result.stderr, expected_text('forward-matrix-errors-use-reference-location_2.stderr', source=source))
 
     def test_repeated_local_dim_reuses_storage_from_either_path(self):
         caller = ROOT / 'tests/routines/repeated-local-dim-reuses-storage-from-either-path/main.b'
         routine = ROOT / 'tests/routines/repeated-local-dim-reuses-storage-from-either-path/store.b'
         result = self.run_native(caller, routine)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'first\nfirst\nsecond\nsecond\n')
+        self.assertEqual(result.stdout, expected_bytes('repeated-local-dim-reuses-storage-from-either-path.stdout'))
         self.assertEqual(result.stderr, b'')
 
     def test_repeated_local_dim_rejects_changed_rank(self):
         source = ROOT / 'tests/routines/repeated-local-dim-rejects-changed-rank.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{source}:2:5: incompatible local matrix dimensions\n')
+        self.assertEqual(result.stderr, expected_text('repeated-local-dim-rejects-changed-rank.stderr', source=source))
 
     def test_repeated_local_dim_reports_reached_resize(self):
         for fixture_name in (
@@ -3517,16 +3517,16 @@ CRT 'main'
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/routines/repeated-local-dim-reports-reached-resize' / fixture_name
                 result = self.run_native(source)
-                self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
-                self.assertEqual(result.stderr, f'{source}:6:5: local matrix resize is unsupported\n'.encode())
+                self.assertEqual((result.returncode, result.stdout), (1, expected_bytes('repeated-local-dim-reports-reached-resize.stdout')))
+                self.assertEqual(result.stderr, expected_text('repeated-local-dim-reports-reached-resize.stderr', source=source).encode())
 
     def test_local_dimension_errors(self):
         cases = [
-            ("N = 1.5\nDIM A(N)", ':2:7: expected a positive integer dimension'),
-            ("N = 50000\nDIM A(N,N)", ':2:5: dimensioned array is too large'),
-            ("N = 2\nIF 0 THEN DIM A(N)\nMAT A = 0", ':3:5: local matrix declaration has not executed'),
-            ("FOR N = 1 TO 2\nDIM A(N)\nNEXT", ':2:5: incompatible local matrix dimensions'),
-            ("N = 2\nDIM A(N)\nN = 3\nA(N) = 1", ':4:1: matrix subscript out of bounds'),
+            ("N = 1.5\nDIM A(N)", expected_text('local-dimension-errors.stderr')),
+            ("N = 50000\nDIM A(N,N)", expected_text('local-dimension-errors_2.stderr')),
+            ("N = 2\nIF 0 THEN DIM A(N)\nMAT A = 0", expected_text('local-dimension-errors_3.stderr')),
+            ("FOR N = 1 TO 2\nDIM A(N)\nNEXT", expected_text('local-dimension-errors_4.stderr')),
+            ("N = 2\nDIM A(N)\nN = 3\nA(N) = 1", expected_text('local-dimension-errors_5.stderr')),
         ]
         for case_number, (program, location) in enumerate(cases, 1):
             with self.subTest(program=program):
@@ -3537,10 +3537,10 @@ CRT 'main'
 
     def test_runtime_common_dimension_errors(self):
         cases = [
-            ("N = 1.5\nCOMMON A(N)", ':2:10: expected a positive integer dimension'),
-            ("N = 50000\nCOMMON A(N,N)", ':2:8: dimensioned array is too large'),
-            ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", ':3:5: COMMON matrix declaration has not executed'),
-            ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", ':2:8: incompatible COMMON matrix dimensions'),
+            ("N = 1.5\nCOMMON A(N)", expected_text('runtime-common-dimension-errors.stderr')),
+            ("N = 50000\nCOMMON A(N,N)", expected_text('runtime-common-dimension-errors_2.stderr')),
+            ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", expected_text('runtime-common-dimension-errors_3.stderr')),
+            ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", expected_text('runtime-common-dimension-errors_4.stderr')),
         ]
         for case_number, (program, location) in enumerate(cases, 1):
             with self.subTest(program=program):
@@ -3554,7 +3554,7 @@ CRT 'main'
         sub = ROOT / 'tests/routines/common-runtime-shape-across-routines/sub.b'
         run = self.run_native(main, sub)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{sub}:2:12: incompatible COMMON matrix dimensions'.encode(), run.stderr)
+        self.assertIn(expected_text('common-runtime-shape-across-routines.stderr', sub=sub).encode(), run.stderr)
 
     def test_executable_mode(self):
         binary = self.work / 'output with spaces'
@@ -3735,28 +3735,28 @@ CRT 'main'
         source = ROOT / 'tests/routines/matrix-assignment-diagnostics/main.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:3:13: unassigned element in matrix 'B'".encode(), run.stderr)
+        self.assertIn(expected_text('matrix-assignment-diagnostics.stderr', source=source).encode(), run.stderr)
         source = ROOT / 'tests/routines/matrix-assignment-diagnostics/main-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:4:13: unassigned element in matrix 'B'".encode(), run.stderr)
+        self.assertIn(expected_text('matrix-assignment-diagnostics_2.stderr', source=source).encode(), run.stderr)
 
     def test_matrix_fill_evaluates_expression_once(self):
         source = ROOT / 'tests/routines/matrix-fill-evaluates-expression-once/main.b'
         function = ROOT / 'tests/routines/matrix-fill-evaluates-expression-once/BUMP'
         run = self.run_native(source, function)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'1\t1\t1\t1\n')
+        self.assertEqual(run.stdout, expected_bytes('matrix-fill-evaluates-expression-once.stdout'))
 
     def test_matrix_element_argument_and_bounds(self):
         main = ROOT / 'tests/routines/matrix-element-argument-and-bounds/main.b'
         callee = ROOT / 'tests/routines/matrix-element-argument-and-bounds/put.b'
         run = self.run_native(main, callee)
-        self.assertEqual(run.stdout, b'7\n')
+        self.assertEqual(run.stdout, expected_bytes('matrix-element-argument-and-bounds.stdout'))
         main = ROOT / 'tests/routines/matrix-element-argument-and-bounds/main-variant-2.b'
         run = self.run_native(main)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)
+        self.assertIn(expected_text('matrix-element-argument-and-bounds.stderr', main=main).encode(), run.stderr)
 
     def test_cursor_coordinate_diagnostics(self):
         for fixture_name, message in (
