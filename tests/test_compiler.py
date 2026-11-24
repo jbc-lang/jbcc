@@ -2516,6 +2516,34 @@ CRT UPCASE(''):LOWCASE('')
             self.assertIn(f"{source}:1:1: {keyword} occurrence must be a positive integer".encode(),
                           run.stderr)
 
+    def test_ereplace_reuses_occurrence_rules_and_prefixes_an_empty_search(self):
+        source = self.work / 'ereplace.b'
+        source.write_text("""CRT EREPLACE('aaaaa', 'aa', 'b')
+CRT EREPLACE('aaaaa', 'aa', 'b', 1)
+CRT EREPLACE('aaaaa', 'aa', 'b', 0, 2)
+CRT EREPLACE('aaaaa', 'aa', '', -1, 0)
+CRT EREPLACE('tail', '', 'head:')
+CRT CHANGE('tail', '', 'head:')
+Value = 'cocoa'
+EREPLACE 'co' WITH 'x' IN Value
+CRT Value
+""")
+        result = self.run_native(source)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'bba\nbaaa\naaba\na\nhead:tail\ntail\nxxa\n', b''))
+
+    def test_ereplace_diagnostics(self):
+        source = self.work / 'ereplace.b'
+        source.write_text("CRT EREPLACE('ab', 'a')\n")
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{source}:1:5: wrong argument count for 'EREPLACE'".encode(), result.stderr)
+        source.write_text("CRT EREPLACE('ab', '', 'x', 1, 'bad')\n")
+        result = self.run_native(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f'{source}:1:5: EREPLACE requires integer occurrence arguments'.encode(),
+                      result.stderr)
+
     def test_change_diagnostics(self):
         source = self.work / 'change.b'
         for program, error in [("CHANGE 'x' TO 'y' IN Missing", "1:22: unassigned variable 'Missing'"),

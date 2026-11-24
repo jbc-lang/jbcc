@@ -2643,6 +2643,23 @@ reference probe compiles that shape as a formatted comparison assigned
 to the first variable. All 17,078 previous passes retain identical
 generated statements. The C99 check establishes translation only.
 
-- [ ] Investigate EREPLACE in EB.RUN.RULE and TEC.POPULATE.EVENT.LIST.
+- [x] Investigate EREPLACE in EB.RUN.RULE and TEC.POPULATE.EVENT.LIST.
   Compare optional limits and the start occurrence with the existing
   CHANGE function and the reference lexer.
+
+The reference lexer maps EREPLACE to CHANGE. The reference compiler
+emits SWAPF_BBBBBII for both functions, with a default limit of -1
+and start of 1, and accepts the statement spelling. jbcc shares the
+existing replacement code. For an empty search in the function, it
+follows the documented prefix behavior and the guide's TAFJ R23
+example. Tests cover the three arities, deletion, the statement
+spelling and source-located diagnostics.
+[jBASE EREPLACE](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_EREPLACE.htm).
+
+EB.RUN.RULE and TEC.POPULATE.EVENT.LIST now pass strict C99 checking in
+byte mode. The total is 17,082 of 17,336 candidates, including all
+17,080 previous passes.
+
+- [ ] Investigate SWAP in E.MB.TRADES.TODAY. Compare its function and
+  statement forms with CHANGE and confirm whether either mutates the
+  source operand.

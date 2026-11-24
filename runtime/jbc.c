@@ -2708,13 +2708,17 @@ static const char *change_substrings(const char *text, const char *search, const
 }
 
 const char *jbc_change(const char *text, const char *search, const char *replacement,
-                       const char *limit, const char *first, const char *file, int line, int column)
+                       const char *limit, const char *first, int prefix_empty,
+                       const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(limit, &n) || n.places || !parse_decimal(first, &n) || n.places)
-        numeric_error(file, line, column, "CHANGE requires integer occurrence arguments");
-    return change_substrings(text, search, replacement, integer(limit, file, line, column),
-                             integer(first, file, line, column));
+        numeric_error(file, line, column, prefix_empty ? "EREPLACE requires integer occurrence arguments"
+                                                       : "CHANGE requires integer occurrence arguments");
+    int64_t count = integer(limit, file, line, column);
+    int64_t start = integer(first, file, line, column);
+    if (prefix_empty && !*search) return jbc_concat(replacement, text);
+    return change_substrings(text, search, replacement, count, start);
 }
 
 const char *jbc_count(const char *s, const char *separator)

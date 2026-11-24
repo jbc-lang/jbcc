@@ -106,7 +106,14 @@ The original grammar also accepts `WITH` in place of `TO`. The function
 starts at one. A count below one replaces all remaining matches, and a
 starting occurrence below one starts at the first match. An empty replacement
 deletes matches. jbcc leaves the input intact for an empty search string.
-[CHANGE](https://jbc-lang.org/pages/change.html), [EREPLACE](https://jbc-lang.org/pages/ereplace.html).
+[CHANGE](https://jbc-lang.org/pages/change.html).
+
+`EREPLACE(text, old, new [, count [, first]])` uses the same occurrence
+rules. An empty search string prefixes the replacement, as documented
+by jBASE and observed in TAFJ R23. The guide records different output
+from TAFC R23 for an empty search. The reference lexer also accepts
+`EREPLACE old TO new IN target` as a spelling of the CHANGE statement.
+[jBASE EREPLACE](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_EREPLACE.htm).
 
 Concatenating assignment appends the right-hand value as a string.
 For example, after `S = 'QWERTY'`, `S := 123` gives `QWERTY123`.
