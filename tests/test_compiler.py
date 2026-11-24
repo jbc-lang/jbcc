@@ -1319,8 +1319,8 @@ time_t test_clock(time_t *out)
         source = ROOT / 'tests/programs/jbasecoredump-missing-backend.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (1, b'before\n',
-                          f'{source}:3:10: JBASECOREDUMP requires an application snapshot backend\n'.encode()))
+                         (1, expected_bytes('jbasecoredump-requires-an-application-snapshot-backend.stdout'),
+                          expected_text('jbasecoredump-requires-an-application-snapshot-backend.stderr', source=source).encode()))
         self.assertEqual(list(self.work.glob('JBASECOREDUMP*')), [])
 
         for fixture_name in (
@@ -1331,14 +1331,14 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/jbasecoredump-requires-an-application-snapshot-backend' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:5: wrong argument count for 'JBASECOREDUMP'", result.stderr)
+                self.assertIn(expected_text('jbasecoredump-requires-an-application-snapshot-backend_2.stderr', source=source), result.stderr)
 
     def test_itype_requires_backend_only_when_evaluation_is_reached(self):
         source = ROOT / 'tests/programs/itype-missing-backend.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (1, b'before\n',
-                          f'{source}:6:5: ITYPE requires a compiled dictionary backend\n'.encode()))
+                         (1, expected_bytes('itype-requires-backend-only-when-evaluation-is-reached.stdout'),
+                          expected_text('itype-requires-backend-only-when-evaluation-is-reached.stderr', source=source).encode()))
 
     def test_xml_transforms_require_a_backend_when_reached(self):
         for fixture_name, call in (
@@ -1354,22 +1354,22 @@ time_t test_clock(time_t *out)
                 result = self.run_native(source)
                 name = call.split('(', 1)[0]
                 self.assertEqual((result.returncode, result.stdout, result.stderr),
-                                 (1, b'0\n', f'{source}:4:9: {name} requires an XML backend\n'.encode()))
+                                 (1, expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'), expected_text('xml-transforms-require-a-backend-when-reached.stderr', source=source, value_2=name).encode()))
 
     def test_xml_transform_argument_diagnostics(self):
         for case_number, (call, marker, message) in enumerate((
-            ("XMLTODYN('<array/>')", ')', "expected ','"),
-            ("XMLTOXML('<doc/>', '', 0)", '0', 'expected a name'),
-            ("XMLTODYN('<array/>', '', Code<1>)", '<1>', "expected ')'"),
-            ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', "expected ')'"),
-            ("DYNTOXML('a', '', 0)", '0', 'expected a name'),
+            ("XMLTODYN('<array/>')", ')', expected_text('xml-transform-argument-diagnostics.stderr')),
+            ("XMLTOXML('<doc/>', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
+            ("XMLTODYN('<array/>', '', Code<1>)", '<1>', expected_text('xml-transform-argument-diagnostics_3.stderr')),
+            ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', expected_text('xml-transform-argument-diagnostics_3.stderr')),
+            ("DYNTOXML('a', '', 0)", '0', expected_text('xml-transform-argument-diagnostics_2.stderr')),
         ), 1):
             with self.subTest(call=call):
                 statement = f'CRT {call}'
                 source = ROOT / 'tests/programs/xml-transform-argument-diagnostics' / f'xml_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
+                self.assertIn(expected_text('xml-transform-argument-diagnostics_4.stderr', source=source, value_2=statement.rindex(marker) + 1, message=message), result.stderr)
 
     def test_indices_requires_backend_only_when_a_query_is_reached(self):
         for fixture_name in (
@@ -1380,16 +1380,16 @@ time_t test_clock(time_t *out)
                 source = ROOT / 'tests/programs/indices-requires-backend-only-when-a-query-is-reached' / fixture_name
                 result = self.run_native(source, options=('--memory-file', 'BOOKS'))
                 self.assertEqual(result.returncode, 1)
-                self.assertEqual(result.stdout, b'before\n')
+                self.assertEqual(result.stdout, expected_bytes('indices-requires-backend-only-when-a-query-is-reached.stdout'))
                 self.assertEqual(
-                    result.stderr, f'{source}:6:5: INDICES requires a secondary-index backend\n'.encode()
+                    result.stderr, expected_text('indices-requires-backend-only-when-a-query-is-reached.stderr', source=source).encode()
                 )
 
     def test_indices_requires_a_file_variable(self):
         source = ROOT / 'tests/programs/indices-requires-variable.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{source}:1:13: expected a name\n')
+        self.assertEqual(result.stderr, expected_text('indices-requires-a-file-variable.stderr', source=source))
 
     def test_concatenation_with_an_omitted_right_operand(self):
         source = ROOT / 'tests/routines/concat-omitted-operand/main.b'
@@ -1611,21 +1611,21 @@ CRT 'main'
         source = ROOT / 'tests/programs/debug-missing-backend.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'before\n')
-        self.assertEqual(result.stderr, f'{source}:4:11: DEBUG requires a jBC debugger\n'.encode())
+        self.assertEqual(result.stdout, expected_bytes('debug-reports-location-only-when-reached.stdout'))
+        self.assertEqual(result.stderr, expected_text('debug-reports-location-only-when-reached.stderr', source=source).encode())
 
     def test_callj_reports_missing_backend_only_when_reached(self):
         source = ROOT / 'tests/programs/callj-missing-backend.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertEqual(result.stdout, b'hello\n')
-        self.assertEqual(result.stderr, f'{source}:8:1: CALLJ requires a JVM backend\n'.encode())
+        self.assertEqual(result.stdout, expected_bytes('callj-reports-missing-backend-only-when-reached.stdout'))
+        self.assertEqual(result.stderr, expected_text('callj-reports-missing-backend-only-when-reached.stderr', source=source).encode())
 
     def test_callj_requires_setting(self):
         source = ROOT / 'tests/programs/callj-missing-setting.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f"{source}:1:36: expected 'SETTING'\n")
+        self.assertEqual(result.stderr, expected_text('callj-requires-setting.stderr', source=source))
 
     def test_transactions_report_missing_backend_at_the_call(self):
         statements = (
@@ -1640,33 +1640,33 @@ CRT 'main'
                 source = ROOT / 'tests/programs/transactions-report-missing-backend-at-the-call' / f'transactions_{case_number}.b'
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertEqual(result.stdout, b'batch\n')
+                self.assertEqual(result.stdout, expected_bytes('transactions-report-missing-backend-at-the-call.stdout'))
                 self.assertEqual(
-                    result.stderr, f'{source}:4:1: {keyword} requires a transaction backend\n'.encode()
+                    result.stderr, expected_text('transactions-report-missing-backend-at-the-call.stderr', source=source, keyword=keyword).encode()
                 )
 
     def test_transactions_require_a_conditional_arm(self):
         source = ROOT / 'tests/programs/transtart-missing-arm.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, f'{source}:1:15: expected THEN or ELSE\n')
+        self.assertEqual(result.stderr, expected_text('transactions-require-a-conditional-arm.stderr', source=source))
 
     def test_transaction_dialect_reports_missing_backend(self):
         source = ROOT / 'tests/programs/transaction-dialect.b'
         binary = self.work / 'transactions'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         run = subprocess.run([binary, 'skip'], capture_output=True, timeout=5)
-        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'done\n', b''))
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected_bytes('transaction-dialect-reports-missing-backend.stdout'), b''))
         for operation, line in (('start', 4), ('commit', 6), ('abort', 8)):
             with self.subTest(operation=operation):
                 run = subprocess.run([binary, operation], capture_output=True, timeout=5)
-                error = f'{source}:{line}:5: TRANSACTION {operation.upper()} requires a transaction backend\n'
+                error = expected_text('transaction-dialect-reports-missing-backend.stderr', source=source, line=line, value_3=operation.upper())
                 self.assertEqual((run.returncode, run.stdout, run.stderr), (1, b'', error.encode()))
 
     def test_transaction_start_requires_a_conditional_arm(self):
         source = ROOT / 'tests/programs/transaction-start-missing-arm.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
-        self.assertEqual((run.returncode, run.stderr), (1, f'{source}:1:18: expected THEN or ELSE\n'))
+        self.assertEqual((run.returncode, run.stderr), (1, expected_text('transaction-start-requires-a-conditional-arm.stderr', source=source)))
 
     def test_weof_invalid_channel(self):
         for fixture_name in (
@@ -2251,9 +2251,9 @@ CRT 'main'
     def test_defc_declarations_and_runtime_diagnostics(self):
         for fixture_name, diagnostic in (
             ('foreign_1.b', b''),
-            ('foreign_2.b', b":2:1: C function 'ReadNative' requires the jBASE C runtime"),
-            ('foreign_3.b', b":2:5: C function 'Measure' requires the jBASE C runtime"),
-            ('foreign_4.b', b":2:5: C function 'LocalNative' requires the jBASE C runtime"),
+            ('foreign_2.b', expected_bytes('defc-declarations-and-runtime-diagnostics.stderr')),
+            ('foreign_3.b', expected_bytes('defc-declarations-and-runtime-diagnostics_2.stderr')),
+            ('foreign_4.b', expected_bytes('defc-declarations-and-runtime-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/defc-declarations-and-runtime-diagnostics' / fixture_name
@@ -2263,13 +2263,13 @@ CRT 'main'
                     self.assertEqual(result.stderr, os.fsencode(source) + diagnostic + b'\n')
                 else:
                     self.assertEqual((result.returncode, result.stdout, result.stderr),
-                                     (0, b'done\n', b''))
+                                     (0, expected_bytes('defc-declarations-and-runtime-diagnostics.stdout'), b''))
 
     def test_defc_rejects_invalid_types_and_argument_counts(self):
         for fixture_name, diagnostic in (
-            ('foreign_1.b', ':1:18: expected a DEFC argument type'),
-            ('foreign_2.b', ":2:5: too few arguments for DEFC 'Native'"),
-            ('foreign_3.b', ":2:1: too many arguments for DEFC 'Native'"),
+            ('foreign_1.b', expected_text('defc-rejects-invalid-types-and-argument-counts.stderr')),
+            ('foreign_2.b', expected_text('defc-rejects-invalid-types-and-argument-counts_2.stderr')),
+            ('foreign_3.b', expected_text('defc-rejects-invalid-types-and-argument-counts_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/defc-rejects-invalid-types-and-argument-counts' / fixture_name
