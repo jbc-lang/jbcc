@@ -1,0 +1,2 @@
+SUBROUTINE RUN.CHILD()
+PERFORM './child'

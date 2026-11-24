@@ -1,0 +1,2 @@
+CALL RUN.CHILD()
+CRT 'returned ' : @SYSTEM.RETURN.CODE

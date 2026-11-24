@@ -235,13 +235,13 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Command execution and piped output (7)
 
-- [ ] `test_capture_from_pipe`
-- [ ] `test_exec_rejects_duplicate_returning_clause`
-- [ ] `test_execute_large_stdout_and_stderr`
-- [ ] `test_execute_result_diagnostics`
-- [ ] `test_execute_rtnlist_requires_backend_before_running_command`
-- [ ] `test_execute_child_program`
-- [ ] `test_execute_command_diagnostics`
+- [x] `test_capture_from_pipe` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_exec_rejects_duplicate_returning_clause`
+- [x] `test_execute_large_stdout_and_stderr`
+- [x] `test_execute_result_diagnostics`
+- [x] `test_execute_rtnlist_requires_backend_before_running_command`
+- [x] `test_execute_child_program`
+- [x] `test_execute_command_diagnostics`
 
 ## Arguments and invocation strings (7)
 

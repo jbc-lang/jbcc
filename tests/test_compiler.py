@@ -4095,7 +4095,7 @@ CRT A:'|':B:'|':C:'|':D:'|':E
 
     def test_capture_from_pipe(self):
         source = self.work / 'capture.b'
-        source.write_text("EXECUTE 'cat' CAPTURING Output\nCRT Output:\n")
+        copyfile(ROOT / 'tests/programs/capture-from-pipe.b', source)
         binary = self.work / 'capture'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         payload = b'x' * (256 * 1024) + b'\r\n\xff'
@@ -4107,18 +4107,13 @@ CRT A:'|':B:'|':C:'|':D:'|':E
         self.assertIn(f'{source}:1:1: CAPTURING cannot store a NUL byte'.encode(), run.stderr)
 
     def test_exec_rejects_duplicate_returning_clause(self):
-        source = self.work / 'exec.b'
-        source.write_text("EXEC ':' SETTING A RETURNING B\n")
+        source = ROOT / 'tests/programs/exec-rejects-duplicate-returning-clause.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:20: duplicate RETURNING clause', result.stderr)
 
     def test_execute_large_stdout_and_stderr(self):
-        source = self.work / 'execute.b'
-        source.write_text("""EXECUTE "awk 'BEGIN {for(i=0;i<65536;i++) print 1}' >&2; cat" RETURNING R CAPTURING O
-CRT R
-CRT O:
-""")
+        source = ROOT / 'tests/programs/execute-large-stdout-and-stderr.b'
         binary = self.work / 'execute'
         subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
         payload = b'x' * (256 * 1024)
@@ -4128,38 +4123,33 @@ CRT O:
         self.assertEqual(run.stderr, b'')
 
     def test_execute_result_diagnostics(self):
-        source = self.work / 'execute.b'
-        for clauses, repeated in [('SETTING A RETURNING B', 'RETURNING'),
-                                  ('CAPTURING A CAPTURING B', 'CAPTURING'),
-                                  ('RTNLIST RTNLIST List', 'RTNLIST')]:
-            source.write_text(f"EXECUTE ':' {clauses}\n")
+        for fixture_name, repeated in (
+            ('execute_1.b', 'RETURNING'),
+            ('execute_2.b', 'CAPTURING'),
+            ('execute_3.b', 'RTNLIST'),
+        ):
+            source = ROOT / 'tests/programs/execute-result-diagnostics' / fixture_name
             run = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
             column = source.read_text().rindex(repeated) + 1
             self.assertNotEqual(run.returncode, 0)
             self.assertIn(f'{source}:1:{column}: duplicate {repeated} clause'.encode(), run.stderr)
-        source.write_text("""EXECUTE "printf '\\000' >&2" SETTING R\n""")
+        source = ROOT / 'tests/programs/execute-result-diagnostics/execute-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:1: RETURNING cannot store a NUL byte'.encode(), run.stderr)
 
     def test_execute_rtnlist_requires_backend_before_running_command(self):
-        source = self.work / 'select.b'
         marker = self.work / 'child-ran'
-        for verb, clauses in (
-            ('EXECUTE', 'RTNLIST List CAPTURING Out'),
-            ('PERFORM', 'SETTING Status RTNLIST'),
-            ('EXEC', 'RTNLIST CAPTURING Out RETURNING Status'),
-            ('EXECUTE', 'CAPTURING Out RTNLIST Rows(1)'),
-            ('EXECUTE', 'RTNLIST 2'),
-            ('PERFORM', 'RTNLIST "7"'),
+        for fixture_name in (
+            'select_1.b',
+            'select_2.b',
+            'select_3.b',
+            'select_4.b',
+            'select_5.b',
+            'select_6.b',
         ):
-            with self.subTest(verb=verb, clauses=clauses):
-                source.write_text(f"""DIM Rows(2)
-RTNLIST = 'name'
-IF 0 THEN EXECUTE 'touch child-ran' RTNLIST ELSE CRT RTNLIST
-{verb} 'touch child-ran' {clauses}
-CRT 'after'
-""")
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/execute-rtnlist-requires-backend-before-running-command' / fixture_name
                 run = self.run_native(source, cwd=self.work)
                 self.assertEqual(run.returncode, 1, run.stderr)
                 self.assertEqual(run.stdout, b'name\n')
@@ -4169,13 +4159,10 @@ CRT 'after'
                 self.assertFalse(marker.exists())
 
     def test_execute_child_program(self):
-        child = self.work / 'child.b'
-        child.write_text("PROMPT ''\nINPUT value\nCRT 'child read ' : value\nEXIT(4)\n")
+        child = ROOT / 'tests/programs/execute-child-program/child.b'
         subprocess.run([CLI, '--exe', child, '-o', self.work / 'child'], check=True)
-        main = self.work / 'main.b'
-        main.write_text("CALL RUN.CHILD()\nCRT 'returned ' : @SYSTEM.RETURN.CODE\n")
-        sub = self.work / 'sub.b'
-        sub.write_text("SUBROUTINE RUN.CHILD()\nPERFORM './child'\n")
+        main = ROOT / 'tests/programs/execute-child-program/main.b'
+        sub = ROOT / 'tests/programs/execute-child-program/sub.b'
         binary = self.work / 'main'
         subprocess.run([CLI, '--exe', main, sub, '-o', binary], check=True)
         run = subprocess.run([binary], cwd=self.work, input=b'hello\n', capture_output=True, timeout=5)
@@ -4184,11 +4171,12 @@ CRT 'after'
         self.assertEqual(run.stderr, b'')
 
     def test_execute_command_diagnostics(self):
-        source = self.work / 'command.b'
-        for command, message in [("CHAR(255) : 'ktrue'", 'unsupported EXECUTE shell selector'),
-                                 ("'true' : @FM : 'true'", 'field-mark-separated EXECUTE commands are unsupported')]:
-            with self.subTest(command=command):
-                source.write_text(f'EXECUTE {command}\n')
+        for fixture_name, message in (
+            ('command_1.b', 'unsupported EXECUTE shell selector'),
+            ('command_2.b', 'field-mark-separated EXECUTE commands are unsupported'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/execute-command-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:1:1: {message}'.encode(), run.stderr)
