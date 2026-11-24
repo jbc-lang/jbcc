@@ -3562,7 +3562,7 @@ CRT 'main'
         env.pop('CC_FLAGS', None)
         subprocess.run(cmd, env=env, check=True)
         expected = binary.read_bytes()
-        self.assertEqual(subprocess.check_output([binary]), b'5\n23\n')
+        self.assertEqual(subprocess.check_output([binary]), (ROOT / 'tests/snippets/coercion.stdout').read_bytes())
 
         wrapper = self.work / 'check flags.py'
         wrapper.write_text("import sys\nassert '--argument with spaces' in sys.argv\nsys.exit(42)\n")
@@ -3570,7 +3570,7 @@ CRT 'main'
                    CC_FLAGS="'--argument with spaces'")
         run = subprocess.run(cmd, env=env, text=True, capture_output=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn('status 42', run.stderr)
+        self.assertIn(expected_text('executable-mode.stderr'), run.stderr)
         self.assertEqual(binary.read_bytes(), expected)
 
     def test_executable_mode_links_math_with_exit_callbacks(self):
@@ -3581,7 +3581,7 @@ CRT 'main'
         env = dict(os.environ, CC=compiler, CC_FLAGS='-Wall -Wextra -Werror -pedantic')
         subprocess.run([CLI, '--exe', source, '-o', binary], env=env, check=True)
         run = subprocess.run([binary], capture_output=True, timeout=5, check=True)
-        self.assertEqual((run.stdout, run.stderr), (b'1\n3\n', b''))
+        self.assertEqual((run.stdout, run.stderr), (expected_bytes('executable-mode-links-math-with-exit-callbacks.stdout'), b''))
 
     def test_assignment_predicates_on_arguments(self):
         caller = ROOT / 'tests/programs/assignment-predicates-on-arguments/caller.b'

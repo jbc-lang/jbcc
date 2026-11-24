@@ -440,5 +440,5 @@ assertions in Python. Reuse existing output fixtures where they apply.
 
 ## Executable build and compiler driver (2)
 
-- [ ] `test_executable_mode` — stdout (exact), stderr (fragment)
-- [ ] `test_executable_mode_links_math_with_exit_callbacks` — stdout (exact)
+- [x] `test_executable_mode` — stdout (exact), stderr (fragment)
+- [x] `test_executable_mode_links_math_with_exit_callbacks` — stdout (exact)
