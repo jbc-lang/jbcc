@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Translate a subset of jBC to standalone C99."""
-from collections import deque
-from typing import NamedTuple, Optional
+
 import argparse
 import math
 import os
-from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
 import tempfile
-
+from collections import deque
+from pathlib import Path
+from typing import NamedTuple, Optional
 
 SOURCE_ENCODINGS = {'utf-8': 'utf-8', 'bytes': 'latin-1'}
 BARE_ROUTINE_NAME = re.compile(r"[ \t]*([^ \t(;]+)")
@@ -19,10 +19,14 @@ QUOTED_ROUTINE_NAME = re.compile(r"""[ \t]*("[^"]*"|'[^']*'|\\[^\\]*\\)""")
 
 
 NAME_PATTERN = r"[A-Za-z][A-Za-z0-9._$%]*"
-TOKEN = re.compile(rf"""(?P<space>[ \t]+)|(?P<name>{NAME_PATTERN})|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)""")
+TOKEN = re.compile(
+    rf"""(?P<space>[ \t]+)|(?P<name>{NAME_PATTERN})|(?P<number>[0-9]+(?:\.[0-9]*)?|\.[0-9]+)|(?P<string>"[^"]*"|'[^']*'|\\[^\\]*\\)|(?P<compound_assign>[:+*/-][ \t]*=)|(?P<symbol>=<|=>|#[<>]|(?<=[ \t])><|\*\*|\+\+|--|.)"""
+)
 # PROGRAM names follow the reference call-name delimiters. Reserve assignment
 # operators and postfix indexing for uses of PROGRAM as a variable.
-PROGRAM_NAME = re.compile(r"""[ \t]+(?![=(<\[]|[:+*/-][ \t]*=|\+\+|--)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)""")
+PROGRAM_NAME = re.compile(
+    r"""[ \t]+(?![=(<\[]|[:+*/-][ \t]*=|\+\+|--)("[^"]*"|'[^']*'|\\[^\\]*\\|[^\s(;'"\\]+)"""
+)
 ASSIGNMENTS = {'=', '+=', '-=', '*=', '/=', ':='}
 STEP_OPERATORS = {'++', '--'}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
@@ -30,44 +34,232 @@ EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
 C_FUNCTION_TYPES = {'INT', 'FLOAT', 'VAR', 'STRING'}
 XML_TRANSFORMS = {'DYNTOXML', 'XMLTODYN', 'XMLTOXML'}
 EXPRESSION_WRITES = {'GETENV', 'IOCTL', 'REMOVE'} | XML_TRANSFORMS
-COMPARISONS = {"=": "==", "EQ": "==", "#": "!=", "<>": "!=", "><": "!=", "NE": "!=",
-               "LT": "<", "<": "<", "LE": "<=", "<=": "<=", "=<": "<=", "GT": ">",
-               "#>": "<=", ">": ">", ">=": ">=", "=>": ">=", "GE": ">=", "#<": ">="}
-PRECEDENCE = {op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()}
+COMPARISONS = {
+    "=": "==",
+    "EQ": "==",
+    "#": "!=",
+    "<>": "!=",
+    "><": "!=",
+    "NE": "!=",
+    "LT": "<",
+    "<": "<",
+    "LE": "<=",
+    "<=": "<=",
+    "=<": "<=",
+    "GT": ">",
+    "#>": "<=",
+    ">": ">",
+    ">=": ">=",
+    "=>": ">=",
+    "GE": ">=",
+    "#<": ">=",
+}
+PRECEDENCE = {
+    op: 2 if cmp in ("==", "!=") else 3 for op, cmp in COMPARISONS.items()
+}
 LOGICAL = {"AND", "&", "OR", "!"}
 CONCATENATION = {":", "CAT"}
 PRECEDENCE.update(dict.fromkeys(LOGICAL, 1))
 PRECEDENCE.update(dict.fromkeys(CONCATENATION, 5))
-PRECEDENCE.update({"MATCH": 4, "MATCHES": 4, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9})
+PRECEDENCE.update(
+    {"MATCH": 4, "MATCHES": 4, "+": 7, "-": 7, "*": 8, "/": 8, "^": 9, "**": 9}
+)
 FORMAT_PRECEDENCE = 6  # Identifier precedence in the reference grammar.
-REUSE_OPERATORS = {'*': ('multiplication', 'jbc_muls'), '/': ('division', 'jbc_divide_reuse')}
+REUSE_OPERATORS = {
+    '*': ('multiplication', 'jbc_muls'),
+    '/': ('division', 'jbc_divide_reuse'),
+}
 
 
-BUILTINS = {"ENCRYPT": (3,), "DECRYPT": (3,), "BITOR": (2,), "JBASECOREDUMP": (2,), "CHECKSUM": (1,), "CALLONEXIT": (1,), "PUTENV": (1,), "LN": (1,), "EXP": (1,), "SQRT": (1,), "PWR": (2,), "RND": (1,), "BITXOR": (2,), "DTX": (1,), "XTD": (1,), "DROUND": (1, 2), "ADDS": (2,), "SUBS": (2,), "MULS": (2,), "SMUL": (2, 3), "SDIV": (2, 3), "DIVS": (2,), "COMPARE": (2, 3), "CATS": (2,), "NES": (2,), "EQS": (2,), "LES": (2,), "LTS": (2,), "GES": (2,), "GTS": (2,), "SORT": (1,), "MATCHFIELD": (3,), "RECORDLOCKED": (2,), "FILEINFO": (2,), "ALPHA": (1,), "ISALPHA": (1,), "ISDIGIT": (1,), "ASCII": (1,), "EBCDIC": (1,), "UTF8": (1,), "LATIN1": (1,), "NUM": (1,), "NUMS": (1,), "CHANGE": (3, 4, 5), "EREPLACE": (3, 4, 5), "SWAP": (3, 4, 5), "DELETE": (2, 3, 4), "EXTRACT": (2, 3, 4), "TIMEDATE": (0,), "TIMESTAMP": (0,), "UNIQUEKEY": (0,), "TIME": (0,), "DATE": (0,), "ITYPE": (1,), "ICONV": (2,), "ICONVS": (2,), "OCONV": (2,), "OCONVS": (2,), "TRIM": (1, 2, 3), "TRIMS": (1,), "TRIMBS": (1,), "TRIMFS": (1,), "TRIMF": (1,), "TRIMB": (1,), "ABS": (1,), "ABSS": (1,), "NEG": (1,), "NEGS": (1,), "DIV": (2,), "MOD": (2,), "REM": (2,), "SUM": (1,), "SUMMATION": (1,), "MAXIMUM": (1,), "MINIMUM": (1,), "SPACE": (1,), "SPACES": (1,), "STR": (2,), "COS": (1,), "SIN": (1,), "INT": (1,), "SYSTEM": (1,), "SENTENCE": (0, 1), "KEYIN": (0,), "IN": (0,), "STATUS": (0,), "CHAR": (1,), "SEQ": (1,), "LEN": (1,), "BYTELEN": (1,), "LENDP": (1,), "LEFT": (2,), "FOLD": (2,), "RIGHT": (2,), "SUBSTRINGS": (3,), "SPLICE": (3,), "INDEX": (3,), "FMT": (2,), "FMTS": (2,), "CONVERT": (3,), "QUOTE": (1,), "DQUOTE": (1,), "SQUOTE": (1,), "UPCASE": (1,), "DOWNCASE": (1,), "LOWCASE": (1,), "RAISE": (1,), "LOWER": (1,), "FIELD": (3, 4), "FIELDS": (3, 4), "GROUP": (3, 4), "COL1": (0,), "COL2": (0,), "COUNT": (2,), "COUNTS": (2,), "DCOUNT": (2,), "NOT": (1,)}
+BUILTINS = {
+    "ENCRYPT": (3,),
+    "DECRYPT": (3,),
+    "BITOR": (2,),
+    "JBASECOREDUMP": (2,),
+    "CHECKSUM": (1,),
+    "CALLONEXIT": (1,),
+    "PUTENV": (1,),
+    "LN": (1,),
+    "EXP": (1,),
+    "SQRT": (1,),
+    "PWR": (2,),
+    "RND": (1,),
+    "BITXOR": (2,),
+    "DTX": (1,),
+    "XTD": (1,),
+    "DROUND": (1, 2),
+    "ADDS": (2,),
+    "SUBS": (2,),
+    "MULS": (2,),
+    "SMUL": (2, 3),
+    "SDIV": (2, 3),
+    "DIVS": (2,),
+    "COMPARE": (2, 3),
+    "CATS": (2,),
+    "NES": (2,),
+    "EQS": (2,),
+    "LES": (2,),
+    "LTS": (2,),
+    "GES": (2,),
+    "GTS": (2,),
+    "SORT": (1,),
+    "MATCHFIELD": (3,),
+    "RECORDLOCKED": (2,),
+    "FILEINFO": (2,),
+    "ALPHA": (1,),
+    "ISALPHA": (1,),
+    "ISDIGIT": (1,),
+    "ASCII": (1,),
+    "EBCDIC": (1,),
+    "UTF8": (1,),
+    "LATIN1": (1,),
+    "NUM": (1,),
+    "NUMS": (1,),
+    "CHANGE": (3, 4, 5),
+    "EREPLACE": (3, 4, 5),
+    "SWAP": (3, 4, 5),
+    "DELETE": (2, 3, 4),
+    "EXTRACT": (2, 3, 4),
+    "TIMEDATE": (0,),
+    "TIMESTAMP": (0,),
+    "UNIQUEKEY": (0,),
+    "TIME": (0,),
+    "DATE": (0,),
+    "ITYPE": (1,),
+    "ICONV": (2,),
+    "ICONVS": (2,),
+    "OCONV": (2,),
+    "OCONVS": (2,),
+    "TRIM": (1, 2, 3),
+    "TRIMS": (1,),
+    "TRIMBS": (1,),
+    "TRIMFS": (1,),
+    "TRIMF": (1,),
+    "TRIMB": (1,),
+    "ABS": (1,),
+    "ABSS": (1,),
+    "NEG": (1,),
+    "NEGS": (1,),
+    "DIV": (2,),
+    "MOD": (2,),
+    "REM": (2,),
+    "SUM": (1,),
+    "SUMMATION": (1,),
+    "MAXIMUM": (1,),
+    "MINIMUM": (1,),
+    "SPACE": (1,),
+    "SPACES": (1,),
+    "STR": (2,),
+    "COS": (1,),
+    "SIN": (1,),
+    "INT": (1,),
+    "SYSTEM": (1,),
+    "SENTENCE": (0, 1),
+    "KEYIN": (0,),
+    "IN": (0,),
+    "STATUS": (0,),
+    "CHAR": (1,),
+    "SEQ": (1,),
+    "LEN": (1,),
+    "BYTELEN": (1,),
+    "LENDP": (1,),
+    "LEFT": (2,),
+    "FOLD": (2,),
+    "RIGHT": (2,),
+    "SUBSTRINGS": (3,),
+    "SPLICE": (3,),
+    "INDEX": (3,),
+    "FMT": (2,),
+    "FMTS": (2,),
+    "CONVERT": (3,),
+    "QUOTE": (1,),
+    "DQUOTE": (1,),
+    "SQUOTE": (1,),
+    "UPCASE": (1,),
+    "DOWNCASE": (1,),
+    "LOWCASE": (1,),
+    "RAISE": (1,),
+    "LOWER": (1,),
+    "FIELD": (3, 4),
+    "FIELDS": (3, 4),
+    "GROUP": (3, 4),
+    "COL1": (0,),
+    "COL2": (0,),
+    "COUNT": (2,),
+    "COUNTS": (2,),
+    "DCOUNT": (2,),
+    "NOT": (1,),
+}
 
 
-REUSE_POSITIONS = {"ADDS": (0, 1), "SUBS": (0, 1), "MULS": (0, 1), "DIVS": (0, 1), "CATS": (0, 1), "SPLICE": (0, 2), "EQS": (0, 1), "NES": (0, 1),
-                   "LES": (0, 1), "LTS": (0, 1), "GES": (0, 1), "GTS": (0, 1)}
+REUSE_POSITIONS = {
+    "ADDS": (0, 1),
+    "SUBS": (0, 1),
+    "MULS": (0, 1),
+    "DIVS": (0, 1),
+    "CATS": (0, 1),
+    "SPLICE": (0, 2),
+    "EQS": (0, 1),
+    "NES": (0, 1),
+    "LES": (0, 1),
+    "LTS": (0, 1),
+    "GES": (0, 1),
+    "GTS": (0, 1),
+}
 
 
-RECORD_VARIABLES = {'ID': 'jbc_record_id', 'RECORD': 'jbc_record', 'FILENAME': 'jbc_filename'}
+RECORD_VARIABLES = {
+    'ID': 'jbc_record_id',
+    'RECORD': 'jbc_record',
+    'FILENAME': 'jbc_filename',
+}
 
 
 SYSTEM_CONSTANTS = {
-    'TRUE': '"1"', 'FALSE': '"0"',
-    'IM': r'"\377"', 'RM': r'"\377"',
-    'AM': r'"\376"', 'FM': r'"\376"', 'VM': r'"\375"', 'SM': r'"\374"',
-    'SVM': r'"\374"', 'TM': r'"\373"',
-    'SYS.BELL': r'"\007"', 'SYS_BELL': r'"\007"',
+    'TRUE': '"1"',
+    'FALSE': '"0"',
+    'IM': r'"\377"',
+    'RM': r'"\377"',
+    'AM': r'"\376"',
+    'FM': r'"\376"',
+    'VM': r'"\375"',
+    'SM': r'"\374"',
+    'SVM': r'"\374"',
+    'TM': r'"\373"',
+    'SYS.BELL': r'"\007"',
+    'SYS_BELL': r'"\007"',
 }
 
 
 LOOP_BOUNDARIES = {'WHILE', 'UNTIL', 'REPEAT', 'NEXT'}
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
 FORMAT_BOUNDARIES = OUTPUT_END | {
-    "APPEND", "BEFORE", "BY", "CAPTURING", "CASE", "DO", "END", "ERROR", "FOR", "FROM",
-    "GO", "GOSUB", "GOTO", "IN", "LOCKED", "ON", "READONLY", "RETURNING", "SETTING",
-    "STEP", "THEN", "TO", "USING", "WAIT", "WITH", "WRITEONLY",
+    "APPEND",
+    "BEFORE",
+    "BY",
+    "CAPTURING",
+    "CASE",
+    "DO",
+    "END",
+    "ERROR",
+    "FOR",
+    "FROM",
+    "GO",
+    "GOSUB",
+    "GOTO",
+    "IN",
+    "LOCKED",
+    "ON",
+    "READONLY",
+    "RETURNING",
+    "SETTING",
+    "STEP",
+    "THEN",
+    "TO",
+    "USING",
+    "WAIT",
+    "WITH",
+    "WRITEONLY",
 }
 
 
@@ -88,7 +280,11 @@ def angle_tokens(words):
         word = token.word
         prev = words[i - 1] if i else None
         following = words[i + 1] if i + 1 < len(words) else None
-        adjacent = following and token.line == following.line and token.column + 1 == following.column
+        adjacent = (
+            following
+            and token.line == following.line
+            and token.column + 1 == following.column
+        )
         if token.kind == 'routine_name':
             continue
         if word in ('(', '['):
@@ -104,8 +300,16 @@ def angle_tokens(words):
         elif word in LOGICAL:
             scopes[-1].clear()
         elif word == '<' and prev:
-            if prev.kind in ('name', 'system_name', 'number', 'string') or prev.word in (')', ']', '>'):
-                tight = prev.line == token.line and prev.column + len(prev.word) == token.column
+            if prev.kind in (
+                'name',
+                'system_name',
+                'number',
+                'string',
+            ) or prev.word in (')', ']', '>'):
+                tight = (
+                    prev.line == token.line
+                    and prev.column + len(prev.word) == token.column
+                )
                 if not (adjacent and following.word in ('=', '>')):
                     scopes[-1].append((i, tight))
         elif word == '>' and scopes[-1] and prev.word != '<':
@@ -116,8 +320,14 @@ def angle_tokens(words):
                 if adjacent and following.word == '=':
                     continue
                 clause = following.word in ('THEN', 'ELSE') or (
-                    in_locate and following.word in ('IN', 'BY', 'SETTING'))
-                operand = following.kind in ('name', 'system_name', 'string', 'number') or following.word in ('(', '@')
+                    in_locate and following.word in ('IN', 'BY', 'SETTING')
+                )
+                operand = following.kind in (
+                    'name',
+                    'system_name',
+                    'string',
+                    'number',
+                ) or following.word in ('(', '@')
                 if operand and following.word not in PRECEDENCE and not clause:
                     continue
             words[j] = words[j]._replace(kind='array_open')
@@ -126,7 +336,11 @@ def angle_tokens(words):
     while i < len(words):
         token = words[i]
         i += 1
-        if i < len(words) and token.kind == words[i].kind == 'symbol' and token.line == words[i].line:
+        if (
+            i < len(words)
+            and token.kind == words[i].kind == 'symbol'
+            and token.line == words[i].line
+        ):
             following = words[i]
             pair = token.word + following.word
             adjacent = following.column == token.column + 1
@@ -139,9 +353,12 @@ def angle_tokens(words):
 
 def is_label(name, colon):
     return name.kind == 'line_label' or (
-            name.kind in ('name', 'number') and name.word not in ('CRT', 'DISPLAY', 'PRINT')
-            and colon.kind == 'symbol' and colon.word == ':'
-            and colon.column == name.column + len(name.word))
+        name.kind in ('name', 'number')
+        and name.word not in ('CRT', 'DISPLAY', 'PRINT')
+        and colon.kind == 'symbol'
+        and colon.word == ':'
+        and colon.column == name.column + len(name.word)
+    )
 
 
 def routine_name_at(line, offset, n, path, call):
@@ -160,7 +377,11 @@ def routine_name_at(line, offset, n, path, call):
         if not name:
             directive_error(token, "expected a subroutine name")
         return token._replace(word=name), quoted.end()
-    if name == '!' or (not call and (plain := TOKEN.fullmatch(name)) and plain.lastgroup == 'name'):
+    if name == '!' or (
+        not call
+        and (plain := TOKEN.fullmatch(name))
+        and plain.lastgroup == 'name'
+    ):
         # Ordinary headers retain EQUATE expansion.
         return None, offset
     return token, bare.end()
@@ -179,23 +400,46 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
         word = match[0]
         if match.lastgroup == 'space':
             continue
-        if len(words) in (first_on_line, statement_start) and (word.startswith('*') or word in ('!', 'REM')):
+        if len(words) in (first_on_line, statement_start) and (
+            word.startswith('*') or word in ('!', 'REM')
+        ):
             # A comma continues the expression onto this physical line.
             # jpp's leading REM comment rule requires whitespace or end of line.
-            if not (word == 'REM' and words and words[-1].word == ',' and line.startswith('(', offset)):
+            if not (
+                word == 'REM'
+                and words
+                and words[-1].word == ','
+                and line.startswith('(', offset)
+            ):
                 break
         # jpp treats the rest of a line after comma-semicolon as a comment.
-        if (word == ';' and words and words[-1].kind == 'symbol'
-                and words[-1].word == ',' and words[-1].line == n):
+        if (
+            word == ';'
+            and words
+            and words[-1].kind == 'symbol'
+            and words[-1].word == ','
+            and words[-1].line == n
+        ):
             break
         kind = match.lastgroup
-        if not words and (word == '.' or (
-                source_line and kind == 'number' and word.isdigit()
-                and line[offset:offset + 1] in ('', ' ', '\t', ':', ';', '*', '!'))):
+        if not words and (
+            word == '.'
+            or (
+                source_line
+                and kind == 'number'
+                and word.isdigit()
+                and line[offset : offset + 1]
+                in ('', ' ', '\t', ':', ';', '*', '!')
+            )
+        ):
             kind = 'line_label'
             if line.startswith(':', offset):
                 offset += 1
-        if word == '!' and offset < len(line) and TOKEN.match(line, offset).lastgroup == 'name':
+        if (
+            word == '!'
+            and offset < len(line)
+            and TOKEN.match(line, offset).lastgroup == 'name'
+        ):
             kind = 'bang_prefix'
         if kind == 'compound_assign':
             word = word[0] + '='
@@ -204,8 +448,9 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
             # jpp expands equates in CALL @ targets but protects system names.
             if len(words) < 2 or words[-2].word != 'CALL':
                 kind = 'system_name'
-        if word == 'PROGRAM' and (len(words) == statement_start
-                                  or words[-1].word in ('THEN', 'ELSE')):
+        if word == 'PROGRAM' and (
+            len(words) == statement_start or words[-1].word in ('THEN', 'ELSE')
+        ):
             name = PROGRAM_NAME.match(line, offset)
             if name:
                 kind = 'program_header'
@@ -217,12 +462,17 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
         elif word == ';' and parentheses:
             kind = 'argument_separator'
         call = word == 'CALL'
-        is_routine_header = word in ('SUB', 'SUBROUTINE') and len(words) == first_on_line
+        is_routine_header = (
+            word in ('SUB', 'SUBROUTINE') and len(words) == first_on_line
+        )
         name = None
         if not parentheses and (call or is_routine_header):
-            starts_statement = (len(words) in (first_on_line, statement_start)
-                                or words[-1].word in ('THEN', 'ELSE', 'ERROR', 'LOCKED', 'DO', 'LOOP')
-                                or words[statement_start].word == 'CASE')
+            starts_statement = (
+                len(words) in (first_on_line, statement_start)
+                or words[-1].word
+                in ('THEN', 'ELSE', 'ERROR', 'LOCKED', 'DO', 'LOOP')
+                or words[statement_start].word == 'CASE'
+            )
             if starts_statement and not line.startswith(':', offset):
                 name, offset = routine_name_at(line, offset, n, path, call)
         if 0 <= nul < offset:
@@ -230,21 +480,35 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
         words.append(Token(word, kind, n, match.start() + 1, path))
         if name:
             words.append(name)
-        if kind == 'line_label' or (word == ';' and not parentheses) or (len(words) == statement_start + 2
-                           and is_label(words[statement_start], words[-1])):
+        if (
+            kind == 'line_label'
+            or (word == ';' and not parentheses)
+            or (
+                len(words) == statement_start + 2
+                and is_label(words[statement_start], words[-1])
+            )
+        ):
             statement_start = len(words)
     while words and words[-1].kind == 'symbol' and words[-1].word == ';':
         words.pop()
     return parentheses
 
 
-INCLUDE = re.compile(r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?""")
-DIRECTIVE = re.compile(r"^[#$][ \t]*(IFDEF|IFNDEF|ELSE|ENDIF|END|DEFINE)\b", re.IGNORECASE | re.ASCII)
+INCLUDE = re.compile(
+    r"""\s*[$#]?(?:INSERT|INCLUDE)\s+(?:"([^"]+)"|'([^']+)'|([^;\s]+))\s*(?:;\s*(?:[*!]|REM\b).*)?"""
+)
+DIRECTIVE = re.compile(
+    r"^[#$][ \t]*(IFDEF|IFNDEF|ELSE|ENDIF|END|DEFINE)\b",
+    re.IGNORECASE | re.ASCII,
+)
 DIRECTIVE_SYMBOL = re.compile(rf"[ \t]+({NAME_PATTERN})")
-PACKAGE_DIRECTIVE = re.compile(r"^[ \t]*\$(PACKAGE|USING)\b", re.IGNORECASE | re.ASCII)
+PACKAGE_DIRECTIVE = re.compile(
+    r"^[ \t]*\$(PACKAGE|USING)\b", re.IGNORECASE | re.ASCII
+)
 PACKAGE_ARGUMENT = re.compile(
     r"[ \t]+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
-    r"[ \t]*(?:;[ \t]*(?:(?:[*!]|REM\b).*)?)?", re.IGNORECASE | re.ASCII
+    r"[ \t]*(?:;[ \t]*(?:(?:[*!]|REM\b).*)?)?",
+    re.IGNORECASE | re.ASCII,
 )
 
 
@@ -273,7 +537,9 @@ def directive_error(token, message):
 
 
 def source_nul_error(path, line, offset):
-    raise Diagnostic(f"{path}:{line}:{offset + 1}: NUL bytes in source are unsupported")
+    raise Diagnostic(
+        f"{path}:{line}:{offset + 1}: NUL bytes in source are unsupported"
+    )
 
 
 def split_statements(tokens):
@@ -291,17 +557,28 @@ def is_equate(statement):
     if not statement or statement[0].word not in ('EQU', 'EQUATE'):
         return False
     # EQU and EQUATE can also be assignment targets.
-    return len(statement) == 1 or statement[1].word not in ASSIGNMENT_PREFIXES | {'('}
+    return len(statement) == 1 or statement[
+        1
+    ].word not in ASSIGNMENT_PREFIXES | {'('}
 
 
 class Preprocessor:
-    def __init__(self, directories, encoding='utf-8', *, source_filter=None, include_resolver=None,
-                 package_directives=None):
+    def __init__(
+        self,
+        directories,
+        encoding='utf-8',
+        *,
+        source_filter=None,
+        include_resolver=None,
+        package_directives=None,
+    ):
         self.directories = directories
         self.encoding = encoding
         self.source_filter = source_filter
         self.include_resolver = include_resolver
-        self.package_directives = [] if package_directives is None else package_directives
+        self.package_directives = (
+            [] if package_directives is None else package_directives
+        )
         self.package = None
         self.equates = {}
         self.direct_definitions = set()
@@ -310,20 +587,32 @@ class Preprocessor:
         i = 1
         while i < len(words):
             name = words[i]
-            if name.kind != 'name' or i + 2 >= len(words) or words[i + 1].word not in EQUATE_OPERATORS:
+            if (
+                name.kind != 'name'
+                or i + 2 >= len(words)
+                or words[i + 1].word not in EQUATE_OPERATORS
+            ):
                 directive_error(name, "expected EQUATE name TO expression")
             end = i + 2
             while end < len(words):
-                if (words[end].word == ',' and end + 2 < len(words)
-                        and words[end + 1].kind == 'name' and words[end + 2].word in EQUATE_OPERATORS):
+                if (
+                    words[end].word == ','
+                    and end + 2 < len(words)
+                    and words[end + 1].kind == 'name'
+                    and words[end + 2].word in EQUATE_OPERATORS
+                ):
                     break
                 end += 1
             if end == i + 2:
                 directive_error(name, "empty EQUATE expression")
-            replacement = words[i + 2:end]
+            replacement = words[i + 2 : end]
             literal = replacement[0]
-            if (words[i + 1].word != 'TO' and len(replacement) == 1
-                    and literal.kind == 'string' and literal.word[0] in "\"'"):
+            if (
+                words[i + 1].word != 'TO'
+                and len(replacement) == 1
+                and literal.kind == 'string'
+                and literal.word[0] in "\"'"
+            ):
                 replacement = [literal._replace(kind='equate_text')]
             self.equates[name.word] = replacement
             self.direct_definitions.discard(name.word)
@@ -341,8 +630,11 @@ class Preprocessor:
                 yield from self.expand(list(angle_tokens(replacement)), stack)
             elif token.kind == 'name' and token.word in self.equates:
                 # The reference preprocessor skips EQUATE lookup for direct CALL names.
-                if ((i > 0 and words[i - 1].word == 'CALL')
-                        or (i > 1 and words[i - 1].kind == 'bang_prefix' and words[i - 2].word == 'CALL')):
+                if (i > 0 and words[i - 1].word == 'CALL') or (
+                    i > 1
+                    and words[i - 1].kind == 'bang_prefix'
+                    and words[i - 2].word == 'CALL'
+                ):
                     yield token
                     continue
                 if token.word in stack:
@@ -365,9 +657,15 @@ class Preprocessor:
                     yield separator
                 if separator is None and len(statement) == 1:
                     expanded = list(self.expand(statement))
-                    if len(expanded) == 1 and expanded[0].kind == 'number' and expanded[0].word.isdigit():
+                    if (
+                        len(expanded) == 1
+                        and expanded[0].kind == 'number'
+                        and expanded[0].word.isdigit()
+                    ):
                         # A standalone EQUATE can expand to a bare numeric label.
-                        expanded[0] = statement[0]._replace(word=expanded[0].word, kind='line_label')
+                        expanded[0] = statement[0]._replace(
+                            word=expanded[0].word, kind='line_label'
+                        )
                     yield from expanded
                 else:
                     yield from self.expand(statement)
@@ -384,40 +682,61 @@ class Preprocessor:
         if name in ('IFDEF', 'IFNDEF', 'DEFINE'):
             operand = DIRECTIVE_SYMBOL.match(line, offset)
             if not operand:
-                directive_error(opening, f"expected a symbol after {opening.word}")
+                directive_error(
+                    opening, f"expected a symbol after {opening.word}"
+                )
             symbol = operand[1]
             offset = operand.end()
         args = []
         lex_line(' ' * offset + line[offset:], n, path, args, 0)
         if name == 'DEFINE':
             if not args:
-                directive_error(opening, "expected a replacement after #DEFINE symbol")
+                directive_error(
+                    opening, "expected a replacement after #DEFINE symbol"
+                )
             if symbol not in self.equates:
                 # The reference expands existing substitutions while reading #DEFINE.
                 self.equates[symbol] = list(self.expand(angle_tokens(args)))
                 self.direct_definitions.add(symbol)
         else:
             if args:
-                directive_error(args[0], f"unexpected text after {opening.word}")
+                directive_error(
+                    args[0], f"unexpected text after {opening.word}"
+                )
             if symbol is not None:
                 matched = (symbol in self.equates) == (name == 'IFDEF')
-                conditions.append(ConditionalDirective(opening, active and matched))
+                conditions.append(
+                    ConditionalDirective(opening, active and matched)
+                )
             elif not conditions:
-                directive_error(opening, f"{opening.word} without matching #IFDEF or #IFNDEF")
+                directive_error(
+                    opening,
+                    f"{opening.word} without matching #IFDEF or #IFNDEF",
+                )
             else:
                 previous = conditions.pop()
                 if name == 'ELSE':
                     if previous.has_else:
                         directive_error(opening, "duplicate #ELSE")
                     parent_active = not conditions or conditions[-1].active
-                    conditions.append(ConditionalDirective(previous.opening, parent_active and not previous.active, True))
+                    conditions.append(
+                        ConditionalDirective(
+                            previous.opening,
+                            parent_active and not previous.active,
+                            True,
+                        )
+                    )
 
     def package_directive(self, directive, line, path, number):
         kind = directive[1].lower()
-        opening = Token('$' + kind.upper(), 'directive', number, line.index('$') + 1, path)
+        opening = Token(
+            '$' + kind.upper(), 'directive', number, line.index('$') + 1, path
+        )
         name = PACKAGE_ARGUMENT.fullmatch(line, directive.end())
         if not name:
-            directive_error(opening, f"expected a package name after {opening.word}")
+            directive_error(
+                opening, f"expected a package name after {opening.word}"
+            )
         if kind == 'package' and self.package is not None:
             directive_error(opening, "duplicate $PACKAGE declaration")
         token = Token(name[1], kind, number, name.start(1) + 1, path)
@@ -429,7 +748,7 @@ class Preprocessor:
         try:
             source = path.read_text(encoding=self.encoding)
         except UnicodeDecodeError as error:
-            prefix = error.object[:error.start].decode(self.encoding)
+            prefix = error.object[: error.start].decode(self.encoding)
             lines = prefix.replace('\r\n', '\n').replace('\r', '\n').split('\n')
             byte = error.object[error.start]
             raise SourceEncodingError(
@@ -465,18 +784,35 @@ class Preprocessor:
                     name = os.fsdecode(name.encode(self.encoding))
                 opening = newline._replace(column=1)
                 if self.include_resolver is None:
-                    candidates = (directory / name for directory in (path.parent, *self.directories))
-                    child = next((candidate for candidate in candidates if candidate.is_file()), None)
+                    candidates = (
+                        directory / name
+                        for directory in (path.parent, *self.directories)
+                    )
+                    child = next(
+                        (
+                            candidate
+                            for candidate in candidates
+                            if candidate.is_file()
+                        ),
+                        None,
+                    )
                 else:
-                    child = self.include_resolver(path, name, self.directories, opening)
+                    child = self.include_resolver(
+                        path, name, self.directories, opening
+                    )
                 if child is None:
                     directive_error(opening, f"include file '{name}' not found")
                 ancestors = parents + (path.resolve(),)
                 if child.resolve() in ancestors:
-                    directive_error(newline._replace(column=1), f"recursive include '{name}'")
+                    directive_error(
+                        newline._replace(column=1),
+                        f"recursive include '{name}'",
+                    )
                 yield from self.read(child, ancestors)
                 continue
-            parentheses = lex_line(line, n, path, words, parentheses, source_line=True)
+            parentheses = lex_line(
+                line, n, path, words, parentheses, source_line=True
+            )
             if words and words[-1].kind == 'symbol' and words[-1].word == ',':
                 continue
             tokens = list(angle_tokens(words))
@@ -491,8 +827,11 @@ class Preprocessor:
             last = list(split_statements(words))[-1][1]
             if is_equate(last):
                 directive_error(words[-1], "unfinished EQUATE list")
-            if parentheses or not any(token.kind == 'name' and token.word in ('CRT', 'DISPLAY', 'PRINT')
-                                      for token in last):
+            if parentheses or not any(
+                token.kind == 'name'
+                and token.word in ('CRT', 'DISPLAY', 'PRINT')
+                for token in last
+            ):
                 directive_error(words[-1], "unfinished comma continuation")
             yield from self.expand_line(list(angle_tokens(words)))
             yield newline
@@ -511,8 +850,14 @@ class SourceEncodingError(UnicodeError):
 def c_string(value, encoding='utf-8'):
     # Octal escapes have a fixed upper bound of three digits in C. Escaping
     # question marks also prevents trigraph substitution on C99 compilers.
-    return '"' + ''.join(chr(b) if 32 <= b < 127 and b not in b'"\\?'
-                         else '\\%03o' % b for b in value.encode(encoding, errors='surrogateescape')) + '"'
+    return (
+        '"'
+        + ''.join(
+            chr(b) if 32 <= b < 127 and b not in b'"\\?' else '\\%03o' % b
+            for b in value.encode(encoding, errors='surrogateescape')
+        )
+        + '"'
+    )
 
 
 class CommonBlock:
@@ -553,7 +898,11 @@ class Matrix(NamedTuple):
 
     @property
     def rank(self):
-        return f"frame->{self.field}.rank" if self.shape is None else len(self.shape)
+        return (
+            f"frame->{self.field}.rank"
+            if self.shape is None
+            else len(self.shape)
+        )
 
     def argument(self):
         if self.shape is None:
@@ -562,13 +911,19 @@ class Matrix(NamedTuple):
 
 
 def compatible_dimensions(a, b):
-    return len(a) == len(b) and all(x is None or y is None or x == y for x, y in zip(a, b))
+    return len(a) == len(b) and all(
+        x is None or y is None or x == y for x, y in zip(a, b)
+    )
 
 
 def constant_dimension(tokens, start, end):
     token = tokens[start]
-    if (end == start + 1 and token.kind == 'number' and token.word.isdigit()
-            and 0 < len(token.word) <= 9):
+    if (
+        end == start + 1
+        and token.kind == 'number'
+        and token.word.isdigit()
+        and 0 < len(token.word) <= 9
+    ):
         return int(token.word)
     return None
 
@@ -584,7 +939,9 @@ def dimension_shape(tokens, opening):
             stack.append('>')
         elif token.word in ('(', '['):
             stack.append(')' if token.word == '(' else ']')
-        elif token.word == stack[-1] and (token.word != '>' or token.kind == 'array_close'):
+        elif token.word == stack[-1] and (
+            token.word != '>' or token.kind == 'array_close'
+        ):
             stack.pop()
             if not stack:
                 shape.append(constant_dimension(tokens, start, i))
@@ -596,18 +953,33 @@ def dimension_shape(tokens, opening):
 
 
 def is_common_block_name(token):
-    return token.kind == 'name' or (token.kind == 'number' and token.word.isdigit())
+    return token.kind == 'name' or (
+        token.kind == 'number' and token.word.isdigit()
+    )
 
 
 def matrix_declarations(tokens):
     """Index the dimensions of each member before generating code."""
     members = {}
     for i, opening in enumerate(tokens):
-        if opening.kind != 'name' or opening.word not in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
+        if opening.kind != 'name' or opening.word not in (
+            'DIM',
+            'DIMENSION',
+            'COM',
+            'COMMON',
+        ):
             continue
-        if (i and tokens[i - 1].kind != 'line_label'
-                and tokens[i - 1].word not in ('\n', ';', 'THEN', 'ELSE', 'ERROR', 'LOCKED')
-                and not (i > 1 and tokens[i - 1].word == ':' and is_label(tokens[i - 2], tokens[i - 1]))):
+        if (
+            i
+            and tokens[i - 1].kind != 'line_label'
+            and tokens[i - 1].word
+            not in ('\n', ';', 'THEN', 'ELSE', 'ERROR', 'LOCKED')
+            and not (
+                i > 1
+                and tokens[i - 1].word == ':'
+                and is_label(tokens[i - 2], tokens[i - 1])
+            )
+        ):
             continue
         i += 1
         block_name = None
@@ -630,15 +1002,23 @@ def matrix_declarations(tokens):
             elif block_name is None:
                 break
             previous = members.get(member.word)
-            if previous is None or (shape and block_name is not None
-                                    and not previous[1] and previous[2] == block_name):
+            if previous is None or (
+                shape
+                and block_name is not None
+                and not previous[1]
+                and previous[2] == block_name
+            ):
                 members[member.word] = member, shape, block_name
             if tokens[i].word != ',':
                 break
             i += 1
             while tokens[i].word == '\n':
                 i += 1
-    return ((token, shape, block) for token, shape, block in members.values() if shape)
+    return (
+        (token, shape, block)
+        for token, shape, block in members.values()
+        if shape
+    )
 
 
 class ForAssignments(NamedTuple):
@@ -647,8 +1027,18 @@ class ForAssignments(NamedTuple):
 
 
 class Compiler:
-    def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False,
-                 defer_unassigned_reads=False, next_warning=None, api_call=None, component_members=None):
+    def __init__(
+        self,
+        path,
+        unit=0,
+        encoding='utf-8',
+        *,
+        separate_external_arities=False,
+        defer_unassigned_reads=False,
+        next_warning=None,
+        api_call=None,
+        component_members=None,
+    ):
         self.path = path
         self.unit = unit
         self.encoding = encoding
@@ -742,8 +1132,11 @@ class Compiler:
 
     def uses_matrix(self, name, next_word=None):
         matrix = self.matrices.get(name)
-        return matrix is not None and (next_word == '(' or name not in self.pending_matrices
-                                       or matrix.common_block is not None)
+        return matrix is not None and (
+            next_word == '('
+            or name not in self.pending_matrices
+            or matrix.common_block is not None
+        )
 
     def variable(self, name):
         if self.uses_matrix(name):
@@ -757,7 +1150,9 @@ class Compiler:
             self.for_assignments[-1].reads.append((message, token, warn))
             return
         if warn:
-            self.warnings.append(f"{token.path}:{token.line}:{token.column}: warning: {message}")
+            self.warnings.append(
+                f"{token.path}:{token.line}:{token.column}: warning: {message}"
+            )
             return
         if not self.possible_go:
             self.error(message, token)
@@ -766,23 +1161,36 @@ class Compiler:
 
     def unassigned_read(self, token, message, *, possible_function=False):
         if self.defer_unassigned_reads and not possible_function:
-            self.assignment_error(f"read of '{token.word}' before assignment is deferred to runtime",
-                                  token, warn=True)
+            self.assignment_error(
+                f"read of '{token.word}' before assignment is deferred to runtime",
+                token,
+                warn=True,
+            )
         else:
             self.assignment_error(message, token)
 
     def read_variable(self, token, *, possible_function=False):
-        if (token.word not in self.assigned and token.word not in self.maybe_assigned
-                and not self.has_unstructured_jumps):
-            self.unassigned_read(token, f"unknown variable or unsupported function '{token.word}'",
-                                 possible_function=possible_function)
+        if (
+            token.word not in self.assigned
+            and token.word not in self.maybe_assigned
+            and not self.has_unstructured_jumps
+        ):
+            self.unassigned_read(
+                token,
+                f"unknown variable or unsupported function '{token.word}'",
+                possible_function=possible_function,
+            )
         var = self.variable(token.word)
         return self.checked_read(var, token)
 
     def checked_read(self, var, token):
         read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
         # Capture the value before a later operand can overwrite this slot.
-        return self.temporary(read) if self.functions or self.has_expression_writes else read
+        return (
+            self.temporary(read)
+            if self.functions or self.has_expression_writes
+            else read
+        )
 
     def location(self, token):
         return f"{c_string(str(token.path))}, {token.line}, {token.column}"
@@ -801,7 +1209,9 @@ class Compiler:
             row = self.expression()
         self.expect(')')
         self.record_api_call(opening, 1 if row == "NULL" else 2)
-        return self.temporary(f"jbc_cursor({col}, {row}, {self.location(opening)})")
+        return self.temporary(
+            f"jbc_cursor({col}, {row}, {self.location(opening)})"
+        )
 
     def primary(self, locate_source=False):
         word = self.word
@@ -810,10 +1220,14 @@ class Compiler:
         if word in ('-', '+'):
             operator = self.current
             self.advance()
-            operand = self.expression(PRECEDENCE["*"], locate_source=locate_source)
+            operand = self.expression(
+                PRECEDENCE["*"], locate_source=locate_source
+            )
             if word == '+':
                 return operand
-            return self.temporary(f"jbc_negate({operand}, {self.location(operator)})")
+            return self.temporary(
+                f"jbc_negate({operand}, {self.location(operator)})"
+            )
         if word == '(':
             self.advance()
             value = self.expression()
@@ -823,17 +1237,25 @@ class Compiler:
             target = self.current
             self.advance()
             if self.word == '(':
-                return self.postfix(self.cursor_expression(target), locate_source)
+                return self.postfix(
+                    self.cursor_expression(target), locate_source
+                )
             if self.word == 'SYSTEM.RETURN.CODE':
                 self.advance()
-                return self.postfix(self.temporary("jbc_system_return_code()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_system_return_code()"), locate_source
+                )
             if self.word == 'SELECTED':
                 self.advance()
-                return self.postfix(self.temporary("jbc_selected()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_selected()"), locate_source
+                )
             if self.word in RECORD_VARIABLES:
                 slot = RECORD_VARIABLES[self.word]
                 self.advance()
-                return self.postfix(self.temporary(f"{slot}.value"), locate_source)
+                return self.postfix(
+                    self.temporary(f"{slot}.value"), locate_source
+                )
             if self.word in ('DATE', 'TIME'):
                 self.uses_startup_clock = True
                 function = f"jbc_startup_{self.word.lower()}"
@@ -843,35 +1265,54 @@ class Compiler:
             if self.word == 'WHO':
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_login_name()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_login_name()"), locate_source
+                )
             if self.word in ('LOGNAME', 'ACCOUNT'):
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_account_name()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_account_name()"), locate_source
+                )
             if self.word in ('TERM.TYPE', 'TERM_TYPE', 'TERMTYPE'):
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_terminal_type()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_terminal_type()"), locate_source
+                )
             if self.word == 'TTY':
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_terminal_name()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_terminal_name()"), locate_source
+                )
             if self.word == 'LPTRHIGH':
                 self.uses_report = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_lptrhigh()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_lptrhigh()"), locate_source
+                )
             if self.word == 'PATH':
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary(f"jbc_account_path({self.location(target)})"), locate_source)
+                return self.postfix(
+                    self.temporary(
+                        f"jbc_account_path({self.location(target)})"
+                    ),
+                    locate_source,
+                )
             if self.word == 'PID':
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_process_id()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_process_id()"), locate_source
+                )
             if self.word == 'USER.ROOT':
                 self.uses_session = True
                 self.advance()
-                return self.postfix(self.temporary("jbc_user_root()"), locate_source)
+                return self.postfix(
+                    self.temporary("jbc_user_root()"), locate_source
+                )
             if self.word == 'USERSTATS':
                 self.uses_session = True
                 self.uses_userstats = True
@@ -882,7 +1323,9 @@ class Compiler:
             if self.word in ('USERNO', 'USER.NO', 'USER_NO', 'UDTNO'):
                 self.uses_session = True
                 self.advance()
-                value = self.temporary(f"jbc_port_number({self.location(target)})")
+                value = self.temporary(
+                    f"jbc_port_number({self.location(target)})"
+                )
                 return self.postfix(value, locate_source)
             if self.word in ('SENTENCE', 'COMMAND'):
                 self.needs_arguments = True
@@ -906,9 +1349,14 @@ class Compiler:
         elif word in self.functions and self.following.word == '(':
             return self.postfix(self.function_call(), locate_source)
         elif self.following.word == '(' and self.component_call_member(word):
-            return self.postfix(self.component_call(self.identifier(), expression=True), locate_source)
+            return self.postfix(
+                self.component_call(self.identifier(), expression=True),
+                locate_source,
+            )
         elif word in self.c_functions and self.following.word == '(':
-            return self.postfix(self.temporary(self.c_function_call()), locate_source)
+            return self.postfix(
+                self.temporary(self.c_function_call()), locate_source
+            )
         elif word == 'GETENV' and self.following.word == '(':
             opening = self.current
             self.advance()
@@ -931,7 +1379,9 @@ class Compiler:
         elif word == 'IOCTL' and self.following.word == '(':
             return self.postfix(self.ioctl_expression(), locate_source)
         elif word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
-            return self.postfix(self.temporary(self.subroutine_exists_call()), locate_source)
+            return self.postfix(
+                self.temporary(self.subroutine_exists_call()), locate_source
+            )
         elif word in XML_TRANSFORMS and self.following.word == '(':
             return self.postfix(self.xml_transform_expression(), locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
@@ -963,10 +1413,16 @@ class Compiler:
                 args = f"{matrix.rank}, {matrix.limits}"
             self.expect(')')
             self.record_api_call(opening, 0 if args == "0, NULL" else 1)
-            return self.postfix(self.temporary(f"jbc_inmat({args})"), locate_source)
-        elif word == 'READNEXT' and (self.following.kind == 'name' or self.following.word == '@'):
+            return self.postfix(
+                self.temporary(f"jbc_inmat({args})"), locate_source
+            )
+        elif word == 'READNEXT' and (
+            self.following.kind == 'name' or self.following.word == '@'
+        ):
             call = self.readnext_call()
-            return self.postfix(self.temporary(f'{call} ? "1" : "0"'), locate_source)
+            return self.postfix(
+                self.temporary(f'{call} ? "1" : "0"'), locate_source
+            )
         elif word in ('ASSIGNED', 'UNASSIGNED') and self.following.word == '(':
             opening = self.current
             self.advance()
@@ -977,7 +1433,9 @@ class Compiler:
             self.record_api_call(opening, 1)
             assigned = word == 'ASSIGNED'
             comparison = '!=' if assigned else '=='
-            value = self.temporary(f'{slot}.value {comparison} NULL ? "1" : "0"')
+            value = self.temporary(
+                f'{slot}.value {comparison} NULL ? "1" : "0"'
+            )
             if target.word not in self.matrices:
                 self.assignment_facts[value, assigned] = {target.word}
             return self.postfix(value, locate_source)
@@ -994,8 +1452,13 @@ class Compiler:
             if self.word != ')':
                 while True:
                     index = len(args)
-                    if (word == 'FILEINFO' and index == 0 and self.current.kind == 'name'
-                            and self.following.word == ',' and self.word not in self.matrices):
+                    if (
+                        word == 'FILEINFO'
+                        and index == 0
+                        and self.current.kind == 'name'
+                        and self.following.word == ','
+                        and self.word not in self.matrices
+                    ):
                         # A bare file variable can be unassigned when probed.
                         slot = self.variable(self.identifier().word)
                         args.append(self.temporary(f"{slot}.value"))
@@ -1015,19 +1478,31 @@ class Compiler:
                 form = None
                 if word in ('ENCRYPT', 'DECRYPT'):
                     method = re.fullmatch(r'"([0-9]{1,4})"', args[2])
-                    form = f"method {method[1]}" if method else "computed method"
+                    form = (
+                        f"method {method[1]}" if method else "computed method"
+                    )
                 self.record_api_call(target, len(args), form=form)
             args.extend(str(reuse[i]) for i in reuse_positions)
             if word in ('DELETE', 'EXTRACT'):
                 indices = args[1:]
-                args = [args[0], f"(const char *[]){{{', '.join(indices)}}}", str(len(indices))]
+                args = [
+                    args[0],
+                    f"(const char *[]){{{', '.join(indices)}}}",
+                    str(len(indices)),
+                ]
             if word in ('CHANGE', 'EREPLACE', 'SWAP'):
                 if len(args) == 3:
                     args.append('"-1"')
                 if len(args) == 4:
                     args.append('"1"')
-                args.extend((str(int(word == 'EREPLACE')),
-                             c_string(f"{word} requires integer occurrence arguments")))
+                args.extend(
+                    (
+                        str(int(word == 'EREPLACE')),
+                        c_string(
+                            f"{word} requires integer occurrence arguments"
+                        ),
+                    )
+                )
                 word = 'CHANGE'
             if word in ('FIELD', 'FIELDS', 'GROUP') and len(args) == 3:
                 args.append('"1"')
@@ -1038,7 +1513,9 @@ class Compiler:
             if word == 'COMPARE' and len(args) == 2:
                 args.append('"L"')
             if word in ('TRIMS', 'TRIMBS', 'TRIMFS'):
-                args.append({'TRIMS': "'R'", 'TRIMBS': "'E'", 'TRIMFS': "'F'"}[word])
+                args.append(
+                    {'TRIMS': "'R'", 'TRIMBS': "'E'", 'TRIMFS': "'F'"}[word]
+                )
                 word = 'TRIM_ARRAY'
             if word in ('TRIMF', 'TRIMB'):
                 args.extend(['" "', '"L"' if word == 'TRIMF' else '"T"'])
@@ -1071,10 +1548,73 @@ class Compiler:
             if word == "SYSTEM":
                 self.terminal = True
                 self.uses_session = True
-            if word in ("JBASECOREDUMP", "CHECKSUM", "LN", "EXP", "SQRT", "PWR", "RND", "BITOR", "BITXOR", "DTX", "LATIN1", "DROUND", "MATCHFIELD", "COMPARE", "FILEINFO", "CHANGE", "DELETE", "EXTRACT", "TIMEDATE", "TIMESTAMP", "UNIQUEKEY", "TIME", "DATE", "ITYPE", "ICONV", "ICONVS", "OCONV", "OCONVS", "TRIM", "ABS", "ABSS", "NEG", "NEGS", "ADDS", "SUBS", "MULS", "SMUL", "SDIV", "DIVS", "DIV", "MOD", "SUM", "SUMMATION", "LEFT", "RIGHT", "FOLD", "SUBSTRINGS", "CHAR", "FIELD", "FIELDS", "FMT", "FMTS", "INDEX", "SPACE", "SPACES", "STR", "INT", "SIN", "COS", "SYSTEM"):
+            if word in (
+                "JBASECOREDUMP",
+                "CHECKSUM",
+                "LN",
+                "EXP",
+                "SQRT",
+                "PWR",
+                "RND",
+                "BITOR",
+                "BITXOR",
+                "DTX",
+                "LATIN1",
+                "DROUND",
+                "MATCHFIELD",
+                "COMPARE",
+                "FILEINFO",
+                "CHANGE",
+                "DELETE",
+                "EXTRACT",
+                "TIMEDATE",
+                "TIMESTAMP",
+                "UNIQUEKEY",
+                "TIME",
+                "DATE",
+                "ITYPE",
+                "ICONV",
+                "ICONVS",
+                "OCONV",
+                "OCONVS",
+                "TRIM",
+                "ABS",
+                "ABSS",
+                "NEG",
+                "NEGS",
+                "ADDS",
+                "SUBS",
+                "MULS",
+                "SMUL",
+                "SDIV",
+                "DIVS",
+                "DIV",
+                "MOD",
+                "SUM",
+                "SUMMATION",
+                "LEFT",
+                "RIGHT",
+                "FOLD",
+                "SUBSTRINGS",
+                "CHAR",
+                "FIELD",
+                "FIELDS",
+                "FMT",
+                "FMTS",
+                "INDEX",
+                "SPACE",
+                "SPACES",
+                "STR",
+                "INT",
+                "SIN",
+                "COS",
+                "SYSTEM",
+            ):
                 args.append(self.location(target))
             if word in ('ENCRYPT', 'DECRYPT'):
-                args.extend((str(int(word == 'DECRYPT')), self.location(target)))
+                args.extend(
+                    (str(int(word == 'DECRYPT')), self.location(target))
+                )
                 word = 'CRYPT'
             if word == 'LOWCASE':
                 word = 'DOWNCASE'
@@ -1090,26 +1630,40 @@ class Compiler:
             if word == 'NOT':
                 for truth in (True, False):
                     if (args[0], truth) in self.assignment_facts:
-                        self.assignment_facts[value, not truth] = self.assignment_facts[args[0], truth]
+                        self.assignment_facts[value, not truth] = (
+                            self.assignment_facts[args[0], truth]
+                        )
         elif word == 'IF' and word not in self.assigned:
             return self.postfix(self.conditional_expression(), locate_source)
-        elif self.current.kind == 'name' and self.following.word in STEP_OPERATORS:
+        elif (
+            self.current.kind == 'name'
+            and self.following.word in STEP_OPERATORS
+        ):
             target = self.identifier()
-            return self.variable_expression(target, self.variable(target.word), locate_source)
+            return self.variable_expression(
+                target, self.variable(target.word), locate_source
+            )
         elif self.component_constant(word):
             access, _, literal, owner = self.component_members[word.casefold()]
             self.check_component_access(self.current, access, owner)
             value = c_string(literal)
         elif self.current.kind == 'name':
-            value = self.read_variable(self.current, possible_function=self.following.word == '(')
+            value = self.read_variable(
+                self.current, possible_function=self.following.word == '('
+            )
         elif self.current.kind == 'number':
             whole, dot, fraction = word.partition('.')
             fraction = fraction.rstrip('0')
-            value = c_string((whole.lstrip('0') or '0') + (dot + fraction if fraction else ''))
+            value = c_string(
+                (whole.lstrip('0') or '0')
+                + (dot + fraction if fraction else '')
+            )
         elif self.current.kind == 'string':
             value = c_string(word[1:-1], self.encoding)
         else:
-            self.error("expected a variable, integer, string or parenthesized expression")
+            self.error(
+                "expected a variable, integer, string or parenthesized expression"
+            )
         self.advance()
         return self.postfix(value, locate_source)
 
@@ -1129,11 +1683,17 @@ class Compiler:
                 args = self.bracket_arguments(1, 3)
                 operands = ", ".join(args)
                 if len(args) == 1:
-                    value = self.temporary(f"jbc_right({value}, {operands}, {location})")
+                    value = self.temporary(
+                        f"jbc_right({value}, {operands}, {location})"
+                    )
                 elif len(args) == 2:
-                    value = self.temporary(f"jbc_substring({value}, {operands}, {location}, NULL)")
+                    value = self.temporary(
+                        f"jbc_substring({value}, {operands}, {location}, NULL)"
+                    )
                 else:
-                    value = self.temporary(f"jbc_field({value}, {operands}, {location})")
+                    value = self.temporary(
+                        f"jbc_field({value}, {operands}, {location})"
+                    )
             else:
                 if locate_source:
                     break
@@ -1170,17 +1730,27 @@ class Compiler:
             # terminator before parsing the indices with expression precedence.
             depth = 0
             for i, token in enumerate(self.tokens):
-                if (token.word in ('\n', '') or (depth == 0 and token.word in ('THEN', 'ELSE'))
-                        or (token.word == ';' and token.kind == 'symbol')):
-                    self.error("expected closing '>' for dynamic-array assignment")
+                if (
+                    token.word in ('\n', '')
+                    or (depth == 0 and token.word in ('THEN', 'ELSE'))
+                    or (token.word == ';' and token.kind == 'symbol')
+                ):
+                    self.error(
+                        "expected closing '>' for dynamic-array assignment"
+                    )
                 if token.kind == 'array_open' or token.word in ('(', '['):
                     depth += 1
                 elif token.kind == 'array_close' or token.word in (')', ']'):
                     depth -= 1
                 elif depth == 0 and token.word in ('>', '>='):
-                    self.tokens[i] = token._replace(kind='array_close', word='>')
+                    self.tokens[i] = token._replace(
+                        kind='array_close', word='>'
+                    )
                     if token.word == '>=':
-                        self.tokens.insert(i + 1, token._replace(word='=', column=token.column + 1))
+                        self.tokens.insert(
+                            i + 1,
+                            token._replace(word='=', column=token.column + 1),
+                        )
                     break
         return self.array_indices()
 
@@ -1189,8 +1759,12 @@ class Compiler:
         return f'(const char *[]){{{", ".join(indices)}}}, {len(indices)}'
 
     def is_reuse_call(self):
-        return (self.word == 'REUSE' and self.following.word == '('
-                and 'REUSE' not in self.functions and 'REUSE' not in self.matrices)
+        return (
+            self.word == 'REUSE'
+            and self.following.word == '('
+            and 'REUSE' not in self.functions
+            and 'REUSE' not in self.matrices
+        )
 
     def reuse_scalar(self, context=None):
         wrapper = self.current
@@ -1200,20 +1774,34 @@ class Compiler:
         self.expect(')')
         self.record_api_call(wrapper, 1)
         if context is None:
-            context = REUSE_OPERATORS.get(self.word, ('an infix expression', None))[0]
+            context = REUSE_OPERATORS.get(
+                self.word, ('an infix expression', None)
+            )[0]
         message = c_string(f"REUSE in {context} requires a scalar")
-        return self.temporary(f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})")
+        return self.temporary(
+            f"jbc_reuse_scalar({scalar}, {message}, {self.location(wrapper)})"
+        )
 
-    def expression(self, minimum=1, colon_stops=(), locate_source=False, format_stops=()):
+    def expression(
+        self, minimum=1, colon_stops=(), locate_source=False, format_stops=()
+    ):
         reuse_left = self.is_reuse_call()
         if reuse_left:
             wrapper = self.current
             left = self.reuse_scalar()
-            if self.word not in REUSE_OPERATORS or minimum > PRECEDENCE[self.word]:
-                self.error("REUSE requires a direct multiplication or division operand", wrapper)
+            if (
+                self.word not in REUSE_OPERATORS
+                or minimum > PRECEDENCE[self.word]
+            ):
+                self.error(
+                    "REUSE requires a direct multiplication or division operand",
+                    wrapper,
+                )
         else:
             left = self.primary(locate_source)
-        return self.expression_tail(left, minimum, colon_stops, locate_source, reuse_left, format_stops)
+        return self.expression_tail(
+            left, minimum, colon_stops, locate_source, reuse_left, format_stops
+        )
 
     def is_format_mask(self):
         if self.current.kind in ('string', 'number'):
@@ -1225,38 +1813,70 @@ class Compiler:
         return self.word in self.names or self.has_unstructured_jumps
 
     def missing_concat_operand(self):
-        if self.current.kind == 'array_close' or self.word in ('', ':', ',', ')', ']', ';', '\n'):
+        if self.current.kind == 'array_close' or self.word in (
+            '',
+            ':',
+            ',',
+            ')',
+            ']',
+            ';',
+            '\n',
+        ):
             return True
         if self.word in PRECEDENCE:
             return self.word not in ('+', '-')
         # IN with a parenthesized operand can also be a statement delimiter.
-        if (self.word == 'IN' and self.following.word == '('
-                and self.tokens[1].word == ')'):
+        if (
+            self.word == 'IN'
+            and self.following.word == '('
+            and self.tokens[1].word == ')'
+        ):
             return False
-        return (self.word in FORMAT_BOUNDARIES and self.word not in self.names
-                and self.word not in self.matrices and self.word not in self.functions)
+        return (
+            self.word in FORMAT_BOUNDARIES
+            and self.word not in self.names
+            and self.word not in self.matrices
+            and self.word not in self.functions
+        )
 
-    def expression_tail(self, left, minimum=1, colon_stops=(), locate_source=False,
-                        reuse_left=False, format_stops=()):
+    def expression_tail(
+        self,
+        left,
+        minimum=1,
+        colon_stops=(),
+        locate_source=False,
+        reuse_left=False,
+        format_stops=(),
+    ):
         while self.current.kind not in ('array_open', 'array_close'):
             operator = self.word
             token = self.current
             precedence = PRECEDENCE.get(operator)
             if precedence is None:
-                if minimum > FORMAT_PRECEDENCE or operator in format_stops or not self.is_format_mask():
+                if (
+                    minimum > FORMAT_PRECEDENCE
+                    or operator in format_stops
+                    or not self.is_format_mask()
+                ):
                     break
                 mask = self.primary()
-                left = self.temporary(f"jbc_fmt({left}, {mask}, {self.location(token)})")
+                left = self.temporary(
+                    f"jbc_fmt({left}, {mask}, {self.location(token)})"
+                )
                 continue
             concatenating = operator in CONCATENATION
-            if precedence < minimum or (concatenating and self.following.word in colon_stops):
+            if precedence < minimum or (
+                concatenating and self.following.word in colon_stops
+            ):
                 break
             self.advance()
             if concatenating and self.missing_concat_operand():
                 self.omitted_concatenations += 1
                 continue
             if operator in LOGICAL:
-                left = self.logical_expression(left, operator, colon_stops, locate_source, format_stops)
+                left = self.logical_expression(
+                    left, operator, colon_stops, locate_source, format_stops
+                )
                 continue
             reuse_operator = REUSE_OPERATORS.get(operator)
             reuse_right = reuse_operator and self.is_reuse_call()
@@ -1265,13 +1885,19 @@ class Compiler:
                 context, _ = reuse_operator
                 right = self.reuse_scalar(context)
                 if PRECEDENCE.get(self.word, 0) > precedence:
-                    self.error(f"REUSE requires a direct {context} operand", wrapper)
+                    self.error(
+                        f"REUSE requires a direct {context} operand", wrapper
+                    )
             else:
-                right = self.expression(precedence + 1, colon_stops, locate_source, format_stops)
+                right = self.expression(
+                    precedence + 1, colon_stops, locate_source, format_stops
+                )
             if reuse_left or reuse_right:
                 _, function = reuse_operator
-                left = self.temporary(f"{function}({left}, {right}, {int(reuse_left)}, "
-                                      f"{int(reuse_right)}, {self.location(token)})")
+                left = self.temporary(
+                    f"{function}({left}, {right}, {int(reuse_left)}, "
+                    f"{int(reuse_right)}, {self.location(token)})"
+                )
                 reuse_left = False
                 continue
             if operator in COMPARISONS:
@@ -1289,7 +1915,9 @@ class Compiler:
             left = self.temporary(call)
         return left
 
-    def logical_expression(self, left, operator, colon_stops, locate_source, format_stops):
+    def logical_expression(
+        self, left, operator, colon_stops, locate_source, format_stops
+    ):
         result = self.temporary(f'jbc_truth({left}) ? "1" : "0"')
         evaluate_at = '0' if operator in ('OR', '!') else '1'
         self.emit(f"if (*{result} == '{evaluate_at}') {{")
@@ -1299,7 +1927,9 @@ class Compiler:
         both = evaluate_at == '1'  # AND needs both true, OR needs both false.
         left_facts = self.assignment_facts.get((left, both), set())
         self.assigned.update(left_facts)
-        right = self.expression(PRECEDENCE[operator] + 1, colon_stops, locate_source, format_stops)
+        right = self.expression(
+            PRECEDENCE[operator] + 1, colon_stops, locate_source, format_stops
+        )
         facts = left_facts | self.assignment_facts.get((right, both), set())
         if facts:
             self.assignment_facts[result, both] = facts
@@ -1325,7 +1955,9 @@ class Compiler:
         self.depth -= 1
         self.emit("} else {")
         self.depth += 1
-        self.assigned = before.union(self.assignment_facts.get((condition, False), ()))
+        self.assigned = before.union(
+            self.assignment_facts.get((condition, False), ())
+        )
         # The reference grammar gives ELSE the left-associative precedence of ^.
         no = self.expression(PRECEDENCE['^'] + 1)
         self.emit(f"{result} = {no};")
@@ -1334,8 +1966,12 @@ class Compiler:
         no_assigned = self.assigned
         self.assigned = yes_assigned & no_assigned
         for truth in (True, False):
-            yes_facts = yes_assigned.union(self.assignment_facts.get((yes, truth), ()))
-            no_facts = no_assigned.union(self.assignment_facts.get((no, truth), ()))
+            yes_facts = yes_assigned.union(
+                self.assignment_facts.get((yes, truth), ())
+            )
+            no_facts = no_assigned.union(
+                self.assignment_facts.get((no, truth), ())
+            )
             facts = (yes_facts & no_facts) - self.assigned
             if facts:
                 self.assignment_facts[result, truth] = facts
@@ -1349,7 +1985,9 @@ class Compiler:
 
     def arithmetic(self, token, left, right, op):
         location = self.location(token)
-        return self.temporary(f"jbc_arithmetic('{op}', {left}, {right}, {location})")
+        return self.temporary(
+            f"jbc_arithmetic('{op}', {left}, {right}, {location})"
+        )
 
     def clause(self, opening, inline_stops=None):
         if self.word == 'END' and not self.statement_boundary_is_target():
@@ -1363,7 +2001,9 @@ class Compiler:
             self.sequence({'END'}, opening)
             self.expect('END')
         else:
-            stops = (inline_stops or {'ELSE', '\n'}) | (self.statement_stops & LOOP_BOUNDARIES)
+            stops = (inline_stops or {'ELSE', '\n'}) | (
+                self.statement_stops & LOOP_BOUNDARIES
+            )
             self.sequence(stops, opening)
         self.depth -= 1
 
@@ -1373,7 +2013,9 @@ class Compiler:
         condition = self.expression()
         self.conditional_arms(opening, f"jbc_truth({condition})", condition)
 
-    def conditional_arms(self, opening, condition, expression=None, default_else=None):
+    def conditional_arms(
+        self, opening, condition, expression=None, default_else=None
+    ):
         if opening.word == 'MATREAD' and self.word == 'LOCKED':
             self.error("MATREAD LOCKED requires a locking file backend")
         if self.word not in ('THEN', 'ELSE'):
@@ -1383,13 +2025,17 @@ class Compiler:
         self.emit(f"if ({'!' if inverted else ''}{condition}) {{")
         before = self.assigned.copy()
         before_maybe = self.maybe_assigned.copy()
-        self.assigned.update(self.assignment_facts.get((expression, not inverted), ()))
+        self.assigned.update(
+            self.assignment_facts.get((expression, not inverted), ())
+        )
         self.clause(opening)
         taken = self.assigned
         taken_maybe = self.maybe_assigned
         self.assigned = before
         self.maybe_assigned = before_maybe
-        self.assigned.update(self.assignment_facts.get((expression, inverted), ()))
+        self.assigned.update(
+            self.assignment_facts.get((expression, inverted), ())
+        )
         if not inverted and self.word == 'ELSE':
             self.advance()
             self.emit("} else {")
@@ -1410,7 +2056,9 @@ class Compiler:
             self.maybe_assigned.update(taken_maybe)
         self.assigned = taken & self.assigned
         # CLEAR anticipates names even when no variable slot exists yet.
-        self.maybe_assigned.update((possible - self.assigned) & self.names.keys())
+        self.maybe_assigned.update(
+            (possible - self.assigned) & self.names.keys()
+        )
         self.emit("}")
 
     def variable_slot(self, token):
@@ -1431,19 +2079,33 @@ class Compiler:
         target = self.identifier()
         slot = self.variable_slot(target)
         scalar = target.word not in self.matrices
-        if (scalar and target.word not in self.assigned and target.word not in self.maybe_assigned
-                and not self.has_unstructured_jumps):
-            self.assignment_error(f"unassigned variable '{target.word}'", target)
-        indices = self.array_indices() if self.current.kind == 'array_open' else None
+        if (
+            scalar
+            and target.word not in self.assigned
+            and target.word not in self.maybe_assigned
+            and not self.has_unstructured_jumps
+        ):
+            self.assignment_error(
+                f"unassigned variable '{target.word}'", target
+            )
+        indices = (
+            self.array_indices() if self.current.kind == 'array_open' else None
+        )
         value = self.checked_read(slot, target)
         if indices:
             value = self.temporary(f"jbc_array({value}, {indices}, NULL)")
         if change:
-            value = self.temporary(f"change_substrings({value}, {search}, {replacements}, -1, 1)")
+            value = self.temporary(
+                f"change_substrings({value}, {search}, {replacements}, -1, 1)"
+            )
         else:
-            value = self.temporary(f"jbc_convert({value}, {search}, {replacements})")
+            value = self.temporary(
+                f"jbc_convert({value}, {search}, {replacements})"
+            )
         if indices:
-            value = self.temporary(f"jbc_array({slot}.value, {indices}, {value})")
+            value = self.temporary(
+                f"jbc_array({slot}.value, {indices}, {value})"
+            )
         self.emit(f"assign_value(&{slot}, {value});")
         if scalar:
             self.assigned.add(target.word)
@@ -1467,8 +2129,10 @@ class Compiler:
         self.record_api_call(target, len(indices) + 2)
         positions = ", ".join(indices)
         inserting = int(target.word == 'INSERT')
-        return self.temporary(f"jbc_update_array({source}, {value}, (const char *[]){{{positions}}}, "
-                              f"{len(indices)}, {inserting}, {self.location(target)})")
+        return self.temporary(
+            f"jbc_update_array({source}, {value}, (const char *[]){{{positions}}}, "
+            f"{len(indices)}, {inserting}, {self.location(target)})"
+        )
 
     def ins_statement(self):
         self.advance()
@@ -1479,7 +2143,9 @@ class Compiler:
         if self.current.kind != 'array_open':
             self.error("expected dynamic-array indices after INS target")
         indices = self.array_indices()
-        self.emit(f"jbc_ins(&{slot}, {value}, {indices}, {self.location(target)});")
+        self.emit(
+            f"jbc_ins(&{slot}, {value}, {indices}, {self.location(target)});"
+        )
         if target.word not in self.matrices:
             self.assigned.add(target.word)
 
@@ -1487,17 +2153,31 @@ class Compiler:
         self.advance()
         target = self.identifier()
         slot = self.variable_slot(target)
-        if target.word not in self.matrices and target.word not in self.assigned and not self.has_unstructured_jumps:
-            self.assignment_error(f"unassigned variable '{target.word}'", target)
+        if (
+            target.word not in self.matrices
+            and target.word not in self.assigned
+            and not self.has_unstructured_jumps
+        ):
+            self.assignment_error(
+                f"unassigned variable '{target.word}'", target
+            )
         if self.current.kind != 'array_open':
             self.error("expected dynamic-array indices after DEL target")
         indices = self.array_indices()
-        self.emit(f"jbc_del(&{slot}, {indices}, {c_string(target.word)}, {self.location(target)});")
+        self.emit(
+            f"jbc_del(&{slot}, {indices}, {c_string(target.word)}, {self.location(target)});"
+        )
 
     def remove_source_slot(self, source):
-        if (source.word not in self.matrices and source.word not in self.assigned
-                and source.word not in self.maybe_assigned and not self.has_unstructured_jumps):
-            self.assignment_error(f"unassigned variable '{source.word}'", source)
+        if (
+            source.word not in self.matrices
+            and source.word not in self.assigned
+            and source.word not in self.maybe_assigned
+            and not self.has_unstructured_jumps
+        ):
+            self.assignment_error(
+                f"unassigned variable '{source.word}'", source
+            )
         return self.variable_slot(source)
 
     def remove_expression(self):
@@ -1510,7 +2190,9 @@ class Compiler:
             if self.word == ',':
                 source = '&' + slot
             else:
-                value = self.expression_tail(self.postfix(self.checked_read(slot, token)))
+                value = self.expression_tail(
+                    self.postfix(self.checked_read(slot, token))
+                )
                 source = self.value_argument(value)
         elif token.kind == 'name' and self.following.word == ',':
             source = '&' + self.remove_source_slot(self.identifier())
@@ -1523,8 +2205,10 @@ class Compiler:
         self.record_api_call(opening, 2)
         if status.word not in self.matrices:
             self.assigned.add(status.word)
-        return self.temporary(f"jbc_remove(NULL, {source}, &{setting}, "
-                              f"{c_string(token.word)}, {self.location(token)})")
+        return self.temporary(
+            f"jbc_remove(NULL, {source}, &{setting}, "
+            f"{c_string(token.word)}, {self.location(token)})"
+        )
 
     def remove_statement(self):
         self.advance()
@@ -1536,8 +2220,10 @@ class Compiler:
         self.expect('SETTING')
         status = self.identifier()
         setting = self.variable_slot(status)
-        self.emit(f"jbc_remove(&{out}, &{array}, &{setting}, "
-                  f"{c_string(source.word)}, {self.location(source)});")
+        self.emit(
+            f"jbc_remove(&{out}, &{array}, &{setting}, "
+            f"{c_string(source.word)}, {self.location(source)});"
+        )
         self.assigned.update((target.word, status.word))
 
     def find_statement(self):
@@ -1560,14 +2246,18 @@ class Compiler:
             if self.word != ',':
                 break
             if len(slots) == 3:
-                self.error(f"{opening.word} accepts at most three SETTING variables")
+                self.error(
+                    f"{opening.word} accepts at most three SETTING variables"
+                )
             self.advance()
         slots.extend(['NULL'] * (3 - len(slots)))
         # A miss leaves the slots untouched. Reads still check them at runtime.
         self.assigned.update(targets)
         substring = int(opening.word == 'FINDSTR')
-        call = (f"jbc_find({substring}, {needle}, {source}, {occurrence}, {', '.join(slots)}, "
-                f"{self.location(opening)})")
+        call = (
+            f"jbc_find({substring}, {needle}, {source}, {occurrence}, {', '.join(slots)}, "
+            f"{self.location(opening)})"
+        )
         self.conditional_arms(opening, call)
 
     def locate_statement(self):
@@ -1583,10 +2273,14 @@ class Compiler:
             if len(indices) == 3:
                 start = indices.pop()
             args = ', '.join(indices)
-            source = self.temporary(f"jbc_array({source}, (const char *[]){{{args}}}, {len(indices)}, NULL)")
+            source = self.temporary(
+                f"jbc_array({source}, (const char *[]){{{args}}}, {len(indices)}, NULL)"
+            )
         if self.word == ',':
             if start is not None:
-                self.error("LOCATE with both a subvalue start and a separate start is unsupported")
+                self.error(
+                    "LOCATE with both a subvalue start and a separate start is unsupported"
+                )
             self.advance()
             start = self.expression()
         if start is None:
@@ -1602,8 +2296,10 @@ class Compiler:
         else:
             slot = self.variable(target.word)
             self.assigned.add(target.word)
-        call = (f"jbc_locate({needle}, {source}, {254 - len(indices)}, {start}, "
-                f"{order}, &{slot}, {self.location(opening)})")
+        call = (
+            f"jbc_locate({needle}, {source}, {254 - len(indices)}, {start}, "
+            f"{order}, &{slot}, {self.location(opening)})"
+        )
         self.conditional_arms(opening, call)
 
     def delete_statement(self):
@@ -1611,17 +2307,26 @@ class Compiler:
         self.advance()
         handle, key = self.file_key()
         setting = self.file_setting()
-        self.file_error_and_lock_arms(opening, f"jbc_delete_record({handle}, {key}, {setting})", setting)
+        self.file_error_and_lock_arms(
+            opening, f"jbc_delete_record({handle}, {key}, {setting})", setting
+        )
 
     def clearfile_statement(self):
         opening = self.current
         self.advance()
         handle = self.optional_file_handle()
         setting = self.file_setting()
-        self.file_error_and_lock_arms(opening, f"jbc_clear_file({handle}, {setting})", setting)
+        self.file_error_and_lock_arms(
+            opening, f"jbc_clear_file({handle}, {setting})", setting
+        )
 
     def optional_file_handle(self):
-        if self.word in OUTPUT_END or self.word in ('', 'SETTING', 'ON', 'LOCKED'):
+        if self.word in OUTPUT_END or self.word in (
+            '',
+            'SETTING',
+            'ON',
+            'LOCKED',
+        ):
             return "jbc_default_file.value"
         target = self.identifier()
         if target.word in self.matrices:
@@ -1636,7 +2341,9 @@ class Compiler:
             self.file_error_arm(opening, f"jbc_fileunlock({handle})", 'NULL')
         else:
             setting = self.file_setting()
-            self.file_error_and_lock_arms(opening, f"jbc_filelock({handle}, {setting})", setting)
+            self.file_error_and_lock_arms(
+                opening, f"jbc_filelock({handle}, {setting})", setting
+            )
 
     def file_error_and_lock_arms(self, opening, call, setting):
         before = self.assigned.copy()
@@ -1649,7 +2356,9 @@ class Compiler:
             self.clause(opening, {'LOCKED', 'ELSE', '\n'})
             self.assigned = before.copy()
         elif setting == "NULL":
-            self.emit(f'    numeric_error({self.location(opening)}, "{opening.word} failed");')
+            self.emit(
+                f'    numeric_error({self.location(opening)}, "{opening.word} failed");'
+            )
         self.emit("    break;")
         self.emit("}")
         if self.word == 'LOCKED':
@@ -1674,7 +2383,9 @@ class Compiler:
             self.assigned &= before
             self.emit("}")
         elif setting == "NULL":
-            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "{opening.word} failed");')
+            self.emit(
+                f'if (!{call}) numeric_error({self.location(opening)}, "{opening.word} failed");'
+            )
         else:
             self.emit(f"{call};")
 
@@ -1738,7 +2449,12 @@ class Compiler:
                 self.error(f"duplicate {clause} clause")
             self.advance()
             if clause == 'RTNLIST':
-                if not self.word or self.word in OUTPUT_END or self.word in stops or self.word in clauses:
+                if (
+                    not self.word
+                    or self.word in OUTPUT_END
+                    or self.word in stops
+                    or self.word in clauses
+                ):
                     outputs[clause] = "&select_lists[0]"
                     continue
                 if self.current.kind in ('number', 'string'):
@@ -1748,9 +2464,11 @@ class Compiler:
             outputs[clause] = '&' + self.variable_slot(target)
             assigned.append(target.word)
         self.assigned.update(assigned)
-        self.emit(f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
-                  f"{outputs.get('RETURNING', 'NULL')}, {outputs.get('RTNLIST', 'NULL')}, "
-                  f"{self.location(opening)});")
+        self.emit(
+            f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
+            f"{outputs.get('RETURNING', 'NULL')}, {outputs.get('RTNLIST', 'NULL')}, "
+            f"{self.location(opening)});"
+        )
 
     def tape_unit(self):
         if self.word != 'UNIT':
@@ -1820,7 +2538,11 @@ class Compiler:
                 name = self.expression()
             mode = 'SEQ_READ_WRITE'
             if self.word == 'READONLY' or (osopen and self.word == 'WRITEONLY'):
-                mode = 'SEQ_READ_ONLY' if self.word == 'READONLY' else 'SEQ_WRITE_ONLY'
+                mode = (
+                    'SEQ_READ_ONLY'
+                    if self.word == 'READONLY'
+                    else 'SEQ_WRITE_ONLY'
+                )
                 self.advance()
             self.expect('TO')
             target = self.identifier()
@@ -1842,11 +2564,15 @@ class Compiler:
         elif op == 'OSBREAD':
             target, slot = self.record_read_destination()
             self.expect('FROM')
-            handle = self.temporary(self.expression(format_stops=('AT', 'LENGTH')))
+            handle = self.temporary(
+                self.expression(format_stops=('AT', 'LENGTH'))
+            )
             offset = 'NULL'
             if self.word == 'AT':
                 self.advance()
-                offset = self.temporary(self.expression(format_stops=('LENGTH',)))
+                offset = self.temporary(
+                    self.expression(format_stops=('LENGTH',))
+                )
             self.expect('LENGTH')
             length = self.expression()
             if target is not None:
@@ -1857,7 +2583,9 @@ class Compiler:
             if self.word not in ('ON', 'TO'):
                 self.error("expected ON or TO after OSBWRITE value")
             self.advance()
-            handle = self.temporary(self.expression(format_stops=('AT', 'NODELAY')))
+            handle = self.temporary(
+                self.expression(format_stops=('AT', 'NODELAY'))
+            )
             offset = 'NULL'
             if self.word == 'AT':
                 self.advance()
@@ -1902,7 +2630,9 @@ class Compiler:
             handle = self.temporary(self.expression())
             self.expect(',')
             seconds = self.expression()
-            self.emit(f'jbc_timeout({handle}, {seconds}, {self.location(opening)});')
+            self.emit(
+                f'jbc_timeout({handle}, {seconds}, {self.location(opening)});'
+            )
             return
         elif op == 'SEEK':
             handle = self.expression()
@@ -1915,9 +2645,13 @@ class Compiler:
                     origin = self.expression()
             call = f'jbc_seek({handle}, {offset}, {origin}, {self.location(opening)})'
         elif op == 'CREATE':
-            call = f'jbc_createseq({self.expression()}, {self.location(opening)})'
+            call = (
+                f'jbc_createseq({self.expression()}, {self.location(opening)})'
+            )
         elif op == 'FLUSH':
-            call = f'jbc_flushseq({self.expression()}, {self.location(opening)})'
+            call = (
+                f'jbc_flushseq({self.expression()}, {self.location(opening)})'
+            )
         elif op == 'NOBUF':
             call = f'jbc_nobuf({self.expression()})'
         elif op == 'WEOFSEQ':
@@ -1942,7 +2676,9 @@ class Compiler:
             elif self.word in ('THEN', 'ELSE'):
                 self.conditional_arms(opening, call)
             else:
-                self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "{op} failed");')
+                self.emit(
+                    f'if (!{call}) numeric_error({self.location(opening)}, "{op} failed");'
+                )
             return
         else:
             value = self.expression()
@@ -1954,7 +2690,9 @@ class Compiler:
             self.advance()
             handle = self.expression()
             if op == 'WRITEBLK':
-                call = f'jbc_writeblk({handle}, {value}, {self.location(opening)})'
+                call = (
+                    f'jbc_writeblk({handle}, {value}, {self.location(opening)})'
+                )
             else:
                 call = f"jbc_writeseq({handle}, {value}, {int(append)}, {int(op == 'WRITESEQF')})"
         setting = self.file_setting()
@@ -1974,7 +2712,9 @@ class Compiler:
         if self.word == '@':
             self.advance()
             if self.word not in RECORD_VARIABLES:
-                self.error("expected @ID, @RECORD or @FILENAME as a record read destination")
+                self.error(
+                    "expected @ID, @RECORD or @FILENAME as a record read destination"
+                )
             slot = RECORD_VARIABLES[self.word]
             self.advance()
             return None, slot
@@ -1991,8 +2731,10 @@ class Compiler:
         status = f"readv_status_{self.temporaries}"
         self.temporaries += 1
         update = int(opening.word == 'READVU')
-        self.emit(f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
-                  f"{setting}, {update}, {self.location(opening)});")
+        self.emit(
+            f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
+            f"{setting}, {update}, {self.location(opening)});"
+        )
         if target is not None:
             self.assigned.add(target)
         self.record_read_arms(opening, status)
@@ -2016,7 +2758,9 @@ class Compiler:
             status = f"matread_status_{self.temporaries}"
             self.temporaries += 1
             update = int(opening.word == 'MATREADU')
-            self.emit(f"int {status} = jbc_matread({args}, {matrix.count}, {setting}, {update});")
+            self.emit(
+                f"int {status} = jbc_matread({args}, {matrix.count}, {setting}, {update});"
+            )
             self.record_read_arms(opening, status)
             return
         call = f"jbc_matwrite({args}, {setting}, {c_string(target.word)}, {self.location(opening)})"
@@ -2032,7 +2776,9 @@ class Compiler:
             self.assigned &= before
             self.emit("}")
         elif setting == "NULL":
-            self.emit(f'if ({call}) numeric_error({self.location(opening)}, "MATWRITE failed");')
+            self.emit(
+                f'if ({call}) numeric_error({self.location(opening)}, "MATWRITE failed");'
+            )
         else:
             self.emit(f"{call};")
 
@@ -2066,7 +2812,9 @@ class Compiler:
         status = f"read_status_{self.temporaries}"
         self.temporaries += 1
         function = 'jbc_readu' if update else 'jbc_read_record'
-        self.emit(f"int {status} = {function}({handle}, {key}, &{out}, {setting});")
+        self.emit(
+            f"int {status} = {function}({handle}, {key}, &{out}, {setting});"
+        )
         if target is not None:
             self.assigned.add(target)
         self.record_read_arms(opening, status)
@@ -2084,9 +2832,16 @@ class Compiler:
             self.emit("} else {")
             self.depth += 1
         elif opening.word == 'OSREAD':
-            self.emit(f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");')
+            self.emit(
+                f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");'
+            )
         sequential_open = opening.word in ('OPENSEQ', 'OPENDEV', 'OSOPEN')
-        if sequential_open or opening.word in ('READU', 'READVU', 'MATREADU', 'RECORDLOCKU'):
+        if sequential_open or opening.word in (
+            'READU',
+            'READVU',
+            'MATREADU',
+            'RECORDLOCKU',
+        ):
             if self.word == 'LOCKED':
                 self.advance()
                 self.emit(f"if ({status} == JBC_LOCKED) {{")
@@ -2096,11 +2851,20 @@ class Compiler:
                 self.emit("} else {")
                 self.depth += 1
             elif not sequential_open:
-                self.emit(f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
-                          f'"{opening.word} cannot wait for a simulated foreign lock");')
-        if opening.word in ('WEOFSEQ', 'FLUSH', 'NOBUF', 'RECORDLOCKU') and self.word not in ('THEN', 'ELSE'):
+                self.emit(
+                    f'if ({status} == JBC_LOCKED) numeric_error({self.location(opening)}, '
+                    f'"{opening.word} cannot wait for a simulated foreign lock");'
+                )
+        if opening.word in (
+            'WEOFSEQ',
+            'FLUSH',
+            'NOBUF',
+            'RECORDLOCKU',
+        ) and self.word not in ('THEN', 'ELSE'):
             if setting == 'NULL':
-                self.emit(f'if ({status}) numeric_error({self.location(opening)}, "{opening.word} failed");')
+                self.emit(
+                    f'if ({status}) numeric_error({self.location(opening)}, "{opening.word} failed");'
+                )
         else:
             self.conditional_arms(opening, f"!{status}")
         for branch in reversed(branches):
@@ -2112,16 +2876,25 @@ class Compiler:
         if self.word != keyword:
             return "&select_lists[0]"
         self.advance()
-        return self.list_operand(assigning=keyword == 'TO', quoted_number=quoted_number)
+        return self.list_operand(
+            assigning=keyword == 'TO', quoted_number=quoted_number
+        )
 
     def list_operand(self, assigning=False, maximum=10, *, quoted_number=False):
         quoted = quoted_number and self.current.kind == 'string'
         if self.current.kind == 'number' or quoted:
             text = self.word[1:-1] if quoted else self.word
             number = text.lstrip('0') or '0'
-            if (not text or not number.isascii() or not number.isdigit()
-                    or len(number) > 2 or int(number) > maximum):
-                self.error(f"select list number must be between 0 and {maximum}")
+            if (
+                not text
+                or not number.isascii()
+                or not number.isdigit()
+                or len(number) > 2
+                or int(number) > maximum
+            ):
+                self.error(
+                    f"select list number must be between 0 and {maximum}"
+                )
             self.advance()
             return f"&select_lists[{number}]"
         target = self.identifier()
@@ -2143,13 +2916,17 @@ class Compiler:
         self.advance()
         self.uses_saved_lists = True
         if opening.word == 'DELETELIST':
-            self.emit(f"jbc_deletelist({self.expression()}, {self.location(opening)});")
+            self.emit(
+                f"jbc_deletelist({self.expression()}, {self.location(opening)});"
+            )
             return
         if opening.word == 'GETLIST':
             name = self.temporary(self.expression())
             dest = self.select_list('TO')
             setting = self.file_setting()
-            self.conditional_arms(opening, f"jbc_readlist({name}, {dest}, {setting})")
+            self.conditional_arms(
+                opening, f"jbc_readlist({name}, {dest}, {setting})"
+            )
             return
         if opening.word == 'WRITELIST':
             value = self.temporary(self.expression())
@@ -2158,37 +2935,57 @@ class Compiler:
             self.advance()
             name = self.expression()
             setting = self.file_setting()
-            self.file_error_arm(opening, f"jbc_writelist({value}, {name}, {setting})", setting)
+            self.file_error_arm(
+                opening, f"jbc_writelist({value}, {name}, {setting})", setting
+            )
             return
         target = self.identifier()
         slot = self.variable_slot(target)
         name = '""'
         if self.word == 'FROM':
             self.advance()
-            if self.word == '0' and self.following.word in ('THEN', 'ELSE', 'SETTING'):
+            if self.word == '0' and self.following.word in (
+                'THEN',
+                'ELSE',
+                'SETTING',
+            ):
                 self.advance()
             else:
                 name = self.expression()
         setting = self.file_setting()
         self.assigned.add(target.word)
-        self.conditional_arms(opening, f"jbc_readlist({name}, &{slot}, {setting})")
+        self.conditional_arms(
+            opening, f"jbc_readlist({name}, &{slot}, {setting})"
+        )
 
     def select_statement(self):
         opening = self.current
         self.advance()
         source = "NULL"
         sorted_selection = opening.word == 'SSELECT'
-        if self.word not in OUTPUT_END and self.word not in ('', 'TO', 'SETTING'):
-            if not sorted_selection or self.word != 'ON' or self.following.word != 'ERROR':
+        if self.word not in OUTPUT_END and self.word not in (
+            '',
+            'TO',
+            'SETTING',
+        ):
+            if (
+                not sorted_selection
+                or self.word != 'ON'
+                or self.following.word != 'ERROR'
+            ):
                 source = self.expression()
         dest = self.select_list('TO')
         setting = self.file_setting()
         if sorted_selection:
-            self.file_error_arm(opening, f"jbc_sselect({source}, {dest}, {setting})", setting)
+            self.file_error_arm(
+                opening, f"jbc_sselect({source}, {dest}, {setting})", setting
+            )
             return
         call = f"jbc_select({source}, {dest}, {setting})"
         if setting == 'NULL':
-            self.emit(f'if (!{call}) numeric_error({self.location(opening)}, "SELECT requires an open default file");')
+            self.emit(
+                f'if (!{call}) numeric_error({self.location(opening)}, "SELECT requires an open default file");'
+            )
         else:
             self.emit(f"{call};")
 
@@ -2232,7 +3029,9 @@ class Compiler:
                 self.assigned &= before
                 self.emit("}")
                 return
-            self.emit(f'if (!{call}) numeric_error({self.location(target)}, "CLOSE requires an open record file");')
+            self.emit(
+                f'if (!{call}) numeric_error({self.location(target)}, "CLOSE requires an open record file");'
+            )
             if self.word != ',':
                 return
             self.advance()
@@ -2263,22 +3062,35 @@ class Compiler:
         scope = 'NULL'
         if self.word == 'TO':
             self.advance()
-            setting_clause = self.word == 'SETTING' and self.following.kind == 'name' and self.following.word not in (
-                'THEN', 'ELSE', 'SETTING', 'ON')
+            setting_clause = (
+                self.word == 'SETTING'
+                and self.following.kind == 'name'
+                and self.following.word not in ('THEN', 'ELSE', 'SETTING', 'ON')
+            )
             error_clause = self.word == 'ON' and self.following.word == 'ERROR'
-            if self.word not in ('THEN', 'ELSE') and not setting_clause and not error_clause:
+            if (
+                self.word not in ('THEN', 'ELSE')
+                and not setting_clause
+                and not error_clause
+            ):
                 target = self.identifier()
                 slot = self.variable_slot(target)
                 self.assigned.add(target.word)
                 matrix = self.matrices.get(target.word)
-                if (self.routine and target.word not in self.formals and target.word not in self.common_scalars
-                        and not (matrix and matrix.common_block is not None)):
+                if (
+                    self.routine
+                    and target.word not in self.formals
+                    and target.word not in self.common_scalars
+                    and not (matrix and matrix.common_block is not None)
+                ):
                     self.opens_local_files = True
                     scope = 'frame'
         setting = self.file_setting()
         status = f'open_status_{self.temporaries}'
         self.temporaries += 1
-        self.emit(f'int {status} = jbc_open_file({section}, {name}, &{slot}, {scope}, {setting});')
+        self.emit(
+            f'int {status} = jbc_open_file({section}, {name}, &{slot}, {scope}, {setting});'
+        )
         self.record_read_arms(opening, status)
 
     def write_statement(self):
@@ -2293,8 +3105,10 @@ class Compiler:
             handle, key, field = self.field_file_key()
             setting = self.file_setting()
             keep_lock = int(op == 'WRITEVU')
-            call = (f"jbc_write_field({handle}, {key}, {field}, {value}, {setting}, "
-                    f"{keep_lock}, {self.location(opening)})")
+            call = (
+                f"jbc_write_field({handle}, {key}, {field}, {value}, {setting}, "
+                f"{keep_lock}, {self.location(opening)})"
+            )
             self.file_error_arm(opening, call, setting)
             return
         handle, key = self.file_key()
@@ -2333,7 +3147,9 @@ class Compiler:
             condition = self.expression()
             self.emit(f"if (jbc_truth({condition})) {{")
             self.depth += 1
-            self.assigned.update(self.assignment_facts.get((condition, True), ()))
+            self.assigned.update(
+                self.assignment_facts.get((condition, True), ())
+            )
             self.sequence({'CASE', 'END'}, opening)
             if not exhaustive and condition not in ('""', '"0"'):
                 outcomes.append(self.assigned)
@@ -2362,13 +3178,19 @@ class Compiler:
             unit = self.temporary(self.primary())
         location = self.location(opening)
         if opening.word == 'PAGE':
-            number = 'NULL' if not self.word or self.word in OUTPUT_END else self.expression()
+            number = (
+                'NULL'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
             self.emit(f"jbc_page({unit}, {number}, {location});")
         elif opening.word == 'FOOTING':
             self.emit(f"jbc_footing({unit}, {self.expression()}, {location});")
         else:
             heading = self.expression()
-            self.emit(f"jbc_heading({unit}, {heading}, {int(opening.word == 'HEADINGN')}, {location});")
+            self.emit(
+                f"jbc_heading({unit}, {heading}, {int(opening.word == 'HEADINGN')}, {location});"
+            )
 
     def printer_statement(self):
         opening = self.current
@@ -2380,14 +3202,18 @@ class Compiler:
             self.advance()
             unit = self.primary()
         self.uses_report = True
-        self.emit(f'jbc_printer(JBC_PRINTER_{mode}, {unit}, {self.location(opening)});')
+        self.emit(
+            f'jbc_printer(JBC_PRINTER_{mode}, {unit}, {self.location(opening)});'
+        )
 
     def print_statement(self):
         opening = self.current
         location = self.location(opening)
         omitted_before = self.omitted_concatenations
         self.advance()
-        destination = 'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
+        destination = (
+            'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
+        )
         if opening.word == 'PRINT' and self.word == 'ON':
             self.uses_report = True
             self.advance()
@@ -2437,8 +3263,10 @@ class Compiler:
             self.continued_loops.add(loop)
             self.emit(f"goto continue_{loop};")
         else:
-            print(f"{token.path}:{token.line}:{token.column}: warning: CONTINUE outside a loop ignored",
-                  file=sys.stderr)
+            print(
+                f"{token.path}:{token.line}:{token.column}: warning: CONTINUE outside a loop ignored",
+                file=sys.stderr,
+            )
 
     def exit_statement(self):
         token = self.current
@@ -2451,21 +3279,28 @@ class Compiler:
         elif self.loop_stack:
             loop = self.loop_stack[-1]
             if loop in self.loop_exit_assignments:
-                self.loop_exit_assignments[loop].intersection_update(self.assigned)
+                self.loop_exit_assignments[loop].intersection_update(
+                    self.assigned
+                )
             else:
                 self.loop_exit_assignments[loop] = self.assigned.copy()
             self.emit(f"goto exit_loop_{loop};")
         else:
-            print(f"{token.path}:{token.line}:{token.column}: warning: {token.word} outside a loop ignored",
-                  file=sys.stderr)
+            print(
+                f"{token.path}:{token.line}:{token.column}: warning: {token.word} outside a loop ignored",
+                file=sys.stderr,
+            )
 
     def clear_statement(self):
         self.advance()
         if self.clear_assignments is None:
             # Locals first mentioned after CLEAR also get a slot at routine entry.
             self.clear_assignments = set(self.names)
-            self.clear_assignments.update(token.word for token in self.tokens
-                                          if token.kind == 'name' and token.word != 'IF')
+            self.clear_assignments.update(
+                token.word
+                for token in self.tokens
+                if token.kind == 'name' and token.word != 'IF'
+            )
         self.assigned.update(self.clear_assignments)
         self.emit(f"clear_locals_{self.unit}(frame);")
 
@@ -2479,7 +3314,9 @@ class Compiler:
         while self.word == ',':
             self.advance()
             args.append(self.temporary(self.expression()))
-        self.emit(f"jbc_stop({aborting}, (const char *[]){{{', '.join(args)}}}, {len(args)});")
+        self.emit(
+            f"jbc_stop({aborting}, (const char *[]){{{', '.join(args)}}}, {len(args)});"
+        )
 
     def end_loop(self):
         self.emit("jbc_collect(entry_mark, live);")
@@ -2497,8 +3334,12 @@ class Compiler:
         self.advance()
         condition = self.expression()
         self.emit(f"if ({'' if until else '!'}jbc_truth({condition})) break;")
-        exit_assigned = self.assigned.union(self.assignment_facts.get((condition, until), ()))
-        self.assigned.update(self.assignment_facts.get((condition, not until), ()))
+        exit_assigned = self.assigned.union(
+            self.assignment_facts.get((condition, until), ())
+        )
+        self.assigned.update(
+            self.assignment_facts.get((condition, not until), ())
+        )
         return exit_assigned
 
     def for_statement(self):
@@ -2526,8 +3367,12 @@ class Compiler:
             self.saved_steps[self.loops] = step
             self.emit(f"{step} = {self.expression()};")
         location = self.location(opening)
-        self.emit(f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;")
-        before = self.assigned.copy()  # The bounds check can exit before the guard.
+        self.emit(
+            f"if (!jbc_for_test({symbol}.value, {limit}, {step}, {location})) break;"
+        )
+        before = (
+            self.assigned.copy()
+        )  # The bounds check can exit before the guard.
         if self.word in ('WHILE', 'UNTIL'):
             self.guard()
         if self.word not in (';', '\n'):
@@ -2538,8 +3383,10 @@ class Compiler:
         if self.current.kind == 'name' and self.word not in OUTPUT_END:
             if self.word != counter.word:
                 name = self.current
-                message = (f"{name.path}:{name.line}:{name.column}: warning: NEXT {name.word} "
-                           f"closes FOR {counter.word}")
+                message = (
+                    f"{name.path}:{name.line}:{name.column}: warning: NEXT {name.word} "
+                    f"closes FOR {counter.word}"
+                )
                 if self.next_warning is None:
                     print(message, file=sys.stderr)
                 else:
@@ -2547,8 +3394,10 @@ class Compiler:
             self.advance()
         self.end_loop_body()
         if self.for_stack[-1] in self.saved_steps:
-            self.emit(f'if (!{step}) numeric_error({self.location(terminator)}, '
-                      '"NEXT requires the STEP expression from the FOR header");')
+            self.emit(
+                f'if (!{step}) numeric_error({self.location(terminator)}, '
+                '"NEXT requires the STEP expression from the FOR header");'
+            )
         value = self.checked_read(symbol, counter)
         increment = self.arithmetic(opening, value, step, '+')
         self.emit(f"assign_value(&{symbol}, {increment});")
@@ -2557,7 +3406,9 @@ class Compiler:
         # A plain assignment in the loop can supply a read on a later iteration.
         assignments = self.for_assignments.pop()
         if self.for_assignments:
-            self.for_assignments[-1].initializers.update(assignments.initializers)
+            self.for_assignments[-1].initializers.update(
+                assignments.initializers
+            )
         for message, token, warn in assignments.reads:
             if token.word not in assignments.initializers:
                 self.assignment_error(message, token, warn=warn)
@@ -2588,7 +3439,9 @@ class Compiler:
             exits = bare_exits if exits is None else exits & bare_exits
         if exits is not None:
             # A later iteration can exit before revisiting an assignment.
-            self.maybe_assigned.update((self.assigned - exits) & self.names.keys())
+            self.maybe_assigned.update(
+                (self.assigned - exits) & self.names.keys()
+            )
             self.assigned = exits
 
     def identifier(self):
@@ -2611,8 +3464,11 @@ class Compiler:
                 return '&' + slot, None
             value = self.variable_expression(target, slot)
             return self.value_argument(self.expression_tail(value)), None
-        if (self.current.kind == 'name' and self.following.word in (',', ')')
-                and not self.component_constant(self.word)):
+        if (
+            self.current.kind == 'name'
+            and self.following.word in (',', ')')
+            and not self.component_constant(self.word)
+        ):
             name = self.identifier().word
             return '&' + self.variable(name), name
         return self.value_argument(self.expression()), None
@@ -2620,8 +3476,11 @@ class Compiler:
     def ioctl_expression(self):
         opening = self.identifier()
         self.expect('(')
-        if (self.current.kind == 'name' and self.following.word == ','
-                and self.word not in self.matrices):
+        if (
+            self.current.kind == 'name'
+            and self.following.word == ','
+            and self.word not in self.matrices
+        ):
             slot = self.variable(self.identifier().word)
             handle = self.temporary(f"{slot}.value")
         else:
@@ -2632,7 +3491,9 @@ class Compiler:
         output, name = self.scalar_argument()
         self.expect(')')
         self.record_api_call(opening, 3)
-        value = self.temporary(f"jbc_ioctl({handle}, {command}, {output}, {self.location(opening)})")
+        value = self.temporary(
+            f"jbc_ioctl({handle}, {command}, {output}, {self.location(opening)})"
+        )
         if name is not None:
             self.assignment_facts[value, True] = {name}
         return value
@@ -2658,8 +3519,14 @@ class Compiler:
         target = self.identifier()
         args, kinds = self.call_arguments()
         declared = self.functions[target.word]
-        if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
-            self.error(f"arguments disagree with DEFFUN for '{target.word}'", target)
+        if (
+            declared
+            and (any(declared) or any(kinds))
+            and not compatible_call_kinds(kinds, declared)
+        ):
+            self.error(
+                f"arguments disagree with DEFFUN for '{target.word}'", target
+            )
         return self.emit_direct_call(target, args, kinds, is_function=True)
 
     def emit_direct_call(self, target, args, kinds, *, is_function=False):
@@ -2674,37 +3541,62 @@ class Compiler:
         return result
 
     def component_call_member(self, word):
-        member = self.component_members.get(word.casefold()) if self.component_members else None
+        member = (
+            self.component_members.get(word.casefold())
+            if self.component_members
+            else None
+        )
         return member if member and member[1] != "constant" else None
 
     def component_constant(self, word):
-        member = self.component_members.get(word.casefold()) if self.component_members else None
+        member = (
+            self.component_members.get(word.casefold())
+            if self.component_members
+            else None
+        )
         return member if member and member[1] == "constant" else None
 
     def check_component_access(self, target, access, owner):
-        if (access == "public" or owner == self.package
-                or access == "module" and owner.split('.')[0] == self.package.split('.')[0]):
+        if (
+            access == "public"
+            or owner == self.package
+            or access == "module"
+            and owner.split('.')[0] == self.package.split('.')[0]
+        ):
             return
-        self.error(f"component member '{target.word}' has {access} access", target)
+        self.error(
+            f"component member '{target.word}' has {access} access", target
+        )
 
     def component_call(self, target, *, expression=False):
         access, kind, signature, owner = self.component_call_member(target.word)
         self.check_component_access(target, access, owner)
         is_function = kind == "function"
         if expression and not is_function:
-            self.error(f"component method '{target.word}' has no return value", target)
+            self.error(
+                f"component method '{target.word}' has no return value", target
+            )
         args, kinds = self.call_arguments()
         if not compatible_call_kinds(kinds, signature):
-            self.error(f"arguments disagree with component declaration for '{target.word}'", target)
+            self.error(
+                f"arguments disagree with component declaration for '{target.word}'",
+                target,
+            )
         for i, (actual, matrix) in enumerate(zip(kinds, signature)):
             if actual is None and matrix:
                 args[i] = '((jbc_matrix){0})'
-        return self.emit_direct_call(target._replace(word=target.word.casefold()),
-                                     args, signature, is_function=is_function)
+        return self.emit_direct_call(
+            target._replace(word=target.word.casefold()),
+            args,
+            signature,
+            is_function=is_function,
+        )
 
     def call_symbol(self, name, kinds):
         symbol = routine_symbol(name)
-        if self.separate_external_arities and (not self.routine or self.routine.word != name):
+        if self.separate_external_arities and (
+            not self.routine or self.routine.word != name
+        ):
             return f"{symbol}_arity_{len(kinds)}"
         return symbol
 
@@ -2736,7 +3628,9 @@ class Compiler:
         if self.word != ')':
             while True:
                 if index >= len(types):
-                    self.error(f"too many arguments for DEFC '{target.word}'", target)
+                    self.error(
+                        f"too many arguments for DEFC '{target.word}'", target
+                    )
                 if types[index] == 'VAR':
                     argument, name = self.scalar_argument()
                     if name is not None:
@@ -2754,7 +3648,9 @@ class Compiler:
         if index != len(types):
             self.error(f"too few arguments for DEFC '{target.word}'", target)
         self.record_api_call(target, index, kind='defc')
-        reason = c_string(f"C function '{target.word}' requires the jBASE C runtime")
+        reason = c_string(
+            f"C function '{target.word}' requires the jBASE C runtime"
+        )
         return f"(numeric_error({self.location(target)}, {reason}), (const char *)NULL)"
 
     def xml_transform_expression(self):
@@ -2773,7 +3669,9 @@ class Compiler:
         self.expect(')')
         self.record_api_call(opening, 2 if status == 'NULL' else 3)
         reason = c_string(f"{opening.word} requires an XML backend")
-        return self.temporary(f"jbc_xml_transform({value}, {stylesheet}, {status}, {reason}, {self.location(opening)})")
+        return self.temporary(
+            f"jbc_xml_transform({value}, {stylesheet}, {status}, {reason}, {self.location(opening)})"
+        )
 
     def call_arguments(self):
         args = []
@@ -2787,8 +3685,11 @@ class Compiler:
                     self.advance()
                     matrix = self.checked_matrix(self.matrix_name())
                     args.append(matrix.argument())
-                elif (self.current.kind == 'string' and len(self.word) == 2
-                      and self.following.word in (',', ')')):
+                elif (
+                    self.current.kind == 'string'
+                    and len(self.word) == 2
+                    and self.following.word in (',', ')')
+                ):
                     kinds.append(None)
                     self.advance()
                     args.append(EMPTY_SCALAR_ARGUMENT)
@@ -2834,10 +3735,19 @@ class Compiler:
                 value = self.read_variable(target)
             name = self.temporary(value)
             args, kinds = self.call_arguments()
-            values = [f"{{.{field} = {arg}}}" for field, arg in zip(argument_fields(kinds), args)]
-            packed = "(jbc_argument[]){" + ", ".join(values) + "}" if values else "NULL"
+            values = [
+                f"{{.{field} = {arg}}}"
+                for field, arg in zip(argument_fields(kinds), args)
+            ]
+            packed = (
+                "(jbc_argument[]){" + ", ".join(values) + "}"
+                if values
+                else "NULL"
+            )
             self.has_indirect_call = True
-            self.emit(f"jbc_call_indirect({name}, {kind_string(kinds)}, {packed}, {self.location(opening)});")
+            self.emit(
+                f"jbc_call_indirect({name}, {kind_string(kinds)}, {packed}, {self.location(opening)});"
+            )
             return
         target = self.subroutine_name()
         if self.word == '(' and self.component_call_member(target.word):
@@ -2864,7 +3774,10 @@ class Compiler:
         if jump:
             self.has_goto = True
             self.emit("jbc_collect(entry_mark, live);")
-            self.goto_sites[len(self.body)] = (target.word, tuple(self.for_stack))
+            self.goto_sites[len(self.body)] = (
+                target.word,
+                tuple(self.for_stack),
+            )
             self.emit(f"goto label_{number};")
         else:
             self.gosub_sites[len(self.body)] = tuple(self.for_stack)
@@ -2875,7 +3788,11 @@ class Compiler:
     def jump_operator(self):
         operator = self.current
         self.advance()
-        if operator.word == 'GO' and self.word == 'TO' and self.following.word != ':':
+        if (
+            operator.word == 'GO'
+            and self.word == 'TO'
+            and self.following.word != ':'
+        ):
             self.advance()
         return operator.word != 'GOSUB'
 
@@ -2890,7 +3807,9 @@ class Compiler:
         while self.word == ',':
             self.advance()
             targets.append(self.local_label())
-        self.emit(f"switch (jbc_jump_index({index}, {len(targets)}, {self.location(opening)})) {{")
+        self.emit(
+            f"switch (jbc_jump_index({index}, {len(targets)}, {self.location(opening)})) {{"
+        )
         for position, target in enumerate(targets, 1):
             self.emit(f"case {position}:")
             self.depth += 1
@@ -2905,7 +3824,11 @@ class Compiler:
         bounds = []
         while True:
             token = self.current
-            if token.kind == 'number' and token.word.isdigit() and self.following.word in (',', ')'):
+            if (
+                token.kind == 'number'
+                and token.word.isdigit()
+                and self.following.word in (',', ')')
+            ):
                 if len(token.word) > 9 or int(token.word) == 0:
                     self.error("expected a positive constant dimension")
                 bounds.append(int(token.word))
@@ -2914,7 +3837,9 @@ class Compiler:
                 value = self.expression()
                 bound = f"bound_{self.temporaries}"
                 self.temporaries += 1
-                self.emit(f"int {bound} = jbc_dimension({value}, {self.location(token)});")
+                self.emit(
+                    f"int {bound} = jbc_dimension({value}, {self.location(token)});"
+                )
                 bounds.append(bound)
             if self.word != ',':
                 break
@@ -2941,7 +3866,9 @@ class Compiler:
                     self.advance()
                 self.expect('/')
             if name not in self.commons:
-                self.commons[name] = CommonBlock(f"common{len(self.commons)}", opening)
+                self.commons[name] = CommonBlock(
+                    f"common{len(self.commons)}", opening
+                )
             block_name = name
             block = self.commons[name]
         while True:
@@ -2967,8 +3894,13 @@ class Compiler:
                     block.matrix_slots[name] = len(block.shapes)
                     block.shapes.append(matrix.shape)
                 return
-        if (matrix and not pending and matrix.shape is not None and self.word == '('
-                and (not common or matrix.common_block == block_name)):
+        if (
+            matrix
+            and not pending
+            and matrix.shape is not None
+            and self.word == '('
+            and (not common or matrix.common_block == block_name)
+        ):
             self.redeclare_matrix(token, matrix, resize=not common)
             return
         if not common and self.formals.get(name):
@@ -2976,12 +3908,18 @@ class Compiler:
             matrix = self.matrices[name]
             field = f"{matrix.field}_storage"
             self.mat_parameter_storage.add(field)
-            self.emit(f"jbc_dimension_mat_parameter(&frame->{matrix.field}, &frame->{field}, "
-                      f"{len(bounds)}, (const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)});")
+            self.emit(
+                f"jbc_dimension_mat_parameter(&frame->{matrix.field}, &frame->{field}, "
+                f"{len(bounds)}, (const int[]){{{', '.join(map(str, bounds))}}}, {self.location(token)});"
+            )
             return
-        if (name in self.names and (common or not pending)) or (matrix and not pending):
+        if (name in self.names and (common or not pending)) or (
+            matrix and not pending
+        ):
             self.error(f"duplicate declaration of '{name}'", token)
-        bounds = self.dimension_bounds() if self.word == '(' or not common else ()
+        bounds = (
+            self.dimension_bounds() if self.word == '(' or not common else ()
+        )
         shape = tuple(n if isinstance(n, int) else None for n in bounds)
         if common:
             member = block.matrix_slots.get(name, len(block.shapes))
@@ -2997,8 +3935,12 @@ class Compiler:
             block.matrix_slots[name] = member
             field = matrix.field if pending else f"{block.field}_m{member}"
         else:
-            field = matrix.field if pending else f"matrix{len(self.local_arrays)}"
-            self.local_arrays[field] = None if None in shape else math.prod(n + 1 for n in bounds)
+            field = (
+                matrix.field if pending else f"matrix{len(self.local_arrays)}"
+            )
+            self.local_arrays[field] = (
+                None if None in shape else math.prod(n + 1 for n in bounds)
+            )
 
         if common or None in shape:
             key = c_string(f"{block_name}:{member}") if common else "NULL"
@@ -3012,17 +3954,25 @@ class Compiler:
         if pending:
             del self.pending_matrices[name]
 
-    def matrix_storage_call(self, previous, key, bounds, token, mismatch='NULL'):
-        return (f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
-                f"(const int[]){{{', '.join(map(str, bounds))}}}, {mismatch}, {self.location(token)})")
+    def matrix_storage_call(
+        self, previous, key, bounds, token, mismatch='NULL'
+    ):
+        return (
+            f"jbc_matrix_storage({previous}, {key}, {len(bounds)}, "
+            f"(const int[]){{{', '.join(map(str, bounds))}}}, {mismatch}, {self.location(token)})"
+        )
 
     def redeclare_matrix(self, token, matrix, resize):
         bounds = self.dimension_bounds()
-        shape = tuple(bound if isinstance(bound, int) else None for bound in bounds)
+        shape = tuple(
+            bound if isinstance(bound, int) else None for bound in bounds
+        )
         block_name = matrix.common_block
         kind = "local" if block_name is None else "COMMON"
         message = f"incompatible {kind} matrix dimensions"
-        if len(matrix.shape) != len(shape) or (not resize and not compatible_dimensions(matrix.shape, shape)):
+        if len(matrix.shape) != len(shape) or (
+            not resize and not compatible_dimensions(matrix.shape, shape)
+        ):
             self.error(message, token)
         if None not in shape and matrix.shape == shape:
             return
@@ -3033,7 +3983,9 @@ class Compiler:
             mismatch = c_string(message)
         for expected, bound in zip(matrix.shape, bounds):
             if expected is not None and expected != bound:
-                self.emit(f'if ({bound} != {expected}) numeric_error({self.location(token)}, {c_string(message)});')
+                self.emit(
+                    f'if ({bound} != {expected}) numeric_error({self.location(token)}, {c_string(message)});'
+                )
         slot = f"frame->{matrix.field}"
         key = "NULL"
         if block_name is not None:
@@ -3051,12 +4003,16 @@ class Compiler:
     def checked_matrix(self, token):
         matrix = self.matrices[token.word]
         if matrix.shape is None:
-            self.emit(f'if (!{matrix.rank}) numeric_error({self.location(token)}, '
-                      '"MAT parameter requires a matrix argument or DIM");')
+            self.emit(
+                f'if (!{matrix.rank}) numeric_error({self.location(token)}, '
+                '"MAT parameter requires a matrix argument or DIM");'
+            )
         elif None in matrix.shape:
             kind = "COMMON" if matrix.common_block is not None else "local"
-            self.emit(f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
-                      f'"{kind} matrix declaration has not executed");')
+            self.emit(
+                f'if (!frame->{matrix.field}) numeric_error({self.location(token)}, '
+                f'"{kind} matrix declaration has not executed");'
+            )
         return matrix
 
     def matrix_range(self):
@@ -3086,8 +4042,10 @@ class Compiler:
         matrix = self.checked_matrix(source)
         start, end = self.matrix_range()
         delimiter = self.matrix_delimiter()
-        result = self.temporary(f"jbc_matbuild({matrix.base}, {matrix.rank}, {matrix.limits}, "
-                                f"{start}, {end}, {delimiter}, {c_string(source.word)}, {self.location(opening)})")
+        result = self.temporary(
+            f"jbc_matbuild({matrix.base}, {matrix.rank}, {matrix.limits}, "
+            f"{start}, {end}, {delimiter}, {c_string(source.word)}, {self.location(opening)})"
+        )
         self.emit(f"assign_value(&{dest}, {result});")
         if target.word not in self.matrices:
             self.assigned.add(target.word)
@@ -3107,8 +4065,10 @@ class Compiler:
             setting = '&' + self.variable_slot(target)
             if target.word not in self.matrices:
                 self.assigned.add(target.word)
-        self.emit(f"jbc_matparse({matrix.base}, {matrix.rank}, {matrix.limits}, "
-                  f"{start}, {end}, {source}, {delimiter}, {setting}, {self.location(opening)});")
+        self.emit(
+            f"jbc_matparse({matrix.base}, {matrix.rank}, {matrix.limits}, "
+            f"{start}, {end}, {source}, {delimiter}, {setting}, {self.location(opening)});"
+        )
 
     def matrix_assignment(self):
         self.advance()
@@ -3119,10 +4079,14 @@ class Compiler:
             self.advance()
             source = self.matrix_name()
             src = self.checked_matrix(source)
-            self.emit(f"jbc_matrix_copy({dest.argument()}, {src.argument()}, "
-                      f"{c_string(source.word)}, {self.location(source)});")
+            self.emit(
+                f"jbc_matrix_copy({dest.argument()}, {src.argument()}, "
+                f"{c_string(source.word)}, {self.location(source)});"
+            )
         else:
-            self.emit(f"jbc_matrix_fill({dest.base}, {dest.count}, {self.expression()});")
+            self.emit(
+                f"jbc_matrix_fill({dest.base}, {dest.count}, {self.expression()});"
+            )
 
     def matrix_slot(self, token):
         matrix = self.checked_matrix(token)
@@ -3134,14 +4098,18 @@ class Compiler:
             subscripts.append(self.expression())
         self.expect(')')
         if matrix.shape is None:
-            self.emit(f'if ({rank} != {len(subscripts)}) numeric_error({self.location(token)}, '
-                      '"wrong number of MAT parameter subscripts");')
+            self.emit(
+                f'if ({rank} != {len(subscripts)}) numeric_error({self.location(token)}, '
+                '"wrong number of MAT parameter subscripts");'
+            )
         elif len(subscripts) != rank and matrix.common_block is None:
             self.error(f"expected {rank} subscripts for '{token.word}'", token)
         index = f"index_{self.temporaries}"
         self.temporaries += 1
-        self.emit(f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, {len(subscripts)}, "
-                  f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});")
+        self.emit(
+            f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, {len(subscripts)}, "
+            f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});"
+        )
         return f"({matrix.base})[{index}]"
 
     def prefix_step(self, statement=False):
@@ -3150,7 +4118,9 @@ class Compiler:
         target = self.identifier()
         slot = self.variable_slot(target)
         if statement and self.word in ('<', '['):
-            self.error("increment and decrement require a variable or matrix element")
+            self.error(
+                "increment and decrement require a variable or matrix element"
+            )
         return self.step_value(target, operator, slot)
 
     def get_argument_statement(self):
@@ -3166,7 +4136,9 @@ class Compiler:
         target = self.identifier()
         slot = self.variable_slot(target)
         self.needs_arguments = True
-        value = self.temporary(f"jbc_get_argument({position}, {self.location(opening)})")
+        value = self.temporary(
+            f"jbc_get_argument({position}, {self.location(opening)})"
+        )
         scalar = target.word not in self.matrices
         if self.word in ('THEN', 'ELSE'):
             self.emit(f"if ({value}) assign_value(&{slot}, {value});")
@@ -3178,7 +4150,9 @@ class Compiler:
                 if scalar:
                     self.assigned.add(target.word)
 
-            self.conditional_arms(opening, value, value, default_else=assign_empty)
+            self.conditional_arms(
+                opening, value, value, default_else=assign_empty
+            )
         else:
             self.emit(f'assign_value(&{slot}, {value} ? {value} : "");')
             if scalar:
@@ -3186,8 +4160,14 @@ class Compiler:
 
     def step_value(self, target, operator, slot, postfix=False):
         scalar = target.word not in self.matrices
-        if scalar and target.word not in self.assigned and not self.has_unstructured_jumps:
-            self.assignment_error(f"unassigned variable '{target.word}'", target)
+        if (
+            scalar
+            and target.word not in self.assigned
+            and not self.has_unstructured_jumps
+        ):
+            self.assignment_error(
+                f"unassigned variable '{target.word}'", target
+            )
         old = self.checked_read(slot, target)
         value = self.arithmetic(operator, old, '"1"', operator.word[0])
         self.emit(f"assign_value(&{slot}, {value});")
@@ -3204,14 +4184,19 @@ class Compiler:
             self.matrix_assignment()
         elif self.word == 'MATPARSE':
             self.matparse_statement()
-        elif (self.word in ('MATREAD', 'MATREADU', 'MATWRITE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('MATREAD', 'MATREADU', 'MATWRITE')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.matrix_file_statement()
         elif self.word == 'MATBUILD':
             self.matbuild_statement()
-        elif self.word == 'CONVERT' or (self.word in ('CHANGE', 'EREPLACE', 'SWAP')
-                                       and self.word not in self.matrices
-                                       and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif self.word == 'CONVERT' or (
+            self.word in ('CHANGE', 'EREPLACE', 'SWAP')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.change_or_convert_statement()
         elif self.word == 'INS':
             self.ins_statement()
@@ -3219,8 +4204,11 @@ class Compiler:
             self.del_statement()
         elif self.word == 'REMOVE':
             self.remove_statement()
-        elif (self.word in ('FIND', 'FINDSTR') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('FIND', 'FINDSTR')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.find_statement()
         elif self.word == 'LOCATE':
             self.locate_statement()
@@ -3230,7 +4218,9 @@ class Compiler:
             token = self.current
             self.advance()
             self.sets_precision = True
-            self.emit(f"jbc_set_precision({self.expression()}, {self.location(token)});")
+            self.emit(
+                f"jbc_set_precision({self.expression()}, {self.location(token)});"
+            )
         elif self.word == 'DEFFUN':
             self.advance()
             function = self.identifier()
@@ -3247,29 +4237,42 @@ class Compiler:
             self.c_function_declaration()
         elif self.word in ('DIM', 'DIMENSION', 'COM', 'COMMON'):
             self.declaration()
-        elif self.word in ('GOSUB', 'GOTO') or (self.word == 'GO' and
-                self.following.word not in ASSIGNMENT_PREFIXES and
-                self.following.word != '('):
+        elif self.word in ('GOSUB', 'GOTO') or (
+            self.word == 'GO'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and self.following.word != '('
+        ):
             jump = self.jump_operator()
             self.emit_jump(self.local_label(), jump)
-        elif (self.word == 'ON' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'ON'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.indexed_jump()
         elif self.word == 'RETURN':
             opening = self.current
             self.advance()
             if self.word == 'TO':
                 if self.is_function:
-                    self.error("RETURN TO is not allowed in a FUNCTION", opening)
+                    self.error(
+                        "RETURN TO is not allowed in a FUNCTION", opening
+                    )
                 self.advance()
                 target = self.local_label()
                 if not self.routine:
-                    self.emit(f'if (!entry) numeric_error({self.location(opening)}, '
-                              '"RETURN TO without an outstanding GOSUB");')
+                    self.emit(
+                        f'if (!entry) numeric_error({self.location(opening)}, '
+                        '"RETURN TO without an outstanding GOSUB");'
+                    )
                 self.return_targets[target.word] = target
                 self.emit(f"return {self.label_number(target.word)};")
                 return
-            if self.is_function and self.word not in OUTPUT_END and self.word != '':
+            if (
+                self.is_function
+                and self.word not in OUTPUT_END
+                and self.word != ''
+            ):
                 if self.word == '(' and self.following.word == ')':
                     self.advance()
                     self.advance()
@@ -3278,88 +4281,149 @@ class Compiler:
                     value = self.expression()
                 self.emit(f"frame->result = {value};")
             self.emit("return 0;")
-        elif self.word == 'EXIT' or (self.word == 'BREAK' and
-                                     (self.following.word in (';', '\n') or self.following.word in stops)):
+        elif self.word == 'EXIT' or (
+            self.word == 'BREAK'
+            and (
+                self.following.word in (';', '\n')
+                or self.following.word in stops
+            )
+        ):
             self.exit_statement()
-        elif (self.word == 'BREAK' and self.following.word in ('ON', 'OFF')
-              and self.word not in self.matrices):
+        elif (
+            self.word == 'BREAK'
+            and self.following.word in ('ON', 'OFF')
+            and self.word not in self.matrices
+        ):
             opening = self.current
             self.advance()
             enabled = int(self.word == 'ON')
             self.advance()
             self.terminal = True
             self.emit(f"jbc_break_key({enabled}, {self.location(opening)});")
-        elif (self.word == 'DEBUG' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'DEBUG'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             opening = self.current
             self.advance()
-            self.emit(f'numeric_error({self.location(opening)}, "DEBUG requires a jBC debugger");')
-        elif (self.word == 'CALLJ' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+            self.emit(
+                f'numeric_error({self.location(opening)}, "DEBUG requires a jBC debugger");'
+            )
+        elif (
+            self.word == 'CALLJ'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.callj_statement()
-        elif (self.word in ('TRANSTART', 'TRANSEND', 'TRANSABORT')
-              and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word in ('TRANSTART', 'TRANSEND', 'TRANSABORT')
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.transaction_statement()
-        elif self.word == 'TRANSACTION' and self.following.word in ('START', 'COMMIT', 'ABORT'):
+        elif self.word == 'TRANSACTION' and self.following.word in (
+            'START',
+            'COMMIT',
+            'ABORT',
+        ):
             self.transaction_statement()
-        elif (self.word in ('STOP', 'ABORT') and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word in ('STOP', 'ABORT')
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.termination_statement(stops)
-        elif (self.word in ('DELETE', 'CLEARFILE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('DELETE', 'CLEARFILE')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             if self.word == 'DELETE':
                 self.delete_statement()
             else:
                 self.clearfile_statement()
-        elif (self.word in ('FILELOCK', 'FILEUNLOCK') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('FILELOCK', 'FILEUNLOCK')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.file_lock_statement()
-        elif (self.word == 'RELEASE' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'RELEASE'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             opening = self.current
             self.advance()
             on_error = self.word == 'ON' and self.following.word == 'ERROR'
-            handle, key = ("NULL", "NULL") if on_error or not self.word or self.word in OUTPUT_END else self.file_key()
+            handle, key = (
+                ("NULL", "NULL")
+                if on_error or not self.word or self.word in OUTPUT_END
+                else self.file_key()
+            )
             call = f"jbc_release_lock({handle}, {key})"
             if self.word == 'ON':
                 self.file_error_arm(opening, f"file_succeeded({call})", "NULL")
             else:
                 self.emit(f"{call};")
-        elif (self.word == 'RECORDLOCKU' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'RECORDLOCKU'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             opening = self.current
             self.advance()
             handle, key = self.file_key()
             setting = self.file_setting()
             status = f"lock_status_{self.temporaries}"
             self.temporaries += 1
-            self.emit(f"int {status} = jbc_recordlocku({handle}, {key}, {setting});")
+            self.emit(
+                f"int {status} = jbc_recordlocku({handle}, {key}, {setting});"
+            )
             self.record_read_arms(opening, status, setting)
-        elif (self.word == 'READ' or (self.word == 'READU' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES)):
+        elif self.word == 'READ' or (
+            self.word == 'READU'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.read_record_statement()
-        elif (self.word in ('READV', 'READVU') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('READV', 'READVU')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.readv_statement()
-        elif (self.word in ('READLIST', 'WRITELIST', 'GETLIST', 'DELETELIST') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('READLIST', 'WRITELIST', 'GETLIST', 'DELETELIST')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.saved_list_statement()
-        elif (self.word == 'FORMLIST' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'FORMLIST'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.advance()
             source = self.temporary(self.expression())
             dest = self.select_list('TO', quoted_number=True)
             setting = self.file_setting()
             self.emit(f"jbc_formlist({source}, {dest}, {setting});")
-        elif (self.word == 'SELECTE' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'SELECTE'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.advance()
             dest = self.select_list('TO', quoted_number=True)
             setting = self.file_setting()
             self.emit(f"jbc_selecte({dest}, {setting});")
-        elif (self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             if self.word in ('SELECT', 'SSELECT'):
                 self.select_statement()
             elif self.word == 'CLEARSELECT':
@@ -3367,26 +4431,66 @@ class Compiler:
             else:
                 opening = self.current
                 self.conditional_arms(opening, self.readnext_call())
-        elif (self.word in ('READT', 'REWIND', 'WEOF', 'WRITET') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('READT', 'REWIND', 'WEOF', 'WRITET')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.tape_statement()
-        elif (self.word in ('OPENSEQ', 'OPENDEV', 'READSEQ', 'READBLK', 'WRITESEQ', 'WRITESEQF', 'WRITEBLK',
-                            'CLOSESEQ', 'CREATE', 'WEOFSEQ', 'SEEK', 'FLUSH', 'NOBUF', 'TIMEOUT',
-                            'OSREAD', 'OSOPEN', 'OSCLOSE', 'OSBREAD', 'OSBWRITE', 'OSWRITE', 'OSDELETE',
-                            'TTYGET', 'TTYSET')
-              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word
+            in (
+                'OPENSEQ',
+                'OPENDEV',
+                'READSEQ',
+                'READBLK',
+                'WRITESEQ',
+                'WRITESEQF',
+                'WRITEBLK',
+                'CLOSESEQ',
+                'CREATE',
+                'WEOFSEQ',
+                'SEEK',
+                'FLUSH',
+                'NOBUF',
+                'TIMEOUT',
+                'OSREAD',
+                'OSOPEN',
+                'OSCLOSE',
+                'OSBREAD',
+                'OSBWRITE',
+                'OSWRITE',
+                'OSDELETE',
+                'TTYGET',
+                'TTYSET',
+            )
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.sequential_statement()
-        elif (self.word == 'OPEN' or (self.word == 'OPENPATH' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES)):
+        elif self.word == 'OPEN' or (
+            self.word == 'OPENPATH'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.open_statement()
-        elif (self.word == 'CLOSE' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word == 'CLOSE'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.close_statement()
-        elif (self.word == 'STATUS' and self.following.kind == 'name'
-              and self.word not in self.matrices):
+        elif (
+            self.word == 'STATUS'
+            and self.following.kind == 'name'
+            and self.word not in self.matrices
+        ):
             self.status_statement()
-        elif (self.word == 'WRITE' or (self.word in ('WRITEU', 'WRITEV', 'WRITEVU')
-              and self.word not in self.matrices and self.following.word not in ASSIGNMENT_PREFIXES)):
+        elif self.word == 'WRITE' or (
+            self.word in ('WRITEU', 'WRITEV', 'WRITEVU')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.write_statement()
         elif self.word == 'BEGIN':
             self.case_statement()
@@ -3400,8 +4504,11 @@ class Compiler:
             self.continue_statement()
         elif self.word == 'LOOP':
             self.loop_statement()
-        elif (self.word == 'ASSIGN' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'ASSIGN'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             opening = self.current
             self.advance()
             value = self.temporary(self.expression())
@@ -3410,27 +4517,44 @@ class Compiler:
             self.expect('(')
             key = self.expression()
             self.expect(')')
-            self.emit(f"jbc_assign_system({value}, {key}, {self.location(opening)});")
-        elif (self.word == 'CLEARDATA' and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+            self.emit(
+                f"jbc_assign_system({value}, {key}, {self.location(opening)});"
+            )
+        elif (
+            self.word == 'CLEARDATA'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.advance()
             self.emit("jbc_cleardata();")
-        elif (self.word == 'CLEAR' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'CLEAR'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.clear_statement()
-        elif (self.word == 'DATA' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'DATA'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.advance()
             while True:
                 self.emit(f"jbc_data({self.expression()});")
                 if self.word != ',':
                     break
                 self.advance()
-        elif (self.word in ('EXECUTE', 'EXEC', 'PERFORM') and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word in ('EXECUTE', 'EXEC', 'PERFORM')
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.execute_statement(stops)
-        elif (self.word == 'HUSH' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'HUSH'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             opening = self.current
             self.advance()
             self.uses_hush = True
@@ -3442,8 +4566,11 @@ class Compiler:
             else:
                 state = self.expression()
             self.emit(f"jbc_hush({state}, {self.location(opening)});")
-        elif (self.word == 'ECHO' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'ECHO'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.advance()
             self.terminal = True
             if self.word in ('ON', 'OFF'):
@@ -3452,32 +4579,53 @@ class Compiler:
             else:
                 state = f"jbc_truth({self.expression()})"
             self.emit(f"jbc_echo({state});")
-        elif (self.word == 'SLEEP' and self.following.word not in ASSIGNMENT_PREFIXES
-              and not (self.word in self.matrices and self.following.word == '(')):
+        elif (
+            self.word == 'SLEEP'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             opening = self.current
             self.advance()
             self.uses_sleep = True
-            duration = '"1"' if not self.word or self.word in OUTPUT_END else self.expression()
+            duration = (
+                '"1"'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
-        elif (self.word == 'RANDOMIZE' and self.following.word not in ASSIGNMENT_PREFIXES
-              and self.word not in self.matrices):
+        elif (
+            self.word == 'RANDOMIZE'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and self.word not in self.matrices
+        ):
             self.advance()
             if self.word == '(':
                 self.advance()
                 if self.word != ')':
                     self.ignored_expression()
                 self.expect(')')
-        elif (self.word in ('INPUTCLEAR', 'CLEARINPUT') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('INPUTCLEAR', 'CLEARINPUT')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             opening = self.current
             self.advance()
             self.terminal = True
             self.emit(f"jbc_inputclear({self.location(opening)});")
-        elif (self.word == 'GET' and self.word not in self.matrices and self.following.word == '('
-              and len(self.tokens) > 1 and self.tokens[1].word == 'ARG.'):
+        elif (
+            self.word == 'GET'
+            and self.word not in self.matrices
+            and self.following.word == '('
+            and len(self.tokens) > 1
+            and self.tokens[1].word == 'ARG.'
+        ):
             self.get_argument_statement()
-        elif (self.word in ('INPUT', 'PROMPT') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('INPUT', 'PROMPT')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             opening = self.current
             self.advance()
             self.terminal = True
@@ -3497,7 +4645,9 @@ class Compiler:
                 omitted_before = self.omitted_concatenations
                 if self.word == ',':
                     self.advance()
-                    limit = self.expression(colon_stops=OUTPUT_END | {'FOR', '_'})
+                    limit = self.expression(
+                        colon_stops=OUTPUT_END | {'FOR', '_'}
+                    )
                 suppress = self.omitted_concatenations != omitted_before
                 if self.word in CONCATENATION:
                     suppress = True
@@ -3514,21 +4664,33 @@ class Compiler:
                 if self.word == 'FOR':
                     self.advance()
                     timeout = self.expression()
-                call = (f"jbc_input(&{slot}, {cursor}, {limit}, {int(suppress)}, {int(discard_excess)}, "
-                        f"{timeout}, {self.location(opening)})")
+                call = (
+                    f"jbc_input(&{slot}, {cursor}, {limit}, {int(suppress)}, {int(discard_excess)}, "
+                    f"{timeout}, {self.location(opening)})"
+                )
                 self.assigned.add(target.word)
                 if timeout == 'NULL':
                     self.emit(call + ";")
                 else:
                     self.conditional_arms(opening, call)
-        elif (self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'FOOTING', 'PAGE') and self.word not in self.matrices
-              and self.following.word not in ASSIGNMENT_PREFIXES):
+        elif (
+            self.word in ('HEADING', 'HEADINGE', 'HEADINGN', 'FOOTING', 'PAGE')
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
             self.report_statement()
-        elif self.word == 'PRINTER' and self.following.word in ('ON', 'OFF', 'CLOSE', 'RESET'):
+        elif self.word == 'PRINTER' and self.following.word in (
+            'ON',
+            'OFF',
+            'CLOSE',
+            'RESET',
+        ):
             self.printer_statement()
-        elif (self.word in ('CRT', 'PRINT')
-              or (self.word == 'DISPLAY' and self.following.word not in ASSIGNMENT_PREFIXES
-                  and not (self.word in self.matrices and self.following.word == '('))):
+        elif self.word in ('CRT', 'PRINT') or (
+            self.word == 'DISPLAY'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
             self.print_statement()
         elif self.word == '@' and self.following.word in RECORD_VARIABLES:
             self.advance()
@@ -3542,14 +4704,25 @@ class Compiler:
             self.advance()
             self.advance()
             self.expect('=')
-            self.emit(f"jbc_set_user_root({self.expression()}, {self.location(target)});")
-        elif self.word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
+            self.emit(
+                f"jbc_set_user_root({self.expression()}, {self.location(target)});"
+            )
+        elif (
+            self.word == 'CALLC'
+            and self.following.word == 'JBASESubroutineExist'
+        ):
             self.emit(f"(void){self.subroutine_exists_call()};")
-        elif (self.word in self.functions and self.following.word == '('
-              and not self.uses_matrix(self.word, self.following.word)):
+        elif (
+            self.word in self.functions
+            and self.following.word == '('
+            and not self.uses_matrix(self.word, self.following.word)
+        ):
             self.function_call()
-        elif (self.following.word == '(' and self.component_call_member(self.word)
-              and not self.uses_matrix(self.word, '(')):
+        elif (
+            self.following.word == '('
+            and self.component_call_member(self.word)
+            and not self.uses_matrix(self.word, '(')
+        ):
             self.component_call(self.identifier())
         elif self.word in self.c_functions and self.following.word == '(':
             self.emit(f"(void){self.c_function_call()};")
@@ -3557,7 +4730,9 @@ class Compiler:
             self.prefix_step(statement=True)
         elif self.current.kind == 'name':
             start = self.current
-            assignments = self.for_assignments[-1] if self.for_assignments else None
+            assignments = (
+                self.for_assignments[-1] if self.for_assignments else None
+            )
             first_read = len(assignments.reads) if assignments else 0
             self.advance()
             matrix = self.uses_matrix(start.word, self.word)
@@ -3575,9 +4750,13 @@ class Compiler:
             operator = self.current
             if self.word in STEP_OPERATORS:
                 if indices or substring:
-                    self.error("increment and decrement require a variable or matrix element")
+                    self.error(
+                        "increment and decrement require a variable or matrix element"
+                    )
                 self.advance()
-                self.step_value(start, operator, var or self.variable(start.word))
+                self.step_value(
+                    start, operator, var or self.variable(start.word)
+                )
                 return
             if self.word not in ASSIGNMENTS:
                 self.error(f"unsupported statement '{start.word}'", start)
@@ -3586,14 +4765,22 @@ class Compiler:
             var = var or self.variable(start.word)
             base = f'({var}.value ? {var}.value : "")'
             if substring and operator.word not in ('=', ':='):
-                self.error("expected '=' or ':=' for substring replacement", operator)
+                self.error(
+                    "expected '=' or ':=' for substring replacement", operator
+                )
             compound = operator.word != '='
             text = base
             previous = base
             if compound:
-                if (not matrix and start.word not in self.assigned and start.word not in self.maybe_assigned
-                        and not self.has_unstructured_jumps):
-                    self.unassigned_read(start, f"unassigned variable '{start.word}'")
+                if (
+                    not matrix
+                    and start.word not in self.assigned
+                    and start.word not in self.maybe_assigned
+                    and not self.has_unstructured_jumps
+                ):
+                    self.unassigned_read(
+                        start, f"unassigned variable '{start.word}'"
+                    )
                 previous = self.checked_read(var, start)
             if indices and (substring or compound):
                 text = self.temporary(f"jbc_array({previous}, {indices}, NULL)")
@@ -3603,39 +4790,58 @@ class Compiler:
                     text = old
                 else:
                     if substring:
-                        old = self.temporary(f"jbc_substring({old}, {substring}, NULL)")
+                        old = self.temporary(
+                            f"jbc_substring({old}, {substring}, NULL)"
+                        )
                     if operator.word == ':=':
                         value = self.temporary(f"jbc_concat({old}, {value})")
                     else:
-                        value = self.arithmetic(operator, old, value, operator.word[0])
+                        value = self.arithmetic(
+                            operator, old, value, operator.word[0]
+                        )
             if delimited:
                 append = int(operator.word == ':=')
-                value = self.temporary(f"jbc_field_replace({text}, {substring}, {value}, {append})")
+                value = self.temporary(
+                    f"jbc_field_replace({text}, {substring}, {value}, {append})"
+                )
             elif substring:
-                value = self.temporary(f"jbc_substring({text}, {substring}, {value})")
+                value = self.temporary(
+                    f"jbc_substring({text}, {substring}, {value})"
+                )
             if indices:
                 value = self.temporary(f"jbc_array({base}, {indices}, {value})")
             self.emit(f"assign_value(&{var}, {value});")
             if not matrix:
                 self.assigned.add(start.word)
-                if (assignments and not compound
-                        and not any(token.word == start.word for _, token, _ in assignments.reads[first_read:])):
+                if (
+                    assignments
+                    and not compound
+                    and not any(
+                        token.word == start.word
+                        for _, token, _ in assignments.reads[first_read:]
+                    )
+                ):
                     assignments.initializers.add(start.word)
         else:
             self.error("expected an assignment, CRT or IF")
 
     def statement_boundary_is_target(self):
         # Assignments and labels can use words that also end a statement sequence.
-        return (self.following.word in ASSIGNMENT_PREFIXES
+        return (
+            self.following.word in ASSIGNMENT_PREFIXES
             or (self.word in self.matrices and self.following.word == '(')
-            or is_label(self.current, self.following))
+            or is_label(self.current, self.following)
+        )
 
     def sequence(self, stops, opening=None):
         enclosing_stops = self.statement_stops
         self.statement_stops = stops
         while self.word not in stops or (
-            self.word == 'END' and is_label(self.current, self.following)
-            or self.word in LOOP_BOUNDARIES and opening.word != 'LOOP' and self.statement_boundary_is_target()
+            self.word == 'END'
+            and is_label(self.current, self.following)
+            or self.word in LOOP_BOUNDARIES
+            and opening.word != 'LOOP'
+            and self.statement_boundary_is_target()
         ):
             if self.word == '':
                 self.error(f"unterminated {opening.word}", opening)
@@ -3662,23 +4868,38 @@ class Compiler:
 
     def parse(self, tokens):
         self.has_expression_writes = any(
-            t.kind == 'symbol' and t.word in STEP_OPERATORS
-            or t.kind == 'name' and t.word in EXPRESSION_WRITES
+            t.kind == 'symbol'
+            and t.word in STEP_OPERATORS
+            or t.kind == 'name'
+            and t.word in EXPRESSION_WRITES
             and tokens[i + 1].word == '('
-            or self.component_members and t.kind == 'name' and tokens[i + 1].word == '('
+            or self.component_members
+            and t.kind == 'name'
+            and tokens[i + 1].word == '('
             and self.component_call_member(t.word)
-            or t.word == 'CALLC' and tokens[i + 1].word == 'JBASESubroutineExist'
+            or t.word == 'CALLC'
+            and tokens[i + 1].word == 'JBASESubroutineExist'
             for i, t in enumerate(tokens)
         )
         self.has_unstructured_jumps = any(
-            t.kind == 'name' and (t.word in ('GOTO', 'GOSUB') or
-                                  (t.word == 'RETURN' and n + 1 < len(tokens) and tokens[n + 1].word == 'TO'))
+            t.kind == 'name'
+            and (
+                t.word in ('GOTO', 'GOSUB')
+                or (
+                    t.word == 'RETURN'
+                    and n + 1 < len(tokens)
+                    and tokens[n + 1].word == 'TO'
+                )
+            )
             for n, t in enumerate(tokens)
         )
         # GO is also a legal identifier. Resolve tentative assignment diagnostics
         # once we know whether any use actually emitted a jump.
-        self.possible_go = any(t.word == 'GO' and tokens[i + 1].kind in ('name', 'number')
-                               for i, t in enumerate(tokens) if t.kind == 'name')
+        self.possible_go = any(
+            t.word == 'GO' and tokens[i + 1].kind in ('name', 'number')
+            for i, t in enumerate(tokens)
+            if t.kind == 'name'
+        )
         self.pending_assignment_error = None
         self.tokens = deque(tokens)
         self.advance()
@@ -3688,7 +4909,11 @@ class Compiler:
             header = self.word
             self.is_function = header == 'FUNCTION'
             self.advance()
-            self.routine = self.identifier() if self.is_function else self.subroutine_name()
+            self.routine = (
+                self.identifier()
+                if self.is_function
+                else self.subroutine_name()
+            )
             if self.word == '(':
                 self.advance()
                 while self.word != ')':
@@ -3710,9 +4935,13 @@ class Compiler:
                 self.expect(')')
             if self.word not in (';', '\n'):
                 self.error(f"expected separator after {header} declaration")
-        for index, (token, shape, block) in enumerate(matrix_declarations(tokens)):
+        for index, (token, shape, block) in enumerate(
+            matrix_declarations(tokens)
+        ):
             if token.word not in self.formals:
-                self.matrices[token.word] = Matrix(f"declared_matrix{index}", shape, block)
+                self.matrices[token.word] = Matrix(
+                    f"declared_matrix{index}", shape, block
+                )
                 self.pending_matrices[token.word] = token
         self.sequence({'', 'END'})
         if self.word == 'END':
@@ -3737,44 +4966,92 @@ class Compiler:
     def reset_skipped_steps(self, target, active_fors):
         # A jump can enter a loop that ran before. Discard its stale STEP.
         entered = self.labels[target]
-        return "".join(f"{self.saved_steps[loop]} = NULL; "
-                       for depth, loop in enumerate(entered, 1)
-                       if loop in self.saved_steps and entered[:depth] != active_fors[:depth])
+        return "".join(
+            f"{self.saved_steps[loop]} = NULL; "
+            for depth, loop in enumerate(entered, 1)
+            if loop in self.saved_steps
+            and entered[:depth] != active_fors[:depth]
+        )
 
     def signature(self):
         if not self.routine:
-            return "int main(int argc, char **argv)" if self.needs_arguments else "int main(void)"
-        return routine_signature(routine_symbol(self.routine.word), self.formals.values(), self.is_function)
+            return (
+                "int main(int argc, char **argv)"
+                if self.needs_arguments
+                else "int main(void)"
+            )
+        return routine_signature(
+            routine_symbol(self.routine.word),
+            self.formals.values(),
+            self.is_function,
+        )
 
     def render(self, memory_files=(), memory_dicts=(), memory_locks=()):
         u = self.unit
-        fields = [arg + ";" for arg in routine_parameters(self.formals.values())]
+        fields = [
+            arg + ";" for arg in routine_parameters(self.formals.values())
+        ]
         if self.is_function:
             fields.append("const char *result;")
-        local_scalars = [var for name, var in self.names.items()
-                         if name not in self.formals and name not in self.common_scalars]
-        fields += [f"jbc_variable {var.split('->')[1]};" for var in local_scalars]
+        local_scalars = [
+            var
+            for name, var in self.names.items()
+            if name not in self.formals and name not in self.common_scalars
+        ]
+        fields += [
+            f"jbc_variable {var.split('->')[1]};" for var in local_scalars
+        ]
         fields += [f"jbc_variable *{b.field};" for b in self.commons.values()]
-        fields += [f"struct jbc_slots *{m.field};" for m in self.matrices.values() if m.shape is not None]
-        fields += [f"struct jbc_slots *{field};" for field in sorted(self.mat_parameter_storage)]
-        lines = [f"struct frame_{u} {{"] + ["    " + f for f in fields or ["char unused;"]] + ["};"]
+        fields += [
+            f"struct jbc_slots *{m.field};"
+            for m in self.matrices.values()
+            if m.shape is not None
+        ]
+        fields += [
+            f"struct jbc_slots *{field};"
+            for field in sorted(self.mat_parameter_storage)
+        ]
+        lines = (
+            [f"struct frame_{u} {{"]
+            + ["    " + f for f in fields or ["char unused;"]]
+            + ["};"]
+        )
         if self.clear_assignments is not None:
-            lines.extend([f"static void clear_locals_{u}(struct frame_{u} *frame)", "{", "    (void)frame;"])
-            lines.extend(f'    assign_value(&{var}, "0");' for var in local_scalars)
+            lines.extend(
+                [
+                    f"static void clear_locals_{u}(struct frame_{u} *frame)",
+                    "{",
+                    "    (void)frame;",
+                ]
+            )
+            lines.extend(
+                f'    assign_value(&{var}, "0");' for var in local_scalars
+            )
             for field in self.local_arrays:
-                lines.append(f'    if (frame->{field}) jbc_matrix_fill(frame->{field}->values, '
-                             f'frame->{field}->count, "0");')
+                lines.append(
+                    f'    if (frame->{field}) jbc_matrix_fill(frame->{field}->values, '
+                    f'frame->{field}->count, "0");'
+                )
             lines.append("}")
-        lines += [f"static int body_{u}(struct frame_{u} *frame, int entry)", "{"]
+        lines += [
+            f"static int body_{u}(struct frame_{u} *frame, int entry)",
+            "{",
+        ]
         lines += ["    (void)frame;", "    (void)entry;"]
-        if self.loops or self.has_goto or (self.return_targets and self.gosub_sites):
+        if (
+            self.loops
+            or self.has_goto
+            or (self.return_targets and self.gosub_sites)
+        ):
             lines.append("    struct jbc_buffer *entry_mark = buffers;")
             for step in self.saved_steps.values():
                 lines.append(f"    const char *{step} = NULL;")
             roots = ["&" + var + ".value" for var in self.names.values()]
             roots.extend("&" + step for step in self.saved_steps.values())
             roots.append("NULL")
-            lines.append("    const char **live[] = {" + ", ".join(roots) + "};")
+            lines.append(
+                "    const char **live[] = {" + ", ".join(roots) + "};"
+            )
         if self.labels:
             lines.append("    switch (entry) {")
             for name in self.labels:
@@ -3783,7 +5060,7 @@ class Compiler:
             lines.append("    }")
         for i, line in enumerate(self.body):
             if i in self.gosub_sites and self.return_targets:
-                indent = "    " + line[:len(line) - len(line.lstrip())]
+                indent = "    " + line[: len(line) - len(line.lstrip())]
                 lines.append(indent + "{")
                 lines.append(indent + "    int resume = " + line.lstrip())
                 lines.append(indent + "    if (resume) {")
@@ -3793,8 +5070,12 @@ class Compiler:
                 for name in self.return_targets:
                     n = self.targets[name]
                     resets = self.reset_skipped_steps(name, active_fors)
-                    lines.append(indent + f"        case {n}: {resets}goto label_{n};")
-                lines.extend([indent + "        }", indent + "    }", indent + "}"])
+                    lines.append(
+                        indent + f"        case {n}: {resets}goto label_{n};"
+                    )
+                lines.extend(
+                    [indent + "        }", indent + "    }", indent + "}"]
+                )
             else:
                 if i in self.goto_sites:
                     resets = self.reset_skipped_steps(*self.goto_sites[i])
@@ -3803,11 +5084,18 @@ class Compiler:
                         line = indent + resets + line.lstrip()
                 lines.append("    " + line)
         lines.append("    return 0;")
-        lines += ["}", self.signature(), "{", f"    struct frame_{u} frame = {{0}};"]
+        lines += [
+            "}",
+            self.signature(),
+            "{",
+            f"    struct frame_{u} frame = {{0}};",
+        ]
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
         for name, block in self.commons.items():
-            lines.append(f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});")
+            lines.append(
+                f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});"
+            )
             lines.extend("    " + init for init in block.initializers)
         for field, size in self.local_arrays.items():
             if size is not None:
@@ -3821,14 +5109,22 @@ class Compiler:
                 lines.append("    jbc_init_arguments(argc, argv);")
             for section, names in (('', memory_files), ('DICT', memory_dicts)):
                 for name in names:
-                    lines.append(f"    jbc_create_memory_file({c_string(section)}, {c_string(name)});")
+                    lines.append(
+                        f"    jbc_create_memory_file({c_string(section)}, {c_string(name)});"
+                    )
             for name, key in memory_locks:
-                lines.append(f"    jbc_seed_memory_lock({c_string(name)}, {c_string(key)});")
+                lines.append(
+                    f"    jbc_seed_memory_lock({c_string(name)}, {c_string(key)});"
+                )
         if self.routine and self.sets_precision:
             lines.append("    int saved_precision = jbc_precision;")
-        seq_scope = self.routine and (self.uses_sequential or self.calls or self.has_indirect_call)
+        seq_scope = self.routine and (
+            self.uses_sequential or self.calls or self.has_indirect_call
+        )
         if seq_scope:
-            lines.extend(["#ifdef JBC_SEQUENTIAL", "    ++seq_depth;", "#endif"])
+            lines.extend(
+                ["#ifdef JBC_SEQUENTIAL", "    ++seq_depth;", "#endif"]
+            )
         lines.append(f"    body_{u}(&frame, 0);")
         if self.opens_local_files:
             lines.append("    jbc_close_local_files(&frame);")
@@ -3837,16 +5133,31 @@ class Compiler:
         if self.is_function:
             lines.append('    *result = frame.result ? frame.result : "";')
         for field in self.local_arrays:
-            lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
+            lines.append(
+                f"    if (frame.{field}) jbc_release(frame.{field}->values);"
+            )
         for field in sorted(self.mat_parameter_storage):
-            lines.append(f"    if (frame.{field}) jbc_release(frame.{field}->values);")
+            lines.append(
+                f"    if (frame.{field}) jbc_release(frame.{field}->values);"
+            )
         if seq_scope:
-            roots = [f"&arg{i}->value" for i, matrix in enumerate(self.formals.values()) if not matrix]
+            roots = [
+                f"&arg{i}->value"
+                for i, matrix in enumerate(self.formals.values())
+                if not matrix
+            ]
             if self.is_function:
                 roots.append("result")
             roots.append("NULL")
-            lines.extend(["#ifdef JBC_SEQUENTIAL", "    jbc_leave_sequential((const char **[]){"
-                          + ", ".join(roots) + "});", "#endif"])
+            lines.extend(
+                [
+                    "#ifdef JBC_SEQUENTIAL",
+                    "    jbc_leave_sequential((const char **[]){"
+                    + ", ".join(roots)
+                    + "});",
+                    "#endif",
+                ]
+            )
         if not self.routine:
             lines.extend(["    jbc_finish();", "    return 0;"])
         return "\n".join(lines + ["}", ""])
@@ -3857,7 +5168,10 @@ def routine_symbol(name):
 
 
 def routine_parameters(kinds):
-    return [f"jbc_matrix arg{i}" if matrix else f"jbc_variable *arg{i}" for i, matrix in enumerate(kinds)]
+    return [
+        f"jbc_matrix arg{i}" if matrix else f"jbc_variable *arg{i}"
+        for i, matrix in enumerate(kinds)
+    ]
 
 
 def routine_signature(symbol, kinds, is_function):
@@ -3878,12 +5192,16 @@ def empty_argument_name(symbol, index):
 
 
 def direct_arguments(symbol, args, kinds):
-    return [empty_argument_name(symbol, i) if kind is None else arg
-            for i, (arg, kind) in enumerate(zip(args, kinds))]
+    return [
+        empty_argument_name(symbol, i) if kind is None else arg
+        for i, (arg, kind) in enumerate(zip(args, kinds))
+    ]
 
 
 def compatible_call_kinds(actual, expected):
-    return len(actual) == len(expected) and all(a is None or a == b for a, b in zip(actual, expected))
+    return len(actual) == len(expected) and all(
+        a is None or a == b for a, b in zip(actual, expected)
+    )
 
 
 def render_empty_arguments(units, signatures):
@@ -3895,12 +5213,20 @@ def render_empty_arguments(units, signatures):
                 if kind is None:
                     matrix = signatures[symbol][i]
                     definitions[empty_argument_name(symbol, i)] = (
-                        '((jbc_matrix){0})' if matrix else EMPTY_SCALAR_ARGUMENT)
-    return "\n".join(f"#define {name} {value}" for name, value in definitions.items())
+                        '((jbc_matrix){0})' if matrix else EMPTY_SCALAR_ARGUMENT
+                    )
+    return "\n".join(
+        f"#define {name} {value}" for name, value in definitions.items()
+    )
 
 
 def kind_string(kinds):
-    return c_string("".join("E" if matrix is None else "M" if matrix else "S" for matrix in kinds))
+    return c_string(
+        "".join(
+            "E" if matrix is None else "M" if matrix else "S"
+            for matrix in kinds
+        )
+    )
 
 
 def render_indirect_calls(units):
@@ -3927,22 +5253,29 @@ def render_indirect_calls(units):
         name = unit.routine.word
         kinds = tuple(unit.formals.values())
         args = ", ".join(
-            f"(kinds[{i}] == 'E' ? (jbc_matrix){{0}} : args[{i}].matrix)" if matrix
-            else f"args[{i}].scalar" for i, matrix in enumerate(kinds))
-        lines.extend([
-            f"    if (strcmp(name, {c_string(name, unit.encoding)}) == 0) {{",
-            f"        if (jbc_match_call_kinds(kinds, {kind_string(kinds)})) {{",
-            f"            {routine_symbol(name)}({args});",
-            "            return;",
-            "        }",
-            '        message = "incompatible arguments for subroutine";',
-            "    }",
-        ])
-    lines.extend([
-        """    fprintf(stderr, "%s:%d:%d: %s '%s'\\n", file, line, column, message, name);""",
-        "    jbc_terminate(EXIT_FAILURE);",
-        "}",
-    ])
+            f"(kinds[{i}] == 'E' ? (jbc_matrix){{0}} : args[{i}].matrix)"
+            if matrix
+            else f"args[{i}].scalar"
+            for i, matrix in enumerate(kinds)
+        )
+        lines.extend(
+            [
+                f"    if (strcmp(name, {c_string(name, unit.encoding)}) == 0) {{",
+                f"        if (jbc_match_call_kinds(kinds, {kind_string(kinds)})) {{",
+                f"            {routine_symbol(name)}({args});",
+                "            return;",
+                "        }",
+                '        message = "incompatible arguments for subroutine";',
+                "    }",
+            ]
+        )
+    lines.extend(
+        [
+            """    fprintf(stderr, "%s:%d:%d: %s '%s'\\n", file, line, column, message, name);""",
+            "    jbc_terminate(EXIT_FAILURE);",
+            "}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -3956,11 +5289,17 @@ def render_exit_callbacks(units):
         "    (void)length;",
     ]
     for unit in units:
-        if not unit.routine or unit.is_function or tuple(unit.formals.values()) != (False,):
+        if (
+            not unit.routine
+            or unit.is_function
+            or tuple(unit.formals.values()) != (False,)
+        ):
             continue
         name = unit.routine.word
         literal = c_string(name, unit.encoding)
-        lines.append(f"    if (length == sizeof {literal} - 1 && !memcmp(name, {literal}, length))")
+        lines.append(
+            f"    if (length == sizeof {literal} - 1 && !memcmp(name, {literal}, length))"
+        )
         lines.append(f"        return {routine_symbol(name)};")
     lines.extend(["    return NULL;", "}"])
     return "\n".join(lines)
@@ -3983,15 +5322,39 @@ def render_subroutine_exists(units):
     return "\n".join(lines)
 
 
-def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
-                 defer_unassigned_reads=False, source_filter=None, include_resolver=None,
-                 next_warning=None, api_call=None, package_directives=None, component_members=None):
+def compile_unit(
+    path,
+    directories,
+    index=0,
+    *,
+    source_encoding='utf-8',
+    separate_external_arities=False,
+    defer_unassigned_reads=False,
+    source_filter=None,
+    include_resolver=None,
+    next_warning=None,
+    api_call=None,
+    package_directives=None,
+    component_members=None,
+):
     encoding = SOURCE_ENCODINGS[source_encoding]
-    unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
-                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call,
-                    component_members=component_members)
-    preprocessor = Preprocessor(directories, encoding, source_filter=source_filter, include_resolver=include_resolver,
-                                package_directives=package_directives)
+    unit = Compiler(
+        path,
+        index,
+        encoding,
+        separate_external_arities=separate_external_arities,
+        defer_unassigned_reads=defer_unassigned_reads,
+        next_warning=next_warning,
+        api_call=api_call,
+        component_members=component_members,
+    )
+    preprocessor = Preprocessor(
+        directories,
+        encoding,
+        source_filter=source_filter,
+        include_resolver=include_resolver,
+        package_directives=package_directives,
+    )
     tokens = list(preprocessor.read(path))
     if preprocessor.package:
         unit.package = preprocessor.package.word.casefold()
@@ -4000,8 +5363,16 @@ def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separat
     return unit
 
 
-def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=(), *,
-                    source_encoding='utf-8', defer_unassigned_reads=False):
+def compile_program(
+    paths,
+    directories,
+    memory_files=(),
+    memory_dicts=(),
+    memory_locks=(),
+    *,
+    source_encoding='utf-8',
+    defer_unassigned_reads=False,
+):
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -4009,10 +5380,18 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     routines = {}
     programs = []
     for i, path in enumerate(paths):
-        unit = compile_unit(path, directories, i, source_encoding=source_encoding,
-                            defer_unassigned_reads=defer_unassigned_reads)
+        unit = compile_unit(
+            path,
+            directories,
+            i,
+            source_encoding=source_encoding,
+            defer_unassigned_reads=defer_unassigned_reads,
+        )
         if len(paths) > 1 and unit.package_directives:
-            unit.error("package-aware linkage is unsupported", unit.package_directives[0])
+            unit.error(
+                "package-aware linkage is unsupported",
+                unit.package_directives[0],
+            )
         units.append(unit)
         if unit.routine:
             name = unit.routine.word
@@ -4025,37 +5404,63 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
         raise Diagnostic("expected one main program among the input files")
     programs[0].needs_arguments = any(unit.needs_arguments for unit in units)
     programs[0].uses_session = any(unit.uses_session for unit in units)
-    programs[0].uses_startup_clock = any(unit.uses_startup_clock for unit in units)
+    programs[0].uses_startup_clock = any(
+        unit.uses_startup_clock for unit in units
+    )
     layouts = {}
     for unit in units:
         for name, block in unit.commons.items():
             known = layouts.setdefault(name, list(block.shapes))
             if len(known) != len(block.shapes) or not all(
-                    compatible_dimensions(a, b) for a, b in zip(known, block.shapes)):
-                unit.error(f"incompatible COMMON layout for /{name}/", block.token)
+                compatible_dimensions(a, b) for a, b in zip(known, block.shapes)
+            ):
+                unit.error(
+                    f"incompatible COMMON layout for /{name}/", block.token
+                )
             for i, shape in enumerate(block.shapes):
-                known[i] = tuple(x if x is not None else y for x, y in zip(known[i], shape))
+                known[i] = tuple(
+                    x if x is not None else y for x, y in zip(known[i], shape)
+                )
         for target, kinds, is_function in unit.calls:
-            if target.word not in routines or routines[target.word].is_function != is_function:
+            if (
+                target.word not in routines
+                or routines[target.word].is_function != is_function
+            ):
                 kind = "function" if is_function else "subroutine"
                 unit.error(f"unknown {kind} '{target.word}'", target)
             if len(kinds) != len(routines[target.word].formals):
                 unit.error(f"wrong argument count for '{target.word}'", target)
-            if not compatible_call_kinds(kinds, tuple(routines[target.word].formals.values())):
-                unit.error(f"scalar/MAT argument mismatch for '{target.word}'", target)
-    runtime = (Path(__file__).resolve().parent / 'runtime' / 'jbc.c').read_text()
+            if not compatible_call_kinds(
+                kinds, tuple(routines[target.word].formals.values())
+            ):
+                unit.error(
+                    f"scalar/MAT argument mismatch for '{target.word}'", target
+                )
+    runtime = (
+        Path(__file__).resolve().parent / 'runtime' / 'jbc.c'
+    ).read_text()
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
-    prototypes.append(render_empty_arguments(units, {routine_symbol(name): tuple(u.formals.values())
-                                                     for name, u in routines.items()}))
+    prototypes.append(
+        render_empty_arguments(
+            units,
+            {
+                routine_symbol(name): tuple(u.formals.values())
+                for name, u in routines.items()
+            },
+        )
+    )
     features = runtime_features(units)
     for unit in units:
         for warning in unit.warnings:
             print(warning, file=sys.stderr)
-    source = "\n".join([features, runtime] + prototypes
-                       + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
+    source = "\n".join(
+        [features, runtime]
+        + prototypes
+        + [u.render(memory_files, memory_dicts, memory_locks) for u in units]
+    )
     libraries = ['-lm'] if any(unit.uses_math for unit in units) else []
     return source, libraries
 
@@ -4104,41 +5509,93 @@ def build_executable(source, output, libraries):
         c_file = Path(directory) / 'program.c'
         binary = Path(directory) / 'program'
         c_file.write_text(source, encoding='utf-8')
-        command = compiler + ['-std=c99', str(c_file)] + libraries + flags + ['-o', str(binary)]
+        command = (
+            compiler
+            + ['-std=c99', str(c_file)]
+            + libraries
+            + flags
+            + ['-o', str(binary)]
+        )
         completed = subprocess.run(command)
         if completed.returncode:
-            raise Diagnostic(f"C compiler exited with status {completed.returncode}")
+            raise Diagnostic(
+                f"C compiler exited with status {completed.returncode}"
+            )
         os.replace(binary, output)
 
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument('source', nargs='+', type=Path)
-    cli.add_argument('--memory-file', dest='memory_files', action='append', default=[], metavar='NAME',
-                     help='provide an empty named file in the in-memory test backend (repeatable)')
-    cli.add_argument('--memory-dict', dest='memory_dicts', action='append', default=[], metavar='NAME',
-                     help='provide an empty dictionary section in the in-memory test backend (repeatable)')
-    cli.add_argument('--memory-lock', dest='memory_locks', action='append', nargs=2, default=[],
-                     metavar=('FILE', 'KEY'), help='simulate a foreign update lock on a registered memory file')
-    cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
-    cli.add_argument('--source-encoding', choices=SOURCE_ENCODINGS, default='utf-8',
-                     help='decode source as UTF-8 or preserve literal source bytes (default: utf-8)')
-    cli.add_argument('--defer-unassigned-reads', action='store_true',
-                     help='warn when a scalar variable read must be checked at runtime')
-    cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
+    cli.add_argument(
+        '--memory-file',
+        dest='memory_files',
+        action='append',
+        default=[],
+        metavar='NAME',
+        help='provide an empty named file in the in-memory test backend (repeatable)',
+    )
+    cli.add_argument(
+        '--memory-dict',
+        dest='memory_dicts',
+        action='append',
+        default=[],
+        metavar='NAME',
+        help='provide an empty dictionary section in the in-memory test backend (repeatable)',
+    )
+    cli.add_argument(
+        '--memory-lock',
+        dest='memory_locks',
+        action='append',
+        nargs=2,
+        default=[],
+        metavar=('FILE', 'KEY'),
+        help='simulate a foreign update lock on a registered memory file',
+    )
+    cli.add_argument(
+        '-I',
+        dest='directories',
+        action='append',
+        type=Path,
+        default=[],
+        metavar='DIR',
+    )
+    cli.add_argument(
+        '--source-encoding',
+        choices=SOURCE_ENCODINGS,
+        default='utf-8',
+        help='decode source as UTF-8 or preserve literal source bytes (default: utf-8)',
+    )
+    cli.add_argument(
+        '--defer-unassigned-reads',
+        action='store_true',
+        help='warn when a scalar variable read must be checked at runtime',
+    )
+    cli.add_argument(
+        '--exe',
+        action='store_true',
+        help='build a native executable using CC and CC_FLAGS',
+    )
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
     args = cli.parse_args()
     try:
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
-        result, libraries = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts,
-                                            args.memory_locks, source_encoding=args.source_encoding,
-                                            defer_unassigned_reads=args.defer_unassigned_reads)
+        result, libraries = compile_program(
+            args.source,
+            args.directories,
+            args.memory_files,
+            args.memory_dicts,
+            args.memory_locks,
+            source_encoding=args.source_encoding,
+            defer_unassigned_reads=args.defer_unassigned_reads,
+        )
         if args.exe:
             build_executable(result, args.o, libraries)
             return 0
-        with tempfile.NamedTemporaryFile(dir=args.o.parent, delete=False, mode='w',
-                                         encoding='utf-8') as output:
+        with tempfile.NamedTemporaryFile(
+            dir=args.o.parent, delete=False, mode='w', encoding='utf-8'
+        ) as output:
             try:
                 output.write(result)
                 output.close()

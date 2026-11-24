@@ -3,39 +3,50 @@ import re
 import subprocess
 
 import pytest
-
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
 def test_ins_diagnostics(compiler, subtests):
     for name, diagnostic in [
-            ('ins_1.b', expected_text('ins-diagnostics.stderr')),
-            ('ins_2.b', expected_text('ins-diagnostics_2.stderr')),
-            ('ins_3.b', expected_text('ins-diagnostics_3.stderr'))]:
+        ('ins_1.b', expected_text('ins-diagnostics.stderr')),
+        ('ins_2.b', expected_text('ins-diagnostics_2.stderr')),
+        ('ins_3.b', expected_text('ins-diagnostics_3.stderr')),
+    ]:
         with subtests.test(source=name):
             source = ROOT / 'tests/programs/array-diagnostics' / name
-            run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            run = subprocess.run(
+                [CLI, source, '-o', compiler.c], capture_output=True, text=True
+            )
             assert run.returncode != 0
             assert str(source) + diagnostic in run.stderr
     source = ROOT / 'tests/programs/array-diagnostics/ins-nonnumeric-index.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('ins-diagnostics_4.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('ins-diagnostics_4.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_insert_diagnostics(compiler, subtests):
     for name, message in [
-            ('insert_1.b', expected_text('insert-diagnostics.stderr')),
-            ('insert_2.b', expected_text('insert-diagnostics_2.stderr'))]:
+        ('insert_1.b', expected_text('insert-diagnostics.stderr')),
+        ('insert_2.b', expected_text('insert-diagnostics_2.stderr')),
+    ]:
         with subtests.test(source=name):
             source = ROOT / 'tests/programs/array-diagnostics' / name
-            run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            run = subprocess.run(
+                [CLI, source, '-o', compiler.c], capture_output=True, text=True
+            )
             assert run.returncode != 0
             assert str(source) + message in run.stderr
     source = ROOT / 'tests/programs/array-diagnostics/insert-nonnumeric-index.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('insert-diagnostics_3.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('insert-diagnostics_3.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_delete_function_rejects_nonnumeric_index(compiler):
@@ -43,38 +54,58 @@ def test_delete_function_rejects_nonnumeric_index(compiler):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('delete-function-rejects-nonnumeric-index.stderr', source=source).encode()
+        expected_text(
+            'delete-function-rejects-nonnumeric-index.stderr', source=source
+        ).encode()
         in run.stderr
     )
 
 
 def test_extract_rejects_nonnumeric_index(compiler):
-    source = ROOT / 'tests/programs/array-diagnostics/extract-nonnumeric-index.b'
+    source = (
+        ROOT / 'tests/programs/array-diagnostics/extract-nonnumeric-index.b'
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('extract-rejects-nonnumeric-index.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'extract-rejects-nonnumeric-index.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 def test_del_diagnostics(compiler, subtests):
     for name, diagnostic in [
-            ('del_1.b', expected_text('del-diagnostics.stderr')),
-            ('del_2.b', expected_text('del-diagnostics_2.stderr')),
-            ('del_3.b', expected_text('del-diagnostics_3.stderr'))]:
+        ('del_1.b', expected_text('del-diagnostics.stderr')),
+        ('del_2.b', expected_text('del-diagnostics_2.stderr')),
+        ('del_3.b', expected_text('del-diagnostics_3.stderr')),
+    ]:
         with subtests.test(source=name):
             source = ROOT / 'tests/programs/array-diagnostics' / name
-            run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+            run = subprocess.run(
+                [CLI, source, '-o', compiler.c], capture_output=True, text=True
+            )
             assert run.returncode != 0
             assert str(source) + diagnostic in run.stderr
     source = ROOT / 'tests/programs/array-diagnostics/del-nonnumeric-index.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('del-diagnostics_4.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('del-diagnostics_4.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
     'case_number, text, diagnostic_fixture',
     [
-        pytest.param(1, '9223372036854775807', 'integer-limits.stderr', id='9223372036854775807'),
+        pytest.param(
+            1,
+            '9223372036854775807',
+            'integer-limits.stderr',
+            id='9223372036854775807',
+        ),
         pytest.param(2, '"nan"', 'integer-limits_2.stderr', id='nan'),
     ],
 )
@@ -85,14 +116,18 @@ def test_integer_limits(compiler, case_number, text, diagnostic_fixture):
     assert run.returncode != 0
     assert diagnostic.encode() in run.stderr
     assert (
-        expected_text('integer-limits_3.stderr', source=source, value_2=len(text) + 6).encode()
+        expected_text(
+            'integer-limits_3.stderr', source=source, value_2=len(text) + 6
+        ).encode()
         in run.stderr
     )
 
 
 def test_precision_call_scope(compiler):
     sources = ROOT / 'tests/routines/precision-scope'
-    run = compiler.run_native(sources / 'main.b', sources / 'change.b', sources / 'local.b')
+    run = compiler.run_native(
+        sources / 'main.b', sources / 'change.b', sources / 'local.b'
+    )
     assert run.returncode == 0, run.stderr
     assert run.stdout == expected_bytes('precision-call-scope.stdout')
 
@@ -110,7 +145,10 @@ def test_invalid_precision(compiler, fixture_name):
     source = ROOT / 'tests/programs/invalid-precision' / fixture_name
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('invalid-precision.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('invalid-precision.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -127,7 +165,9 @@ def test_locate_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(main)
     assert run.returncode != 0
     assert (
-        expected_text('locate-diagnostics_4.stderr', main=main, message=message).encode()
+        expected_text(
+            'locate-diagnostics_4.stderr', main=main, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -136,18 +176,33 @@ def test_locate_subvalue_start_diagnostics(compiler):
     main = ROOT / 'tests/programs/locate-zero-subvalue.b'
     run = compiler.run_native(main)
     assert run.returncode != 0
-    assert expected_text('locate-subvalue-start-diagnostics.stderr', main=main).encode() in run.stderr
+    assert (
+        expected_text(
+            'locate-subvalue-start-diagnostics.stderr', main=main
+        ).encode()
+        in run.stderr
+    )
     main = ROOT / 'tests/programs/locate-duplicate-start.b'
-    result = subprocess.run([CLI, main, '-o', compiler.c], capture_output=True, text=True)
+    result = subprocess.run(
+        [CLI, main, '-o', compiler.c], capture_output=True, text=True
+    )
     assert result.returncode != 0
-    assert expected_text('locate-subvalue-start-diagnostics_2.stderr', main=main) in result.stderr
+    assert (
+        expected_text('locate-subvalue-start-diagnostics_2.stderr', main=main)
+        in result.stderr
+    )
 
 
 def test_sum_overflow_reports_call_site(compiler):
     source = ROOT / 'tests/programs/sum-overflow.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('sum-overflow-reports-call-site.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'sum-overflow-reports-call-site.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 def test_unique_key_returns_distinct_uuid_strings(compiler):
@@ -157,7 +212,10 @@ def test_unique_key_returns_distinct_uuid_strings(compiler):
     assert len(values) == 5
     assert len(set(values)) == 5
     for value in values:
-        assert re.search(b'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', value)
+        assert re.search(
+            b'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            value,
+        )
 
 
 @pytest.mark.parametrize(
@@ -180,7 +238,9 @@ def test_iconv_diagnostics(compiler, case_number, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('iconv-diagnostics_5.stderr', source=source, message=message).encode()
+        expected_text(
+            'iconv-diagnostics_5.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -189,14 +249,24 @@ def test_iconvs_empty_mask_diagnostic(compiler):
     source = ROOT / 'tests/programs/iconvs-empty-mask.b'
     result = compiler.run_native(source)
     assert result.returncode != 0
-    assert expected_text('iconvs-empty-mask-diagnostic.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text(
+            'iconvs-empty-mask-diagnostic.stderr', source=source
+        ).encode()
+        in result.stderr
+    )
 
 
 def test_oconvs_empty_mask_diagnostic(compiler):
     source = ROOT / 'tests/programs/oconvs-empty-mask.b'
     result = compiler.run_native(source)
     assert result.returncode != 0
-    assert expected_text('oconvs-empty-mask-diagnostic.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text(
+            'oconvs-empty-mask-diagnostic.stderr', source=source
+        ).encode()
+        in result.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -217,7 +287,9 @@ def test_oconv_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('oconv-diagnostics_6.stderr', source=source, message=message).encode()
+        expected_text(
+            'oconv-diagnostics_6.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -225,8 +297,12 @@ def test_oconv_diagnostics(compiler, fixture_name, message_fixture):
 @pytest.mark.parametrize(
     'fixture_name, message_fixture',
     [
-        pytest.param('repeat_1.b', 'str-repetition-diagnostics.stderr', id='repeat-1'),
-        pytest.param('repeat_2.b', 'str-repetition-diagnostics_2.stderr', id='repeat-2'),
+        pytest.param(
+            'repeat_1.b', 'str-repetition-diagnostics.stderr', id='repeat-1'
+        ),
+        pytest.param(
+            'repeat_2.b', 'str-repetition-diagnostics_2.stderr', id='repeat-2'
+        ),
     ],
 )
 def test_str_repetition_diagnostics(compiler, fixture_name, message_fixture):
@@ -235,7 +311,11 @@ def test_str_repetition_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('str-repetition-diagnostics_3.stderr', source=source, message=message).encode()
+        expected_text(
+            'str-repetition-diagnostics_3.stderr',
+            source=source,
+            message=message,
+        ).encode()
         in run.stderr
     )
 
@@ -247,8 +327,12 @@ def test_str_repetition_diagnostics(compiler, fixture_name, message_fixture):
         pytest.param('spaces_2.b', 'spaces-diagnostics.stderr', id='spaces-2'),
         pytest.param('spaces_3.b', 'spaces-diagnostics.stderr', id='spaces-3'),
         pytest.param('spaces_4.b', 'spaces-diagnostics.stderr', id='spaces-4'),
-        pytest.param('spaces_5.b', 'spaces-diagnostics_2.stderr', id='spaces-5'),
-        pytest.param('spaces_6.b', 'spaces-diagnostics_3.stderr', id='spaces-6'),
+        pytest.param(
+            'spaces_5.b', 'spaces-diagnostics_2.stderr', id='spaces-5'
+        ),
+        pytest.param(
+            'spaces_6.b', 'spaces-diagnostics_3.stderr', id='spaces-6'
+        ),
     ],
 )
 def test_spaces_diagnostics(compiler, fixture_name, message_fixture):
@@ -257,7 +341,9 @@ def test_spaces_diagnostics(compiler, fixture_name, message_fixture):
     result = compiler.run_native(source)
     assert result.returncode != 0
     assert (
-        expected_text('spaces-diagnostics_4.stderr', source=source, message=message).encode()
+        expected_text(
+            'spaces-diagnostics_4.stderr', source=source, message=message
+        ).encode()
         in result.stderr
     )
 
@@ -270,11 +356,15 @@ def test_spaces_diagnostics(compiler, fixture_name, message_fixture):
     ],
 )
 def test_left_right_require_numeric_length(compiler, fixture_name):
-    source = ROOT / 'tests/programs/left-right-require-numeric-length' / fixture_name
+    source = (
+        ROOT / 'tests/programs/left-right-require-numeric-length' / fixture_name
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('left-right-require-numeric-length.stderr', source=source).encode()
+        expected_text(
+            'left-right-require-numeric-length.stderr', source=source
+        ).encode()
         in run.stderr
     )
 
@@ -283,7 +373,12 @@ def test_suffix_requires_numeric_length(compiler):
     source = ROOT / 'tests/programs/suffix-nonnumeric-length.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('suffix-requires-numeric-length.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'suffix-requires-numeric-length.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -294,10 +389,17 @@ def test_suffix_requires_numeric_length(compiler):
     ],
 )
 def test_counts_requires_two_arguments(compiler, fixture_name):
-    source = ROOT / 'tests/programs/counts-requires-two-arguments' / fixture_name
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    source = (
+        ROOT / 'tests/programs/counts-requires-two-arguments' / fixture_name
+    )
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('counts-requires-two-arguments.stderr', source=source) in result.stderr
+    assert (
+        expected_text('counts-requires-two-arguments.stderr', source=source)
+        in result.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -308,11 +410,21 @@ def test_counts_requires_two_arguments(compiler, fixture_name):
     ],
 )
 def test_col_positions_require_no_arguments(compiler, case_number, name):
-    source = ROOT / 'tests/programs/col-positions-require-no-arguments' / f'field-positions_{case_number}.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    source = (
+        ROOT
+        / 'tests/programs/col-positions-require-no-arguments'
+        / f'field-positions_{case_number}.b'
+    )
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
     assert (
-        expected_text('col-positions-require-no-arguments.stderr', source=source, value_2=name)
+        expected_text(
+            'col-positions-require-no-arguments.stderr',
+            source=source,
+            value_2=name,
+        )
         in result.stderr
     )
 
@@ -320,21 +432,47 @@ def test_col_positions_require_no_arguments(compiler, case_number, name):
 @pytest.mark.parametrize(
     'fixture_name, message_fixture',
     [
-        pytest.param('fields_1.b', 'delimited-bracket-assignment-diagnostics.stderr', id='fields-1'),
-        pytest.param('fields_2.b', 'delimited-bracket-assignment-diagnostics_2.stderr', id='fields-2'),
-        pytest.param('fields_3.b', 'delimited-bracket-assignment-diagnostics_3.stderr', id='fields-3'),
-        pytest.param('fields_4.b', 'delimited-bracket-assignment-diagnostics_4.stderr', id='fields-4'),
+        pytest.param(
+            'fields_1.b',
+            'delimited-bracket-assignment-diagnostics.stderr',
+            id='fields-1',
+        ),
+        pytest.param(
+            'fields_2.b',
+            'delimited-bracket-assignment-diagnostics_2.stderr',
+            id='fields-2',
+        ),
+        pytest.param(
+            'fields_3.b',
+            'delimited-bracket-assignment-diagnostics_3.stderr',
+            id='fields-3',
+        ),
+        pytest.param(
+            'fields_4.b',
+            'delimited-bracket-assignment-diagnostics_4.stderr',
+            id='fields-4',
+        ),
     ],
 )
-def test_delimited_bracket_assignment_diagnostics(compiler, fixture_name, message_fixture):
+def test_delimited_bracket_assignment_diagnostics(
+    compiler, fixture_name, message_fixture
+):
     message = expected_text(message_fixture)
-    source = ROOT / 'tests/programs/delimited-bracket-assignment-diagnostics' / fixture_name
+    source = (
+        ROOT
+        / 'tests/programs/delimited-bracket-assignment-diagnostics'
+        / fixture_name
+    )
     result = compiler.run_native(source)
     assert result.returncode == 1
     assert result.stdout == b''
     assert (
         result.stderr
-        == expected_text('delimited-bracket-assignment-diagnostics_5.stderr', source=source, message=message).encode()
+        == expected_text(
+            'delimited-bracket-assignment-diagnostics_5.stderr',
+            source=source,
+            message=message,
+        ).encode()
     )
 
 
@@ -342,19 +480,22 @@ def test_concatenation_with_an_omitted_right_operand(compiler):
     source = ROOT / 'tests/routines/concat-omitted-operand/main.b'
     show = ROOT / 'tests/routines/concat-omitted-operand/show.b'
     result = compiler.run_native(source, show)
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('concatenation-with-an-omitted-right-operand.stdout'),
-             b'')
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('concatenation-with-an-omitted-right-operand.stdout'),
+        b'',
     )
 
 
 def test_concatenation_requires_a_left_operand(compiler):
     source = ROOT / 'tests/programs/concat-missing-left.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True, text=True
+    )
     assert result.returncode == 1
-    assert result.stderr == expected_text('concatenation-requires-a-left-operand.stderr', source=source)
+    assert result.stderr == expected_text(
+        'concatenation-requires-a-left-operand.stderr', source=source
+    )
 
 
 def test_single_index_substring_assignment_diagnostics(compiler):
@@ -362,15 +503,23 @@ def test_single_index_substring_assignment_diagnostics(compiler):
     result = compiler.run_native(source)
     assert result.returncode != 0
     assert (
-        expected_text('single-index-substring-assignment-diagnostics.stderr', source=source).encode()
+        expected_text(
+            'single-index-substring-assignment-diagnostics.stderr',
+            source=source,
+        ).encode()
         in result.stderr
     )
 
     source = ROOT / 'tests/programs/substring-invalid-assignment.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
     assert (
-        expected_text('single-index-substring-assignment-diagnostics_2.stderr', source=source)
+        expected_text(
+            'single-index-substring-assignment-diagnostics_2.stderr',
+            source=source,
+        )
         in result.stderr
     )
 
@@ -383,11 +532,17 @@ def test_single_index_substring_assignment_diagnostics(compiler):
     ],
 )
 def test_substrings_requires_numeric_bounds(compiler, fixture_name):
-    source = ROOT / 'tests/programs/substrings-requires-numeric-bounds' / fixture_name
+    source = (
+        ROOT
+        / 'tests/programs/substrings-requires-numeric-bounds'
+        / fixture_name
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('substrings-requires-numeric-bounds.stderr', source=source).encode()
+        expected_text(
+            'substrings-requires-numeric-bounds.stderr', source=source
+        ).encode()
         in run.stderr
     )
 
@@ -402,25 +557,32 @@ def test_splice_reuse_scalar(compiler):
     source = ROOT / 'tests/programs/splice-reuse-array.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('splice-reuse-scalar.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('splice-reuse-scalar.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_eqs_reuse_requires_scalar(compiler):
     source = ROOT / 'tests/programs/eqs-reuse-array.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('eqs-reuse-requires-scalar.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'eqs-reuse-requires-scalar.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 def test_ordered_array_comparisons(compiler):
     source = ROOT / 'tests/routines/ordered-array-comparisons/main.b'
     bump = ROOT / 'tests/routines/ordered-array-comparisons/bump.b'
     result = compiler.run_native(source, bump)
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('ordered-array-comparisons.stdout'),
-             b'')
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('ordered-array-comparisons.stdout'),
+        b'',
     )
 
 
@@ -431,7 +593,10 @@ def test_ordered_array_comparison_rejects_reuse_of_an_array(compiler):
     assert result.stdout == b''
     assert (
         result.stderr
-        == expected_text('ordered-array-comparison-rejects-reuse-of-an-array.stderr', source=source).encode()
+        == expected_text(
+            'ordered-array-comparison-rejects-reuse-of-an-array.stderr',
+            source=source,
+        ).encode()
     )
 
 
@@ -439,7 +604,12 @@ def test_compare_invalid_justification(compiler):
     source = ROOT / 'tests/programs/compare-invalid-justification.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('compare-invalid-justification.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'compare-invalid-justification.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -454,7 +624,10 @@ def test_fold_invalid_width(compiler, fixture_name):
     source = ROOT / 'tests/programs/fold-invalid-width' / fixture_name
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('fold-invalid-width.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('fold-invalid-width.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -468,16 +641,27 @@ def test_fmts_invalid_mask(compiler, fixture_name, mask):
     source = ROOT / 'tests/programs/fmts-invalid-mask' / fixture_name
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('fmts-invalid-mask.stderr', source=source, mask=mask).encode() in run.stderr
+    assert (
+        expected_text(
+            'fmts-invalid-mask.stderr', source=source, mask=mask
+        ).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
     'fixture_name, diagnostic_fixture',
     [
         pytest.param('dround_1.b', 'dround-diagnostics.stderr', id='dround-1'),
-        pytest.param('dround_2.b', 'dround-diagnostics_2.stderr', id='dround-2'),
-        pytest.param('dround_3.b', 'dround-diagnostics_2.stderr', id='dround-3'),
-        pytest.param('dround_4.b', 'dround-diagnostics_2.stderr', id='dround-4'),
+        pytest.param(
+            'dround_2.b', 'dround-diagnostics_2.stderr', id='dround-2'
+        ),
+        pytest.param(
+            'dround_3.b', 'dround-diagnostics_2.stderr', id='dround-3'
+        ),
+        pytest.param(
+            'dround_4.b', 'dround-diagnostics_2.stderr', id='dround-4'
+        ),
     ],
 )
 def test_dround_diagnostics(compiler, fixture_name, diagnostic_fixture):
@@ -486,7 +670,9 @@ def test_dround_diagnostics(compiler, fixture_name, diagnostic_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('dround-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode()
+        expected_text(
+            'dround-diagnostics_3.stderr', source=source, diagnostic=diagnostic
+        ).encode()
         in run.stderr
     )
 
@@ -506,7 +692,9 @@ def test_smul_diagnostics(compiler, fixture_name, diagnostic_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('smul-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode()
+        expected_text(
+            'smul-diagnostics_3.stderr', source=source, diagnostic=diagnostic
+        ).encode()
         in run.stderr
     )
 
@@ -527,7 +715,9 @@ def test_sdiv_diagnostics(compiler, fixture_name, diagnostic_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('sdiv-diagnostics_4.stderr', source=source, diagnostic=diagnostic).encode()
+        expected_text(
+            'sdiv-diagnostics_4.stderr', source=source, diagnostic=diagnostic
+        ).encode()
         in run.stderr
     )
 
@@ -552,7 +742,12 @@ def test_infix_reuse_requires_scalar(compiler):
     source = ROOT / 'tests/programs/infix-reuse-requires-scalar.b'
     result = compiler.run_native(source)
     assert result.returncode != 0
-    assert expected_text('infix-reuse-requires-scalar.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text(
+            'infix-reuse-requires-scalar.stderr', source=source
+        ).encode()
+        in result.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -575,8 +770,12 @@ def test_divs_substitutes_zero_for_zero_divisors(compiler):
     source = ROOT / 'tests/programs/divs-substitutes-zero-for-zero-divisors.b'
     run = compiler.run_native(source)
     assert run.returncode == 0, run.stderr
-    assert run.stdout == expected_bytes('divs-substitutes-zero-for-zero-divisors.stdout')
-    warning = expected_text('divs-substitutes-zero-for-zero-divisors.stderr', source=source)
+    assert run.stdout == expected_bytes(
+        'divs-substitutes-zero-for-zero-divisors.stdout'
+    )
+    warning = expected_text(
+        'divs-substitutes-zero-for-zero-divisors.stderr', source=source
+    )
     assert run.stderr == warning.encode() * 2
 
 
@@ -606,16 +805,26 @@ def test_divs_substitutes_zero_for_zero_divisors(compiler):
         ),
     ],
 )
-def test_infix_reuse_division_reports_invalid_operands(compiler, case_number, expression, marker, message_fixture):
+def test_infix_reuse_division_reports_invalid_operands(
+    compiler, case_number, expression, marker, message_fixture
+):
     message = expected_text(message_fixture)
     statement = f'CRT {expression}'
-    source = ROOT / 'tests/programs/infix-reuse-division-reports-invalid-operands' / f'reuse_{case_number}.b'
+    source = (
+        ROOT
+        / 'tests/programs/infix-reuse-division-reports-invalid-operands'
+        / f'reuse_{case_number}.b'
+    )
     result = compiler.run_native(source)
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (1,
-             b'',
-             expected_text('infix-reuse-division-reports-invalid-operands_3.stderr', source=source, value_2=statement.index(marker) + 1, message=message).encode())
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        b'',
+        expected_text(
+            'infix-reuse-division-reports-invalid-operands_3.stderr',
+            source=source,
+            value_2=statement.index(marker) + 1,
+            message=message,
+        ).encode(),
     )
 
 
@@ -667,7 +876,9 @@ def test_ln_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('ln-diagnostics_4.stderr', source=source, message=message).encode()
+        expected_text(
+            'ln-diagnostics_4.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -686,7 +897,9 @@ def test_exp_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('exp-diagnostics_4.stderr', source=source, message=message).encode()
+        expected_text(
+            'exp-diagnostics_4.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -706,7 +919,9 @@ def test_sqrt_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('sqrt-diagnostics_4.stderr', source=source, message=message).encode()
+        expected_text(
+            'sqrt-diagnostics_4.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -714,29 +929,65 @@ def test_sqrt_diagnostics(compiler, fixture_name, message_fixture):
 @pytest.mark.parametrize(
     'fixture_name, column, message_fixture, continues',
     [
-        pytest.param('power_1.b', 5, 'power-domain-and-diagnostics.stderr', True, id='power-1'),
-        pytest.param('power_2.b', 7, 'power-domain-and-diagnostics_2.stderr', False, id='power-2'),
-        pytest.param('power_3.b', 7, 'power-domain-and-diagnostics_3.stderr', False, id='power-3'),
-        pytest.param('power_4.b', 5, 'power-domain-and-diagnostics_4.stderr', False, id='power-4'),
+        pytest.param(
+            'power_1.b',
+            5,
+            'power-domain-and-diagnostics.stderr',
+            True,
+            id='power-1',
+        ),
+        pytest.param(
+            'power_2.b',
+            7,
+            'power-domain-and-diagnostics_2.stderr',
+            False,
+            id='power-2',
+        ),
+        pytest.param(
+            'power_3.b',
+            7,
+            'power-domain-and-diagnostics_3.stderr',
+            False,
+            id='power-3',
+        ),
+        pytest.param(
+            'power_4.b',
+            5,
+            'power-domain-and-diagnostics_4.stderr',
+            False,
+            id='power-4',
+        ),
     ],
 )
-def test_power_domain_and_diagnostics(compiler, fixture_name, column, message_fixture, continues):
+def test_power_domain_and_diagnostics(
+    compiler, fixture_name, column, message_fixture, continues
+):
     message = expected_text(message_fixture)
     source = ROOT / 'tests/programs/power-domain-and-diagnostics' / fixture_name
     run = compiler.run_native(source)
     assert (run.returncode == 0) == continues
     assert run.stdout == (b'0\ndone\n' if continues else b'')
     assert (
-        expected_text('power-domain-and-diagnostics_5.stderr', source=source, column=column, message=message).encode()
+        expected_text(
+            'power-domain-and-diagnostics_5.stderr',
+            source=source,
+            column=column,
+            message=message,
+        ).encode()
         in run.stderr
     )
 
 
 def test_randomize_wrong_argument_count(compiler):
     source = ROOT / 'tests/programs/randomize-wrong-argument-count.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('randomize-wrong-argument-count.stderr', source=source) in result.stderr
+    assert (
+        expected_text('randomize-wrong-argument-count.stderr', source=source)
+        in result.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -755,7 +1006,9 @@ def test_rnd_invalid_bound(compiler, fixture_name, diagnostic_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('rnd-invalid-bound_4.stderr', source=source, diagnostic=diagnostic).encode()
+        expected_text(
+            'rnd-invalid-bound_4.stderr', source=source, diagnostic=diagnostic
+        ).encode()
         in run.stderr
     )
 
@@ -769,12 +1022,22 @@ def test_bitxor_diagnostics(compiler, subtests):
             source = ROOT / 'tests/programs/bitxor-diagnostics' / fixture_name
             result = compiler.run_native(source)
             assert result.returncode != 0
-            assert expected_text('bitxor-diagnostics.stderr', source=source).encode() in result.stderr
+            assert (
+                expected_text(
+                    'bitxor-diagnostics.stderr', source=source
+                ).encode()
+                in result.stderr
+            )
 
     source = ROOT / 'tests/programs/bitxor-diagnostics/bitxor-variant-2.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('bitxor-diagnostics_2.stderr', source=source) in result.stderr
+    assert (
+        expected_text('bitxor-diagnostics_2.stderr', source=source)
+        in result.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -786,11 +1049,15 @@ def test_bitxor_diagnostics(compiler, subtests):
     ],
 )
 def test_mod_requires_numeric_operands(compiler, fixture_name, name):
-    source = ROOT / 'tests/programs/mod-requires-numeric-operands' / fixture_name
+    source = (
+        ROOT / 'tests/programs/mod-requires-numeric-operands' / fixture_name
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('mod-requires-numeric-operands.stderr', source=source, value_2=name).encode()
+        expected_text(
+            'mod-requires-numeric-operands.stderr', source=source, value_2=name
+        ).encode()
         in run.stderr
     )
 
@@ -808,7 +1075,9 @@ def test_trim_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('trim-diagnostics_3.stderr', source=source, message=message).encode()
+        expected_text(
+            'trim-diagnostics_3.stderr', source=source, message=message
+        ).encode()
         in run.stderr
     )
 
@@ -820,39 +1089,68 @@ def test_find_diagnostics(compiler):
         ('find_3.b', expected_text('find-diagnostics_3.stderr')),
     ):
         source = ROOT / 'tests/programs/find-diagnostics' / fixture_name
-        run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+        run = subprocess.run(
+            [CLI, source, '-o', compiler.c], capture_output=True, text=True
+        )
         assert run.returncode != 0
-        assert expected_text('find-diagnostics_4.stderr', source=source, error=error) in run.stderr
+        assert (
+            expected_text(
+                'find-diagnostics_4.stderr', source=source, error=error
+            )
+            in run.stderr
+        )
     for case_number, keyword in enumerate(('FIND', 'FINDSTR'), 1):
-        source = ROOT / 'tests/programs/find-diagnostics' / f'find-variant-2_{case_number}.b'
+        source = (
+            ROOT
+            / 'tests/programs/find-diagnostics'
+            / f'find-variant-2_{case_number}.b'
+        )
         run = compiler.run_native(source)
         assert run.returncode != 0
         assert (
-            expected_text('find-diagnostics_5.stderr', source=source, keyword=keyword).encode()
+            expected_text(
+                'find-diagnostics_5.stderr', source=source, keyword=keyword
+            ).encode()
             in run.stderr
         )
 
 
 def test_swap_diagnostics(compiler):
     source = ROOT / 'tests/programs/swap-diagnostics/swap.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('swap-diagnostics.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text('swap-diagnostics.stderr', source=source).encode()
+        in result.stderr
+    )
     source = ROOT / 'tests/programs/swap-diagnostics/swap-variant-2.b'
     result = compiler.run_native(source)
     assert result.returncode != 0
-    assert expected_text('swap-diagnostics_2.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text('swap-diagnostics_2.stderr', source=source).encode()
+        in result.stderr
+    )
 
 
 def test_ereplace_diagnostics(compiler):
     source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('ereplace-diagnostics.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text('ereplace-diagnostics.stderr', source=source).encode()
+        in result.stderr
+    )
     source = ROOT / 'tests/programs/ereplace-diagnostics/ereplace-variant-2.b'
     result = compiler.run_native(source)
     assert result.returncode != 0
-    assert expected_text('ereplace-diagnostics_2.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text('ereplace-diagnostics_2.stderr', source=source).encode()
+        in result.stderr
+    )
 
 
 def test_change_diagnostics(compiler):
@@ -861,13 +1159,23 @@ def test_change_diagnostics(compiler):
         ('change_2.b', expected_text('change-diagnostics_2.stderr')),
     ):
         source = ROOT / 'tests/programs/change-diagnostics' / fixture_name
-        run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+        run = subprocess.run(
+            [CLI, source, '-o', compiler.c], capture_output=True, text=True
+        )
         assert run.returncode != 0
-        assert expected_text('change-diagnostics_3.stderr', source=source, error=error) in run.stderr
+        assert (
+            expected_text(
+                'change-diagnostics_3.stderr', source=source, error=error
+            )
+            in run.stderr
+        )
     source = ROOT / 'tests/programs/change-diagnostics/change-variant-2.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('change-diagnostics_4.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('change-diagnostics_4.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -887,21 +1195,35 @@ def test_change_diagnostics(compiler):
         ),
     ],
 )
-def test_string_mutations_check_conditionally_assigned_targets(compiler, case_number, statement, expected_fixture):
+def test_string_mutations_check_conditionally_assigned_targets(
+    compiler, case_number, statement, expected_fixture
+):
     binary = compiler.work / 'mutate'
     expected = expected_bytes(expected_fixture)
-    source = ROOT / 'tests/programs/string-mutations-check-conditionally-assigned-targets' / f'mutate_{case_number}.b'
-    subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
-                   env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+    source = (
+        ROOT
+        / 'tests/programs/string-mutations-check-conditionally-assigned-targets'
+        / f'mutate_{case_number}.b'
+    )
+    subprocess.run(
+        [CLI, '--exe', source, '-o', binary],
+        check=True,
+        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
     found = subprocess.run([binary, 'found'], capture_output=True, timeout=5)
     assert (found.returncode, found.stdout, found.stderr) == (0, expected, b'')
-    missing = subprocess.run([binary, 'missing'], capture_output=True, timeout=5)
+    missing = subprocess.run(
+        [binary, 'missing'], capture_output=True, timeout=5
+    )
     column = statement.index('Value') + 1
-    assert (
-        (missing.returncode, missing.stdout, missing.stderr)
-        == (1,
-             b'',
-             expected_text('string-mutations-check-conditionally-assigned-targets.stderr', source=source, column=column).encode())
+    assert (missing.returncode, missing.stdout, missing.stderr) == (
+        1,
+        b'',
+        expected_text(
+            'string-mutations-check-conditionally-assigned-targets.stderr',
+            source=source,
+            column=column,
+        ).encode(),
     )
 
 
@@ -910,15 +1232,22 @@ def test_neg_substitutes_zero(compiler):
     run = compiler.run_native(source)
     assert run.returncode == 0, run.stderr
     assert run.stdout == expected_bytes('neg-substitutes-zero.stdout')
-    assert run.stderr == expected_text('neg-substitutes-zero.stderr', source=source).encode()
+    assert (
+        run.stderr
+        == expected_text('neg-substitutes-zero.stderr', source=source).encode()
+    )
 
 
 def test_negs_warns_for_nonnumeric_elements(compiler):
     source = ROOT / 'tests/programs/negs-warns-for-nonnumeric-elements.b'
     result = compiler.run_native(source)
     assert result.returncode == 0, result.stderr
-    assert result.stdout == expected_bytes('negs-warns-for-nonnumeric-elements.stdout')
-    warning = expected_text('negs-warns-for-nonnumeric-elements.stderr', source=source)
+    assert result.stdout == expected_bytes(
+        'negs-warns-for-nonnumeric-elements.stdout'
+    )
+    warning = expected_text(
+        'negs-warns-for-nonnumeric-elements.stderr', source=source
+    )
     assert result.stderr == warning.encode() * 2
 
 
@@ -926,26 +1255,42 @@ def test_abs_diagnostics(compiler):
     source = ROOT / 'tests/programs/abs-diagnostics/abs.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('abs-diagnostics.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('abs-diagnostics.stderr', source=source).encode()
+        in run.stderr
+    )
     source = ROOT / 'tests/programs/abs-diagnostics/abs-variant-2.b'
-    run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    run = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True, text=True
+    )
     assert run.returncode != 0
-    assert expected_text('abs-diagnostics_2.stderr', source=source) in run.stderr
+    assert (
+        expected_text('abs-diagnostics_2.stderr', source=source) in run.stderr
+    )
 
 
 def test_abss_diagnostics(compiler):
     source = ROOT / 'tests/programs/abss-diagnostics.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('abss-diagnostics.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('abss-diagnostics.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_implicit_format_reports_uninitialized_mask_at_read(compiler):
-    source = ROOT / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
+    source = (
+        ROOT
+        / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('implicit-format-reports-uninitialized-mask-at-read.stderr', source=source).encode()
+        expected_text(
+            'implicit-format-reports-uninitialized-mask-at-read.stderr',
+            source=source,
+        ).encode()
         in run.stderr
     )
 
@@ -965,42 +1310,80 @@ def test_fmt_diagnostics(compiler, case_number, mask):
     source = ROOT / 'tests/programs/fmt-diagnostics' / f'fmt_{case_number}.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('fmt-diagnostics.stderr', source=source, mask=mask).encode() in run.stderr
+    assert (
+        expected_text(
+            'fmt-diagnostics.stderr', source=source, mask=mask
+        ).encode()
+        in run.stderr
+    )
 
 
 def test_index_diagnostics(compiler):
     source = ROOT / 'tests/programs/index-diagnostics/index.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True, text=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True, text=True
+    )
     assert result.returncode != 0
-    assert expected_text('index-diagnostics.stderr', source=source) in result.stderr
+    assert (
+        expected_text('index-diagnostics.stderr', source=source)
+        in result.stderr
+    )
     source = ROOT / 'tests/programs/index-diagnostics/index-variant-2.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('index-diagnostics_2.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('index-diagnostics_2.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_division_by_zero(compiler):
     source = ROOT / 'tests/programs/division-by-zero.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('division-by-zero.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('division-by-zero.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
     'fixture_name, diagnostic_fixture',
     [
-        pytest.param('div_1.b', 'div-requires-nonzero-numeric-operands.stderr', id='div-1'),
-        pytest.param('div_2.b', 'div-requires-nonzero-numeric-operands_2.stderr', id='div-2'),
-        pytest.param('div_3.b', 'div-requires-nonzero-numeric-operands_2.stderr', id='div-3'),
+        pytest.param(
+            'div_1.b',
+            'div-requires-nonzero-numeric-operands.stderr',
+            id='div-1',
+        ),
+        pytest.param(
+            'div_2.b',
+            'div-requires-nonzero-numeric-operands_2.stderr',
+            id='div-2',
+        ),
+        pytest.param(
+            'div_3.b',
+            'div-requires-nonzero-numeric-operands_2.stderr',
+            id='div-3',
+        ),
     ],
 )
-def test_div_requires_nonzero_numeric_operands(compiler, fixture_name, diagnostic_fixture):
+def test_div_requires_nonzero_numeric_operands(
+    compiler, fixture_name, diagnostic_fixture
+):
     diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/div-requires-nonzero-numeric-operands' / fixture_name
+    source = (
+        ROOT
+        / 'tests/programs/div-requires-nonzero-numeric-operands'
+        / fixture_name
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('div-requires-nonzero-numeric-operands_3.stderr', source=source, diagnostic=diagnostic).encode()
+        expected_text(
+            'div-requires-nonzero-numeric-operands_3.stderr',
+            source=source,
+            diagnostic=diagnostic,
+        ).encode()
         in run.stderr
     )
 
@@ -1009,22 +1392,38 @@ def test_compound_division_by_zero(compiler):
     source = ROOT / 'tests/programs/compound-division-by-zero.b'
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('compound-division-by-zero.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'compound-division-by-zero.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 def test_insert_locations(compiler, subtests):
     fixtures = ROOT / 'tests/programs/insert-locations'
     source = fixtures / 'main.b'
-    for variant, location in (('1', expected_text('insert-locations.stderr')), ('2', expected_text('insert-locations_2.stderr'))):
+    for variant, location in (
+        ('1', expected_text('insert-locations.stderr')),
+        ('2', expected_text('insert-locations_2.stderr')),
+    ):
         with subtests.test(variant=variant):
             header = fixtures / variant / 'I_BROKEN'
-            run = subprocess.run([CLI, '-I', header.parent, source, '-o', compiler.c],
-                                 text=True, capture_output=True)
+            run = subprocess.run(
+                [CLI, '-I', header.parent, source, '-o', compiler.c],
+                text=True,
+                capture_output=True,
+            )
             assert run.returncode != 0
             assert str(header) + location in run.stderr
     header = fixtures / '3' / 'I_BROKEN'
-    run = compiler.run_native(fixtures / 'main-variant-2.b', options=('-I', header.parent))
-    assert expected_text('insert-locations_3.stderr', header=header).encode() in run.stderr
+    run = compiler.run_native(
+        fixtures / 'main-variant-2.b', options=('-I', header.parent)
+    )
+    assert (
+        expected_text('insert-locations_3.stderr', header=header).encode()
+        in run.stderr
+    )
 
 
 def test_remove_shared_cursor(compiler):
@@ -1038,14 +1437,22 @@ def test_remove_shared_cursor(compiler):
 @pytest.mark.parametrize(
     'fixture_name, message_fixture',
     [
-        pytest.param('bad_1.b', 'remove-expression-diagnostics.stderr', id='bad-1'),
-        pytest.param('bad_2.b', 'remove-expression-diagnostics_2.stderr', id='bad-2'),
+        pytest.param(
+            'bad_1.b', 'remove-expression-diagnostics.stderr', id='bad-1'
+        ),
+        pytest.param(
+            'bad_2.b', 'remove-expression-diagnostics_2.stderr', id='bad-2'
+        ),
     ],
 )
 def test_remove_expression_diagnostics(compiler, fixture_name, message_fixture):
     message = expected_text(message_fixture)
-    source = ROOT / 'tests/programs/remove-expression-diagnostics' / fixture_name
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    source = (
+        ROOT / 'tests/programs/remove-expression-diagnostics' / fixture_name
+    )
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
     assert str(source) + message in result.stderr
 
@@ -1057,25 +1464,34 @@ def test_remove_expression_diagnostics(compiler, fixture_name, message_fixture):
         pytest.param('expression-first.b', 16, id='expression-first'),
     ],
 )
-def test_remove_checks_conditionally_assigned_source(compiler, fixture_name, column):
+def test_remove_checks_conditionally_assigned_source(
+    compiler, fixture_name, column
+):
     binary = compiler.work / 'remove'
-    fixtures = ROOT / 'tests/programs/remove-checks-conditionally-assigned-source'
+    fixtures = (
+        ROOT / 'tests/programs/remove-checks-conditionally-assigned-source'
+    )
     source = fixtures / fixture_name
-    subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
-                   env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+    subprocess.run(
+        [CLI, '--exe', source, '-o', binary],
+        check=True,
+        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
     hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
-    assert (
-        (hit.returncode, hit.stdout, hit.stderr)
-        == (0,
-             expected_bytes('remove-checks-conditionally-assigned-source.stdout'),
-             b'')
+    assert (hit.returncode, hit.stdout, hit.stderr) == (
+        0,
+        expected_bytes('remove-checks-conditionally-assigned-source.stdout'),
+        b'',
     )
     miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-    assert (
-        (miss.returncode, miss.stdout, miss.stderr)
-        == (1,
-             b'',
-             expected_text('remove-checks-conditionally-assigned-source.stderr', source=source, column=column).encode())
+    assert (miss.returncode, miss.stdout, miss.stderr) == (
+        1,
+        b'',
+        expected_text(
+            'remove-checks-conditionally-assigned-source.stderr',
+            source=source,
+            column=column,
+        ).encode(),
     )
 
 
@@ -1091,4 +1507,7 @@ def test_matchfield_invalid_field(compiler, fixture_name):
     source = ROOT / 'tests/programs/matchfield-invalid-field' / fixture_name
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('matchfield-invalid-field.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('matchfield-invalid-field.stderr', source=source).encode()
+        in run.stderr
+    )

@@ -5,7 +5,6 @@ import subprocess
 import time
 
 import pytest
-
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -29,45 +28,104 @@ def test_invocation_sentence(compiler, subtests):
     routine = ROOT / 'tests/routines/get.sentence.b'
     binary = compiler.work / 'invocation'
     for case_number, direct_read in enumerate((False, True), 1):
-        source = ROOT / 'tests/routines/invocation-sentence' / f'caller_{case_number}.b'
-        subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
-        for variant, args in enumerate(([], ['42', 'two words', '', 'last']), 1):
+        source = (
+            ROOT
+            / 'tests/routines/invocation-sentence'
+            / f'caller_{case_number}.b'
+        )
+        subprocess.run(
+            [CLI, '--exe', routine, source, '-o', binary], check=True
+        )
+        for variant, args in enumerate(
+            ([], ['42', 'two words', '', 'last']), 1
+        ):
             with subtests.test(direct_read=direct_read, args=args):
-                run = subprocess.run(['./invocation', *args], cwd=compiler.work, capture_output=True)
+                run = subprocess.run(
+                    ['./invocation', *args],
+                    cwd=compiler.work,
+                    capture_output=True,
+                )
                 assert run.returncode == 0, run.stderr
-                expected = expected_bytes(f'invocation-sentence_{case_number}_{variant}.stdout')
+                expected = expected_bytes(
+                    f'invocation-sentence_{case_number}_{variant}.stdout'
+                )
                 assert run.stdout == expected
 
 
-def test_command_system_variable_uses_the_invocation_in_a_subroutine(compiler, subtests):
+def test_command_system_variable_uses_the_invocation_in_a_subroutine(
+    compiler, subtests
+):
     binary = compiler.work / 'invocation'
-    source = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/caller.b'
-    routine = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/command.b'
+    source = (
+        ROOT
+        / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/caller.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/command.b'
+    )
     subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
     for variant, args in enumerate(([], ['first', 'two words', '', 'last']), 1):
         with subtests.test(args=args):
-            run = subprocess.run(['./invocation', *args], cwd=compiler.work, capture_output=True, timeout=5)
-            expected = expected_bytes(f'command-system-variable-uses-the-invocation-in-a-subroutine_{variant}.stdout')
-            assert (run.returncode, run.stdout, run.stderr) == (0, expected, b'')
+            run = subprocess.run(
+                ['./invocation', *args],
+                cwd=compiler.work,
+                capture_output=True,
+                timeout=5,
+            )
+            expected = expected_bytes(
+                f'command-system-variable-uses-the-invocation-in-a-subroutine_{variant}.stdout'
+            )
+            assert (run.returncode, run.stdout, run.stderr) == (
+                0,
+                expected,
+                b'',
+            )
 
 
 def test_sentence_function_reads_invocation_in_a_subroutine(compiler, subtests):
     binary = compiler.work / 'invocation'
-    source = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/caller.b'
-    routine = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/show.b'
+    source = (
+        ROOT
+        / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/caller.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/show.b'
+    )
     subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True)
     for variant, args in enumerate(([], ['first', 'two words', '', 'last']), 1):
         with subtests.test(args=args):
-            expected = expected_bytes(f'sentence-function-reads-invocation-in-a-subroutine_{variant}.stdout')
-            run = subprocess.run(['./invocation', *args], cwd=compiler.work, capture_output=True, timeout=5)
-            assert (run.returncode, run.stdout, run.stderr) == (0, expected, b'')
+            expected = expected_bytes(
+                f'sentence-function-reads-invocation-in-a-subroutine_{variant}.stdout'
+            )
+            run = subprocess.run(
+                ['./invocation', *args],
+                cwd=compiler.work,
+                capture_output=True,
+                timeout=5,
+            )
+            assert (run.returncode, run.stdout, run.stderr) == (
+                0,
+                expected,
+                b'',
+            )
 
 
 def test_parasentence_uses_launch_context_or_invocation(compiler, subtests):
     sources = ROOT / 'tests/routines'
     binary = compiler.work / 'invocation'
-    subprocess.run([CLI, '--exe', sources / 'parasentence-main.b',
-                    sources / 'show-parasentence.b', '-o', binary], check=True)
+    subprocess.run(
+        [
+            CLI,
+            '--exe',
+            sources / 'parasentence-main.b',
+            sources / 'show-parasentence.b',
+            '-o',
+            binary,
+        ],
+        check=True,
+    )
     for supplied in (None, '', 'NIGHTLY  REPORT'):
         with subtests.test(supplied=supplied):
             env = dict(os.environ)
@@ -75,80 +133,146 @@ def test_parasentence_uses_launch_context_or_invocation(compiler, subtests):
             if supplied is not None:
                 env['JBCC_PARASENTENCE'] = supplied
             invocation = './invocation two words'
-            expected = expected_text('parasentence-uses-launch-context-or-invocation.stdout', value_1=supplied or invocation, invocation=invocation).encode() * 2
-            run = subprocess.run(['./invocation', 'two words'], cwd=compiler.work, env=env,
-                                 capture_output=True, timeout=5)
-            assert (run.returncode, run.stdout, run.stderr) == (0, expected, b'')
+            expected = (
+                expected_text(
+                    'parasentence-uses-launch-context-or-invocation.stdout',
+                    value_1=supplied or invocation,
+                    invocation=invocation,
+                ).encode()
+                * 2
+            )
+            run = subprocess.run(
+                ['./invocation', 'two words'],
+                cwd=compiler.work,
+                env=env,
+                capture_output=True,
+                timeout=5,
+            )
+            assert (run.returncode, run.stdout, run.stderr) == (
+                0,
+                expected,
+                b'',
+            )
 
 
 def test_sentence_function_preserves_get_argument_cursor(compiler):
     binary = compiler.work / 'args'
-    source = ROOT / 'tests/routines/sentence-function-preserves-get-argument-cursor.b'
+    source = (
+        ROOT
+        / 'tests/routines/sentence-function-preserves-get-argument-cursor.b'
+    )
     subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
-    run = subprocess.run([binary, 'one', 'two', 'three'], capture_output=True, timeout=5)
-    assert (
-        (run.returncode, run.stdout, run.stderr)
-        == (0,
-             expected_bytes('sentence-function-preserves-get-argument-cursor.stdout'),
-             b'')
+    run = subprocess.run(
+        [binary, 'one', 'two', 'three'], capture_output=True, timeout=5
+    )
+    assert (run.returncode, run.stdout, run.stderr) == (
+        0,
+        expected_bytes(
+            'sentence-function-preserves-get-argument-cursor.stdout'
+        ),
+        b'',
     )
 
 
 def test_sentence_function_diagnostics(compiler, subtests):
     source = ROOT / 'tests/routines/sentence-function-diagnostics/sentence.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('sentence-function-diagnostics.stderr', source=source).encode() in result.stderr
+    assert (
+        expected_text(
+            'sentence-function-diagnostics.stderr', source=source
+        ).encode()
+        in result.stderr
+    )
     for fixture_name in (
         'sentence-variant-2_1.b',
         'sentence-variant-2_2.b',
     ):
         with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/routines/sentence-function-diagnostics' / fixture_name
+            source = (
+                ROOT
+                / 'tests/routines/sentence-function-diagnostics'
+                / fixture_name
+            )
             run = compiler.run_native(source)
             assert run.returncode != 0
             assert (
-                expected_text('sentence-function-diagnostics_2.stderr', source=source).encode()
+                expected_text(
+                    'sentence-function-diagnostics_2.stderr', source=source
+                ).encode()
                 in run.stderr
             )
 
 
-def test_get_argument_preserves_argv_and_shares_cursor_across_routines(compiler):
+def test_get_argument_preserves_argv_and_shares_cursor_across_routines(
+    compiler,
+):
     binary = compiler.work / 'args'
-    source = ROOT / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/args.b'
-    routine = ROOT / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/next.b'
-    subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True,
-                   env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-    result = subprocess.run([binary, 'first', 'two words', '', 'last'],
-                            capture_output=True, timeout=5)
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('get-argument-preserves-argv-and-shares-cursor-across-routines.stdout'),
-             b'')
+    source = (
+        ROOT
+        / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/args.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/routines/get-argument-preserves-argv-and-shares-cursor-across-routines/next.b'
+    )
+    subprocess.run(
+        [CLI, '--exe', source, routine, '-o', binary],
+        check=True,
+        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
+    result = subprocess.run(
+        [binary, 'first', 'two words', '', 'last'],
+        capture_output=True,
+        timeout=5,
+    )
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes(
+            'get-argument-preserves-argv-and-shares-cursor-across-routines.stdout'
+        ),
+        b'',
     )
 
 
 def test_get_argument_failures_and_diagnostics(compiler):
-    source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args.b'
-    result = compiler.run_native(source)
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('get-argument-failures-and-diagnostics.stdout'),
-             b'')
+    source = (
+        ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args.b'
     )
-    source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-2.b'
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('get-argument-failures-and-diagnostics.stdout'),
+        b'',
+    )
+    source = (
+        ROOT
+        / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-2.b'
+    )
     result = compiler.run_native(source)
     assert result.returncode != 0
     assert (
-        expected_text('get-argument-failures-and-diagnostics.stderr', source=source).encode()
+        expected_text(
+            'get-argument-failures-and-diagnostics.stderr', source=source
+        ).encode()
         in result.stderr
     )
-    source = ROOT / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-3.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    source = (
+        ROOT
+        / 'tests/routines/get-argument-failures-and-diagnostics/args-variant-3.b'
+    )
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('get-argument-failures-and-diagnostics_2.stderr', source=source) in result.stderr
+    assert (
+        expected_text(
+            'get-argument-failures-and-diagnostics_2.stderr', source=source
+        )
+        in result.stderr
+    )
 
 
 def test_plain_execute_and_perform(compiler):
@@ -170,19 +294,33 @@ def test_capture_from_pipe(compiler):
     binary = compiler.work / 'capture'
     subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
     payload = b'x' * (256 * 1024) + b'\r\n\xff'
-    run = subprocess.run([binary], input=payload, capture_output=True, timeout=5)
+    run = subprocess.run(
+        [binary], input=payload, capture_output=True, timeout=5
+    )
     assert run.returncode == 0, run.stderr
     assert run.stdout == payload.replace(b'\n', b'\xfe')
-    run = subprocess.run([binary], input=b'one\x00two', capture_output=True, timeout=5)
+    run = subprocess.run(
+        [binary], input=b'one\x00two', capture_output=True, timeout=5
+    )
     assert run.returncode != 0
-    assert expected_text('capture-from-pipe.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text('capture-from-pipe.stderr', source=source).encode()
+        in run.stderr
+    )
 
 
 def test_exec_rejects_duplicate_returning_clause(compiler):
     source = ROOT / 'tests/programs/exec-rejects-duplicate-returning-clause.b'
-    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    result = subprocess.run(
+        [CLI, source, '-o', compiler.c], text=True, capture_output=True
+    )
     assert result.returncode != 0
-    assert expected_text('exec-rejects-duplicate-returning-clause.stderr', source=source) in result.stderr
+    assert (
+        expected_text(
+            'exec-rejects-duplicate-returning-clause.stderr', source=source
+        )
+        in result.stderr
+    )
 
 
 def test_execute_large_stdout_and_stderr(compiler):
@@ -190,11 +328,16 @@ def test_execute_large_stdout_and_stderr(compiler):
     binary = compiler.work / 'execute'
     subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
     payload = b'x' * (256 * 1024)
-    run = subprocess.run([binary], input=payload, timeout=5, capture_output=True)
+    run = subprocess.run(
+        [binary], input=payload, timeout=5, capture_output=True
+    )
     assert run.returncode == 0, run.stderr
     assert (
         run.stdout
-        == expected_bytes('execute-large-stdout-and-stderr.stdout') + b'1\xfe' * 65536 + b'\n' + payload
+        == expected_bytes('execute-large-stdout-and-stderr.stdout')
+        + b'1\xfe' * 65536
+        + b'\n'
+        + payload
     )
     assert run.stderr == b''
 
@@ -205,18 +348,34 @@ def test_execute_result_diagnostics(compiler):
         ('execute_2.b', 'CAPTURING'),
         ('execute_3.b', 'RTNLIST'),
     ):
-        source = ROOT / 'tests/programs/execute-result-diagnostics' / fixture_name
-        run = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
+        source = (
+            ROOT / 'tests/programs/execute-result-diagnostics' / fixture_name
+        )
+        run = subprocess.run(
+            [CLI, source, '-o', compiler.c], capture_output=True
+        )
         column = source.read_text().rindex(repeated) + 1
         assert run.returncode != 0
         assert (
-            expected_text('execute-result-diagnostics.stderr', source=source, column=column, repeated=repeated).encode()
+            expected_text(
+                'execute-result-diagnostics.stderr',
+                source=source,
+                column=column,
+                repeated=repeated,
+            ).encode()
             in run.stderr
         )
-    source = ROOT / 'tests/programs/execute-result-diagnostics/execute-variant-2.b'
+    source = (
+        ROOT / 'tests/programs/execute-result-diagnostics/execute-variant-2.b'
+    )
     run = compiler.run_native(source)
     assert run.returncode != 0
-    assert expected_text('execute-result-diagnostics_2.stderr', source=source).encode() in run.stderr
+    assert (
+        expected_text(
+            'execute-result-diagnostics_2.stderr', source=source
+        ).encode()
+        in run.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -230,30 +389,46 @@ def test_execute_result_diagnostics(compiler):
         pytest.param('select_6.b', id='select-6'),
     ],
 )
-def test_execute_rtnlist_requires_backend_before_running_command(compiler, fixture_name):
+def test_execute_rtnlist_requires_backend_before_running_command(
+    compiler, fixture_name
+):
     marker = compiler.work / 'child-ran'
-    source = ROOT / 'tests/programs/execute-rtnlist-requires-backend-before-running-command' / fixture_name
+    source = (
+        ROOT
+        / 'tests/programs/execute-rtnlist-requires-backend-before-running-command'
+        / fixture_name
+    )
     run = compiler.run_native(source, cwd=compiler.work)
     assert run.returncode == 1, run.stderr
-    assert (
-        run.stdout
-        == expected_bytes('execute-rtnlist-requires-backend-before-running-command.stdout')
+    assert run.stdout == expected_bytes(
+        'execute-rtnlist-requires-backend-before-running-command.stdout'
     )
     assert (
         run.stderr
-        == expected_text('execute-rtnlist-requires-backend-before-running-command.stderr', source=source).encode()
+        == expected_text(
+            'execute-rtnlist-requires-backend-before-running-command.stderr',
+            source=source,
+        ).encode()
     )
     assert not marker.exists()
 
 
 def test_execute_child_program(compiler):
     child = ROOT / 'tests/programs/execute-child-program/child.b'
-    subprocess.run([CLI, '--exe', child, '-o', compiler.work / 'child'], check=True)
+    subprocess.run(
+        [CLI, '--exe', child, '-o', compiler.work / 'child'], check=True
+    )
     main = ROOT / 'tests/programs/execute-child-program/main.b'
     sub = ROOT / 'tests/programs/execute-child-program/sub.b'
     binary = compiler.work / 'main'
     subprocess.run([CLI, '--exe', main, sub, '-o', binary], check=True)
-    run = subprocess.run([binary], cwd=compiler.work, input=b'hello\n', capture_output=True, timeout=5)
+    run = subprocess.run(
+        [binary],
+        cwd=compiler.work,
+        input=b'hello\n',
+        capture_output=True,
+        timeout=5,
+    )
     assert run.returncode == 0, run.stderr
     assert run.stdout == expected_bytes('execute-child-program.stdout')
     assert run.stderr == b''
@@ -262,8 +437,14 @@ def test_execute_child_program(compiler):
 @pytest.mark.parametrize(
     'fixture_name, message_fixture',
     [
-        pytest.param('command_1.b', 'execute-command-diagnostics.stderr', id='command-1'),
-        pytest.param('command_2.b', 'execute-command-diagnostics_2.stderr', id='command-2'),
+        pytest.param(
+            'command_1.b', 'execute-command-diagnostics.stderr', id='command-1'
+        ),
+        pytest.param(
+            'command_2.b',
+            'execute-command-diagnostics_2.stderr',
+            id='command-2',
+        ),
     ],
 )
 def test_execute_command_diagnostics(compiler, fixture_name, message_fixture):
@@ -272,7 +453,11 @@ def test_execute_command_diagnostics(compiler, fixture_name, message_fixture):
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert (
-        expected_text('execute-command-diagnostics_3.stderr', source=source, message=message).encode()
+        expected_text(
+            'execute-command-diagnostics_3.stderr',
+            source=source,
+            message=message,
+        ).encode()
         in run.stderr
     )
 
@@ -308,7 +493,9 @@ def test_terminal_type_aliases_follow_term(compiler, term):
     name = term or ''
     assert (
         result.stdout
-        == expected_text('terminal-type-aliases-follow-term.stdout', value_1=name).encode()
+        == expected_text(
+            'terminal-type-aliases-follow-term.stdout', value_1=name
+        ).encode()
     )
     assert result.stderr == b''
 
@@ -320,106 +507,204 @@ def test_terminal_type_aliases_follow_term(compiler, term):
         pytest.param(2, '0', id='0'),
     ],
 )
-def test_port_number_aliases_use_startup_environment(compiler, variant, setting):
-    main = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/main.b'
-    routine = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/show.port.b'
-    run = compiler.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
+def test_port_number_aliases_use_startup_environment(
+    compiler, variant, setting
+):
+    main = (
+        ROOT
+        / 'tests/programs/port-number-aliases-use-startup-environment/main.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/programs/port-number-aliases-use-startup-environment/show.port.b'
+    )
+    run = compiler.run_native(
+        main, routine, env=dict(os.environ, JBCPORTNO=setting)
+    )
     assert run.returncode == 0, run.stderr
-    assert (
-        run.stdout
-        == expected_bytes(f'port-number-aliases-use-startup-environment_{variant}.stdout')
+    assert run.stdout == expected_bytes(
+        f'port-number-aliases-use-startup-environment_{variant}.stdout'
     )
     assert run.stderr == b''
 
 
 def test_pid_uses_native_process_id_with_port_override(compiler):
-    source = ROOT / 'tests/programs/pid-uses-native-process-id-with-port-override.b'
+    source = (
+        ROOT / 'tests/programs/pid-uses-native-process-id-with-port-override.b'
+    )
     binary = compiler.work / 'pid'
     subprocess.run([CLI, source, '-o', compiler.c], check=True)
-    subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic',
-                    compiler.c, '-o', binary], check=True)
-    with subprocess.Popen([binary], env=dict(os.environ, JBCPORTNO='0'),
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+    subprocess.run(
+        [
+            'cc',
+            '-std=c99',
+            '-Wall',
+            '-Wextra',
+            '-Werror',
+            '-pedantic',
+            compiler.c,
+            '-o',
+            binary,
+        ],
+        check=True,
+    )
+    with subprocess.Popen(
+        [binary],
+        env=dict(os.environ, JBCPORTNO='0'),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
         stdout, stderr = proc.communicate(timeout=5)
         assert proc.returncode == 0, stderr
         assert (
             stdout
-            == expected_text('pid-uses-native-process-id-with-port-override.stdout', value_1=proc.pid).encode()
+            == expected_text(
+                'pid-uses-native-process-id-with-port-override.stdout',
+                value_1=proc.pid,
+            ).encode()
         )
         assert stderr == b''
 
 
 def test_user_root_is_shared_with_linked_routines_and_userstats(compiler):
-    source = ROOT / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/main.b'
-    routine = ROOT / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/publish.b'
-    run = compiler.run_native(source, routine, env=dict(os.environ, JBCPORTNO='1'))
-    assert (
-        (run.returncode, run.stdout, run.stderr)
-        == (0,
-             expected_bytes('user-root-is-shared-with-linked-routines-and-userstats.stdout'),
-             b'')
+    source = (
+        ROOT
+        / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/main.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/programs/user-root-is-shared-with-linked-routines-and-userstats/publish.b'
+    )
+    run = compiler.run_native(
+        source, routine, env=dict(os.environ, JBCPORTNO='1')
+    )
+    assert (run.returncode, run.stdout, run.stderr) == (
+        0,
+        expected_bytes(
+            'user-root-is-shared-with-linked-routines-and-userstats.stdout'
+        ),
+        b'',
     )
 
 
 def test_user_root_limit_counts_bytes(compiler):
     source = ROOT / 'tests/programs/user-root-limit-counts-bytes.b'
     run = compiler.run_native(source)
-    assert (
-        (run.returncode, run.stdout, run.stderr)
-        == (1,
-             b'',
-             expected_text('user-root-limit-counts-bytes.stderr', source=source).encode())
+    assert (run.returncode, run.stdout, run.stderr) == (
+        1,
+        b'',
+        expected_text(
+            'user-root-limit-counts-bytes.stderr', source=source
+        ).encode(),
     )
 
 
 def test_userstats_native_snapshot_and_record_writes(compiler):
     binary = compiler.work / 'stats'
-    source = ROOT / 'tests/programs/userstats-native-snapshot-and-record-writes/main.b'
-    routine = ROOT / 'tests/programs/userstats-native-snapshot-and-record-writes/stats.b'
-    env = dict(os.environ, JBCPORTNO='93', JBCLOGNAME='stats-user', TERM='stats-terminal')
-    subprocess.run([CLI, '--exe', '--memory-file', 'F', '--memory-lock', 'F', 'held',
-                    source, routine, '-o', binary], check=True,
-                   env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+    source = (
+        ROOT
+        / 'tests/programs/userstats-native-snapshot-and-record-writes/main.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/programs/userstats-native-snapshot-and-record-writes/stats.b'
+    )
+    env = dict(
+        os.environ,
+        JBCPORTNO='93',
+        JBCLOGNAME='stats-user',
+        TERM='stats-terminal',
+    )
+    subprocess.run(
+        [
+            CLI,
+            '--exe',
+            '--memory-file',
+            'F',
+            '--memory-lock',
+            'F',
+            'held',
+            source,
+            routine,
+            '-o',
+            binary,
+        ],
+        check=True,
+        env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
     start = int(time.time())
-    with subprocess.Popen([binary, 'two words'], env=env, stdin=subprocess.DEVNULL,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+    with subprocess.Popen(
+        [binary, 'two words'],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
         stdout, stderr = proc.communicate(timeout=5)
         assert (proc.returncode, stderr) == (0, b'')
         lines = stdout.splitlines()
-        assert (
-            lines[:2]
-            == [expected_bytes('userstats-native-snapshot-and-record-writes.stdout'), expected_text('userstats-native-snapshot-and-record-writes_2.stdout', value_1=proc.pid).encode()]
-        )
+        assert lines[:2] == [
+            expected_bytes(
+                'userstats-native-snapshot-and-record-writes.stdout'
+            ),
+            expected_text(
+                'userstats-native-snapshot-and-record-writes_2.stdout',
+                value_1=proc.pid,
+            ).encode(),
+        ]
         assert start <= int(lines[2])
         assert int(lines[2]) <= int(time.time())
-        assert (
-            lines[3:]
-            == [expected_bytes('userstats-native-snapshot-and-record-writes_3.stdout'), expected_bytes('userstats-native-snapshot-and-record-writes_4.stdout'), expected_text('userstats-native-snapshot-and-record-writes_5.stdout', binary=binary).encode(), expected_bytes('userstats-native-snapshot-and-record-writes_6.stdout'), str(routine).encode()]
-        )
+        assert lines[3:] == [
+            expected_bytes(
+                'userstats-native-snapshot-and-record-writes_3.stdout'
+            ),
+            expected_bytes(
+                'userstats-native-snapshot-and-record-writes_4.stdout'
+            ),
+            expected_text(
+                'userstats-native-snapshot-and-record-writes_5.stdout',
+                binary=binary,
+            ).encode(),
+            expected_bytes(
+                'userstats-native-snapshot-and-record-writes_6.stdout'
+            ),
+            str(routine).encode(),
+        ]
 
 
 def test_userstats_open_and_read_counters(compiler):
     source = ROOT / 'tests/programs/userstats-open-and-read-counters.b'
-    result = compiler.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'held'],
-                             env=dict(os.environ, JBCPORTNO='1'))
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('userstats-open-and-read-counters.stdout'),
-             b'')
+    result = compiler.run_native(
+        source,
+        options=['--memory-file', 'F', '--memory-lock', 'F', 'held'],
+        env=dict(os.environ, JBCPORTNO='1'),
+    )
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('userstats-open-and-read-counters.stdout'),
+        b'',
     )
 
 
 def test_userstats_delete_and_clearfile_counters(compiler):
     source = ROOT / 'tests/programs/userstats-delete-and-clearfile-counters.b'
-    result = compiler.run_native(source, options=['--memory-file', 'F', '--memory-file', 'Busy',
-                                              '--memory-lock', 'Busy', 'held'],
-                             env=dict(os.environ, JBCPORTNO='1'))
-    assert (
-        (result.returncode, result.stdout, result.stderr)
-        == (0,
-             expected_bytes('userstats-delete-and-clearfile-counters.stdout'),
-             b'')
+    result = compiler.run_native(
+        source,
+        options=[
+            '--memory-file',
+            'F',
+            '--memory-file',
+            'Busy',
+            '--memory-lock',
+            'Busy',
+            'held',
+        ],
+        env=dict(os.environ, JBCPORTNO='1'),
+    )
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('userstats-delete-and-clearfile-counters.stdout'),
+        b'',
     )
 
 
@@ -427,27 +712,38 @@ def test_userstats_execute_and_input_counters(compiler):
     binary = compiler.work / 'terminal-stats'
     source = ROOT / 'tests/programs/userstats-execute-and-input-counters.b'
     env = dict(os.environ, JBCPORTNO='1')
-    subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
-                   env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
-    with subprocess.Popen([binary], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE) as proc:
+    subprocess.run(
+        [CLI, '--exe', source, '-o', binary],
+        check=True,
+        env=dict(env, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
+    with subprocess.Popen(
+        [binary],
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as proc:
         try:
-            expected = expected_bytes('userstats-execute-and-input-counters.stdout')
+            expected = expected_bytes(
+                'userstats-execute-and-input-counters.stdout'
+            )
             received = bytearray()
             while len(received) < len(expected):
                 assert select.select([proc.stdout], [], [], 5)[0], received
-                chunk = os.read(proc.stdout.fileno(), len(expected) - len(received))
+                chunk = os.read(
+                    proc.stdout.fileno(), len(expected) - len(received)
+                )
                 assert chunk, received
                 received.extend(chunk)
             assert received == expected
             proc.stdin.close()
             proc.stdin = None
             output, errors = proc.communicate(timeout=5)
-            assert (
-                (proc.returncode, output, errors)
-                == (0,
-                     expected_bytes('userstats-execute-and-input-counters_2.stdout'),
-                     b'')
+            assert (proc.returncode, output, errors) == (
+                0,
+                expected_bytes('userstats-execute-and-input-counters_2.stdout'),
+                b'',
             )
         finally:
             if proc.poll() is None:
@@ -455,11 +751,15 @@ def test_userstats_execute_and_input_counters(compiler):
 
 
 def test_userstats_reports_invalid_port_at_reference(compiler):
-    source = ROOT / 'tests/programs/userstats-reports-invalid-port-at-reference.b'
+    source = (
+        ROOT / 'tests/programs/userstats-reports-invalid-port-at-reference.b'
+    )
     result = compiler.run_native(source, env=dict(os.environ, JBCPORTNO='bad'))
     assert result.returncode != 0
     assert (
-        expected_text('userstats-reports-invalid-port-at-reference.stderr', source=source).encode()
+        expected_text(
+            'userstats-reports-invalid-port-at-reference.stderr', source=source
+        ).encode()
         in result.stderr
     )
 
@@ -474,8 +774,12 @@ def test_port_number_defaults_to_process_id(compiler, subtests):
         with subtests.test(empty=empty):
             if empty:
                 env['JBCPORTNO'] = ''
-            with subprocess.Popen([binary], env=env, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE) as proc:
+            with subprocess.Popen(
+                [binary],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ) as proc:
                 stdout, stderr = proc.communicate(timeout=5)
                 assert proc.returncode == 0, stderr
                 assert stdout == f'{proc.pid}\n{proc.pid}\n'.encode()
@@ -486,11 +790,18 @@ def test_invalid_port_number_reports_call_site(compiler, subtests):
     source = ROOT / 'tests/programs/invalid-port-number-reports-call-site.b'
     for setting in ('12-15', '42,43', '-1', '12.25', '9' * 80):
         with subtests.test(setting=setting):
-            run = compiler.run_native(source, env=dict(os.environ, JBCPORTNO=setting))
+            run = compiler.run_native(
+                source, env=dict(os.environ, JBCPORTNO=setting)
+            )
             assert run.returncode != 0
-            assert run.stdout == expected_bytes('invalid-port-number-reports-call-site.stdout')
+            assert run.stdout == expected_bytes(
+                'invalid-port-number-reports-call-site.stdout'
+            )
             assert (
-                expected_text('invalid-port-number-reports-call-site.stderr', source=source).encode()
+                expected_text(
+                    'invalid-port-number-reports-call-site.stderr',
+                    source=source,
+                ).encode()
                 in run.stderr
             )
 
@@ -498,8 +809,18 @@ def test_invalid_port_number_reports_call_site(compiler, subtests):
 @pytest.mark.parametrize(
     'name, legacy, expected_fixture',
     [
-        pytest.param('MainAccount', 'Fallback', 'who-uses-startup-login-name.stdout', id='mainaccount'),
-        pytest.param('', 'GuideAccount', 'who-uses-startup-login-name_2.stdout', id='case-2'),
+        pytest.param(
+            'MainAccount',
+            'Fallback',
+            'who-uses-startup-login-name.stdout',
+            id='mainaccount',
+        ),
+        pytest.param(
+            '',
+            'GuideAccount',
+            'who-uses-startup-login-name_2.stdout',
+            id='case-2',
+        ),
     ],
 )
 def test_who_uses_startup_login_name(compiler, name, legacy, expected_fixture):
@@ -511,7 +832,9 @@ def test_who_uses_startup_login_name(compiler, name, legacy, expected_fixture):
     assert run.returncode == 0, run.stderr
     assert (
         run.stdout
-        == expected_text('who-uses-startup-login-name_3.stdout', expected=expected).encode()
+        == expected_text(
+            'who-uses-startup-login-name_3.stdout', expected=expected
+        ).encode()
     )
     assert run.stderr == b''
 
@@ -539,16 +862,31 @@ def test_who_defaults_to_posix_user_name(compiler):
         pytest.param('', '', 'GuideLogin', 'GuideLogin', id='case-3'),
     ],
 )
-def test_account_aliases_use_startup_account_name(compiler, override, unix_name, account, login):
-    main = ROOT / 'tests/programs/account-aliases-use-startup-account-name/main.b'
-    routine = ROOT / 'tests/programs/account-aliases-use-startup-account-name/show.account.b'
-    env = dict(os.environ, JBCLOGNAME=override, LOGNAME=unix_name,
-               JBASICLOGNAME='GuideLogin')
+def test_account_aliases_use_startup_account_name(
+    compiler, override, unix_name, account, login
+):
+    main = (
+        ROOT / 'tests/programs/account-aliases-use-startup-account-name/main.b'
+    )
+    routine = (
+        ROOT
+        / 'tests/programs/account-aliases-use-startup-account-name/show.account.b'
+    )
+    env = dict(
+        os.environ,
+        JBCLOGNAME=override,
+        LOGNAME=unix_name,
+        JBASICLOGNAME='GuideLogin',
+    )
     run = compiler.run_native(main, routine, env=env)
     assert run.returncode == 0, run.stderr
     assert (
         run.stdout
-        == expected_text('account-aliases-use-startup-account-name.stdout', account=account, login=login).encode()
+        == expected_text(
+            'account-aliases-use-startup-account-name.stdout',
+            account=account,
+            login=login,
+        ).encode()
     )
     assert run.stderr == b''
 

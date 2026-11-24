@@ -1,5 +1,4 @@
 import pytest
-
 from compiler_support import NativeCompiler
 
 

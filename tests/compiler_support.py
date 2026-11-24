@@ -1,6 +1,5 @@
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / 'jbcc'
@@ -23,6 +22,21 @@ class NativeCompiler:
     def run_native(self, *sources, options=(), env=None, cwd=None):
         subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
-        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
-                        '-pedantic', self.c, '-lm', '-o', binary], check=True)
-        return subprocess.run([binary], capture_output=True, timeout=5, env=env, cwd=cwd)
+        subprocess.run(
+            [
+                'cc',
+                '-std=c99',
+                '-Wall',
+                '-Wextra',
+                '-Werror',
+                '-pedantic',
+                self.c,
+                '-lm',
+                '-o',
+                binary,
+            ],
+            check=True,
+        )
+        return subprocess.run(
+            [binary], capture_output=True, timeout=5, env=env, cwd=cwd
+        )
