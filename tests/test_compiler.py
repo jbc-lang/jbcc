@@ -1014,14 +1014,14 @@ class CompilerTest(NativeCompilerTest):
                          (0, expected_bytes('loop-control-does-not-use-the-gosub-callers-loop.stdout'), b''))
 
     def test_integer_limits(self):
-        for case_number, (text, diagnostic) in enumerate([('9223372036854775807', 'overflow'),
-                                 ('"nan"', 'requires numeric operands')], 1):
+        for case_number, (text, diagnostic) in enumerate([('9223372036854775807', expected_text('integer-limits.stderr')),
+                                 ('"nan"', expected_text('integer-limits_2.stderr'))], 1):
             with self.subTest(text=text):
                 source = ROOT / 'tests/programs/integer-limits' / f'numbers_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(diagnostic.encode(), run.stderr)
-                self.assertIn(f'{source}:1:{len(text) + 6}:'.encode(), run.stderr)
+                self.assertIn(expected_text('integer-limits_3.stderr', source=source, value_2=len(text) + 6).encode(), run.stderr)
 
     def test_logical_function_calls(self):
         main = ROOT / 'tests/routines/logical-calls/main.b'
@@ -1055,7 +1055,7 @@ class CompilerTest(NativeCompilerTest):
         sources = ROOT / 'tests/routines/precision-scope'
         run = self.run_native(sources / 'main.b', sources / 'change.b', sources / 'local.b')
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0.66\n0.6666\n0.666\n0.66\n')
+        self.assertEqual(run.stdout, expected_bytes('precision-call-scope.stdout'))
 
     def test_invalid_precision(self):
         for fixture_name in (
@@ -1068,7 +1068,7 @@ class CompilerTest(NativeCompilerTest):
                 source = ROOT / 'tests/programs/invalid-precision' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:2:1: PRECISION'.encode(), run.stderr)
+                self.assertIn(expected_text('invalid-precision.stderr', source=source).encode(), run.stderr)
 
     def test_locate_diagnostics(self):
         for fixture_name, message in (
@@ -1096,7 +1096,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/programs/sum-overflow.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:7: integer addition overflow".encode(), run.stderr)
+        self.assertIn(expected_text('sum-overflow-reports-call-site.stderr', source=source).encode(), run.stderr)
 
     def test_date_and_time_in_local_timezone(self):
         source = ROOT / 'tests/programs/date-and-time.b'
@@ -1532,16 +1532,16 @@ time_t test_clock(time_t *out)
 
     def test_dround_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('dround_1.b', 'DROUND requires a numeric value'),
-            ('dround_2.b', 'DROUND precision requires a nonnegative integer'),
-            ('dround_3.b', 'DROUND precision requires a nonnegative integer'),
-            ('dround_4.b', 'DROUND precision requires a nonnegative integer'),
+            ('dround_1.b', expected_text('dround-diagnostics.stderr')),
+            ('dround_2.b', expected_text('dround-diagnostics_2.stderr')),
+            ('dround_3.b', expected_text('dround-diagnostics_2.stderr')),
+            ('dround_4.b', expected_text('dround-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/dround-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('dround-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_rewind_invalid_channel(self):
         for fixture_name in (
@@ -1686,36 +1686,36 @@ CRT 'main'
 
     def test_smul_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('smul_1.b', 'SMUL requires numeric operands'),
-            ('smul_2.b', 'SMUL requires numeric operands'),
-            ('smul_3.b', 'SMUL precision requires -1 or a nonnegative integer'),
-            ('smul_4.b', 'SMUL precision requires -1 or a nonnegative integer'),
+            ('smul_1.b', expected_text('smul-diagnostics.stderr')),
+            ('smul_2.b', expected_text('smul-diagnostics.stderr')),
+            ('smul_3.b', expected_text('smul-diagnostics_2.stderr')),
+            ('smul_4.b', expected_text('smul-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/smul-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('smul-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_sdiv_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('sdiv_1.b', 'SDIV requires numeric operands'),
-            ('sdiv_2.b', 'SDIV requires numeric operands'),
-            ('sdiv_3.b', 'SDIV division by zero'),
-            ('sdiv_4.b', 'SDIV precision requires -1 or a nonnegative integer'),
-            ('sdiv_5.b', 'SDIV precision requires -1 or a nonnegative integer'),
+            ('sdiv_1.b', expected_text('sdiv-diagnostics.stderr')),
+            ('sdiv_2.b', expected_text('sdiv-diagnostics.stderr')),
+            ('sdiv_3.b', expected_text('sdiv-diagnostics_2.stderr')),
+            ('sdiv_4.b', expected_text('sdiv-diagnostics_3.stderr')),
+            ('sdiv_5.b', expected_text('sdiv-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/sdiv-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('sdiv-diagnostics_4.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_adds_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('adds_1.b', ':1:5: arithmetic requires numeric operands'),
-            ('adds_2.b', ':1:5: integer addition overflow'),
-            ('adds_3.b', ':1:10: REUSE in ADDS requires a scalar'),
+            ('adds_1.b', expected_text('adds-diagnostics.stderr')),
+            ('adds_2.b', expected_text('adds-diagnostics_2.stderr')),
+            ('adds_3.b', expected_text('adds-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/adds-diagnostics' / fixture_name
@@ -1727,14 +1727,14 @@ CRT 'main'
         source = ROOT / 'tests/programs/infix-reuse-requires-scalar.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:9: REUSE in multiplication requires a scalar'.encode(),
+        self.assertIn(expected_text('infix-reuse-requires-scalar.stderr', source=source).encode(),
                       result.stderr)
 
     def test_muls_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('muls_1.b', ':1:5: arithmetic requires numeric operands'),
-            ('muls_2.b', ':1:5: integer multiplication overflow'),
-            ('muls_3.b', ':1:13: REUSE in MULS requires a scalar'),
+            ('muls_1.b', expected_text('muls-diagnostics.stderr')),
+            ('muls_2.b', expected_text('muls-diagnostics_2.stderr')),
+            ('muls_3.b', expected_text('muls-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/muls-diagnostics' / fixture_name
@@ -1746,27 +1746,27 @@ CRT 'main'
         source = ROOT / 'tests/programs/divs-substitutes-zero-for-zero-divisors.b'
         run = self.run_native(source)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\xfd4\xfd0\xfd\xfd0\ncontinued\n')
-        warning = f'{source}:1:5: warning: DIVS: division by zero\n'
+        self.assertEqual(run.stdout, expected_bytes('divs-substitutes-zero-for-zero-divisors.stdout'))
+        warning = expected_text('divs-substitutes-zero-for-zero-divisors.stderr', source=source)
         self.assertEqual(run.stderr, warning.encode() * 2)
 
     def test_infix_reuse_division_reports_invalid_operands(self):
         for case_number, (expression, marker, message) in enumerate((
-            ("(4:@VM:6) / REUSE(0)", '/', 'division by zero'),
-            ("REUSE(8) / (2:@VM:0)", '/', 'division by zero'),
-            ("REUSE(3:@FM:4) / 2", 'REUSE', 'REUSE in division requires a scalar'),
+            ("(4:@VM:6) / REUSE(0)", '/', expected_text('infix-reuse-division-reports-invalid-operands.stderr')),
+            ("REUSE(8) / (2:@VM:0)", '/', expected_text('infix-reuse-division-reports-invalid-operands.stderr')),
+            ("REUSE(3:@FM:4) / 2", 'REUSE', expected_text('infix-reuse-division-reports-invalid-operands_2.stderr')),
         ), 1):
             with self.subTest(expression=expression):
                 statement = f'CRT {expression}'
                 source = ROOT / 'tests/programs/infix-reuse-division-reports-invalid-operands' / f'reuse_{case_number}.b'
                 result = self.run_native(source)
                 self.assertEqual((result.returncode, result.stdout, result.stderr),
-                                 (1, b'', f'{source}:1:{statement.index(marker) + 1}: {message}\n'.encode()))
+                                 (1, b'', expected_text('infix-reuse-division-reports-invalid-operands_3.stderr', source=source, value_2=statement.index(marker) + 1, message=message).encode()))
 
     def test_divs_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('divs_1.b', ':1:5: arithmetic requires numeric operands'),
-            ('divs_2.b', ':1:10: REUSE in DIVS requires a scalar'),
+            ('divs_1.b', expected_text('divs-diagnostics.stderr')),
+            ('divs_2.b', expected_text('divs-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/divs-diagnostics' / fixture_name
@@ -1776,10 +1776,10 @@ CRT 'main'
 
     def test_subs_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('subs_1.b', ':1:5: arithmetic requires numeric operands'),
-            ('subs_2.b', ':1:5: arithmetic requires numeric operands'),
-            ('subs_3.b', ':1:5: integer subtraction overflow'),
-            ('subs_4.b', ':1:13: REUSE in SUBS requires a scalar'),
+            ('subs_1.b', expected_text('subs-diagnostics.stderr')),
+            ('subs_2.b', expected_text('subs-diagnostics.stderr')),
+            ('subs_3.b', expected_text('subs-diagnostics_2.stderr')),
+            ('subs_4.b', expected_text('subs-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/subs-diagnostics' / fixture_name
@@ -1789,76 +1789,76 @@ CRT 'main'
 
     def test_ln_diagnostics(self):
         for fixture_name, message in (
-            ('ln_1.b', 'requires a numeric operand'),
-            ('ln_2.b', 'requires a positive operand'),
-            ('ln_3.b', 'requires a positive operand'),
-            ('ln_4.b', 'operand out of range'),
-            ('ln_5.b', 'operand out of range'),
+            ('ln_1.b', expected_text('ln-diagnostics.stderr')),
+            ('ln_2.b', expected_text('ln-diagnostics_2.stderr')),
+            ('ln_3.b', expected_text('ln-diagnostics_2.stderr')),
+            ('ln_4.b', expected_text('ln-diagnostics_3.stderr')),
+            ('ln_5.b', expected_text('ln-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/ln-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: LN {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('ln-diagnostics_4.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_exp_diagnostics(self):
         for fixture_name, message in (
-            ('exp_1.b', 'requires a numeric operand'),
-            ('exp_2.b', 'operand out of range'),
-            ('exp_3.b', 'result out of range'),
+            ('exp_1.b', expected_text('exp-diagnostics.stderr')),
+            ('exp_2.b', expected_text('exp-diagnostics_2.stderr')),
+            ('exp_3.b', expected_text('exp-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/exp-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: EXP {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('exp-diagnostics_4.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_sqrt_diagnostics(self):
         for fixture_name, message in (
-            ('sqrt_1.b', 'requires a nonnegative operand'),
-            ('sqrt_2.b', 'requires a numeric operand'),
-            ('sqrt_3.b', 'operand out of range'),
-            ('sqrt_4.b', 'operand out of range'),
+            ('sqrt_1.b', expected_text('sqrt-diagnostics.stderr')),
+            ('sqrt_2.b', expected_text('sqrt-diagnostics_2.stderr')),
+            ('sqrt_3.b', expected_text('sqrt-diagnostics_3.stderr')),
+            ('sqrt_4.b', expected_text('sqrt-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/sqrt-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: SQRT {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('sqrt-diagnostics_4.stderr', source=source, message=message).encode(), run.stderr)
 
     def test_power_domain_and_diagnostics(self):
         for fixture_name, column, message, continues in (
-            ('power_1.b', 5, 'negative base with fractional exponent', True),
-            ('power_2.b', 7, 'zero raised to a negative power', False),
-            ('power_3.b', 7, 'PWR requires numeric operands', False),
-            ('power_4.b', 5, 'PWR result out of range', False),
+            ('power_1.b', 5, expected_text('power-domain-and-diagnostics.stderr'), True),
+            ('power_2.b', 7, expected_text('power-domain-and-diagnostics_2.stderr'), False),
+            ('power_3.b', 7, expected_text('power-domain-and-diagnostics_3.stderr'), False),
+            ('power_4.b', 5, expected_text('power-domain-and-diagnostics_4.stderr'), False),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/power-domain-and-diagnostics' / fixture_name
                 run = self.run_native(source)
                 self.assertEqual(run.returncode == 0, continues)
                 self.assertEqual(run.stdout, b'0\ndone\n' if continues else b'')
-                self.assertIn(f'{source}:1:{column}: {message}'.encode(), run.stderr)
+                self.assertIn(expected_text('power-domain-and-diagnostics_5.stderr', source=source, column=column, message=message).encode(), run.stderr)
 
     def test_randomize_wrong_argument_count(self):
         source = ROOT / 'tests/programs/randomize-wrong-argument-count.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:12: expected ')'", result.stderr)
+        self.assertIn(expected_text('randomize-wrong-argument-count.stderr', source=source), result.stderr)
 
     def test_rnd_invalid_bound(self):
         for fixture_name, diagnostic in (
-            ('rnd_1.b', 'requires an integer bound'),
-            ('rnd_2.b', 'requires an integer bound'),
-            ('rnd_3.b', 'requires a nonzero bound'),
-            ('rnd_4.b', 'bound exceeds 2147483647'),
-            ('rnd_5.b', 'bound exceeds 2147483647'),
+            ('rnd_1.b', expected_text('rnd-invalid-bound.stderr')),
+            ('rnd_2.b', expected_text('rnd-invalid-bound.stderr')),
+            ('rnd_3.b', expected_text('rnd-invalid-bound_2.stderr')),
+            ('rnd_4.b', expected_text('rnd-invalid-bound_3.stderr')),
+            ('rnd_5.b', expected_text('rnd-invalid-bound_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/rnd-invalid-bound' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: RND {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('rnd-invalid-bound_4.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_bitxor_diagnostics(self):
         for fixture_name in (
@@ -1869,13 +1869,13 @@ CRT 'main'
                 source = ROOT / 'tests/programs/bitxor-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:5: BITXOR requires numeric operands'.encode(),
+                self.assertIn(expected_text('bitxor-diagnostics.stderr', source=source).encode(),
                               result.stderr)
 
         source = ROOT / 'tests/programs/bitxor-diagnostics/bitxor-variant-2.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:5: wrong argument count for 'BITXOR'", result.stderr)
+        self.assertIn(expected_text('bitxor-diagnostics_2.stderr', source=source), result.stderr)
 
     def test_cipher_diagnostics(self):
         fixtures = ROOT / 'tests/programs/cipher-diagnostics'
@@ -1924,7 +1924,7 @@ CRT 'main'
                 source = ROOT / 'tests/programs/mod-requires-numeric-operands' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {name} requires numeric operands'.encode(), run.stderr)
+                self.assertIn(expected_text('mod-requires-numeric-operands.stderr', source=source, value_2=name).encode(), run.stderr)
 
     def test_trim_diagnostics(self):
         for fixture_name, message in (
@@ -2011,32 +2011,32 @@ CRT 'main'
         source = ROOT / 'tests/programs/neg-substitutes-zero.b'
         run = self.run_native(source)
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'2\ncontinued\n')
-        self.assertEqual(run.stderr, f'{source}:1:5: warning: NEG: Non-numeric value -- ZERO USED\n'.encode())
+        self.assertEqual(run.stdout, expected_bytes('neg-substitutes-zero.stdout'))
+        self.assertEqual(run.stderr, expected_text('neg-substitutes-zero.stderr', source=source).encode())
 
     def test_negs_warns_for_nonnumeric_elements(self):
         source = ROOT / 'tests/programs/negs-warns-for-nonnumeric-elements.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'0|-1^~0\n')
-        warning = f'{source}:1:13: warning: NEGS: Non-numeric value -- ZERO USED\n'
+        self.assertEqual(result.stdout, expected_bytes('negs-warns-for-nonnumeric-elements.stdout'))
+        warning = expected_text('negs-warns-for-nonnumeric-elements.stderr', source=source)
         self.assertEqual(result.stderr, warning.encode() * 2)
 
     def test_abs_diagnostics(self):
         source = ROOT / 'tests/programs/abs-diagnostics/abs.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:7: ABS requires a numeric value".encode(), run.stderr)
+        self.assertIn(expected_text('abs-diagnostics.stderr', source=source).encode(), run.stderr)
         source = ROOT / 'tests/programs/abs-diagnostics/abs-variant-2.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f"{source}:1:7: wrong argument count for 'ABS'", run.stderr)
+        self.assertIn(expected_text('abs-diagnostics_2.stderr', source=source), run.stderr)
 
     def test_abss_diagnostics(self):
         source = ROOT / 'tests/programs/abss-diagnostics.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: ABSS requires numeric elements'.encode(), run.stderr)
+        self.assertIn(expected_text('abss-diagnostics.stderr', source=source).encode(), run.stderr)
 
     def test_implicit_format_reports_uninitialized_mask_at_read(self):
         source = ROOT / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
@@ -2066,19 +2066,19 @@ CRT 'main'
         source = ROOT / 'tests/programs/division-by-zero.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:9: division by zero'.encode(), run.stderr)
+        self.assertIn(expected_text('division-by-zero.stderr', source=source).encode(), run.stderr)
 
     def test_div_requires_nonzero_numeric_operands(self):
         for fixture_name, diagnostic in (
-            ('div_1.b', 'division by zero'),
-            ('div_2.b', 'arithmetic requires numeric operands'),
-            ('div_3.b', 'arithmetic requires numeric operands'),
+            ('div_1.b', expected_text('div-requires-nonzero-numeric-operands.stderr')),
+            ('div_2.b', expected_text('div-requires-nonzero-numeric-operands_2.stderr')),
+            ('div_3.b', expected_text('div-requires-nonzero-numeric-operands_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/programs/div-requires-nonzero-numeric-operands' / fixture_name
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
-                self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
+                self.assertIn(expected_text('div-requires-nonzero-numeric-operands_3.stderr', source=source, diagnostic=diagnostic).encode(), run.stderr)
 
     def test_increment_and_decrement_expression_values(self):
         source = ROOT / 'tests/programs/increment-and-decrement-expression-values/step.b'
@@ -2115,7 +2115,7 @@ CRT 'main'
         source = ROOT / 'tests/programs/compound-division-by-zero.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:2:3: division by zero'.encode(), run.stderr)
+        self.assertIn(expected_text('compound-division-by-zero.stderr', source=source).encode(), run.stderr)
 
     def test_compound_assignment_checks_conditionally_assigned_target(self):
         binary = self.work / 'compound'
