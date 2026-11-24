@@ -46,6 +46,7 @@ def check(relative, root, directories, source_encoding='utf-8'):
             prototypes.append(unit.signature() + ";")
         prototypes.append(COMPILER["render_indirect_calls"]([unit]))
         prototypes.append(COMPILER["render_exit_callbacks"]([unit]))
+        prototypes.append(COMPILER["render_subroutine_exists"]([unit]))
         generated = "\n".join([COMPILER["runtime_features"]([unit]), RUNTIME] + prototypes + [unit.render()])
         result = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror",
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],

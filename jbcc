@@ -593,6 +593,7 @@ class Compiler:
         self.calls = []
         self.has_indirect_call = False
         self.uses_callonexit = False
+        self.uses_subroutine_exists = False
         self.opens_local_files = False
         self.references = []
         self.goto_sites = {}
@@ -825,6 +826,8 @@ class Compiler:
             return self.postfix(value, locate_source)
         elif word == 'IOCTL' and self.following.word == '(':
             return self.postfix(self.ioctl_expression(), locate_source)
+        elif word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
+            return self.postfix(self.temporary(self.subroutine_exists_call()), locate_source)
         elif word in ('XMLTOXML', 'XMLTODYN') and self.following.word == '(':
             return self.postfix(self.xml_transform_expression(), locate_source)
         elif word == 'REMOVE' and self.following.word == '(':
@@ -2465,6 +2468,19 @@ class Compiler:
             self.assignment_facts[value, True] = {name}
         return value
 
+    def subroutine_exists_call(self):
+        self.advance()
+        self.expect('JBASESubroutineExist')
+        self.expect('(')
+        name = self.expression()
+        self.expect(',')
+        info, target = self.scalar_argument()
+        self.expect(')')
+        if target is not None:
+            self.assigned.add(target)
+        self.uses_subroutine_exists = True
+        return f"jbc_subroutine_exists({name}, {info})"
+
     def xml_transform_expression(self):
         opening = self.identifier()
         self.expect('(')
@@ -3202,6 +3218,8 @@ class Compiler:
             self.advance()
             self.expect('=')
             self.emit(f"jbc_set_user_root({self.expression()}, {self.location(target)});")
+        elif self.word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
+            self.emit(f"(void){self.subroutine_exists_call()};")
         elif self.word in STEP_OPERATORS:
             self.prefix_step(statement=True)
         elif self.current.kind == 'name':
@@ -3313,6 +3331,7 @@ class Compiler:
             t.kind == 'symbol' and t.word in STEP_OPERATORS
             or t.kind == 'name' and t.word in ('GETENV', 'IOCTL', 'REMOVE', 'XMLTOXML', 'XMLTODYN')
             and tokens[i + 1].word == '('
+            or t.word == 'CALLC' and tokens[i + 1].word == 'JBASESubroutineExist'
             for i, t in enumerate(tokens)
         )
         self.has_unstructured_jumps = any(
@@ -3569,6 +3588,23 @@ def render_exit_callbacks(units):
     return "\n".join(lines)
 
 
+def render_subroutine_exists(units):
+    if not any(unit.uses_subroutine_exists for unit in units):
+        return ""
+    lines = [
+        "static const char *jbc_subroutine_exists(const char *name, jbc_variable *info)",
+        "{",
+        "    (void)name;",
+        '    assign_value(info, "");',
+    ]
+    for unit in units:
+        if unit.routine and not unit.is_function:
+            name = c_string(unit.routine.word, unit.encoding)
+            lines.append(f'    if (!strcmp(name, {name})) return "1";')
+    lines.extend(['    return "0";', "}"])
+    return "\n".join(lines)
+
+
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8'):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding)
@@ -3619,6 +3655,7 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
     prototypes.append(render_exit_callbacks(units))
+    prototypes.append(render_subroutine_exists(units))
     features = runtime_features(units)
     return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
 

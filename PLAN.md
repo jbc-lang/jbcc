@@ -2967,6 +2967,23 @@ and malformed operands.
 All three T24 callers now pass strict C99 checking in byte mode. The
 total is 17,196 of 17,336 candidates, including all 17,193 previous passes.
 
-- [ ] Investigate CALLC JBASESubroutineExist in CHECK.ROUTINE.EXIST.
+- [x] Investigate CALLC JBASESubroutineExist in CHECK.ROUTINE.EXIST.
   Check the reference signature and status argument, then decide how
   it can query the subroutines linked into a native jbcc executable.
+
+The guide specifies a numeric presence result and reserves SubInfo.
+The reference compiler passes a writable variable or a temporary for a
+literal. jbcc supports the documented two-argument call as an expression
+or statement. It uses a case-sensitive lookup over linked subroutines and
+sets SubInfo to an empty string as its native convention. Native tests
+cover an uncalled linked routine, missing names, a function name, and
+scalar and matrix-element info arguments.
+[JBASESubroutineExist](https://jbc-lang.org/pages/jbasesubroutineexist.html).
+
+CHECK.ROUTINE.EXIST now passes strict C99 checking in byte mode.
+The total is 17,197 of 17,336 candidates, including all 17,196
+previous passes.
+
+- [ ] Investigate `array / REUSE(scalar)` in COLLATERAL.ALLOCATION.III.
+  Compare the generated reference operation with DIVS and the existing
+  infix REUSE multiplication behavior.

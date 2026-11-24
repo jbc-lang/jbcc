@@ -1165,6 +1165,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   dispatch return a nonzero code. Signal-triggered exits are outside
   this native implementation.
   [CALLONEXIT](https://jbc-lang.org/pages/callonexit.html)
+- `CALLC JBASESubroutineExist(name, info)` returns 1 for a linked
+  subroutine and 0 otherwise. Lookup is case-sensitive and checks the
+  subroutines supplied to jbcc when building the executable. The native
+  implementation writes an empty string to the reserved info argument.
+  [JBASESubroutineExist](https://jbc-lang.org/pages/jbasesubroutineexist.html)
 - EQU or EQUATE defines token substitutions, including comma-separated
   definitions. T24 also uses definitions between semicolon-separated
   statements. Each definition applies from that point onward, including

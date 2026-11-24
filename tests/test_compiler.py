@@ -3027,6 +3027,42 @@ CRT ': ='
         self.assertEqual(run.stdout, b'6\t8\ndone\n')
         self.assertEqual(run.stderr, b'')
 
+    def test_callc_subroutine_exists_checks_linked_subroutines(self):
+        main = self.work / 'main.b'
+        subroutine = self.work / 'worker.b'
+        function = self.work / 'compute.b'
+        main.write_text("""Info = 'old'
+CRT CALLC JBASESubroutineExist('WOR':'KER', Info), '[':Info:']'
+CRT CALLC JBASESubroutineExist('worker', 0), CALLC JBASESubroutineExist('COMPUTE', Info)
+Name = 'WORKER'
+CRT CALLC JBASESubroutineExist(Name, Name), '[':Name:']'
+DIM Codes(1)
+CALLC JBASESubroutineExist('missing', Codes(1))
+CRT '[':Codes(1):']'
+""")
+        subroutine.write_text("SUBROUTINE WORKER(Value)\nABORT\n")
+        function.write_text("FUNCTION COMPUTE()\nRETURN 1\n")
+        result = self.run_native(main, subroutine, function)
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, b'1\t[]\n0\t0\n1\t[]\n[]\n', b''))
+
+        main.write_text("CRT CALLC JBASESubroutineExist('WORKER', Info), '[':Info:']'\n")
+        result = self.run_native(main)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0\t[]\n', b''))
+
+    def test_callc_subroutine_exists_requires_two_arguments(self):
+        source = self.work / 'main.b'
+        for arguments, marker, message in (
+            ("'WORKER'", ')', "expected ','"),
+            ("'WORKER', Info, 0", ', 0', "expected ')'"),
+        ):
+            with self.subTest(arguments=arguments):
+                statement = f'CRT CALLC JBASESubroutineExist({arguments})'
+                source.write_text(statement + '\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
+
     def test_call_expands_equates_in_arguments_and_indirect_targets(self):
         main = self.work / 'main.b'
         direct = self.work / 'direct.b'
