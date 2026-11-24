@@ -1,0 +1,2 @@
+OPENSEQ 'data' TO F ELSE STOP
+SEEK F, 0, "" ELSE STOP

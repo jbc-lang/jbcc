@@ -1,0 +1,1 @@
+WRITEBLK '' TO 'file' ELSE NULL

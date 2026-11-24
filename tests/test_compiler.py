@@ -175,15 +175,14 @@ class CompilerTest(NativeCompilerTest):
         self.assertEqual((self.work / 'input').read_bytes(), b'a\r\n\xfeend')
 
     def test_block_io_operand_diagnostics(self):
-        source = self.work / 'invalid.b'
-        for statement, message in [
-            ("READBLK V FROM '',2 ELSE NULL", 'READBLK requires nonempty handle and block size'),
-            ("READBLK V FROM 'file',0 ELSE NULL", 'READBLK requires a positive integer block size'),
-            ("READBLK V FROM 'file',1.5 ELSE NULL", 'READBLK requires a positive integer block size'),
-            ("WRITEBLK '' TO 'file' ELSE NULL", 'WRITEBLK requires nonempty handle and data'),
-        ]:
-            with self.subTest(statement=statement):
-                source.write_text(statement + '\n')
+        for fixture_name, message in (
+            ('invalid_1.b', 'READBLK requires nonempty handle and block size'),
+            ('invalid_2.b', 'READBLK requires a positive integer block size'),
+            ('invalid_3.b', 'READBLK requires a positive integer block size'),
+            ('invalid_4.b', 'WRITEBLK requires nonempty handle and data'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/block-io-operand-diagnostics' / fixture_name
                 result = self.run_native(source, cwd=self.work)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:1:1: {message}'.encode(), result.stderr)
@@ -465,10 +464,13 @@ class CompilerTest(NativeCompilerTest):
 
     def test_seek_empty_operands(self):
         (self.work / 'data').touch()
-        source = self.work / 'invalid.b'
-        for args in ['F, 0, ""', 'F, ""', '""']:
-            with self.subTest(args=args):
-                source.write_text(f"OPENSEQ 'data' TO F ELSE STOP\nSEEK {args} ELSE STOP\n")
+        for fixture_name in (
+            'invalid_1.b',
+            'invalid_2.b',
+            'invalid_3.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/seek-empty-operands' / fixture_name
                 result = self.run_native(source, cwd=self.work)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:2:1: SEEK requires nonempty'.encode(), result.stderr)
@@ -689,16 +691,16 @@ class CompilerTest(NativeCompilerTest):
         ])
 
     def test_report_diagnostics(self):
-        source = self.work / 'report.b'
-        for statement, message in [
-                ('HEADING ON 1 "title"', 'printer output requires JBCC_PRINT_DIR'),
-                ('PAGE ON 3', 'printer output requires JBCC_PRINT_DIR'),
-                ('PRINT ON 128 "bad"', 'print unit must be an integer from 0 to 127'),
-                ('PRINTER ON', 'printer output requires JBCC_PRINT_DIR'),
-                ('PAGE 2.5', 'PAGE requires an integer page number'),
-                ("HEADING \"'C'\"", 'unsupported HEADING option')]:
-            with self.subTest(statement=statement):
-                source.write_text(statement + '\n')
+        for fixture_name, message in (
+            ('report_1.b', 'printer output requires JBCC_PRINT_DIR'),
+            ('report_2.b', 'printer output requires JBCC_PRINT_DIR'),
+            ('report_3.b', 'print unit must be an integer from 0 to 127'),
+            ('report_4.b', 'printer output requires JBCC_PRINT_DIR'),
+            ('report_5.b', 'PAGE requires an integer page number'),
+            ('report_6.b', 'unsupported HEADING option'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/report-diagnostics' / fixture_name
                 result = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=''))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:1: {message}".encode(), result.stderr)
@@ -1536,10 +1538,14 @@ CRT 'after'
                 self.assertIn(f'{source}:1:5: {diagnostic}'.encode(), run.stderr)
 
     def test_rewind_invalid_channel(self):
-        source = self.work / 'rewind.b'
-        for operand in ("ON -1", "FROM 10", "UNIT(2.5)", "ON 'text'"):
-            with self.subTest(operand=operand):
-                source.write_text(f"REWIND {operand} ELSE CRT 'unexpected branch'\n")
+        for fixture_name in (
+            'rewind_1.b',
+            'rewind_2.b',
+            'rewind_3.b',
+            'rewind_4.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/rewind-invalid-channel' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
@@ -1547,10 +1553,12 @@ CRT 'after'
                               result.stderr)
 
     def test_readt_invalid_channel(self):
-        source = self.work / 'readt.b'
-        for statement in ("READT X FROM 10", "READT UNIT(2.5) X"):
-            with self.subTest(statement=statement):
-                source.write_text(f"{statement} ELSE CRT 'unexpected branch'\n")
+        for fixture_name in (
+            'readt_1.b',
+            'readt_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/readt-invalid-channel' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
@@ -1558,13 +1566,13 @@ CRT 'after'
                               result.stderr)
 
     def test_writet_diagnostics(self):
-        source = self.work / 'writet.b'
-        for statement, diagnostic in [
-                ("WRITET 'data' TO 10", ":1:1: WRITET channel must be an integer from 0 to 9"),
-                ("WRITET UNIT(-1) 'data'", ":1:1: WRITET channel must be an integer from 0 to 9"),
-                ("WRITET 1 / 0", ":1:10: division by zero")]:
-            with self.subTest(statement=statement):
-                source.write_text(f"{statement} ELSE CRT 'unexpected branch'\n")
+        for fixture_name, diagnostic in (
+            ('writet_1.b', ':1:1: WRITET channel must be an integer from 0 to 9'),
+            ('writet_2.b', ':1:1: WRITET channel must be an integer from 0 to 9'),
+            ('writet_3.b', ':1:10: division by zero'),
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/writet-diagnostics' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
@@ -1662,10 +1670,13 @@ CRT 'main'
         self.assertEqual((run.returncode, run.stderr), (1, f'{source}:1:18: expected THEN or ELSE\n'))
 
     def test_weof_invalid_channel(self):
-        source = self.work / 'weof.b'
-        for operand in ('ON 10', 'UNIT(-1)', "FROM 'text'"):
-            with self.subTest(operand=operand):
-                source.write_text(f"WEOF {operand} ELSE CRT 'unexpected branch'\n")
+        for fixture_name in (
+            'weof_1.b',
+            'weof_2.b',
+            'weof_3.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/io/weof-invalid-channel' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
@@ -2794,21 +2805,7 @@ GOTO middle
         path = self.work / 'data'
         path.write_bytes(b'one\ntwo\n')
         os.chmod(path, 0o640)
-        source = self.work / 'status.b'
-        source.write_text("""OPENSEQ 'data' READONLY TO F ELSE STOP
-READSEQ V FROM F ELSE STOP
-STATUS X FROM F ELSE STOP
-CRT X<1>:',':X<2>:',':X<3>:',':X<4>:',':X<5>:',':X<6>
-CRT X<7>:',':X<8>:',':X<9>:',':X<10>:',':X<11>:',':X<12>
-CRT X<15>:',':X<16>:',':X<17>:',':X<18>:',':X<19>
-CRT X<20>
-CRT X<21>
-READSEQ V FROM F ELSE STOP
-READSEQ V FROM F THEN STOP ELSE NULL
-STATUS X FROM F ELSE STOP
-CRT X<1>:',':X<2>:',':X<4>
-CLOSESEQ F
-""")
+        source = ROOT / 'tests/io/sequential-file-status.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         st = path.stat()
@@ -2837,13 +2834,9 @@ CLOSESEQ F
         self.assertEqual(result.stdout, b'0\t0\t2\t-2\nsaved\n0\t0\t0\nalready closed\nordinary\nsaved\n1\n')
 
     def test_close_by_reference_retires_local_cleanup(self):
-        main = self.work / 'main.b'
-        opener = self.work / 'opener.b'
-        closer = self.work / 'closer.b'
-        main.write_text("OPEN 'F' TO F ELSE STOP\nCALL OPENER(F)\nCRT RECORDLOCKED(F,'id')\n")
-        opener.write_text("SUBROUTINE OPENER(F)\nOPEN 'F' TO LOCAL ELSE STOP\n"
-                          "CALL CLOSER(LOCAL)\nREADU R FROM F,'id' ELSE NULL\nRETURN\n")
-        closer.write_text("SUBROUTINE CLOSER(F)\nCLOSE F\nRETURN\n")
+        main = ROOT / 'tests/io/close-by-reference-retires-local-cleanup/main.b'
+        opener = ROOT / 'tests/io/close-by-reference-retires-local-cleanup/opener.b'
+        closer = ROOT / 'tests/io/close-by-reference-retires-local-cleanup/closer.b'
         result = self.run_native(main, opener, closer, options=['--memory-file', 'F'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'2\n')

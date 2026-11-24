@@ -1,0 +1,1 @@
+READBLK V FROM 'file',0 ELSE NULL

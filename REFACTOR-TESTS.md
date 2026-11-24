@@ -14,16 +14,16 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Sequential files, printing and tape I/O (10)
 
-- [ ] `test_block_io_operand_diagnostics`
-- [ ] `test_timeout_diagnostics`
-- [ ] `test_seek_empty_operands`
-- [ ] `test_report_diagnostics`
-- [ ] `test_rewind_invalid_channel`
-- [ ] `test_readt_invalid_channel`
-- [ ] `test_writet_diagnostics`
-- [ ] `test_weof_invalid_channel`
-- [ ] `test_sequential_file_status`
-- [ ] `test_close_by_reference_retires_local_cleanup`
+- [x] `test_block_io_operand_diagnostics`
+- [x] `test_timeout_diagnostics` — Keep generated variants that depend on a template or on case-specific bytes.
+- [x] `test_seek_empty_operands`
+- [x] `test_report_diagnostics`
+- [x] `test_rewind_invalid_channel`
+- [x] `test_readt_invalid_channel`
+- [x] `test_writet_diagnostics`
+- [x] `test_weof_invalid_channel`
+- [x] `test_sequential_file_status`
+- [x] `test_close_by_reference_retires_local_cleanup`
 
 ## Record files, locks and select lists (24)
 

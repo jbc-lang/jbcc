@@ -1,0 +1,1 @@
+PRINT ON 128 "bad"
