@@ -17,8 +17,10 @@ import sys
 
 if __package__:
     from .api_coverage import Coverage, read_catalogues, record_calls
+    from .t24_components import read_component_members
 else:
     from api_coverage import Coverage, read_catalogues, record_calls
+    from t24_components import read_component_members
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPILER = runpy.run_path(str(ROOT / "jbcc"))
@@ -174,16 +176,18 @@ class IncludeIndex:
 
 
 worker_include_index = None
+worker_component_members = None
 
 
-def initialize_worker(include_index):
-    global worker_include_index
+def initialize_worker(include_index, component_members):
+    global worker_include_index, worker_component_members
     worker_include_index = include_index
+    worker_component_members = component_members
 
 
 def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False,
           t24_source_fixes=False, quiet_next_warnings=False, collect_apis=False, *,
-          catalog_kind=None, stub_r07_la_parameter=False, include_index=None):
+          catalog_kind=None, stub_r07_la_parameter=False, include_index=None, component_members=None):
     path = root / relative
     fixes = []
     calls = []
@@ -220,6 +224,7 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
                                        defer_unassigned_reads=defer_unassigned_reads, source_filter=source_filter,
                                        include_resolver=resolver,
                                        package_directives=package_directives,
+                                       component_members=component_members,
                                        next_warning=count_next_warning if quiet_next_warnings else None,
                                        api_call=record_calls(calls) if collect_apis else None)
         externals = {}
@@ -275,7 +280,8 @@ def check(relative, root, directories, source_encoding='utf-8', defer_unassigned
 
 
 def check_entry(relative, kind, **options):
-    *result, directives = check(relative, catalog_kind=kind, include_index=worker_include_index, **options)
+    *result, directives = check(relative, catalog_kind=kind, include_index=worker_include_index,
+                                component_members=worker_component_members, **options)
     metadata = [
         {"kind": token.kind, "name": token.word, "line": token.line, "column": token.column,
          "file": display_path(token.path, options["root"])}
@@ -305,6 +311,8 @@ def main():
                         help="classify files using the catalog entries for the corpus directory name")
     parser.add_argument("--t24-indexed-includes", action="store_true",
                         help="resolve includes by component and release, and report each lookup")
+    parser.add_argument("--t24-component-calls", action="store_true",
+                        help="check qualified references against catalogued component declarations")
     parser.add_argument("--source-prefix", action="append", default=[], metavar="RELATIVE_PATH",
                         help="scan catalogued production sources under this path (repeatable)")
     options = parser.parse_args()
@@ -315,13 +323,18 @@ def main():
         parser.error("cc is required to check generated C")
     file_kinds = {}
     include_index = None
+    component_members = None
     if (options.source_prefix or options.t24_indexed_includes) and options.t24_catalog is None:
         parser.error("--source-prefix and --t24-indexed-includes require --t24-catalog")
+    if options.t24_component_calls and options.t24_catalog is None:
+        parser.error("--t24-component-calls requires --t24-catalog")
     if options.t24_catalog is not None:
         try:
             file_kinds = read_file_kinds(options.t24_catalog, root.name)
             if options.t24_indexed_includes:
                 include_index = IncludeIndex(options.t24_catalog, root)
+            if options.t24_component_calls:
+                component_members = read_component_members(options.t24_catalog, root)
         except (sqlite3.Error, OSError, ValueError) as error:
             parser.error(str(error))
     coverage = None
@@ -334,7 +347,7 @@ def main():
     if any(prefix.is_absolute() or ".." in prefix.parts for prefix in prefix_paths):
         parser.error("--source-prefix must be a path inside the corpus")
     prefixes = [prefix.as_posix() for prefix in prefix_paths]
-    if prefixes or include_index is not None:
+    if prefixes or include_index is not None or options.t24_component_calls:
         paths = sorted(relative for relative, kind in file_kinds.items() if kind == "jbc_source"
                        and (not prefixes or any(p == "." or relative == p or relative.startswith(p + "/")
                                                 for p in prefixes)))
@@ -351,7 +364,8 @@ def main():
     include_counts = Counter()
     files = {}
     suppressed_next_warnings = 0
-    with ProcessPoolExecutor(max_workers=options.j, initializer=initialize_worker, initargs=(include_index,)) as pool:
+    with ProcessPoolExecutor(max_workers=options.j, initializer=initialize_worker,
+                             initargs=(include_index, component_members)) as pool:
         entries = pool.map(scan, paths, map(file_kinds.get, paths), chunksize=16)
         for name, status, diagnostic, warnings, fixes, suppressed, calls, stubs, lookups, package_directives in entries:
             suppressed_next_warnings += suppressed
@@ -379,8 +393,10 @@ def main():
     if options.quiet_next_warnings:
         print(f"Suppressed {suppressed_next_warnings} FOR/NEXT name mismatch warnings.", file=sys.stderr)
     report = dict(counts=counts, first_blockers=dict(blockers.most_common()), files=files)
-    if prefixes or include_index is not None:
+    if prefixes or include_index is not None or options.t24_component_calls:
         report["selection"] = {"source_prefixes": prefixes, "indexed_includes": include_index is not None}
+        if options.t24_component_calls:
+            report["selection"]["component_calls"] = True
     if include_index is not None:
         report["include_lookups"] = dict(include_counts)
     if coverage is not None:

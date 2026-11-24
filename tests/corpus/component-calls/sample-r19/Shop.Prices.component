@@ -1,0 +1,22 @@
+component Shop.Prices
+metamodelVersion 1.0
+
+public property readwrite Current : string {
+    jBC: I_PRICES ->Current
+}
+public property readwrite Items : string {
+    jBC: I_PRICES ->Items()
+}
+public constant Separator(SHOP$SEP) = -
+public method Format (
+    IN Input string,
+    INOUT Rows string()
+) : string {
+    jBC: FORMAT.PRICE
+}
+module method Clear () {
+    jBC: CLEAR.PRICE
+}
+private method Reset () {
+    jBC: RESET.PRICE
+}

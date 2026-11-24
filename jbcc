@@ -648,7 +648,7 @@ class ForAssignments(NamedTuple):
 
 class Compiler:
     def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False,
-                 defer_unassigned_reads=False, next_warning=None, api_call=None):
+                 defer_unassigned_reads=False, next_warning=None, api_call=None, component_members=None):
         self.path = path
         self.unit = unit
         self.encoding = encoding
@@ -656,6 +656,8 @@ class Compiler:
         self.defer_unassigned_reads = defer_unassigned_reads
         self.next_warning = next_warning
         self.api_call = api_call
+        self.component_members = component_members or {}
+        self.package = ""
         self.warnings = []
         self.routine = None
         self.is_function = False
@@ -902,6 +904,8 @@ class Compiler:
             return self.variable_expression(target, slot, locate_source)
         elif word in self.functions and self.following.word == '(':
             return self.postfix(self.function_call(), locate_source)
+        elif self.following.word == '(' and self.component_call_member(word):
+            return self.postfix(self.component_call(self.identifier(), expression=True), locate_source)
         elif word in self.c_functions and self.following.word == '(':
             return self.postfix(self.temporary(self.c_function_call()), locate_source)
         elif word == 'GETENV' and self.following.word == '(':
@@ -1089,6 +1093,10 @@ class Compiler:
         elif self.current.kind == 'name' and self.following.word in STEP_OPERATORS:
             target = self.identifier()
             return self.variable_expression(target, self.variable(target.word), locate_source)
+        elif self.component_constant(word):
+            access, _, literal = self.component_members[word.casefold()]
+            self.check_component_access(self.current, access)
+            value = c_string(literal)
         elif self.current.kind == 'name':
             value = self.read_variable(self.current, possible_function=self.following.word == '(')
         elif self.current.kind == 'number':
@@ -2600,7 +2608,8 @@ class Compiler:
                 return '&' + slot, None
             value = self.variable_expression(target, slot)
             return self.value_argument(self.expression_tail(value)), None
-        if self.current.kind == 'name' and self.following.word in (',', ')'):
+        if (self.current.kind == 'name' and self.following.word in (',', ')')
+                and not self.component_constant(self.word)):
             name = self.identifier().word
             return '&' + self.variable(name), name
         return self.value_argument(self.expression()), None
@@ -2648,12 +2657,48 @@ class Compiler:
         declared = self.functions[target.word]
         if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
             self.error(f"arguments disagree with DEFFUN for '{target.word}'", target)
-        self.calls.append((target, kinds, True))
+        return self.emit_direct_call(target, args, kinds, is_function=True)
+
+    def emit_direct_call(self, target, args, kinds, *, is_function=False):
+        self.calls.append((target, kinds, is_function))
         symbol = self.call_symbol(target.word, kinds)
         args = direct_arguments(symbol, args, kinds)
-        result = self.temporary("NULL")
-        self.emit(f"{symbol}({', '.join(['&' + result] + args)});")
+        result = None
+        if is_function:
+            result = self.temporary("NULL")
+            args.insert(0, '&' + result)
+        self.emit(f"{symbol}({', '.join(args)});")
         return result
+
+    def component_call_member(self, word):
+        member = self.component_members.get(word.casefold()) if self.component_members else None
+        return member if member and member[1] != "constant" else None
+
+    def component_constant(self, word):
+        member = self.component_members.get(word.casefold()) if self.component_members else None
+        return member if member and member[1] == "constant" else None
+
+    def check_component_access(self, target, access):
+        component = target.word.casefold().rsplit('.', 1)[0]
+        if (access == "public" or component == self.package
+                or access == "module" and component.split('.')[0] == self.package.split('.')[0]):
+            return
+        self.error(f"component member '{target.word}' has {access} access", target)
+
+    def component_call(self, target, *, expression=False):
+        access, kind, signature = self.component_call_member(target.word)
+        self.check_component_access(target, access)
+        is_function = kind == "function"
+        if expression and not is_function:
+            self.error(f"component method '{target.word}' has no return value", target)
+        args, kinds = self.call_arguments()
+        if not compatible_call_kinds(kinds, signature):
+            self.error(f"arguments disagree with component declaration for '{target.word}'", target)
+        for i, (actual, matrix) in enumerate(zip(kinds, signature)):
+            if actual is None and matrix:
+                args[i] = '((jbc_matrix){0})'
+        return self.emit_direct_call(target._replace(word=target.word.casefold()),
+                                     args, signature, is_function=is_function)
 
     def call_symbol(self, name, kinds):
         symbol = routine_symbol(name)
@@ -2793,10 +2838,11 @@ class Compiler:
             self.emit(f"jbc_call_indirect({name}, {kind_string(kinds)}, {packed}, {self.location(opening)});")
             return
         target = self.subroutine_name()
+        if self.word == '(' and self.component_call_member(target.word):
+            self.component_call(target)
+            return
         args, kinds = self.call_arguments()
-        self.calls.append((target, kinds, False))
-        symbol = self.call_symbol(target.word, kinds)
-        self.emit(f"{symbol}({', '.join(direct_arguments(symbol, args, kinds))});")
+        self.emit_direct_call(target, args, kinds)
 
     def label_number(self, name):
         return self.targets.setdefault(name, len(self.targets) + 1)
@@ -3500,6 +3546,9 @@ class Compiler:
         elif (self.word in self.functions and self.following.word == '('
               and not self.uses_matrix(self.word, self.following.word)):
             self.function_call()
+        elif (self.following.word == '(' and self.component_call_member(self.word)
+              and not self.uses_matrix(self.word, '(')):
+            self.component_call(self.identifier())
         elif self.word in self.c_functions and self.following.word == '(':
             self.emit(f"(void){self.c_function_call()};")
         elif self.word in STEP_OPERATORS:
@@ -3614,6 +3663,8 @@ class Compiler:
             t.kind == 'symbol' and t.word in STEP_OPERATORS
             or t.kind == 'name' and t.word in EXPRESSION_WRITES
             and tokens[i + 1].word == '('
+            or self.component_members and t.kind == 'name' and tokens[i + 1].word == '('
+            and self.component_call_member(t.word)
             or t.word == 'CALLC' and tokens[i + 1].word == 'JBASESubroutineExist'
             for i, t in enumerate(tokens)
         )
@@ -3932,13 +3983,17 @@ def render_subroutine_exists(units):
 
 def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
                  defer_unassigned_reads=False, source_filter=None, include_resolver=None,
-                 next_warning=None, api_call=None, package_directives=None):
+                 next_warning=None, api_call=None, package_directives=None, component_members=None):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
-                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call)
+                    defer_unassigned_reads=defer_unassigned_reads, next_warning=next_warning, api_call=api_call,
+                    component_members=component_members)
     preprocessor = Preprocessor(directories, encoding, source_filter=source_filter, include_resolver=include_resolver,
                                 package_directives=package_directives)
-    unit.parse(list(preprocessor.read(path)))
+    tokens = list(preprocessor.read(path))
+    if preprocessor.package:
+        unit.package = preprocessor.package.word.casefold()
+    unit.parse(tokens)
     unit.package_directives = tuple(preprocessor.package_directives)
     return unit
 

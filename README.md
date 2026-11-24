@@ -2316,6 +2316,7 @@ to select every catalogued production source with indexed lookup.
 ```sh
 python3 tools/check_corpus.py ../t24-extract/201809-R19 \
   --t24-catalog ../t24-extract/catalog.sqlite --t24-indexed-includes \
+  --t24-component-calls \
   --source-prefix AA/AA_Account --source-prefix OB_AFW \
   --source-prefix PP/PP_PaymentFinalisationService \
   --source-encoding bytes -j 6 > /tmp/jbcc-r19-pilot.json
@@ -2327,9 +2328,16 @@ index. An indexed lookup with multiple matches at the current step
 reports the candidates. The report lists resolved paths and lookup rules
 per unit. The compiler preserves `$PACKAGE` and `$USING` in source order.
 The JSON reports their names and locations, including directives read
-before a failed include. The pilot checks C syntax one unit at a time.
-An ordinary multi-unit build with package directives currently reports a
-package-linkage diagnostic.
+before a failed include. With `--t24-component-calls`, the checker reads
+catalogued `.component` declarations for fully qualified methods,
+property accessors and simple literal constants. It checks visibility
+against the unit's `$PACKAGE` and checks scalar and matrix argument
+positions. It recognizes indexed property access and whole-array
+accessors such as `getDynArrayFromRNew()`.
+
+The pilot checks C syntax one unit at a time, using external prototypes
+for qualified calls. Package-aware linkage and generated table APIs are
+still pending.
 
 ### API coverage
 

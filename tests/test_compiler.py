@@ -4047,6 +4047,27 @@ CRT 'done'
         self.assertEqual(missing['include_lookups'][0]['status'], 'missing')
         self.assertEqual(missing['package_directives'][0]['name'], 'AA.Account')
 
+    def test_corpus_checks_qualified_component_signatures(self):
+        fixture = ROOT / 'tests/corpus/component-calls'
+        catalog = self.work / 'catalog.sqlite'
+        with sqlite3.connect(catalog) as db:
+            db.executescript((fixture / 'catalog.sql').read_text())
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', fixture / 'sample-r19',
+                   '--t24-catalog', catalog, '--t24-component-calls', '-j', '2']
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['counts'], {'translated': 1, 'rejected': 5})
+        self.assertTrue(report['selection']['component_calls'])
+        self.assertEqual(report['files']['Main.b']['status'], 'translated')
+        failures = {
+            'WrongArity.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getCurrent'",
+            'WrongKind.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
+            'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
+            'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
+            'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",
+        }
+        for name, diagnostic in failures.items():
+            self.assertEqual(report['files'][name]['diagnostic'], f'{name}:{diagnostic}')
+
     def test_duplicate_package_reports_its_source_location(self):
         source = ROOT / 'tests/programs/duplicate-package.b'
         run = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)

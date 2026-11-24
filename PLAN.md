@@ -3457,12 +3457,18 @@ from 47 with the ordinary search path. The other 119 first blockers are
   routine resolution. The same 146-unit pilot now has 20 strict C99
   passes. It reports directives for all 146 units and records 606
   `$USING` entries. Twenty-seven units still stop at missing includes.
-- [ ] Resolve qualified component calls in expressions and statements.
-  Fifty-seven of the 59 unexpected opening parentheses follow dotted
-  names such as `AA.Framework.getC_arractivitystatus()`. The other
-  two are at `TIMESTAMP()`. Use component method signatures and visibility
-  to distinguish callable methods from dotted variables. Validate
-  package-aware linkage separately.
+- [x] Resolve the pilot's method and property forms from catalogued
+  component declarations. The R19 definitions for `AA.Framework`,
+  `EB.Template` and `EB.SystemTables` show scalar properties,
+  literal constants and matrix-backed properties. Check visibility,
+  arity and scalar or matrix arguments for the supported forms.
+  The same pilot now has 88 strict C99 passes, up from 20, with
+  27 missing includes and 22 unexpected opening parentheses.
+- [ ] Resolve generated table methods and field constants from component
+  table definitions. Twenty of the 22 unexpected opening parentheses
+  follow table calls such as `AC.AccountOpening.Account.Read()`.
+  The other two follow `TIMESTAMP()`. Check the remaining qualified
+  methods against their declarations and validate package-aware linkage.
 - [ ] Audit unresolved headers against the original export and component
   definitions, then scan all 39,675 catalogued production units.
 - [ ] Select a small deterministic set of `.tut` tests and identify
