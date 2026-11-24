@@ -1,0 +1,4 @@
+DEFFUN BUMP(N)
+N = 0
+CRT SPLICE(REUSE(BUMP(N)), ':', 'a':@FM:'b')
+CRT N

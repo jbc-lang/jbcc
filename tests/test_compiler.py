@@ -1208,15 +1208,13 @@ time_t test_clock(time_t *out)
                 self.assertIn(f"{source}:1:7: {message}".encode(), run.stderr)
 
     def test_iconvs_empty_mask_diagnostic(self):
-        source = self.work / 'iconvs.b'
-        source.write_text("CRT ICONVS('', '')\n")
+        source = ROOT / 'tests/programs/iconvs-empty-mask.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: ICONVS requires a conversion mask'.encode(), result.stderr)
 
     def test_oconvs_empty_mask_diagnostic(self):
-        source = self.work / 'oconvs.b'
-        source.write_text("CRT OCONVS('', '')\n")
+        source = ROOT / 'tests/programs/oconvs-empty-mask.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:1:5: OCONVS requires a conversion mask'.encode(), result.stderr)
@@ -1272,8 +1270,7 @@ time_t test_clock(time_t *out)
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
 
     def test_suffix_requires_numeric_length(self):
-        source = self.work / 'suffix.b'
-        source.write_text("CRT 'abc'['bad']\n")
+        source = ROOT / 'tests/programs/suffix-nonnumeric-length.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:10: expected a numeric value'.encode(), run.stderr)
@@ -1312,18 +1309,14 @@ time_t test_clock(time_t *out)
                 self.assertEqual(result.stderr, f'{source}:2:5: {message}\n'.encode())
 
     def test_jbasecoredump_requires_an_application_snapshot_backend(self):
-        source = self.work / 'snapshot.b'
-        source.write_text("""IF 0 THEN CRT JBASECOREDUMP('skipped', 1)
-CRT 'before'
-Result = JBASECOREDUMP('snapshot', 0)
-CRT 'after'
-""")
+        source = ROOT / 'tests/programs/jbasecoredump-missing-backend.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (1, b'before\n',
                           f'{source}:3:10: JBASECOREDUMP requires an application snapshot backend\n'.encode()))
         self.assertEqual(list(self.work.glob('JBASECOREDUMP*')), [])
 
+        source = self.work / 'snapshot.b'
         for args in ("'snapshot'", "'snapshot', 0, 1"):
             with self.subTest(args=args):
                 source.write_text(f'CRT JBASECOREDUMP({args})\n')
@@ -1332,15 +1325,7 @@ CRT 'after'
                 self.assertIn(f"{source}:1:5: wrong argument count for 'JBASECOREDUMP'", result.stderr)
 
     def test_itype_requires_backend_only_when_evaluation_is_reached(self):
-        source = self.work / 'dictionary.b'
-        source.write_text("""@FILENAME = 'records'
-@ID = 'key'
-@RECORD = 'data'
-IF 0 THEN CRT ITYPE('skipped')<1>
-CRT 'before'
-CRT ITYPE('compiled':'-descriptor')
-CRT 'after'
-""")
+        source = ROOT / 'tests/programs/itype-missing-backend.b'
         result = self.run_native(source)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (1, b'before\n',
@@ -1402,25 +1387,14 @@ CRT 'after'
                 )
 
     def test_indices_requires_a_file_variable(self):
-        source = self.work / 'indices.b'
-        source.write_text("CRT INDICES('BOOKS')\n")
+        source = ROOT / 'tests/programs/indices-requires-variable.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:1:13: expected a name\n')
 
     def test_concatenation_with_an_omitted_right_operand(self):
-        source = self.work / 'concat.b'
-        show = self.work / 'show.b'
-        source.write_text("""A = 'a':;* comment
-B = A::'b':
-IF B: EQ 'ab' THEN CALL SHOW(B:, ('c':))
-X = 2: * 3
-Y = 'num': -2
-CRT X:':':Y
-R<1:> = 'field':
-CRT R<1>:'!'
-""")
-        show.write_text("SUBROUTINE SHOW(Left, Right)\nCRT Left:':':Right\n")
+        source = ROOT / 'tests/routines/concat-omitted-operand/main.b'
+        show = ROOT / 'tests/routines/concat-omitted-operand/show.b'
         result = self.run_native(source, show)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'ab:c\n6:num-2\nfield!\n', b''))
@@ -1438,51 +1412,20 @@ CRT R<1>:'!'
                 self.assertIn(str(source) + location, result.stderr)
 
     def test_clear_resets_local_storage_and_preserves_shared_slots(self):
-        main = self.work / 'main.b'
-        reset = self.work / 'reset.b'
-        main.write_text("""COMMON /STATE/ Shared, Cache(2)
-COMMON Unnamed
-Shared = 10
-Unnamed = 11
-Cache(1) = 12
-DIM Buffer(2)
-Buffer(0) = 13
-Value = 14
-CALL RESET(Value, MAT Buffer, 0)
-CALL RESET(Value, MAT Buffer, 1)
-CRT Shared:':':Unnamed:':':Cache(1):':':Buffer(0):':':Value
-""")
-        reset.write_text("""SUBROUTINE RESET(Argument, MAT Items, Flag)
-COMMON /STATE/ Shared, Cache(2)
-COMMON Unnamed
-N = 2
-DIM Fixed(2), Ready(N)
-IF 0 THEN DIM Deferred(N)
-Fixed(1) = 'discard'
-Ready(2) = 'discard'
-IF Flag THEN
-    CLEAR
-    CRT (IF 1 THEN Late ELSE 'bad'):':':Fixed(1):':':Ready(2):':':Ready(0)
-    CRT Shared:':':Unnamed:':':Cache(1):':':Items(0):':':Argument
-END ELSE
-    Local = 9
-END
-CRT Local
-""")
+        main = ROOT / 'tests/routines/clear-storage/main.b'
+        reset = ROOT / 'tests/routines/clear-storage/reset.b'
         result = self.run_native(main, reset)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'9\n0:0:0:0\n10:11:12:13:14\n0\n10:11:12:13:14\n', b''))
 
     def test_clear_requires_a_path_that_initializes_the_local(self):
-        source = self.work / 'clear.b'
-        source.write_text('IF 0 THEN CLEAR\nCRT Local\n')
+        source = ROOT / 'tests/programs/clear-unassigned-local.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f"{source}:2:5: unknown variable or unsupported function 'Local'\n")
 
     def test_concatenation_requires_a_left_operand(self):
-        source = self.work / 'concat.b'
-        source.write_text("X = :'x'\n")
+        source = ROOT / 'tests/programs/concat-missing-left.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(
@@ -1502,13 +1445,12 @@ CRT Local
                 )
 
     def test_single_index_substring_assignment_diagnostics(self):
-        source = self.work / 'suffix.b'
-        source.write_text("Text = 'abc'\nText['bad'] = '!'\n")
+        source = ROOT / 'tests/programs/substring-nonnumeric-index.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:5: expected a numeric value'.encode(), result.stderr)
 
-        source.write_text("Text = 'abc'\nText[1] += 1\n")
+        source = ROOT / 'tests/programs/substring-invalid-assignment.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{source}:2:9: expected '=' or ':=' for substring replacement", result.stderr)
@@ -1523,45 +1465,26 @@ CRT Local
                 self.assertIn(f'{source}:1:5: expected a numeric value'.encode(), run.stderr)
 
     def test_splice_reuse_scalar(self):
-        source = self.work / 'main.b'
-        bump = self.work / 'bump.b'
-        source.write_text("DEFFUN BUMP(N)\nN = 0\n"
-                          "CRT SPLICE(REUSE(BUMP(N)), ':', 'a':@FM:'b')\nCRT N\n")
-        bump.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        source = ROOT / 'tests/routines/splice-reuse/main.b'
+        bump = ROOT / 'tests/routines/splice-reuse/bump.b'
         run = self.run_native(source, bump)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'1:a\xfe1:b\n1\n')
 
-        source.write_text("CRT SPLICE('x', ':', REUSE('a':@VM:'b'))\n")
+        source = ROOT / 'tests/programs/splice-reuse-array.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:22: REUSE in SPLICE requires a scalar'.encode(), run.stderr)
 
     def test_eqs_reuse_requires_scalar(self):
-        source = self.work / 'eqs.b'
-        source.write_text("CRT EQS(REUSE('a':@VM:'b'), 'a')\n")
+        source = ROOT / 'tests/programs/eqs-reuse-array.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:9: REUSE in EQS requires a scalar'.encode(), run.stderr)
 
     def test_ordered_array_comparisons(self):
-        source = self.work / 'compare.b'
-        bump = self.work / 'bump.b'
-        source.write_text("""DEFFUN BUMP(N)
-A = 2:@VM:10:@SM:'b':@VM:'':@FM:'cat'
-B = '02':@VM:3:@VM:'k':@VM:'':@VM:'last':@FM:'car'
-CRT LES(A,B)
-CRT LTS(A,B)
-CRT GES(A,B)
-CRT GTS(A,B)
-CRT LES(2,10):LTS(2,2):GES('z','a'):GTS(2,2)
-N = 1
-CRT LES(REUSE(BUMP(N)),1:@VM:2:@VM:4)
-CRT GTS(1:@VM:2:@VM:4,REUSE(N))
-CRT N
-CRT '[':GTS('',4):']'
-""")
-        bump.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        source = ROOT / 'tests/routines/ordered-array-comparisons/main.b'
+        bump = ROOT / 'tests/routines/ordered-array-comparisons/bump.b'
         result = self.run_native(source, bump)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'1\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n0\xfd0\xfc0\xfd\xfd\xfd1\xfe0\n'
@@ -1569,16 +1492,14 @@ CRT '[':GTS('',4):']'
                              b'1010\n0\xfd1\xfd1\n0\xfd0\xfd1\n2\n[]\n', b''))
 
     def test_ordered_array_comparison_rejects_reuse_of_an_array(self):
-        source = self.work / 'compare.b'
-        source.write_text("CRT LES(1,REUSE('a':@FM:'b'))\n")
+        source = ROOT / 'tests/programs/les-reuse-array.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout, b'')
         self.assertEqual(result.stderr, f'{source}:1:11: REUSE in LES requires a scalar\n'.encode())
 
     def test_compare_invalid_justification(self):
-        source = self.work / 'compare.b'
-        source.write_text("CRT COMPARE('left', 'right', 'X')\n")
+        source = ROOT / 'tests/programs/compare-invalid-justification.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{source}:1:5: COMPARE justification must be L or R'.encode(), run.stderr)
@@ -1651,19 +1572,9 @@ CRT '[':GTS('',4):']'
 
     def test_callonexit_dispatches_linked_callbacks(self):
         source = self.work / 'exit.b'
-        save = self.work / 'save.b'
-        show = self.work / 'show.b'
-        wrong = self.work / 'wrong.b'
-        save.write_text("""SUBROUTINE SAVE.ARG(Arg)
-COMMON /EXIT.DATA/ Saved
-Saved = Arg
-CRT 'save'
-""")
-        show.write_text("""SUBROUTINE SHOW.ARG(Arg)
-COMMON /EXIT.DATA/ Saved
-CRT '[':Arg:'] ':Saved
-""")
-        wrong.write_text("SUBROUTINE WRONG()\nCRT 'unexpected callback'\n")
+        save = ROOT / 'tests/routines/exit-callbacks/save.b'
+        show = ROOT / 'tests/routines/exit-callbacks/show.b'
+        wrong = ROOT / 'tests/routines/exit-callbacks/wrong.b'
         program = """Name = 'SAVE.ARG'
 FOR I = 1 TO 2
     CRT CALLONEXIT(Name:@VM:'payload':@VM:I)
@@ -1686,38 +1597,21 @@ CRT 'main'
                     self.assertEqual(result.stderr, b'')
 
     def test_debug_reports_location_only_when_reached(self):
-        source = self.work / 'debug.b'
-        source.write_text("""DEBUG = 'before'
-IF 0 THEN DEBUG
-CRT DEBUG
-IF 1 THEN DEBUG
-CRT 'after'
-""")
+        source = ROOT / 'tests/programs/debug-missing-backend.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'before\n')
         self.assertEqual(result.stderr, f'{source}:4:11: DEBUG requires a jBC debugger\n'.encode())
 
     def test_callj_reports_missing_backend_only_when_reached(self):
-        source = self.work / 'java.b'
-        source.write_text("""CALLJ = 'hello'
-IF 0 THEN
-    CALLJ 'example.Tools', '$format', CALLJ SETTING Response ON ERROR
-        ABORT
-    END
-END
-CRT CALLJ
-CALLJ 'example.Tools', 'format', CALLJ:'!' SETTING Response ON ERROR CRT 'handler'
-CRT Response
-""")
+        source = ROOT / 'tests/programs/callj-missing-backend.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(result.stdout, b'hello\n')
         self.assertEqual(result.stderr, f'{source}:8:1: CALLJ requires a JVM backend\n'.encode())
 
     def test_callj_requires_setting(self):
-        source = self.work / 'java.b'
-        source.write_text("CALLJ 'example.Tools', 'format', ''\n")
+        source = ROOT / 'tests/programs/callj-missing-setting.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f"{source}:1:36: expected 'SETTING'\n")
@@ -1745,8 +1639,7 @@ CRT Response
                 )
 
     def test_transactions_require_a_conditional_arm(self):
-        source = self.work / 'transactions.b'
-        source.write_text("TRANSTART SYNC\n")
+        source = ROOT / 'tests/programs/transtart-missing-arm.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:1:15: expected THEN or ELSE\n')

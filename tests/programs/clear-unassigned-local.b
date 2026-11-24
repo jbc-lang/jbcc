@@ -1,0 +1,2 @@
+IF 0 THEN CLEAR
+CRT Local

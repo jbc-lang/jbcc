@@ -1,0 +1,5 @@
+DEBUG = 'before'
+IF 0 THEN DEBUG
+CRT DEBUG
+IF 1 THEN DEBUG
+CRT 'after'

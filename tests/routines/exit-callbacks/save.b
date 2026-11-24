@@ -1,0 +1,4 @@
+SUBROUTINE SAVE.ARG(Arg)
+COMMON /EXIT.DATA/ Saved
+Saved = Arg
+CRT 'save'

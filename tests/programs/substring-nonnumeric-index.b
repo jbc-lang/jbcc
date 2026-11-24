@@ -1,0 +1,2 @@
+Text = 'abc'
+Text['bad'] = '!'
