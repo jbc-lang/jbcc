@@ -23,6 +23,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / 'jbcc'
 
 
+def expected_bytes(name):
+    return (ROOT / 'tests/expected' / name).read_bytes()
+
+
+def expected_text(name, **fields):
+    text = expected_bytes(name).decode('utf-8')
+    return text.format(**fields) if fields else text
+
+
 class NativeCompilerTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -79,7 +88,7 @@ class CompilerTest(NativeCompilerTest):
                 while not output.endswith(b'done\r\n'):
                     self.assertTrue(select.select([master], [], [], 5)[0], output)
                     output.extend(os.read(master, 1024))
-                self.assertIn(b'\fSecond\r\n\fSecond\r\ndone\r\n', output)
+                self.assertIn(expected_bytes('heading-terminal-pause.stdout'), output)
             finally:
                 proc.kill()
 
@@ -100,7 +109,7 @@ class CompilerTest(NativeCompilerTest):
         termios.tcsetattr(slave, termios.TCSANOW, mode)
         run = subprocess.run([binary], env=env, stdout=slave, stderr=subprocess.PIPE, timeout=5)
         self.assertEqual((run.returncode, run.stderr), (0, b''))
-        expected = b'42\n24\n42\n'
+        expected = expected_bytes('lptrhigh-tracks-current-print-destination.stdout')
         output = bytearray()
         while len(output) < len(expected):
             self.assertTrue(select.select([master], [], [], 5)[0], output)
@@ -108,29 +117,27 @@ class CompilerTest(NativeCompilerTest):
         self.assertEqual(output, expected)
 
         run = subprocess.run([binary], env=env, capture_output=True, timeout=5)
-        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, b'24\n24\n24\n', b''))
+        self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected_bytes('lptrhigh-tracks-current-print-destination_2.stdout'), b''))
         self.assertEqual([job.read_bytes() for job in self.work.glob('unit-7-*')], [b'24\n'] * 2)
 
     def test_display_alias_uses_screen_and_crt_formatting(self):
         source = ROOT / 'tests/io/display-screen-formatting.b'
         result = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=str(self.work)))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'x  \t7!\n\n', b''))
+                         (0, expected_bytes('display-alias-uses-screen-and-crt-formatting.stdout'), b''))
         self.assertEqual([job.read_bytes() for job in self.work.glob('unit-*-*')], [b'printer\n'])
 
         source = ROOT / 'tests/io/display-unassigned.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:9: unknown variable or unsupported function 'Missing'",
+        self.assertIn(expected_text('display-alias-uses-screen-and-crt-formatting.stderr', source=source),
                       result.stderr)
 
     def test_footing_reserves_rows_and_closes_printer_page(self):
         source = ROOT / 'tests/io/footing-printer-page.b'
         run = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=str(self.work)))
         self.assertEqual(run.returncode, 0, run.stderr)
-        first_page = b'Start 1\n' + b''.join(f'{i}\n'.encode() for i in range(1, 22))
-        self.assertEqual(run.stdout, first_page + b'End 1\nLast\n\fStart 2\n22\n' +
-                         b'\n' * 20 + b'End 2\nLast\n\fStart 9\nscreen\n')
+        self.assertEqual(run.stdout, expected_bytes('footing-reserves-rows-and-closes-printer-page.stdout'))
         job, = self.work.glob('unit-2-*')
         self.assertEqual(job.read_bytes(), b'body\n' + b'\n' * 22 + b'Job    1\n')
         self.assertEqual(run.stderr, b'')
@@ -148,7 +155,7 @@ class CompilerTest(NativeCompilerTest):
                 while not first.endswith(b'End 1\r\n'):
                     self.assertTrue(select.select([master], [], [], 5)[0], first)
                     first.extend(os.read(master, 1024))
-                self.assertEqual(first, b'first\r\n' + b'\r\n' * 22 + b'End 1\r\n')
+                self.assertEqual(first, expected_bytes('footing-terminal-pause-and-no-pause.stdout'))
                 self.assertFalse(select.select([master], [], [], 0.1)[0])
                 os.write(master, b'\n')
                 self.assertEqual(proc.wait(timeout=5), 0)
@@ -156,8 +163,8 @@ class CompilerTest(NativeCompilerTest):
                 while not rest.endswith(b'End 3\r\n'):
                     self.assertTrue(select.select([master], [], [], 5)[0], rest)
                     rest.extend(os.read(master, 1024))
-                self.assertIn(b'\fsecond\r\n' + b'\r\n' * 22 + b'End 2\r\n', rest)
-                self.assertTrue(rest.endswith(b'\fthird\r\n' + b'\r\n' * 22 + b'End 3\r\n'))
+                self.assertIn(expected_bytes('footing-terminal-pause-and-no-pause_2.stdout'), rest)
+                self.assertTrue(rest.endswith(expected_bytes('footing-terminal-pause-and-no-pause_3.stdout')))
             finally:
                 if proc.poll() is None:
                     proc.kill()
@@ -168,32 +175,29 @@ class CompilerTest(NativeCompilerTest):
         result = self.run_native(ROOT / 'tests/io/block-io.b', cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, b'')
-        self.assertEqual(result.stdout, b'aRN|\t0\nen\nshort\t128\t0\nd\neof\t128\n'
-                                        b'readonly\t24576\npending\t128\nwrote\t0\nA\nB\n'
-                                        b'nul\t32768\t0\nz\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-block-io.stdout'))
         self.assertEqual((self.work / 'output').read_bytes(), b'AXB')
         self.assertEqual((self.work / 'input').read_bytes(), b'a\r\n\xfeend')
 
     def test_block_io_operand_diagnostics(self):
         for fixture_name, message in (
-            ('invalid_1.b', 'READBLK requires nonempty handle and block size'),
-            ('invalid_2.b', 'READBLK requires a positive integer block size'),
-            ('invalid_3.b', 'READBLK requires a positive integer block size'),
-            ('invalid_4.b', 'WRITEBLK requires nonempty handle and data'),
+            ('invalid_1.b', expected_text('block-io-operand-diagnostics.stderr')),
+            ('invalid_2.b', expected_text('block-io-operand-diagnostics_2.stderr')),
+            ('invalid_3.b', expected_text('block-io-operand-diagnostics_2.stderr')),
+            ('invalid_4.b', expected_text('block-io-operand-diagnostics_3.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/block-io-operand-diagnostics' / fixture_name
                 result = self.run_native(source, cwd=self.work)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:1:1: {message}'.encode(), result.stderr)
+                self.assertIn(expected_text('block-io-operand-diagnostics_4.stderr', source=source, message=message).encode(), result.stderr)
 
     def test_sequential_create_and_truncate(self):
         (self.work / 'zero').write_bytes(b'old content')
         (self.work / 'input').write_bytes(b'keep\n' + b'discard\n' * 2000)
         result = self.run_native(ROOT / 'tests/io/seq-create.b', cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'created 0\nempty\nlost race\n32768\nexists\n'
-                         b'keep 0\nend\nreadonly 24576\ndenied\ndone\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-create-and-truncate.stdout'))
         self.assertEqual((self.work / 'new').read_bytes(), b'winner\n')
         self.assertEqual((self.work / 'input').read_bytes(), b'keep\nreplacement\n')
         self.assertEqual((self.work / 'empty').read_bytes(), b'')
@@ -203,13 +207,13 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/create-null-handle.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:1: CREATE requires an OPENSEQ handle'.encode(), result.stderr)
+        self.assertIn(expected_text('create-null-handle.stderr', source=source).encode(), result.stderr)
 
     def test_flush_sequential_file(self):
         source = ROOT / 'tests/io/flush-sequential-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'128:128\n0\n0:0\nvisible\n')
+        self.assertEqual(result.stdout, expected_bytes('flush-sequential-file.stdout'))
         self.assertEqual(result.stderr, b'')
 
     def test_osopen_access_modes_and_osclose_aliases(self):
@@ -220,7 +224,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/osopen-access-modes.b'
         result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0\nold\n24576\n0\n128\n24576\n[] 128\n32768\n', b''))
+                         (0, expected_bytes('osopen-access-modes-and-osclose-aliases.stdout'), b''))
         self.assertEqual(data.read_bytes(), b'new\nsecond\n')
         self.assertFalse((self.work / 'missing').exists())
 
@@ -228,22 +232,22 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/osclose-invalid-handle.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:1: OSCLOSE failed'.encode(), result.stderr)
+        self.assertIn(expected_text('osclose-invalid-handle-reports-location.stderr', source=source).encode(), result.stderr)
 
     def test_osbread_offsets_short_reads_and_nul_conversion(self):
         (self.work / 'data').write_bytes(b'X\0Y\nline\nz')
         source = ROOT / 'tests/io/osbread-offsets.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'128:89:0\n10\nline\nz:0\n[] 0\nX\n', b''))
+                         (0, expected_bytes('osbread-offsets-short-reads-and-nul-conversion.stdout'), b''))
 
     def test_osbread_error_arms_and_diagnostic(self):
         (self.work / 'data').touch()
         source = ROOT / 'tests/io/osbread-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'32768\n32768\n128\n24576\n')
-        self.assertIn(f'{source}:8:1: OSBREAD failed'.encode(), result.stderr)
+        self.assertEqual(result.stdout, expected_bytes('osbread-error-arms-and-diagnostic.stdout'))
+        self.assertIn(expected_text('osbread-error-arms-and-diagnostic.stderr', source=source).encode(), result.stderr)
 
     def test_osbwrite_round_trips_bytes_and_advances_cursor(self):
         data = self.work / 'data'
@@ -251,7 +255,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/osbwrite-offsets.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:0\n1A\x80BC6\n\x80\x80Q\nBC\n', b''))
+                         (0, expected_bytes('osbwrite-round-trips-bytes-and-advances-cursor.stdout'), b''))
         self.assertEqual(data.read_bytes(), b'01A\0BC6Z89\0\0Q')
 
     def test_osbwrite_error_arms_and_diagnostic(self):
@@ -260,8 +264,8 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/osbwrite-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'32768:32768\n128\n24576\n')
-        self.assertIn(f'{source}:7:1: OSBWRITE failed'.encode(), result.stderr)
+        self.assertEqual(result.stdout, expected_bytes('osbwrite-error-arms-and-diagnostic.stdout'))
+        self.assertIn(expected_text('osbwrite-error-arms-and-diagnostic.stderr', source=source).encode(), result.stderr)
         self.assertEqual(data.read_bytes(), b'unchanged')
 
     def test_oswrite_replaces_appends_and_creates_regular_files(self):
@@ -272,7 +276,7 @@ class CompilerTest(NativeCompilerTest):
         (self.work / 'empty').write_bytes(b'old')
         source = ROOT / 'tests/io/oswrite-regular-files.b'
         result = self.run_native(source, env=dict(os.environ, JEDIFILEPATH=str(directory)), cwd=self.work)
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'0:0\nnew\x80\ntail\n', b''))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected_bytes('oswrite-replaces-appends-and-creates-regular-files.stdout'), b''))
         self.assertEqual(data.read_bytes(), b'new\0\ntail')
         self.assertEqual((self.work / 'new').read_bytes(), b'created')
         self.assertEqual((self.work / 'empty').read_bytes(), b'')
@@ -286,8 +290,8 @@ class CompilerTest(NativeCompilerTest):
             fcntl.flock(locked, fcntl.LOCK_EX)
             result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'-2:-2\n128\n')
-        self.assertIn(f'{source}:3:1: OSWRITE failed'.encode(), result.stderr)
+        self.assertEqual(result.stdout, expected_bytes('oswrite-reports-errors-before-truncating-a-locked-file.stdout'))
+        self.assertIn(expected_text('oswrite-reports-errors-before-truncating-a-locked-file.stderr', source=source).encode(), result.stderr)
         self.assertEqual(data.read_bytes(), b'unchanged')
 
     def test_osdelete_path_resolution_and_status(self):
@@ -301,7 +305,7 @@ class CompilerTest(NativeCompilerTest):
         result = self.run_native(source, cwd=self.work,
                                  env=dict(os.environ, JEDIFILEPATH=search_path))
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:0\n1:1\n1:1\n0\n', b''))
+                         (0, expected_bytes('osdelete-path-resolution-and-status.stdout'), b''))
         self.assertFalse((self.work / 'local').exists())
         self.assertFalse((directory / 'payload').exists())
         self.assertFalse((directory / 'explicit').exists())
@@ -313,13 +317,13 @@ class CompilerTest(NativeCompilerTest):
         result = self.run_native(source, cwd=self.work,
                                  env=dict(os.environ, JEDIFILEPATH=''))
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'1:1\n')
-        self.assertIn(f'{source}:4:1: OSDELETE failed'.encode(), result.stderr)
+        self.assertEqual(result.stdout, expected_bytes('osdelete-missing-file-and-diagnostics.stdout'))
+        self.assertIn(expected_text('osdelete-missing-file-and-diagnostics.stderr', source=source).encode(), result.stderr)
 
         source = ROOT / 'tests/io/osdelete-invalid-clause.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:23: expected 'ERROR'", result.stderr)
+        self.assertIn(expected_text('osdelete-missing-file-and-diagnostics_2.stderr', source=source), result.stderr)
 
     def test_osread_regular_file_and_error_arms(self):
         directory = self.work / 'search'
@@ -331,14 +335,14 @@ class CompilerTest(NativeCompilerTest):
         env = dict(os.environ, JEDIFILEPATH=f'missing-first:{directory}')
         result = self.run_native(source, cwd=self.work, env=env)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'5004:10:128:10:0\n[]\n[] 128:128\n[] 32768:32768\n', b''))
+                         (0, expected_bytes('osread-regular-file-and-error-arms.stdout'), b''))
 
     def test_osread_fatal_error_requires_handler(self):
         source = ROOT / 'tests/io/osread-unhandled-error.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'')
-        self.assertIn(f'{source}:1:1: OSREAD failed'.encode(), result.stderr)
+        self.assertIn(expected_text('osread-fatal-error-requires-handler.stderr', source=source).encode(), result.stderr)
 
     def test_nobuf_uses_unbuffered_sequential_io(self):
         data = self.work / 'data'
@@ -350,14 +354,14 @@ class CompilerTest(NativeCompilerTest):
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
             try:
                 self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
-                self.assertEqual(proc.stdout.readline(), b'first:0\n')
+                self.assertEqual(proc.stdout.readline(), expected_bytes('nobuf-uses-unbuffered-sequential-io.stdout'))
                 with data.open('r+b') as stream:
                     stream.seek(len(b'first\n'))
                     stream.write(b'new')
                 proc.stdin.write(b'continue\n')
                 proc.stdin.flush()
                 self.assertTrue(select.select([proc.stdout], [], [], 5)[0])
-                self.assertEqual(proc.stdout.readline(), b'new\n')
+                self.assertEqual(proc.stdout.readline(), expected_bytes('nobuf-uses-unbuffered-sequential-io_2.stdout'))
                 self.assertEqual(data.read_bytes(), b'first\nnew\nvisible\n')
                 stdout, stderr = proc.communicate(b'done\n', timeout=5)
                 self.assertEqual((proc.returncode, stdout, stderr), (0, b'', b''))
@@ -371,45 +375,45 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/nobuf-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, b'128:128\n32768:32768\n')
-        self.assertIn(f'{source}:7:1: NOBUF failed'.encode(), result.stderr)
+        self.assertEqual(result.stdout, expected_bytes('nobuf-failure-status-and-diagnostic.stdout'))
+        self.assertIn(expected_text('nobuf-failure-status-and-diagnostic.stderr', source=source).encode(), result.stderr)
 
     def test_timeout_on_regular_sequential_file(self):
         (self.work / 'data').write_bytes(b'line\nblock')
         source = ROOT / 'tests/io/timeout-sequential-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'line\nblock\n128:128\n128\n128:128\n')
+        self.assertEqual(result.stdout, expected_bytes('timeout-on-regular-sequential-file.stdout'))
         self.assertEqual(result.stderr, b'')
 
     def test_timeout_diagnostics(self):
         (self.work / 'data').write_bytes(b'line\n')
         fixtures = ROOT / 'tests/io/timeout-diagnostics'
         for fixture_name, line, message in (
-                ('timeout_1.b', 1, 'requires an open sequential handle'),
-                ('timeout_2.b', 2, 'requires an open sequential handle'),
-                ('timeout_3.b', 3, 'requires an open sequential handle'),
-                ('timeout_4.b', 2, 'requires nonnegative decimal seconds'),
-                ('timeout_5.b', 2, 'requires nonnegative decimal seconds'),
-                ('timeout_6.b', 2, 'requires nonnegative decimal seconds'),
+                ('timeout_1.b', 1, expected_text('timeout-diagnostics.stderr')),
+                ('timeout_2.b', 2, expected_text('timeout-diagnostics.stderr')),
+                ('timeout_3.b', 3, expected_text('timeout-diagnostics.stderr')),
+                ('timeout_4.b', 2, expected_text('timeout-diagnostics_2.stderr')),
+                ('timeout_5.b', 2, expected_text('timeout-diagnostics_2.stderr')),
+                ('timeout_6.b', 2, expected_text('timeout-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = fixtures / fixture_name
                 result = self.run_native(source, cwd=self.work)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:{line}:1: TIMEOUT {message}'.encode(), result.stderr)
+                self.assertIn(expected_text('timeout-diagnostics_3.stderr', source=source, line=line, message=message).encode(), result.stderr)
 
     def test_flush_null_handle(self):
         source = ROOT / 'tests/io/flush-null-handle.b'
         result = self.run_native(source)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:1: FLUSH requires an OPENSEQ handle'.encode(), result.stderr)
+        self.assertIn(expected_text('flush-null-handle.stderr', source=source).encode(), result.stderr)
 
     def test_fileinfo_memory_handle(self):
         source = ROOT / 'tests/io/fileinfo-memory-handle.b'
         run = self.run_native(source, options=['--memory-file', 'customers'])
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(run.stdout, b'0\n0\n1:customers:0\n0[]\n')
+        self.assertEqual(run.stdout, expected_bytes('fileinfo-memory-handle.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_fileinfo_sequential_handle(self):
@@ -417,33 +421,33 @@ class CompilerTest(NativeCompilerTest):
         run = self.run_native(source, cwd=self.work)
         self.assertEqual(run.returncode, 0, run.stderr)
         path = os.fsencode(self.work.resolve() / 'report')
-        self.assertEqual(run.stdout, b'0\n1\n' + path + b'\n0[]\n')
+        self.assertEqual(run.stdout, expected_bytes('fileinfo-sequential-handle.stdout') + path + expected_bytes('fileinfo-sequential-handle_2.stdout'))
         self.assertEqual(run.stderr, b'')
 
     def test_fileinfo_unsupported_key(self):
         source = ROOT / 'tests/io/fileinfo-unsupported-key.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
-        self.assertIn(f'{source}:1:5: FILEINFO supports keys 0 and 2'.encode(), run.stderr)
+        self.assertIn(expected_text('fileinfo-unsupported-key.stderr', source=source).encode(), run.stderr)
 
     def test_ioctl_filename_returns_text_and_writes_on_success(self):
         source = ROOT / 'tests/io/ioctl-memory-filename.b'
         run = self.run_native(source, options=['--memory-file', 'customers'])
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, b'customers\t0\nold:1:customers\ncustomers\n1\ncustomers\n0\n', b''))
+                         (0, expected_bytes('ioctl-filename-returns-text-and-writes-on-success.stdout'), b''))
 
     def test_ioctl_filename_for_sequential_handle(self):
         source = ROOT / 'tests/io/ioctl-sequential-filename.b'
         (self.work / 'report').touch()
         run = self.run_native(source, cwd=self.work)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (0, os.fsencode(self.work.resolve() / 'report') + b'\n0\n', b''))
+                         (0, os.fsencode(self.work.resolve() / 'report') + expected_bytes('ioctl-filename-for-sequential-handle.stdout'), b''))
 
     def test_ioctl_unsupported_command_diagnostic(self):
         source = ROOT / 'tests/io/ioctl-unsupported-command.b'
         run = self.run_native(source)
         self.assertEqual((run.returncode, run.stdout, run.stderr),
-                         (1, b'', f'{source}:1:5: IOCTL supports only command 100\n'.encode()))
+                         (1, b'', expected_text('ioctl-unsupported-command-diagnostic.stderr', source=source).encode()))
 
     def test_data_queues_input_and_hands_it_to_commands(self):
         source = ROOT / 'tests/io/data-queued-input.b'
@@ -458,7 +462,7 @@ class CompilerTest(NativeCompilerTest):
         path.write_bytes(b'abc\n12345\nlast\n')
         result = self.run_native(ROOT / 'tests/io/seek.b', cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'345\n45\nlast\n0\nabc\n32768\n12345\n128\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-seek.stdout'))
         self.assertEqual(path.read_bytes(), b'aZ\n\n12345\nlast\nend\n\0\0gap\n')
         self.assertFalse((self.work / 'absent').exists())
 
@@ -473,15 +477,14 @@ class CompilerTest(NativeCompilerTest):
                 source = ROOT / 'tests/io/seek-empty-operands' / fixture_name
                 result = self.run_native(source, cwd=self.work)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f'{source}:2:1: SEEK requires nonempty'.encode(), result.stderr)
+                self.assertIn(expected_text('seek-empty-operands.stderr', source=source).encode(), result.stderr)
 
     def test_sequential_files(self):
         data = b'first\n\n' + b'x' * 1100 + b'\nlast'
         (self.work / 'input').write_bytes(data)
         result = self.run_native(ROOT / 'tests/io/sequential.b', cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'0\nlocked -2\nbusy\n[first]\n[]\n1024\nlast\n'
-                         b'eof 128\n24576\nclosed\nalready closed\nmissing\ndone\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-files.stdout'))
         self.assertEqual((self.work / 'input').read_bytes(), data)
         self.assertEqual((self.work / 'new').read_bytes(), b'one\nTWO\nlast\nend\n')
 
@@ -492,7 +495,7 @@ class CompilerTest(NativeCompilerTest):
             fcntl.flock(held, fcntl.LOCK_EX)
             result = self.run_native(source, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'locked\n32768\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-external-lock-and-fifo.stdout'))
 
     def test_opendev_regular_file_and_missing_file(self):
         data = self.work / 'data'
@@ -500,7 +503,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/opendev-regular-file.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'opened\nfirst\n128:128\n', b''))
+                         (0, expected_bytes('opendev-regular-file-and-missing-file.stdout'), b''))
         self.assertEqual(data.read_bytes(), b'first\nchange\n')
         self.assertFalse((self.work / 'missing').exists())
 
@@ -513,12 +516,12 @@ class CompilerTest(NativeCompilerTest):
             fcntl.flock(held, fcntl.LOCK_EX)
             result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'-2\nbusy\n32768\n', b''))
+                         (0, expected_bytes('opendev-lock-fallback-and-fifo.stdout'), b''))
 
         source = ROOT / 'tests/io/opendev-missing-branch.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:1:20: expected THEN or ELSE', result.stderr)
+        self.assertIn(expected_text('opendev-lock-fallback-and-fifo.stderr', source=source), result.stderr)
 
     def test_ttyget_reads_pseudoterminal_settings(self):
         source = ROOT / 'tests/io/ttyget-settings.b'
@@ -534,7 +537,7 @@ class CompilerTest(NativeCompilerTest):
         termios.tcsetattr(slave, termios.TCSANOW, mode)
         canonical = self.run_native(source, env=env)
         self.assertEqual((canonical.returncode, canonical.stdout, canonical.stderr),
-                         (0, b'0:0\n0:0:0\n1:13:8\n1:0:1:1\n', b''))
+                         (0, expected_bytes('ttyget-reads-pseudoterminal-settings.stdout'), b''))
 
         mode[3] &= ~(termios.ICANON | termios.ECHO)
         mode[6][termios.VMIN] = 3
@@ -542,12 +545,12 @@ class CompilerTest(NativeCompilerTest):
         termios.tcsetattr(slave, termios.TCSANOW, mode)
         noncanonical = self.run_native(source, env=env)
         self.assertEqual((noncanonical.returncode, noncanonical.stdout, noncanonical.stderr),
-                         (0, b'0:0\n1:3:200\n0:13:8\n1:0:1:1\n', b''))
+                         (0, expected_bytes('ttyget-reads-pseudoterminal-settings_2.stdout'), b''))
 
         source = ROOT / 'tests/io/timeout-terminal-handle.b'
         result = self.run_native(source, env=env)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f'{source}:2:1: TIMEOUT is unavailable on terminal handles'.encode(),
+        self.assertIn(expected_text('ttyget-reads-pseudoterminal-settings.stderr', source=source).encode(),
                       result.stderr)
 
     def test_ttyget_failure_arms_and_diagnostic(self):
@@ -555,12 +558,12 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/ttyget-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'[] 32768:32768\n128\n', b''))
+                         (0, expected_bytes('ttyget-failure-arms-and-diagnostic.stdout'), b''))
 
         source = ROOT / 'tests/io/ttyget-missing-from.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:17: expected 'FROM'", result.stderr)
+        self.assertIn(expected_text('ttyget-failure-arms-and-diagnostic.stderr', source=source), result.stderr)
 
     def test_ttyset_round_trip_and_validation(self):
         master, slave = os.openpty()
@@ -576,7 +579,7 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/ttyset-round-trip.b'
         result = self.run_native(source, env=env)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'0:0\n32768:32768\n32768\n', b''))
+                         (0, expected_bytes('ttyset-round-trip-and-validation.stdout'), b''))
         restored = termios.tcgetattr(slave)
         local_mask = termios.ICANON | termios.ECHO | termios.ISIG
         self.assertEqual(restored[:3], original[:3])
@@ -588,12 +591,12 @@ class CompilerTest(NativeCompilerTest):
         source = ROOT / 'tests/io/ttyset-errors.b'
         result = self.run_native(source, cwd=self.work)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
-                         (0, b'32768\n128:128\n', b''))
+                         (0, expected_bytes('ttyset-failure-arms-and-diagnostic.stdout'), b''))
 
         source = ROOT / 'tests/io/ttyset-invalid-on.b'
         result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"{source}:1:12: expected 'ON'", result.stderr)
+        self.assertIn(expected_text('ttyset-failure-arms-and-diagnostic.stderr', source=source), result.stderr)
 
     def test_sequential_routine_lifetime(self):
         (self.work / 'input').write_bytes(b'hello\n')
@@ -601,7 +604,7 @@ class CompilerTest(NativeCompilerTest):
         sub = ROOT / 'tests/routines/sequential-lifetime/opener.b'
         result = self.run_native(source, sub, cwd=self.work)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'hello\n')
+        self.assertEqual(result.stdout, expected_bytes('sequential-routine-lifetime.stdout'))
 
     def test_saved_lists_across_executables(self):
         directory = self.work / 'lists'
@@ -681,7 +684,7 @@ class CompilerTest(NativeCompilerTest):
         env = dict(os.environ, JBCC_PRINT_DIR=str(self.work))
         result = self.run_native(ROOT / 'tests/io/print-units.b', env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'Screen 1\nscreen\nprogress\nback\nterminal\n\fScreen 2\nend\n')
+        self.assertEqual(result.stdout, expected_bytes('print-units.stdout'))
         jobs = sorted((p.name.split('-')[1], p.read_bytes()) for p in self.work.glob('unit-*-*'))
         self.assertEqual(jobs, [
             ('0', b'Default 1\nfirst job\n\fDefault 2\n'),
@@ -692,18 +695,18 @@ class CompilerTest(NativeCompilerTest):
 
     def test_report_diagnostics(self):
         for fixture_name, message in (
-            ('report_1.b', 'printer output requires JBCC_PRINT_DIR'),
-            ('report_2.b', 'printer output requires JBCC_PRINT_DIR'),
-            ('report_3.b', 'print unit must be an integer from 0 to 127'),
-            ('report_4.b', 'printer output requires JBCC_PRINT_DIR'),
-            ('report_5.b', 'PAGE requires an integer page number'),
-            ('report_6.b', 'unsupported HEADING option'),
+            ('report_1.b', expected_text('report-diagnostics.stderr')),
+            ('report_2.b', expected_text('report-diagnostics.stderr')),
+            ('report_3.b', expected_text('report-diagnostics_2.stderr')),
+            ('report_4.b', expected_text('report-diagnostics.stderr')),
+            ('report_5.b', expected_text('report-diagnostics_3.stderr')),
+            ('report_6.b', expected_text('report-diagnostics_4.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/report-diagnostics' / fixture_name
                 result = self.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=''))
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn(f"{source}:1:1: {message}".encode(), result.stderr)
+                self.assertIn(expected_text('report-diagnostics_5.stderr', source=source, message=message).encode(), result.stderr)
 
     def test_diagnostics_preserve_existing_output(self):
         for fixture_name, location in (
@@ -1554,7 +1557,7 @@ time_t test_clock(time_t *out)
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
-                self.assertIn(f'{source}:1:1: REWIND channel must be an integer from 0 to 9'.encode(),
+                self.assertIn(expected_text('rewind-invalid-channel.stderr', source=source).encode(),
                               result.stderr)
 
     def test_readt_invalid_channel(self):
@@ -1567,14 +1570,14 @@ time_t test_clock(time_t *out)
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
-                self.assertIn(f'{source}:1:1: READT channel must be an integer from 0 to 9'.encode(),
+                self.assertIn(expected_text('readt-invalid-channel.stderr', source=source).encode(),
                               result.stderr)
 
     def test_writet_diagnostics(self):
         for fixture_name, diagnostic in (
-            ('writet_1.b', ':1:1: WRITET channel must be an integer from 0 to 9'),
-            ('writet_2.b', ':1:1: WRITET channel must be an integer from 0 to 9'),
-            ('writet_3.b', ':1:10: division by zero'),
+            ('writet_1.b', expected_text('writet-diagnostics.stderr')),
+            ('writet_2.b', expected_text('writet-diagnostics.stderr')),
+            ('writet_3.b', expected_text('writet-diagnostics_2.stderr')),
         ):
             with self.subTest(source=fixture_name):
                 source = ROOT / 'tests/io/writet-diagnostics' / fixture_name
@@ -1680,7 +1683,7 @@ CRT 'main'
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, b'')
-                self.assertIn(f'{source}:1:1: WEOF channel must be an integer from 0 to 9'.encode(),
+                self.assertIn(expected_text('weof-invalid-channel.stderr', source=source).encode(),
                               result.stderr)
 
     def test_smul_diagnostics(self):
@@ -2560,8 +2563,8 @@ CRT 'main'
             t = datetime.fromtimestamp(seconds)
             times.extend([t.hour * 3600 + t.minute * 60 + t.second, (t.date() - date(1967, 12, 31)).days])
         self.assertEqual(result.stdout.splitlines(), [
-            b'4,0,0,4,640,8', ','.join(map(str, identity)).encode(), ','.join(map(str, times + [0])).encode(),
-            os.fsencode(path.resolve()), b'SEQ', b'8,1,0',
+            expected_bytes('sequential-file-status.stdout'), ','.join(map(str, identity)).encode(), ','.join(map(str, times + [0])).encode(),
+            os.fsencode(path.resolve()), expected_bytes('sequential-file-status_2.stdout'), expected_bytes('sequential-file-status_3.stdout'),
         ])
 
     def test_openpath(self):
@@ -2584,7 +2587,7 @@ CRT 'main'
         closer = ROOT / 'tests/io/close-by-reference-retires-local-cleanup/closer.b'
         result = self.run_native(main, opener, closer, options=['--memory-file', 'F'])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, b'2\n')
+        self.assertEqual(result.stdout, expected_bytes('close-by-reference-retires-local-cleanup.stdout'))
 
     def test_putenv(self):
         env = dict(os.environ, JBCC_TEST_PUTENV='inherited')
