@@ -3294,8 +3294,13 @@ The scan uses the headers in the extract, byte-mode source decoding and
   `TRANSACTION START`, `FILEUNLOCK` and `@PARASENTENCE`.
 - The scan warns about two `CONTINUE` statements in `CASH.FLOW.PROJ.FWD`
   and one `EXIT` in `MM.DETERMINE.ACTIVITY` that jbcc ignores as outside
-  loops. Check their control flow against the reference before relying on
-  the emitted code.
+  loops. The local jBC 201015.001 reference, in Prime emulation with
+  `-w3 -f`, emits the same warnings for both full routines. The two
+  `CONTINUE` branches have no jump in generated C, even though the label
+  is called from a `FOR`. The generated code for `MM.DETERMINE.ACTIVITY`
+  proceeds from the assignment on line 981 to the `IF` after `EXIT`.
+  An independently written native regression test checks both warnings
+  and verifies that the label returns to its caller on each iteration.
 
 The result measures translation and C syntax. Runtime behavior for these
 routines needs separate checks with their dependencies or focused fixtures.

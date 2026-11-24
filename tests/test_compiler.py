@@ -1410,6 +1410,33 @@ IF Limit # -1 THEN CRT Last
         self.assertIn(f'{source}:3:3: warning: CONTINUE outside a loop ignored', build.stderr)
         self.assertEqual(subprocess.check_output([binary]), b'2\n')
 
+    def test_loop_control_does_not_use_the_gosub_callers_loop(self):
+        # The 201015.001 reference emits no jump for either statement here.
+        source = self.work / 'gosub-loop-control.b'
+        source.write_text('''FOR I = 1 TO 2
+    GOSUB Work
+    CRT 'caller ':I
+NEXT I
+STOP
+Work:
+    IF I = 1 THEN CONTINUE
+    IF I = 2 THEN
+        EXIT
+    END
+    CRT 'body ':I
+    RETURN
+''')
+        binary = self.work / 'program'
+        build = subprocess.run([CLI, '--exe', source, '-o', binary], capture_output=True, text=True)
+        self.assertEqual(build.returncode, 0, build.stderr)
+        self.assertEqual(build.stderr.splitlines(), [
+            f'{source}:7:19: warning: CONTINUE outside a loop ignored',
+            f'{source}:9:9: warning: EXIT outside a loop ignored',
+        ])
+        run = subprocess.run([binary], capture_output=True, timeout=5)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'body 1\ncaller 1\nbody 2\ncaller 2\n', b''))
+
     def test_integer_limits(self):
         source = self.work / 'numbers.b'
         for text, diagnostic in [('9223372036854775807', 'overflow'),

@@ -915,6 +915,9 @@ value. CONTINUE skips the rest of the innermost iteration.
 In FOR it advances the counter by the captured step. In LOOP it resumes
 at the top, even when a guard appears later in the body. Outside a loop
 it issues a compile-time warning and execution proceeds normally.
+Loop membership follows the location of the statement in the source.
+A `GOSUB` from inside a loop to a label outside it does not bring that
+loop into scope for `CONTINUE`, bare `EXIT` or `BREAK`.
 [CONTINUE](https://jbc-lang.org/pages/continue.html). See the [FOR](https://jbc-lang.org/pages/for.html) and
 [LOOP](https://jbc-lang.org/pages/loop.html) chapters.
 
