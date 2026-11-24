@@ -1,0 +1,3 @@
+N = 2
+COMMON /X/ A(N,N-1)
+CALL DIFFERENT()

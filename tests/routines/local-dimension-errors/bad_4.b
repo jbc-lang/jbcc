@@ -1,0 +1,3 @@
+FOR N = 1 TO 2
+DIM A(N)
+NEXT

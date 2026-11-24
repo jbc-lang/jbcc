@@ -1,0 +1,2 @@
+COMMON /X/ A(2,3)
+DIM A(11)

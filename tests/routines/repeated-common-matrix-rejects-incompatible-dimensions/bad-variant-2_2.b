@@ -1,0 +1,4 @@
+N = 2
+IF 0 THEN COMMON /X/ A(N,3)
+N = 2
+COMMON /X/ A(3,N)

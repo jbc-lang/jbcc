@@ -1,0 +1,2 @@
+COMMON A
+COMMON /X/ A

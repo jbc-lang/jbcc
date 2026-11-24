@@ -1,0 +1,2 @@
+SUBROUTINE APPEND(Text)
+Text := '!'

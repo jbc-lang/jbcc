@@ -1,0 +1,5 @@
+DIM A(2)
+DEFFUN BUMP()
+N = 0
+MAT A = BUMP(N)
+PRINT N, A(0), A(1), A(2)

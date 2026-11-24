@@ -829,11 +829,13 @@ class CompilerTest(NativeCompilerTest):
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:19: expected a dimensioned array 'Missing'", build.stderr)
         source = self.work / 'matbuild.b'
-        for bounds, message in [('', "unassigned element 2 in matrix 'A'"),
-                                (', 1, 3', 'MATBUILD position out of bounds'),
-                                (', 1.5', 'MATBUILD requires integer positions')]:
-            with self.subTest(bounds=bounds):
-                source.write_text(f"DIM A(2)\nA(1) = 42\nMATBUILD Out FROM A{bounds}\n")
+        for fixture_name, message in (
+            ('matbuild_1.b', "unassigned element 2 in matrix 'A'"),
+            ('matbuild_2.b', 'MATBUILD position out of bounds'),
+            ('matbuild_3.b', 'MATBUILD requires integer positions'),
+        ):
+            with self.subTest(source=fixture_name):
+                copyfile(ROOT / 'tests/routines/matbuild-diagnostics' / fixture_name, source)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:3:1: {message}'.encode(), run.stderr)
@@ -844,10 +846,12 @@ class CompilerTest(NativeCompilerTest):
         self.assertNotEqual(build.returncode, 0)
         self.assertIn(f"{source}:1:10: expected a dimensioned array 'Missing'", build.stderr)
         source = self.work / 'matparse.b'
-        for bounds, message in [(', 1, 3', 'MATPARSE position out of bounds'),
-                                (', 1.5', 'MATPARSE requires integer positions')]:
-            with self.subTest(bounds=bounds):
-                source.write_text(f'DIM A(2)\nMATPARSE A{bounds} FROM "x"\n')
+        for fixture_name, message in (
+            ('matparse_1.b', 'MATPARSE position out of bounds'),
+            ('matparse_2.b', 'MATPARSE requires integer positions'),
+        ):
+            with self.subTest(source=fixture_name):
+                copyfile(ROOT / 'tests/routines/matparse-diagnostics' / fixture_name, source)
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f'{source}:2:1: {message}'.encode(), run.stderr)
@@ -3418,317 +3422,175 @@ CLOSESEQ F
                          (1, b'', f"{source}:1:14: CHAR(0) requires strings with embedded NUL support\n".encode()))
 
     def test_common_storage(self):
-        caller = self.work / 'caller.b'
-        sub = self.work / 'sub.b'
-        caller.write_text("""COM /EXAMPLE/ X, A(2),
-   X, Y
-COMMON Z, Z
-COM /EXAMPLE/ X
-X = 'caller'
-A(2) = 'matrix'
-FOR I = 1 TO 2
-  CALL CHANGE(I)
-NEXT
-PRINT X, A(2), Y, Z
-""")
-        sub.write_text("""SUBROUTINE CHANGE(I)
-COMMON /EXAMPLE/ P, M(2), Q
-COMMON Unnamed
-P = P : I
-M(2) = M(2) : I
-Q = M(2)
-Unnamed = 'ok' : I
-RETURN
-""")
+        caller = ROOT / 'tests/routines/common-storage/caller.b'
+        sub = ROOT / 'tests/routines/common-storage/sub.b'
         run = self.run_native(caller, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'caller12\tmatrix12\tmatrix12\tok2\n')
-        sub.write_text('SUBROUTINE CHANGE(I)\nCOM /EXAMPLE/ P, M(3), Q\n')
+        sub = ROOT / 'tests/routines/common-storage/sub-variant-2.b'
         result = subprocess.run([CLI, caller, sub, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('incompatible COMMON layout', result.stderr)
 
     def test_conflicting_common_declarations(self):
-        source = self.work / 'conflict.b'
-        for first, second in [('COMMON /X/ A', 'COMMON /Y/ A'),
-                              ('COMMON A', 'COMMON /X/ A'),
-                              ('COMMON /X/ A(2)', 'COMMON /Y/ A'),
-                              ('COMMON /X/ A', 'COMMON /Y/ A(2)')]:
-            with self.subTest(first=first, second=second):
-                source.write_text(f'{first}\n{second}\n')
+        for fixture_name in (
+            'conflict_1.b',
+            'conflict_2.b',
+            'conflict_3.b',
+            'conflict_4.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/conflicting-common-declarations' / fixture_name
                 run = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(f"{source}:2:12: duplicate declaration of 'A'", run.stderr)
 
     def test_common_member_keeps_first_slot_when_dimensioned_later(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'update.b'
-        main.write_text("""N = 2
-COMMON /SHARED/ Rows, Middle
-COMMON /SHARED/ Rows(N), Tail
-Rows(2) = 'row'
-Middle = 'middle'
-Tail = 'tail'
-CALL UPDATE()
-CRT Rows(2), Middle, Tail
-""")
-        sub.write_text("""SUBROUTINE UPDATE()
-COMMON /SHARED/ A(2), B, A, C
-A(2) := '!'
-B := '!'
-C := '!'
-""")
+        main = ROOT / 'tests/routines/common-member-keeps-first-slot-when-dimensioned-later/main.b'
+        sub = ROOT / 'tests/routines/common-member-keeps-first-slot-when-dimensioned-later/update.b'
         result = self.run_native(main, sub)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'row!\tmiddle!\ttail!\n', b''))
 
     def test_repeated_include_reuses_common_matrix_slots(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'check.b'
-        include = self.work / 'shared.inc'
-        include.write_text("COMMON /SHARED/ Rows(N,2), Fixed(2), Tail\nCount += 1\n")
-        main.write_text("""N = 3
-Count = 0
-$INSERT shared.inc
-Rows(3,2) = 'row'
-Fixed(2) = 'fixed'
-Tail = 'tail'
-$INSERT shared.inc
-CALL CHECK()
-CRT Rows(3,2):':':Fixed(2):':':Tail:':':Count
-""")
-        sub.write_text("""SUBROUTINE CHECK()
-COMMON /SHARED/ A(3,2), B(2), C
-A(3,2) := '!'
-B(2) := '!'
-C := '!'
-""")
+        include = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/shared.inc'
+        main = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/main.b'
+        sub = ROOT / 'tests/routines/repeated-include-reuses-common-matrix-slots/check.b'
         result = self.run_native(main, sub)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'row!:fixed!:tail!:2\n')
         self.assertEqual(result.stderr, b'')
 
     def test_repeated_common_matrix_rejects_incompatible_dimensions(self):
-        source = self.work / 'bad.b'
-        source.write_text("COMMON /X/ A(2,3)\nCOMMON /X/ A(3,2)\n")
+        source = ROOT / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions/bad.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{source}:2:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
 
-        for first in ("COMMON /X/ A(N,3)", "IF 0 THEN COMMON /X/ A(N,3)"):
-            with self.subTest(first=first):
-                source.write_text(f"N = 2\n{first}\nN = 2\nCOMMON /X/ A(3,N)\n")
+        for fixture_name in (
+            'bad-variant-2_1.b',
+            'bad-variant-2_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions' / fixture_name
                 result = self.run_native(source)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:4:12: incompatible COMMON matrix dimensions'.encode(), result.stderr)
 
     def test_dim_reuses_named_and_unnamed_common_matrix_slots(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'update.b'
-        main.write_text("""N = 2
-COMMON A(2)
-COMMON /CACHE/ Rows(N,3), Tail
-A(2) = 'unnamed'
-Rows(2,3) = 'named'
-Tail = 'tail'
-DIM A(2), Rows(2,3)
-DIMENSION Rows(N,3)
-IF 0 THEN DIM Rows(4,3)
-CALL UPDATE()
-CRT A(2):':':Rows(2,3):':':Tail
-""")
-        sub.write_text("""SUBROUTINE UPDATE()
-COMMON Shared(2)
-COMMON /CACHE/ Table(2,3), Last
-Shared(2) := '!'
-Table(2,3) := '!'
-Last := '!'
-""")
+        main = ROOT / 'tests/routines/dim-reuses-named-and-unnamed-common-matrix-slots/main.b'
+        sub = ROOT / 'tests/routines/dim-reuses-named-and-unnamed-common-matrix-slots/update.b'
         result = self.run_native(main, sub)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'unnamed!:named!:tail!\n')
         self.assertEqual(result.stderr, b'')
 
     def test_dim_rejects_a_common_matrix_rank_change(self):
-        source = self.work / 'shape.b'
-        source.write_text('COMMON /X/ A(2,3)\nDIM A(11)\n')
+        source = ROOT / 'tests/routines/dim-rejects-a-common-matrix-rank-change.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:2:5: incompatible COMMON matrix dimensions\n')
 
     def test_common_matrix_subscript_mismatches_report_when_reached(self):
-        source = self.work / 'subscripts.b'
-        for opening, reference in (('A(3)', 'A(1,2)'), ('A(2,3)', 'A(1)')):
-            with self.subTest(reference=reference):
-                source.write_text(f'COMMON /X/ {opening}\nIF 0 THEN CRT {reference}\n'
-                                  f'CRT "before"\n{reference} = 7\n')
+        for fixture_name in (
+            'subscripts_1.b',
+            'subscripts_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/common-matrix-subscript-mismatches-report-when-reached' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
                 self.assertEqual(result.stderr,
                                  f'{source}:4:1: COMMON matrix subscript count is unsupported\n'.encode())
 
     def test_dim_reports_a_reached_common_matrix_resize(self):
-        source = self.work / 'shape.b'
-        for initial, redeclared in (('2', '3'), ('3', '2'), ('2,3', '3,2'), ('2', 'N'), ('N', '3')):
-            with self.subTest(initial=initial, redeclared=redeclared):
-                source.write_text(f'N = 2\nCOMMON /X/ A({initial})\nN = 3\nDIM A({redeclared})\n')
+        for fixture_name in (
+            'shape_1.b',
+            'shape_2.b',
+            'shape_3.b',
+            'shape_4.b',
+            'shape_5.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/dim-reports-a-reached-common-matrix-resize' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, f'{source}:4:5: COMMON matrix resize is unsupported\n'.encode())
 
     def test_runtime_common_dimensions(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'change.b'
-        main.write_text("""CFG<1> = 2
-COMMON /CACHE/ Head, Rows(CFG<1>, 1), Tail, More(CFG<1> + 1)
-CFG<1> = 8
-Head = 'head'
-Tail = 'tail'
-MAT Rows = 'row'
-Rows(2,1) = 'edge'
-MAT More = 'extra'
-CALL CHANGE()
-PRINT Head, Rows(0,0), Rows(2,1), Tail, More(3)
-""")
-        sub.write_text("""SUBROUTINE CHANGE()
-N = 1
-COMMON /CACHE/ H, M(2,N), T, X(3)
-DIM Copy(2,1)
-MAT Copy = MAT M
-MAT Copy = Copy(2,1) : '!'
-MAT M = MAT Copy
-T := '!'
-X(3) := '!'
-""")
+        main = ROOT / 'tests/routines/runtime-common-dimensions/main.b'
+        sub = ROOT / 'tests/routines/runtime-common-dimensions/change.b'
         run = self.run_native(main, sub)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'head\tedge!\tedge!\ttail!\textra!\n')
 
     def test_local_dimensions_per_invocation(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'nested.b'
-        bump = self.work / 'bump.b'
-        main.write_text('CALL NESTED(2)\n')
-        routine.write_text("""SUBROUTINE NESTED(N)
-DEFFUN BUMP(X)
-X = 0
-DIM Grid(BUMP(X), BUMP(X) + N)
-Grid(1,2+N) = N
-IF N > 0 THEN CALL NESTED(N-1)
-PRINT X, Grid(1,2+N)
-""")
-        bump.write_text('FUNCTION BUMP(X)\nX += 1\nRETURN X\n')
+        main = ROOT / 'tests/routines/local-dimensions-per-invocation/main.b'
+        routine = ROOT / 'tests/routines/local-dimensions-per-invocation/nested.b'
+        bump = ROOT / 'tests/routines/local-dimensions-per-invocation/bump.b'
         run = self.run_native(main, routine, bump)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'2\t0\n2\t1\n2\t2\n')
 
     def test_forward_matrix_declarations_follow_execution_order(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'check.b'
-        include = self.work / 'I_ARRAYS'
-        main.write_text("""GOSUB Initialize
-CALL CHECK(MAT Rows, MAT Flags, MAT Shared)
-CRT Rows(2,1):':':Flags(1):':':Shared(2)
-STOP
-Initialize:
-Config<1,1> = 2
-$INSERT I_ARRAYS
-Rows(2,1) = 'rows'
-Flags(1) = 'flags'
-Shared(2) = 'common'
-RETURN
-""")
-        include.write_text("DIM Rows(Config<1,1>, 1),\n    Flags(2)\nCOMMON /DATA/ Shared(2)\n")
-        routine.write_text("""SUBROUTINE CHECK(MAT A,MAT B,MAT C)
-A(2,1) := '!'
-B(1) := '!'
-C(2) := '!'
-""")
+        main = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/main.b'
+        include = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/I_ARRAYS'
+        routine = ROOT / 'tests/routines/forward-matrix-declarations-follow-execution-order/check.b'
         result = self.run_native(main, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'rows!:flags!:common!\n', b''))
 
     def test_scalar_can_be_used_before_a_later_local_dim(self):
-        main = self.work / 'main.b'
-        routine = self.work / 'append.b'
-        main.write_text("""N = 2
-Rows = 'scalar'
-CALL APPEND(Rows)
-CRT Rows
-DIM Rows(N)
-CRT ASSIGNED(Rows(0))
-Rows(1) = 'matrix'
-CALL APPEND(Rows(1))
-CRT Rows(1)
-""")
-        routine.write_text("SUBROUTINE APPEND(Text)\nText := '!'\n")
+        main = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/main.b'
+        routine = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/append.b'
         result = self.run_native(main, routine)
         self.assertEqual((result.returncode, result.stdout, result.stderr),
                          (0, b'scalar!\n0\nmatrix!\n', b''))
 
-        main.write_text("Rows = 'scalar'\nDIM Rows(2)\nRows = 'after'\n")
+        main = ROOT / 'tests/routines/scalar-can-be-used-before-a-later-local-dim/main-variant-2.b'
         result = subprocess.run([CLI, main, '-o', self.c], text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"{main}:3:6: expected '('", result.stderr)
 
     def test_forward_matrix_errors_use_reference_location(self):
-        source = self.work / 'forward.b'
-        source.write_text("A(1) = 1\nN = 2\nDIM A(N)\n")
+        source = ROOT / 'tests/routines/forward-matrix-errors-use-reference-location/forward.b'
         result = self.run_native(source)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:1:1: local matrix declaration has not executed\n'.encode())
 
-        source.write_text("CRT A(1,1)\nDIM A(2)\n")
+        source = ROOT / 'tests/routines/forward-matrix-errors-use-reference-location/forward-variant-2.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f"{source}:1:5: expected 1 subscripts for 'A'\n")
 
     def test_repeated_local_dim_reuses_storage_from_either_path(self):
-        caller = self.work / 'main.b'
-        routine = self.work / 'store.b'
-        caller.write_text('CALL STORE(1)\nCALL STORE(0)\n')
-        routine.write_text("""SUBROUTINE STORE(First)
-N = 2
-IF First THEN
-    DIM Rows(N,3)
-    Rows(2,3) = 'first'
-END ELSE
-    DIMENSION Rows(2,3)
-    Rows(2,3) = 'second'
-END
-DIM Rows(2,3)
-DIM Rows(N,3)
-CRT Rows(2,3)
-DIM Fixed(2)
-Fixed(2) = Rows(2,3)
-DIM Fixed(N)
-CRT Fixed(2)
-""")
+        caller = ROOT / 'tests/routines/repeated-local-dim-reuses-storage-from-either-path/main.b'
+        routine = ROOT / 'tests/routines/repeated-local-dim-reuses-storage-from-either-path/store.b'
         result = self.run_native(caller, routine)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, b'first\nfirst\nsecond\nsecond\n')
         self.assertEqual(result.stderr, b'')
 
     def test_repeated_local_dim_rejects_changed_rank(self):
-        source = self.work / 'shape.b'
-        source.write_text('DIM A(2,3)\nDIM A(11)\n')
+        source = ROOT / 'tests/routines/repeated-local-dim-rejects-changed-rank.b'
         result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, f'{source}:2:5: incompatible local matrix dimensions\n')
 
     def test_repeated_local_dim_reports_reached_resize(self):
-        source = self.work / 'shape.b'
-        for initial, repeated in (('2,3', '3,2'), ('2', 'N'), ('N', '3')):
-            with self.subTest(initial=initial, repeated=repeated):
-                source.write_text(f'N = 2\nDIM A({initial})\nN = 3\n'
-                                  f'IF 0 THEN DIM A({repeated})\nCRT "before"\nDIM A({repeated})\n')
+        for fixture_name in (
+            'shape_1.b',
+            'shape_2.b',
+            'shape_3.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/routines/repeated-local-dim-reports-reached-resize' / fixture_name
                 result = self.run_native(source)
                 self.assertEqual((result.returncode, result.stdout), (1, b'before\n'))
                 self.assertEqual(result.stderr, f'{source}:6:5: local matrix resize is unsupported\n'.encode())
 
     def test_local_dimension_errors(self):
-        source = self.work / 'bad.b'
         cases = [
             ("N = 1.5\nDIM A(N)", ':2:7: expected a positive integer dimension'),
             ("N = 50000\nDIM A(N,N)", ':2:5: dimensioned array is too large'),
@@ -3736,33 +3598,30 @@ CRT Fixed(2)
             ("FOR N = 1 TO 2\nDIM A(N)\nNEXT", ':2:5: incompatible local matrix dimensions'),
             ("N = 2\nDIM A(N)\nN = 3\nA(N) = 1", ':4:1: matrix subscript out of bounds'),
         ]
-        for program, location in cases:
+        for case_number, (program, location) in enumerate(cases, 1):
             with self.subTest(program=program):
-                source.write_text(program)
+                source = ROOT / 'tests/routines/local-dimension-errors' / f'bad_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + location).encode(), run.stderr)
 
     def test_runtime_common_dimension_errors(self):
-        source = self.work / 'bad.b'
         cases = [
             ("N = 1.5\nCOMMON A(N)", ':2:10: expected a positive integer dimension'),
             ("N = 50000\nCOMMON A(N,N)", ':2:8: dimensioned array is too large'),
             ("N = 2\nIF 0 THEN COMMON A(N)\nMAT A = 0", ':3:5: COMMON matrix declaration has not executed'),
             ("FOR N = 1 TO 2\nCOMMON A(N)\nNEXT", ':2:8: incompatible COMMON matrix dimensions'),
         ]
-        for program, location in cases:
+        for case_number, (program, location) in enumerate(cases, 1):
             with self.subTest(program=program):
-                source.write_text(program)
+                source = ROOT / 'tests/routines/runtime-common-dimension-errors' / f'bad_{case_number}.b'
                 run = self.run_native(source)
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn((str(source) + location).encode(), run.stderr)
 
     def test_common_runtime_shape_across_routines(self):
-        main = self.work / 'main.b'
-        sub = self.work / 'sub.b'
-        main.write_text('N = 2\nCOMMON /X/ A(N,N-1)\nCALL DIFFERENT()\n')
-        sub.write_text('SUBROUTINE DIFFERENT()\nCOMMON /X/ B(1,2)\n')
+        main = ROOT / 'tests/routines/common-runtime-shape-across-routines/main.b'
+        sub = ROOT / 'tests/routines/common-runtime-shape-across-routines/sub.b'
         run = self.run_native(main, sub)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{sub}:2:12: incompatible COMMON matrix dimensions'.encode(), run.stderr)
@@ -3949,34 +3808,28 @@ CRT Fixed(2)
                                  (1, b'', f"{source}:3:{column}: unassigned variable 'List'\n".encode()))
 
     def test_matrix_assignment_diagnostics(self):
-        source = self.work / 'main.b'
-        source.write_text('DIM A(2), B(2)\nB(0) = 0\nMAT A = MAT B\n')
+        source = ROOT / 'tests/routines/matrix-assignment-diagnostics/main.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:3:13: unassigned element in matrix 'B'".encode(), run.stderr)
-        source.write_text('DIM A(1), B(2)\nB(0) = 0\nB(1) = 1\nMAT A = MAT B\n')
+        source = ROOT / 'tests/routines/matrix-assignment-diagnostics/main-variant-2.b'
         run = self.run_native(source)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:4:13: unassigned element in matrix 'B'".encode(), run.stderr)
 
     def test_matrix_fill_evaluates_expression_once(self):
-        source = self.work / 'main.b'
-        function = self.work / 'BUMP'
-        source.write_text('DIM A(2)\nDEFFUN BUMP()\nN = 0\nMAT A = BUMP(N)\n'
-                          'PRINT N, A(0), A(1), A(2)\n')
-        function.write_text('FUNCTION BUMP(N)\nN += 1\nRETURN N\n')
+        source = ROOT / 'tests/routines/matrix-fill-evaluates-expression-once/main.b'
+        function = ROOT / 'tests/routines/matrix-fill-evaluates-expression-once/BUMP'
         run = self.run_native(source, function)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertEqual(run.stdout, b'1\t1\t1\t1\n')
 
     def test_matrix_element_argument_and_bounds(self):
-        main = self.work / 'main.b'
-        callee = self.work / 'put.b'
-        main.write_text('DIM A(2)\nCALL PUT(A(0))\nPRINT A(0)\n')
-        callee.write_text('SUBROUTINE PUT(X)\nX = 7\n')
+        main = ROOT / 'tests/routines/matrix-element-argument-and-bounds/main.b'
+        callee = ROOT / 'tests/routines/matrix-element-argument-and-bounds/put.b'
         run = self.run_native(main, callee)
         self.assertEqual(run.stdout, b'7\n')
-        main.write_text('DIM A(2)\nA(3) = 7\n')
+        main = ROOT / 'tests/routines/matrix-element-argument-and-bounds/main-variant-2.b'
         run = self.run_native(main)
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f'{main}:2:1: matrix subscript out of bounds'.encode(), run.stderr)

@@ -1,0 +1,2 @@
+DIM A(2)
+MATPARSE A, 1.5 FROM "x"

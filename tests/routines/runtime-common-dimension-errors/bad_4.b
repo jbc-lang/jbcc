@@ -1,0 +1,3 @@
+FOR N = 1 TO 2
+COMMON A(N)
+NEXT

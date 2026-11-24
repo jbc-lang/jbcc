@@ -1,0 +1,2 @@
+COMMON /X/ A
+COMMON /Y/ A(2)

@@ -1,0 +1,2 @@
+SUBROUTINE PUT(X)
+X = 7

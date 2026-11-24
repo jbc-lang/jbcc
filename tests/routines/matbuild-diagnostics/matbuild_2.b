@@ -1,0 +1,3 @@
+DIM A(2)
+A(1) = 42
+MATBUILD Out FROM A, 1, 3

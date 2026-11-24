@@ -175,31 +175,31 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## Matrices and COMMON storage (25)
 
-- [ ] `test_matbuild_diagnostics`
-- [ ] `test_matparse_diagnostics`
-- [ ] `test_common_storage`
-- [ ] `test_conflicting_common_declarations`
-- [ ] `test_common_member_keeps_first_slot_when_dimensioned_later`
-- [ ] `test_repeated_include_reuses_common_matrix_slots`
-- [ ] `test_repeated_common_matrix_rejects_incompatible_dimensions`
-- [ ] `test_dim_reuses_named_and_unnamed_common_matrix_slots`
-- [ ] `test_dim_rejects_a_common_matrix_rank_change`
-- [ ] `test_common_matrix_subscript_mismatches_report_when_reached`
-- [ ] `test_dim_reports_a_reached_common_matrix_resize`
-- [ ] `test_runtime_common_dimensions`
-- [ ] `test_local_dimensions_per_invocation`
-- [ ] `test_forward_matrix_declarations_follow_execution_order`
-- [ ] `test_scalar_can_be_used_before_a_later_local_dim`
-- [ ] `test_forward_matrix_errors_use_reference_location`
-- [ ] `test_repeated_local_dim_reuses_storage_from_either_path`
-- [ ] `test_repeated_local_dim_rejects_changed_rank`
-- [ ] `test_repeated_local_dim_reports_reached_resize`
-- [ ] `test_local_dimension_errors`
-- [ ] `test_runtime_common_dimension_errors`
-- [ ] `test_common_runtime_shape_across_routines`
-- [ ] `test_matrix_assignment_diagnostics`
-- [ ] `test_matrix_fill_evaluates_expression_once`
-- [ ] `test_matrix_element_argument_and_bounds`
+- [x] `test_matbuild_diagnostics` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_matparse_diagnostics` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_common_storage`
+- [x] `test_conflicting_common_declarations`
+- [x] `test_common_member_keeps_first_slot_when_dimensioned_later`
+- [x] `test_repeated_include_reuses_common_matrix_slots`
+- [x] `test_repeated_common_matrix_rejects_incompatible_dimensions`
+- [x] `test_dim_reuses_named_and_unnamed_common_matrix_slots`
+- [x] `test_dim_rejects_a_common_matrix_rank_change`
+- [x] `test_common_matrix_subscript_mismatches_report_when_reached`
+- [x] `test_dim_reports_a_reached_common_matrix_resize`
+- [x] `test_runtime_common_dimensions`
+- [x] `test_local_dimensions_per_invocation`
+- [x] `test_forward_matrix_declarations_follow_execution_order`
+- [x] `test_scalar_can_be_used_before_a_later_local_dim`
+- [x] `test_forward_matrix_errors_use_reference_location`
+- [x] `test_repeated_local_dim_reuses_storage_from_either_path`
+- [x] `test_repeated_local_dim_rejects_changed_rank`
+- [x] `test_repeated_local_dim_reports_reached_resize`
+- [x] `test_local_dimension_errors`
+- [x] `test_runtime_common_dimension_errors`
+- [x] `test_common_runtime_shape_across_routines`
+- [x] `test_matrix_assignment_diagnostics`
+- [x] `test_matrix_fill_evaluates_expression_once`
+- [x] `test_matrix_element_argument_and_bounds`
 
 ## Source encoding and byte-oriented builtins (13)
 

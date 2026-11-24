@@ -1,0 +1,3 @@
+FUNCTION BUMP(X)
+X += 1
+RETURN X

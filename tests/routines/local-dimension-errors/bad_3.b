@@ -1,0 +1,3 @@
+N = 2
+IF 0 THEN DIM A(N)
+MAT A = 0

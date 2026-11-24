@@ -1,0 +1,3 @@
+DIM A(2)
+CALL PUT(A(0))
+PRINT A(0)
