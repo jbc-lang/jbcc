@@ -4,6 +4,8 @@ import select
 import subprocess
 from datetime import date, datetime
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -45,21 +47,24 @@ def test_sequential_block_io(compiler):
     assert (compiler.work / 'input').read_bytes() == b'a\r\n\xfeend'
 
 
-def test_block_io_operand_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('invalid_1.b', expected_text('block-io-operand-diagnostics.stderr')),
-        ('invalid_2.b', expected_text('block-io-operand-diagnostics_2.stderr')),
-        ('invalid_3.b', expected_text('block-io-operand-diagnostics_2.stderr')),
-        ('invalid_4.b', expected_text('block-io-operand-diagnostics_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/block-io-operand-diagnostics' / fixture_name
-            result = compiler.run_native(source, cwd=compiler.work)
-            assert result.returncode != 0
-            assert (
-                expected_text('block-io-operand-diagnostics_4.stderr', source=source, message=message).encode()
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('invalid_1.b', 'block-io-operand-diagnostics.stderr', id='invalid-1'),
+        pytest.param('invalid_2.b', 'block-io-operand-diagnostics_2.stderr', id='invalid-2'),
+        pytest.param('invalid_3.b', 'block-io-operand-diagnostics_2.stderr', id='invalid-3'),
+        pytest.param('invalid_4.b', 'block-io-operand-diagnostics_3.stderr', id='invalid-4'),
+    ],
+)
+def test_block_io_operand_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/io/block-io-operand-diagnostics' / fixture_name
+    result = compiler.run_native(source, cwd=compiler.work)
+    assert result.returncode != 0
+    assert (
+        expected_text('block-io-operand-diagnostics_4.stderr', source=source, message=message).encode()
+        in result.stderr
+    )
 
 
 def test_sequential_create_and_truncate(compiler):
@@ -308,25 +313,28 @@ def test_timeout_on_regular_sequential_file(compiler):
     assert result.stderr == b''
 
 
-def test_timeout_diagnostics(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name, line, message_fixture',
+    [
+        pytest.param('timeout_1.b', 1, 'timeout-diagnostics.stderr', id='timeout-1'),
+        pytest.param('timeout_2.b', 2, 'timeout-diagnostics.stderr', id='timeout-2'),
+        pytest.param('timeout_3.b', 3, 'timeout-diagnostics.stderr', id='timeout-3'),
+        pytest.param('timeout_4.b', 2, 'timeout-diagnostics_2.stderr', id='timeout-4'),
+        pytest.param('timeout_5.b', 2, 'timeout-diagnostics_2.stderr', id='timeout-5'),
+        pytest.param('timeout_6.b', 2, 'timeout-diagnostics_2.stderr', id='timeout-6'),
+    ],
+)
+def test_timeout_diagnostics(compiler, fixture_name, line, message_fixture):
     (compiler.work / 'data').write_bytes(b'line\n')
     fixtures = ROOT / 'tests/io/timeout-diagnostics'
-    for fixture_name, line, message in (
-            ('timeout_1.b', 1, expected_text('timeout-diagnostics.stderr')),
-            ('timeout_2.b', 2, expected_text('timeout-diagnostics.stderr')),
-            ('timeout_3.b', 3, expected_text('timeout-diagnostics.stderr')),
-            ('timeout_4.b', 2, expected_text('timeout-diagnostics_2.stderr')),
-            ('timeout_5.b', 2, expected_text('timeout-diagnostics_2.stderr')),
-            ('timeout_6.b', 2, expected_text('timeout-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = fixtures / fixture_name
-            result = compiler.run_native(source, cwd=compiler.work)
-            assert result.returncode != 0
-            assert (
-                expected_text('timeout-diagnostics_3.stderr', source=source, line=line, message=message).encode()
-                in result.stderr
-            )
+    message = expected_text(message_fixture)
+    source = fixtures / fixture_name
+    result = compiler.run_native(source, cwd=compiler.work)
+    assert result.returncode != 0
+    assert (
+        expected_text('timeout-diagnostics_3.stderr', source=source, line=line, message=message).encode()
+        in result.stderr
+    )
 
 
 def test_flush_null_handle(compiler):
@@ -407,18 +415,20 @@ def test_sequential_seek(compiler):
     assert not (compiler.work / 'absent').exists()
 
 
-def test_seek_empty_operands(compiler, subtests):
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('invalid_1.b', id='invalid-1'),
+        pytest.param('invalid_2.b', id='invalid-2'),
+        pytest.param('invalid_3.b', id='invalid-3'),
+    ],
+)
+def test_seek_empty_operands(compiler, fixture_name):
     (compiler.work / 'data').touch()
-    for fixture_name in (
-        'invalid_1.b',
-        'invalid_2.b',
-        'invalid_3.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/seek-empty-operands' / fixture_name
-            result = compiler.run_native(source, cwd=compiler.work)
-            assert result.returncode != 0
-            assert expected_text('seek-empty-operands.stderr', source=source).encode() in result.stderr
+    source = ROOT / 'tests/io/seek-empty-operands' / fixture_name
+    result = compiler.run_native(source, cwd=compiler.work)
+    assert result.returncode != 0
+    assert expected_text('seek-empty-operands.stderr', source=source).encode() in result.stderr
 
 
 def test_sequential_files(compiler):
@@ -623,79 +633,91 @@ def test_print_units(compiler):
     )
 
 
-def test_report_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('report_1.b', expected_text('report-diagnostics.stderr')),
-        ('report_2.b', expected_text('report-diagnostics.stderr')),
-        ('report_3.b', expected_text('report-diagnostics_2.stderr')),
-        ('report_4.b', expected_text('report-diagnostics.stderr')),
-        ('report_5.b', expected_text('report-diagnostics_3.stderr')),
-        ('report_6.b', expected_text('report-diagnostics_4.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/report-diagnostics' / fixture_name
-            result = compiler.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=''))
-            assert result.returncode != 0
-            assert (
-                expected_text('report-diagnostics_5.stderr', source=source, message=message).encode()
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('report_1.b', 'report-diagnostics.stderr', id='report-1'),
+        pytest.param('report_2.b', 'report-diagnostics.stderr', id='report-2'),
+        pytest.param('report_3.b', 'report-diagnostics_2.stderr', id='report-3'),
+        pytest.param('report_4.b', 'report-diagnostics.stderr', id='report-4'),
+        pytest.param('report_5.b', 'report-diagnostics_3.stderr', id='report-5'),
+        pytest.param('report_6.b', 'report-diagnostics_4.stderr', id='report-6'),
+    ],
+)
+def test_report_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/io/report-diagnostics' / fixture_name
+    result = compiler.run_native(source, env=dict(os.environ, JBCC_PRINT_DIR=''))
+    assert result.returncode != 0
+    assert (
+        expected_text('report-diagnostics_5.stderr', source=source, message=message).encode()
+        in result.stderr
+    )
 
 
-def test_rewind_invalid_channel(compiler, subtests):
-    for fixture_name in (
-        'rewind_1.b',
-        'rewind_2.b',
-        'rewind_3.b',
-        'rewind_4.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/rewind-invalid-channel' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert result.stdout == b''
-            assert expected_text('rewind-invalid-channel.stderr', source=source).encode() in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('rewind_1.b', id='rewind-1'),
+        pytest.param('rewind_2.b', id='rewind-2'),
+        pytest.param('rewind_3.b', id='rewind-3'),
+        pytest.param('rewind_4.b', id='rewind-4'),
+    ],
+)
+def test_rewind_invalid_channel(compiler, fixture_name):
+    source = ROOT / 'tests/io/rewind-invalid-channel' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert result.stdout == b''
+    assert expected_text('rewind-invalid-channel.stderr', source=source).encode() in result.stderr
 
 
-def test_readt_invalid_channel(compiler, subtests):
-    for fixture_name in (
-        'readt_1.b',
-        'readt_2.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/readt-invalid-channel' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert result.stdout == b''
-            assert expected_text('readt-invalid-channel.stderr', source=source).encode() in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('readt_1.b', id='readt-1'),
+        pytest.param('readt_2.b', id='readt-2'),
+    ],
+)
+def test_readt_invalid_channel(compiler, fixture_name):
+    source = ROOT / 'tests/io/readt-invalid-channel' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert result.stdout == b''
+    assert expected_text('readt-invalid-channel.stderr', source=source).encode() in result.stderr
 
 
-def test_writet_diagnostics(compiler, subtests):
-    for fixture_name, diagnostic in (
-        ('writet_1.b', expected_text('writet-diagnostics.stderr')),
-        ('writet_2.b', expected_text('writet-diagnostics.stderr')),
-        ('writet_3.b', expected_text('writet-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/writet-diagnostics' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert result.stdout == b''
-            assert (str(source) + diagnostic).encode() in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name, diagnostic_fixture',
+    [
+        pytest.param('writet_1.b', 'writet-diagnostics.stderr', id='writet-1'),
+        pytest.param('writet_2.b', 'writet-diagnostics.stderr', id='writet-2'),
+        pytest.param('writet_3.b', 'writet-diagnostics_2.stderr', id='writet-3'),
+    ],
+)
+def test_writet_diagnostics(compiler, fixture_name, diagnostic_fixture):
+    diagnostic = expected_text(diagnostic_fixture)
+    source = ROOT / 'tests/io/writet-diagnostics' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert result.stdout == b''
+    assert (str(source) + diagnostic).encode() in result.stderr
 
 
-def test_weof_invalid_channel(compiler, subtests):
-    for fixture_name in (
-        'weof_1.b',
-        'weof_2.b',
-        'weof_3.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/weof-invalid-channel' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert result.stdout == b''
-            assert expected_text('weof-invalid-channel.stderr', source=source).encode() in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name',
+    [
+        pytest.param('weof_1.b', id='weof-1'),
+        pytest.param('weof_2.b', id='weof-2'),
+        pytest.param('weof_3.b', id='weof-3'),
+    ],
+)
+def test_weof_invalid_channel(compiler, fixture_name):
+    source = ROOT / 'tests/io/weof-invalid-channel' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert result.stdout == b''
+    assert expected_text('weof-invalid-channel.stderr', source=source).encode() in result.stderr
 
 
 def test_memory_files(compiler):
@@ -852,16 +874,27 @@ def test_read_setting_uses_record_status_and_branch_order(compiler):
     )
 
 
-def test_read_setting_requires_destination_and_conditional_arm(compiler, subtests):
-    for fixture_name, diagnostic in (
-        ('read-setting_1.b', expected_text('read-setting-requires-destination-and-conditional-arm.stderr')),
-        ('read-setting_2.b', expected_text('read-setting-requires-destination-and-conditional-arm_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/read-setting-requires-destination-and-conditional-arm' / fixture_name
-            result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
-            assert result.returncode != 0
-            assert f'{source}{diagnostic}' in result.stderr
+@pytest.mark.parametrize(
+    'fixture_name, diagnostic_fixture',
+    [
+        pytest.param(
+            'read-setting_1.b',
+            'read-setting-requires-destination-and-conditional-arm.stderr',
+            id='read-setting-1',
+        ),
+        pytest.param(
+            'read-setting_2.b',
+            'read-setting-requires-destination-and-conditional-arm_2.stderr',
+            id='read-setting-2',
+        ),
+    ],
+)
+def test_read_setting_requires_destination_and_conditional_arm(compiler, fixture_name, diagnostic_fixture):
+    diagnostic = expected_text(diagnostic_fixture)
+    source = ROOT / 'tests/io/read-setting-requires-destination-and-conditional-arm' / fixture_name
+    result = subprocess.run([CLI, source, '-o', compiler.c], text=True, capture_output=True)
+    assert result.returncode != 0
+    assert f'{source}{diagnostic}' in result.stderr
 
 
 def test_readu(compiler):
@@ -918,20 +951,23 @@ def test_assign_system_resets_blocked_record_lock_counter(compiler):
     assert run.stderr == b''
 
 
-def test_assign_system_diagnostics(compiler, subtests):
-    for fixture_name, diagnostic in (
-        ('assign-system_1.b', expected_text('assign-system-diagnostics.stderr')),
-        ('assign-system_2.b', expected_text('assign-system-diagnostics_2.stderr')),
-        ('assign-system_3.b', expected_text('assign-system-diagnostics_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/assign-system-diagnostics' / fixture_name
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (
-                expected_text('assign-system-diagnostics_4.stderr', source=source, diagnostic=diagnostic).encode()
-                in run.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, diagnostic_fixture',
+    [
+        pytest.param('assign-system_1.b', 'assign-system-diagnostics.stderr', id='assign-system-1'),
+        pytest.param('assign-system_2.b', 'assign-system-diagnostics_2.stderr', id='assign-system-2'),
+        pytest.param('assign-system_3.b', 'assign-system-diagnostics_3.stderr', id='assign-system-3'),
+    ],
+)
+def test_assign_system_diagnostics(compiler, fixture_name, diagnostic_fixture):
+    diagnostic = expected_text(diagnostic_fixture)
+    source = ROOT / 'tests/io/assign-system-diagnostics' / fixture_name
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (
+        expected_text('assign-system-diagnostics_4.stderr', source=source, diagnostic=diagnostic).encode()
+        in run.stderr
+    )
 
 
 def test_readv(compiler):
@@ -954,19 +990,22 @@ def test_readvu(compiler):
     assert run.stderr == b''
 
 
-def test_readvu_diagnostics(compiler, subtests):
-    for fixture_name, diagnostic in (
-        ('readvu_1.b', expected_text('readvu-diagnostics.stderr')),
-        ('readvu_2.b', expected_text('readvu-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/readvu-diagnostics' / fixture_name
-            run = compiler.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
-            assert run.returncode != 0
-            assert (
-                expected_text('readvu-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode()
-                in run.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, diagnostic_fixture',
+    [
+        pytest.param('readvu_1.b', 'readvu-diagnostics.stderr', id='readvu-1'),
+        pytest.param('readvu_2.b', 'readvu-diagnostics_2.stderr', id='readvu-2'),
+    ],
+)
+def test_readvu_diagnostics(compiler, fixture_name, diagnostic_fixture):
+    diagnostic = expected_text(diagnostic_fixture)
+    source = ROOT / 'tests/io/readvu-diagnostics' / fixture_name
+    run = compiler.run_native(source, options=['--memory-file', 'F', '--memory-lock', 'F', 'busy'])
+    assert run.returncode != 0
+    assert (
+        expected_text('readvu-diagnostics_3.stderr', source=source, diagnostic=diagnostic).encode()
+        in run.stderr
+    )
 
 
 def test_write_setting_and_on_error(compiler):
@@ -1011,21 +1050,23 @@ def test_writev_and_writevu(compiler):
     assert result.stdout == expected_bytes('writev-and-writevu.stdout')
 
 
-def test_writev_field_number_diagnostics(compiler, subtests):
-    for fixture_name, op in (
-        ('writev_1.b', 'WRITEV'),
-        ('writev_2.b', 'WRITEVU'),
-        ('writev_3.b', 'WRITEV'),
-        ('writev_4.b', 'WRITEVU'),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/writev-field-number-diagnostics' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert (
-                expected_text('writev-field-number-diagnostics.stderr', source=source, op=op).encode()
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, op',
+    [
+        pytest.param('writev_1.b', 'WRITEV', id='writev-1'),
+        pytest.param('writev_2.b', 'WRITEVU', id='writev-2'),
+        pytest.param('writev_3.b', 'WRITEV', id='writev-3'),
+        pytest.param('writev_4.b', 'WRITEVU', id='writev-4'),
+    ],
+)
+def test_writev_field_number_diagnostics(compiler, fixture_name, op):
+    source = ROOT / 'tests/io/writev-field-number-diagnostics' / fixture_name
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert (
+        expected_text('writev-field-number-diagnostics.stderr', source=source, op=op).encode()
+        in result.stderr
+    )
 
 
 def test_inmat_dimensions_and_latest_load(compiler):
