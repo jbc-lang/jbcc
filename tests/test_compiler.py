@@ -1848,10 +1848,13 @@ CRT 'after'
             ("XMLTOXML('<doc/>', '', Code)", 'Code'),
             ("XMLTODYN('<array/>', '', Codes(1))", 'Codes(1)'),
             ("XMLTODYN('<array/>', '')", 'Value'),
+            ("DYNTOXML('a':@FM:'b', '', Code)", 'Code'),
+            ("DYNTOXML('a':@FM:'b', '', Codes(1))", 'Codes(1)'),
+            ("DYNTOXML('a':@FM:'b', '')", 'Value'),
         ):
             with self.subTest(call=call):
                 source.write_text("DIM Codes(1)\n"
-                                  "IF 0 THEN CRT XMLTOXML('<skip/>', '', Skipped)\n"
+                                  "IF 0 THEN CRT DYNTOXML('skip', '', Skipped)\n"
                                   "CRT ASSIGNED(Skipped)\n"
                                   f"Value = {call}\nCRT {status}\n")
                 result = self.run_native(source)
@@ -1866,6 +1869,7 @@ CRT 'after'
             ("XMLTOXML('<doc/>', '', 0)", '0', 'expected a name'),
             ("XMLTODYN('<array/>', '', Code<1>)", '<1>', "expected ')'"),
             ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', "expected ')'"),
+            ("DYNTOXML('a', '', 0)", '0', 'expected a name'),
         ):
             with self.subTest(call=call):
                 statement = f'CRT {call}'

@@ -1228,11 +1228,12 @@ the sum exceeds the native unsigned integer range. The guide's example
 with CHAR(0) requires embedded NUL support.
 [CHECKSUM](https://jbc-lang.org/pages/checksum.html).
 
-`XMLTOXML(xml, xsl[, result])` and `XMLTODYN(xml, xsl[, result])` accept an
-optional writable result code variable or matrix element. Use an empty
-stylesheet argument to request XMLTODYN's generic conversion. When
-execution reaches either function, jbcc reports the source location
-because XML conversion requires a backend.
+`DYNTOXML(array, xsl[, result])`, `XMLTODYN(xml, xsl[, result])` and
+`XMLTOXML(xml, xsl[, result])` accept a writable scalar or matrix element
+as the optional result code. An empty stylesheet requests generic
+conversion for DYNTOXML and XMLTODYN. Executing any of these functions
+reports a source-located error because XML conversion requires a backend.
+[DYNTOXML](https://jbc-lang.org/pages/dyntoxml.html),
 [XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
 [XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
 

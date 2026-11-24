@@ -6066,10 +6066,10 @@ const char *jbc_itype(const char *descriptor, const char *file, int line, int co
     return "";
 }
 
-const char *jbc_xml_transform(const char *xml, const char *stylesheet, jbc_variable *status,
+const char *jbc_xml_transform(const char *input, const char *stylesheet, jbc_variable *status,
                               const char *reason, const char *file, int line, int column)
 {
-    (void)xml;
+    (void)input;
     (void)stylesheet;
     (void)status;
     numeric_error(file, line, column, reason);

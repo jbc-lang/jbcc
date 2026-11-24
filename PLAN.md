@@ -3186,8 +3186,17 @@ The PB201214 corpus scan now passes strict C99 checking in byte mode for
 17,263 of 17,336 candidates. Ten additional units pass, and all 17,253
 previous passes are preserved.
 
-- [ ] Add DYNTOXML to the XML transform parser. Reference probes accept
-  two arguments, or three with a writable scalar or matrix element in
-  the last position. EB.SYSTEM.INFO now reaches this call.
+- [x] Add DYNTOXML to the XML transform parser.
+
+Reference probes accept two arguments, or three with a writable scalar
+or matrix element in the last position. jbcc uses the shared XML backend
+diagnostic when execution reaches a call. Native tests cover optional
+results, skipped calls and an invalid result target.
+[DYNTOXML](https://jbc-lang.org/pages/dyntoxml.html).
+
+EB.SYSTEM.INFO now passes strict C99 checking with the PB201214 headers.
+The byte-mode scan reports 17,264 of 17,336 candidates passing, including
+all 17,263 previous passes.
+
 - [ ] Implement Base64 for ENCRYPT and DECRYPT, including how the runtime
   should handle decoded bytes that contain NUL.
