@@ -1188,6 +1188,35 @@ def test_banner(compiler):
     assert frames[len(blank) : 2 * len(blank)] == expected
 
 
+def test_snake(compiler):
+    source = ROOT / 'tests/programs/snake.b'
+    binary = compiler.work / 'snake'
+    subprocess.run([CLI, '--exe', source, '-o', binary], check=True)
+    with subprocess.Popen(
+        [binary],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as process:
+        try:
+            opening = bytearray()
+            while opening.count(b'\n') < 2:
+                assert select.select([process.stdout], [], [], 10)[0], (
+                    'board timeout'
+                )
+                chunk = os.read(process.stdout.fileno(), 4096)
+                assert chunk, 'snake exited before drawing the board'
+                opening.extend(chunk)
+            _, err = process.communicate(input=b'q', timeout=5)
+            assert (process.returncode, err) == (1, b'')
+        finally:
+            if process.poll() is None:
+                process.kill()
+    border, top_row = opening.splitlines()[:2]
+    assert border == b'\x1b[2J\x1b[H' + b'#' * 19
+    assert b'@>' in top_row
+
+
 def test_system14_input_queue(compiler):
     source = ROOT / 'tests/io/system14-input-queue.b'
     binary = compiler.work / 'pending'
