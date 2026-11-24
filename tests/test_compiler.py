@@ -3901,12 +3901,16 @@ CRT 'done'
         compare = 'GLOBUS.BP/COMPARE.DB.JBASE'
         dates = 'GLOBUS.BP/STEST.AZ.PD.DATES.CHK'
         rates = 'GLOBUS.BP/MG.EOD.REDEFINE.CONTRACT.RATES'
+        cdf = 'GLOBUS.BP/TU.LIB.STD.CDF'
+        inv = 'GLOBUS.BP/TU.LIB.STD.INV'
         self.assertIn("include file 'I_F.LA.PARAMETER' not found", baseline[missing]['diagnostic'])
         self.assertEqual(baseline[dates]['status'], 'rejected')
         self.assertEqual(baseline[rates], {
             'status': 'rejected',
             'diagnostic': f"{rates}:5:14: expected 1 subscripts for 'CR.REC'",
         })
+        self.assertEqual(baseline[cdf]['status'], 'rejected')
+        self.assertEqual(baseline[inv]['status'], 'rejected')
 
         options = ['--t24-source-fixes', '--stub-r07-la-parameter']
         report = json.loads(subprocess.check_output(command + options, text=True))['files']
@@ -3924,6 +3928,17 @@ CRT 'done'
         self.assertEqual(report[rates], {
             'status': 'translated',
             'source_fixes': [dict(file=rates, line=5, column=34, before=',1', after='')],
+        })
+        self.assertEqual(report[cdf], {
+            'status': 'translated',
+            'source_fixes': [
+                dict(file=cdf, line=1, column=6, before='-3.125e-002', after='-0.03125'),
+                dict(file=cdf, line=2, column=6, before='1.25E2', after='125'),
+            ],
+        })
+        self.assertEqual(report[inv], {
+            'status': 'translated',
+            'source_fixes': [dict(file=inv, line=1, column=6, before='1.2300E+02', after='123.00')],
         })
 
         with_real_include = command + options + ['-I', fixture / 'real-includes']

@@ -3426,8 +3426,16 @@ units also pass with their established scan options.
   [START](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_CTRANSACTIONSTART),
   [COMMIT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactioncommit),
   [ABORT](https://docs.intersystems.com/latest/csp/docbook/DocBook.UI.Page.cls?KEY=RVBS_ctransactionabort).
-- [ ] Evaluate opt-in decimal expansion for scientific-notation constants
-  in `TU.LIB.STD.CDF` and `TU.LIB.STD.INV`. Temporary copies with exact
-  base-ten expansions pass strict C99 checking. All 61 matches are
-  standalone coefficient assignments. Scope the substitutions to those
-  assignments and retain source locations in the report.
+- [x] Expand the scientific-notation coefficients in `TU.LIB.STD.CDF`
+  and `TU.LIB.STD.INV` under `--t24-source-fixes`. The checker applies
+  exact base-ten expansions only to standalone coefficient assignments
+  in those two R07 units. It records all 61 edits and their locations.
+  A standalone runtime probe initialized the shared
+  `RUNNING.IN.JBASE` flag and ran five CDF cases and five inverse CDF
+  cases against Python's standard normal distribution. Maximum absolute
+  error was about 1.84e-12 across those ten cases.
+
+All 15,030 R07 source units now pass strict C99 syntax checking with
+source fixes and the include stub enabled. Five use in-memory edits and
+six use the stub. The report records linkage diagnostics for 18 units.
+All 18,362 extracted files match the catalog hashes.

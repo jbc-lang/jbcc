@@ -2274,7 +2274,8 @@ path. This scan uses the headers in the R07 extract.
 python3 tools/check_corpus.py ../t24-extract/200707-R07 \
   -I ../t24-extract/200707-R07/GLOBUS.BP -I ../t24-extract/200707-R07/SENSITIVE.BP \
   --t24-catalog ../t24-extract/catalog.sqlite -j 12 --source-encoding bytes \
-  --defer-unassigned-reads --quiet-next-warnings --api-catalogue ../temenos-documentation/spec \
+  --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes --stub-r07-la-parameter \
+  --api-catalogue ../temenos-documentation/spec \
   > /tmp/jbcc-r07.json
 ```
 
@@ -2285,18 +2286,19 @@ name rule. If only `catalog.sqlite.xz` exists, unpack it as described in
 the extraction checkout's README. See the [R07 baseline](PLAN.md#r07-baseline)
 for the first scan's results.
 
-Add `--stub-r07-la-parameter` to use a translation-only fallback for the
+The optional `--stub-r07-la-parameter` enables a translation-only fallback for the
 missing `I_F.LA.PARAMETER`. An include found next to its caller or on the
 normal search path takes precedence. The stub supplies no field positions.
 Each affected unit has an `include_stubs` entry in the JSON, and its
 translation result provides no runtime validation of the missing layout.
 
-Add `--t24-source-fixes` to apply the R07 workarounds in memory.
+The optional `--t24-source-fixes` applies the R07 workarounds in memory.
 `COMPARE.DB.JBASE` uses the extracted `GLOBUS.BP/JBC.h` in place of the
 absolute installation path. `STEST.AZ.PD.DATES.CHK` has its leading-dot
 selector corrected as in R10. `MG.EOD.REDEFINE.CONTRACT.RATES` uses the
 same one-subscript `CR.REC(CR.EVENT.DATE)` access as the surrounding code.
-The JSON records each edit.
+`TU.LIB.STD.CDF` and `TU.LIB.STD.INV` use the exact fixed-point forms of
+their scientific-notation coefficients. The JSON records each edit.
 
 Render the R07 API report with:
 

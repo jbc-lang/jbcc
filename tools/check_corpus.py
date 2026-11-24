@@ -3,6 +3,7 @@ import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import closing
+from decimal import Decimal
 from functools import partial
 import json
 import os
@@ -39,6 +40,12 @@ T24_SOURCE_FIXES = {
     ),
 }
 
+R07_DECIMAL_COEFFICIENT = (
+    re.compile(r"^[ \t]*[A-Za-z]+[0-9]+[ \t]*=[ \t]*"
+               r"(?P<edit>[+-]?[0-9]+\.[0-9]+[Ee][+-]?[0-9]{1,3})[ \t]*$", re.M),
+    lambda value: format(Decimal(value), "f"),
+)
+
 R07_SOURCE_FIXES = {
     "STEST.AZ.PD.DATES.CHK": T24_SOURCE_FIXES["STEST.AZ.PD.DATES.CHK"],
     "COMPARE.DB.JBASE": (
@@ -50,6 +57,8 @@ R07_SOURCE_FIXES = {
                    r"(?P<edit>,[ \t]*1)(?=\)<1,[ \t]*I>)", re.M),
         "",
     ),
+    "TU.LIB.STD.CDF": R07_DECIMAL_COEFFICIENT,
+    "TU.LIB.STD.INV": R07_DECIMAL_COEFFICIENT,
 }
 
 
@@ -72,12 +81,14 @@ def fix_t24_source(path, source, *, root, fixes):
 
     def replace(match):
         start = match.start("edit")
+        before = match["edit"]
+        after = replacement(before) if callable(replacement) else replacement
         fix = {"file": relative.as_posix(), "line": source.count("\n", 0, start) + 1,
                "column": start - source.rfind("\n", 0, start),
-               "before": match["edit"], "after": replacement}
+               "before": before, "after": after}
         if fix not in fixes:
             fixes.append(fix)
-        return source[match.start():start] + replacement
+        return source[match.start():start] + after + source[match.end("edit"):match.end()]
 
     return pattern.sub(replace, source)
 
