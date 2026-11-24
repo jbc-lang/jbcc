@@ -3776,40 +3776,34 @@ CRT 'main'
         for case_number, direct_read in enumerate((False, True), 1):
             source = ROOT / 'tests/routines/invocation-sentence' / f'caller_{case_number}.b'
             subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
-            for args, sentence, first in [
-                    ([], b'./invocation', b''),
-                    (['42', 'two words', '', 'last'], b'./invocation 42 two words  last', expected_bytes('invocation-sentence.stdout'))]:
+            for variant, args in enumerate(([], ['42', 'two words', '', 'last']), 1):
                 with self.subTest(direct_read=direct_read, args=args):
                     run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True)
                     self.assertEqual(run.returncode, 0, run.stderr)
-                    self.assertEqual(run.stdout, (sentence + b'\n') * (1 + direct_read) + first + b'\n')
+                    expected = expected_bytes(f'invocation-sentence_{case_number}_{variant}.stdout')
+                    self.assertEqual(run.stdout, expected)
 
     def test_command_system_variable_uses_the_invocation_in_a_subroutine(self):
         binary = self.work / 'invocation'
         source = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/caller.b'
         routine = ROOT / 'tests/routines/command-system-variable-uses-the-invocation-in-a-subroutine/command.b'
         subprocess.run([CLI, '--exe', routine, source, '-o', binary], check=True)
-        for args, tail in (([], b''), (['first', 'two words', '', 'last'], expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine_2.stdout'))):
+        for variant, args in enumerate(([], ['first', 'two words', '', 'last']), 1):
             with self.subTest(args=args):
                 run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True, timeout=5)
-                sentence = b'./invocation' + (b' ' + tail if args else b'')
-                self.assertEqual((run.returncode, run.stdout, run.stderr),
-                                 (0, sentence + expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine.stdout') + tail + expected_bytes('command-system-variable-uses-the-invocation-in-a-subroutine_3.stdout'), b''))
+                expected = expected_bytes(f'command-system-variable-uses-the-invocation-in-a-subroutine_{variant}.stdout')
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected, b''))
 
     def test_sentence_function_reads_invocation_in_a_subroutine(self):
         binary = self.work / 'invocation'
         source = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/caller.b'
         routine = ROOT / 'tests/routines/sentence-function-reads-invocation-in-a-subroutine/show.b'
         subprocess.run([CLI, '--exe', source, routine, '-o', binary], check=True)
-        for args in ([], ['first', 'two words', '', 'last']):
+        for variant, args in enumerate(([], ['first', 'two words', '', 'last']), 1):
             with self.subTest(args=args):
-                invocation = ' '.join(['./invocation', *args])
-                fields = args + [''] * (4 - len(args))
-                expected = [invocation, invocation, './invocation',
-                            *(f'[{field}]' for field in fields), '[] []']
+                expected = expected_bytes(f'sentence-function-reads-invocation-in-a-subroutine_{variant}.stdout')
                 run = subprocess.run(['./invocation', *args], cwd=self.work, capture_output=True, timeout=5)
-                self.assertEqual((run.returncode, run.stdout, run.stderr),
-                                 (0, ('\n'.join(expected) + '\n').encode(), b''))
+                self.assertEqual((run.returncode, run.stdout, run.stderr), (0, expected, b''))
 
     def test_parasentence_uses_launch_context_or_invocation(self):
         sources = ROOT / 'tests/routines'
@@ -4514,11 +4508,11 @@ CRT 'main'
     def test_port_number_aliases_use_startup_environment(self):
         main = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/main.b'
         routine = ROOT / 'tests/programs/port-number-aliases-use-startup-environment/show.port.b'
-        for setting, port in [('00042', '42'), ('0', '0')]:
+        for variant, setting in enumerate(('00042', '0'), 1):
             with self.subTest(setting=setting):
                 run = self.run_native(main, routine, env=dict(os.environ, JBCPORTNO=setting))
                 self.assertEqual(run.returncode, 0, run.stderr)
-                self.assertEqual(run.stdout, (':'.join(['1'] + [port] * 5) + '\n').encode())
+                self.assertEqual(run.stdout, expected_bytes(f'port-number-aliases-use-startup-environment_{variant}.stdout'))
                 self.assertEqual(run.stderr, b'')
 
     def test_pid_uses_native_process_id_with_port_override(self):

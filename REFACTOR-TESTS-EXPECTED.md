@@ -1,6 +1,6 @@
 # Inline expected output
 
-**362 of 561 collected tests** have a fixed, nonempty output expectation in
+**Baseline.** 362 of 561 collected tests had a fixed, nonempty output expectation in
 [tests/test_compiler.py](tests/test_compiler.py). This is one checkbox per test,
 including tests with several output comparisons or subtests.
 
@@ -26,6 +26,11 @@ the host or the input stay in Python.
 Check off each method once its eligible expectations use `.stdout` or
 `.stderr` files. Keep execution setup, exit status, and non-output
 assertions in Python. Reuse existing output fixtures where they apply.
+
+**Result.** All 362 methods use expected-output fixtures. New fixtures live
+in `tests/expected/`. Text fixtures with placeholders such as `{source}`
+are rendered with the case's values. Tests still compute output that
+depends on runtime input or the host.
 
 ## Sequential files, printing and tape I/O (52)
 
