@@ -2021,7 +2021,8 @@ guide’s CLEARSELECT example, is accepted as a separator. [SELECT](https://jbc-
 
 `FORMLIST Keys TO L` starts a fresh cursor over the field-mark-separated
 entries in `Keys`. Omitting `TO` selects the default list. A number from
-0 through 10 selects a numbered list. The reference grammar also accepts
+0 through 10 selects a numbered list. A quoted decimal integer such as
+`TO "1"` addresses the same list as `TO 1`. The reference grammar also accepts
 `SETTING N`. Its runtime result is undocumented in the guide, so jbcc
 provisionally sets `N` to the entry count, including empty fields. An
 empty array has zero entries. [FORMLIST](https://jbc-lang.org/pages/formlist.html).

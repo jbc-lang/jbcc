@@ -2041,16 +2041,19 @@ class Compiler:
             self.emit("}")
             self.assigned &= branch
 
-    def select_list(self, keyword):
+    def select_list(self, keyword, *, quoted_number=False):
         if self.word != keyword:
             return "&select_lists[0]"
         self.advance()
-        return self.list_operand(assigning=keyword == 'TO')
+        return self.list_operand(assigning=keyword == 'TO', quoted_number=quoted_number)
 
-    def list_operand(self, assigning=False, maximum=10):
-        if self.current.kind == 'number':
-            number = self.word.lstrip('0') or '0'
-            if not number.isdigit() or len(number) > 2 or int(number) > maximum:
+    def list_operand(self, assigning=False, maximum=10, *, quoted_number=False):
+        quoted = quoted_number and self.current.kind == 'string'
+        if self.current.kind == 'number' or quoted:
+            text = self.word[1:-1] if quoted else self.word
+            number = text.lstrip('0') or '0'
+            if (not text or not number.isascii() or not number.isdigit()
+                    or len(number) > 2 or int(number) > maximum):
                 self.error(f"select list number must be between 0 and {maximum}")
             self.advance()
             return f"&select_lists[{number}]"
@@ -3237,7 +3240,7 @@ class Compiler:
               and self.following.word not in ASSIGNMENT_PREFIXES):
             self.advance()
             source = self.temporary(self.expression())
-            dest = self.select_list('TO')
+            dest = self.select_list('TO', quoted_number=True)
             setting = self.file_setting()
             self.emit(f"jbc_formlist({source}, {dest}, {setting});")
         elif (self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT') and self.word not in self.matrices

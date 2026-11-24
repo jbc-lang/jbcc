@@ -3362,6 +3362,13 @@ The full R07 scan now passes strict C99 checks for 15,021 of 15,030
 units with the source fixes and include stub enabled. All 17,336 R10
 units also pass with their established scan options.
 
-- [ ] Accept a quoted list number in `FORMLIST` for `FRA.REPORTS`. The
+- [x] Accept a quoted list number in `FORMLIST` for `FRA.REPORTS`. The
   local Prime reference passes the same constant to the runtime for
-  `TO "1"` and `TO 1`.
+  `TO "1"` and `TO 1`. The native fixture reads the quoted destination
+  by number and checks that leading zeros address the same list. An
+  out-of-range quoted number reports the destination's source location.
+  R07 now passes strict C99 checks for 15,022 of 15,030 units with
+  the source fixes and include stub enabled. All previous passes hold.
+- [ ] Support `INPUT @(column,row):Target` for `IBLC.TRANSFER`. The
+  guide shows this syntax, and the local Prime reference passes the
+  cursor positioning string as the second argument to its input routine.

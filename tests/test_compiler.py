@@ -3708,6 +3708,12 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:4:1: unassigned element 2 in matrix 'A'".encode(), run.stderr)
 
+    def test_formlist_rejects_out_of_range_quoted_list_number(self):
+        source = ROOT / 'tests/programs/formlist-invalid-number.b'
+        result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual((result.returncode, result.stderr),
+                         (1, f"{source}:1:20: select list number must be between 0 and 10\n"))
+
     def test_file_select(self):
         run = self.run_native(ROOT / 'tests/io/select.b', options=['--memory-file', 'F'])
         self.assertEqual(run.returncode, 0, run.stderr)

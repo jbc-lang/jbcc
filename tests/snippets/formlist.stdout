@@ -7,3 +7,7 @@
 default
 left,right
 empty 0
+2
+quoted
+number
+leading zero
