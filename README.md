@@ -29,6 +29,11 @@ A UTF-8 decoding diagnostic identifies the failing file and position.
 The lexer skips NUL bytes in comments and inactive source lines. NUL
 bytes in active code, literals or include paths report a source location.
 
+Use `--defer-unassigned-reads` for legacy code that reads a scalar before
+jbcc can establish an assignment. This opt-in turns that compile-time
+diagnostic into a warning. If execution reaches the read, the runtime
+requires an assigned value. Unknown function calls remain compile errors.
+
 The source assigns `"2"` to N. The first CRT adds 3 and prints `5`.
 The second concatenates 3 and prints `23`. Each output ends in a newline.
 
@@ -2183,6 +2188,8 @@ python3 tools/check_corpus.py ~/Downloads/t24 -I ~/Downloads/PB201214-linux/incl
 
 The JSON report records a status per relative path, diagnostic locations,
 and counts by first blocker. A translated unit passed C syntax checking.
+With `--defer-unassigned-reads`, the per-file `warnings` list records
+deferred reads in translated units.
 Linking its external dependencies and verifying its behavior require separate
 tests. UTF-8 decoding failures are counted separately and identify the
 source or include that could not be decoded.

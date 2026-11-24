@@ -603,11 +603,14 @@ class ForAssignments(NamedTuple):
 
 
 class Compiler:
-    def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False):
+    def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False,
+                 defer_unassigned_reads=False):
         self.path = path
         self.unit = unit
         self.encoding = encoding
         self.separate_external_arities = separate_external_arities
+        self.defer_unassigned_reads = defer_unassigned_reads
+        self.warnings = []
         self.routine = None
         self.is_function = False
         self.functions = {}
@@ -700,19 +703,26 @@ class Compiler:
             self.names[name] = f"frame->v{len(self.names)}"
         return self.names[name]
 
-    def assignment_error(self, message, token):
+    def assignment_error(self, message, token, *, warn=False):
         if self.for_assignments:
-            self.for_assignments[-1].reads.append((message, token))
+            self.for_assignments[-1].reads.append((message, token, warn))
+            return
+        if warn:
+            self.warnings.append(f"{token.path}:{token.line}:{token.column}: warning: {message}")
             return
         if not self.possible_go:
             self.error(message, token)
         if self.pending_assignment_error is None:
             self.pending_assignment_error = (message, token)
 
-    def read_variable(self, token):
+    def read_variable(self, token, *, possible_function=False):
         if (token.word not in self.assigned and token.word not in self.maybe_assigned
                 and not self.has_unstructured_jumps):
-            self.assignment_error(f"unknown variable or unsupported function '{token.word}'", token)
+            if self.defer_unassigned_reads and not possible_function:
+                self.assignment_error(f"read of '{token.word}' before assignment is deferred to runtime",
+                                      token, warn=True)
+            else:
+                self.assignment_error(f"unknown variable or unsupported function '{token.word}'", token)
         var = self.variable(token.word)
         return self.checked_read(var, token)
 
@@ -1005,7 +1015,7 @@ class Compiler:
             target = self.identifier()
             return self.variable_expression(target, self.variable(target.word), locate_source)
         elif self.current.kind == 'name':
-            value = self.read_variable(self.current)
+            value = self.read_variable(self.current, possible_function=self.following.word == '(')
         elif self.current.kind == 'number':
             whole, dot, fraction = word.partition('.')
             fraction = fraction.rstrip('0')
@@ -2427,9 +2437,9 @@ class Compiler:
         assignments = self.for_assignments.pop()
         if self.for_assignments:
             self.for_assignments[-1].initializers.update(assignments.initializers)
-        for message, token in assignments.reads:
+        for message, token, warn in assignments.reads:
             if token.word not in assignments.initializers:
-                self.assignment_error(message, token)
+                self.assignment_error(message, token, warn=warn)
         # The first bounds check can skip the body, so check its new scalars on read.
         self.maybe_assigned.update((self.assigned - before) & self.names.keys())
         self.assigned = before
@@ -3420,7 +3430,7 @@ class Compiler:
             if not matrix:
                 self.assigned.add(start.word)
                 if (assignments and not compound
-                        and not any(token.word == start.word for _, token in assignments.reads[first_read:])):
+                        and not any(token.word == start.word for _, token, _ in assignments.reads[first_read:])):
                     assignments.initializers.add(start.word)
         else:
             self.error("expected an assignment, CRT or IF")
@@ -3522,6 +3532,8 @@ class Compiler:
                 self.error("unexpected text after final END")
         if self.pending_assignment_error and not self.has_goto:
             self.error(*self.pending_assignment_error)
+        if self.has_goto:
+            self.warnings.clear()
         for token in self.pending_matrices.values():
             self.error(f"expected a declaration of '{token.word}'", token)
         for name, target in self.return_targets.items():
@@ -3780,14 +3792,17 @@ def render_subroutine_exists(units):
     return "\n".join(lines)
 
 
-def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False):
+def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False,
+                 defer_unassigned_reads=False):
     encoding = SOURCE_ENCODINGS[source_encoding]
-    unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities)
+    unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities,
+                    defer_unassigned_reads=defer_unassigned_reads)
     unit.parse(list(Preprocessor(directories, encoding).read(path)))
     return unit
 
 
-def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=(), *, source_encoding='utf-8'):
+def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory_locks=(), *,
+                    source_encoding='utf-8', defer_unassigned_reads=False):
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -3795,7 +3810,8 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     routines = {}
     programs = []
     for i, path in enumerate(paths):
-        unit = compile_unit(path, directories, i, source_encoding=source_encoding)
+        unit = compile_unit(path, directories, i, source_encoding=source_encoding,
+                            defer_unassigned_reads=defer_unassigned_reads)
         units.append(unit)
         if unit.routine:
             name = unit.routine.word
@@ -3834,6 +3850,9 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     prototypes.append(render_empty_arguments(units, {routine_symbol(name): tuple(u.formals.values())
                                                      for name, u in routines.items()}))
     features = runtime_features(units)
+    for unit in units:
+        for warning in unit.warnings:
+            print(warning, file=sys.stderr)
     return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
 
 
@@ -3899,6 +3918,8 @@ def main():
     cli.add_argument('-I', dest='directories', action='append', type=Path, default=[], metavar='DIR')
     cli.add_argument('--source-encoding', choices=SOURCE_ENCODINGS, default='utf-8',
                      help='decode source as UTF-8 or preserve literal source bytes (default: utf-8)')
+    cli.add_argument('--defer-unassigned-reads', action='store_true',
+                     help='warn when a scalar variable read must be checked at runtime')
     cli.add_argument('--exe', action='store_true', help='build a native executable using CC and CC_FLAGS')
     cli.add_argument('-o', required=True, type=Path, metavar='OUTPUT')
     args = cli.parse_args()
@@ -3906,7 +3927,8 @@ def main():
         if any(args.o.resolve() == p.resolve() for p in args.source):
             raise Diagnostic("source and output paths must differ")
         result = compile_program(args.source, args.directories, args.memory_files, args.memory_dicts,
-                                 args.memory_locks, source_encoding=args.source_encoding)
+                                 args.memory_locks, source_encoding=args.source_encoding,
+                                 defer_unassigned_reads=args.defer_unassigned_reads)
         if args.exe:
             build_executable(result, args.o)
             return 0

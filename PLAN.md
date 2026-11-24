@@ -3232,11 +3232,20 @@ discards its result, preserving by-reference argument updates.
 The scan with the PB201214 Linux headers passes 17,327 of 17,336 candidates.
 Fourteen additional units pass and all 17,313 previous passes are preserved.
 
-- [ ] Decide how to handle the remaining T24 source diagnostics.
+- [x] Add an opt-in to translate the five T24 units with unassigned reads.
   The reference emits local reads for PROGRAM.NAME, YACCNO, RR.DATES,
-  FILE.NAME and FM, which jbcc cannot establish as assigned at those
-  sites. The other two files use .AZ.SLS.TYPE.I as an array selector
-  and 1ST.RECORD as an assignment target. In the reference output the
+  FILE.NAME and FM. With `--defer-unassigned-reads`, jbcc warns at each
+  previously rejected read and uses the existing runtime assignment check.
+  Tests check both paths of a native conditional, an unknown function,
+  and warning locations in expanded includes.
+
+The strict scan with the PB201214 Linux headers retains 17,329 of 17,336
+passes. The opt-in scan reaches 17,334 passes and records one warning in
+each of the five newly translated units.
+
+- [ ] Determine how to handle the two remaining T24 syntax diagnostics.
+  The files use .AZ.SLS.TYPE.I as an array selector and 1ST.RECORD as
+  an assignment target. In the reference output the
   leading-dot selector becomes a string constant, and 1ST.RECORD becomes
   a scalar store on assignment and a format expression when read.
   Temporary source probes pass strict C99 checking after removing the

@@ -26,13 +26,14 @@ def group(message):
     return message
 
 
-def check(relative, root, directories, source_encoding='utf-8'):
+def check(relative, root, directories, source_encoding='utf-8', defer_unassigned_reads=False):
     path = root / relative
     if path.name.startswith("I_"):
-        return relative, "include fragment", ""
+        return relative, "include fragment", "", []
     try:
         unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
-                                       separate_external_arities=True)
+                                       separate_external_arities=True,
+                                       defer_unassigned_reads=defer_unassigned_reads)
         externals = {}
         first_signatures = {}
         linkage_diagnostic = ""
@@ -70,15 +71,16 @@ def check(relative, root, directories, source_encoding='utf-8'):
                                  "-pedantic", "-fsyntax-only", "-x", "c", "-"],
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
-            return relative, "C diagnostic", result.stderr.splitlines()[0]
-        return relative, "translated", linkage_diagnostic
+            return relative, "C diagnostic", result.stderr.splitlines()[0], []
+        warnings = [warning.replace(str(root) + os.sep, "") for warning in unit.warnings]
+        return relative, "translated", linkage_diagnostic, warnings
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
-        return relative, "rejected", detail
+        return relative, "rejected", detail, []
     except COMPILER["SourceEncodingError"] as error:
-        return relative, "encoding", str(error).replace(str(root) + os.sep, "")
+        return relative, "encoding", str(error).replace(str(root) + os.sep, ""), []
     except OSError as error:
-        return relative, "I/O error", str(error)
+        return relative, "I/O error", str(error), []
 
 
 def main():
@@ -88,6 +90,8 @@ def main():
     parser.add_argument("-j", type=int, default=1, metavar="JOBS")
     parser.add_argument("--source-encoding", choices=COMPILER["SOURCE_ENCODINGS"], default="utf-8",
                         help="decode source as UTF-8 or preserve literal source bytes (default: utf-8)")
+    parser.add_argument("--defer-unassigned-reads", action="store_true",
+                        help="report warnings for scalar variable reads checked at runtime")
     options = parser.parse_args()
     root = options.directory.resolve()
     if not root.is_dir() or options.j < 1:
@@ -95,14 +99,17 @@ def main():
     if not shutil.which("cc"):
         parser.error("cc is required to check generated C")
     paths = sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and not p.is_symlink())
-    scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding)
+    scan = partial(check, root=root, directories=[root, *options.includes], source_encoding=options.source_encoding,
+                   defer_unassigned_reads=options.defer_unassigned_reads)
     counts = Counter()
     blockers = Counter()
     files = {}
     with ProcessPoolExecutor(max_workers=options.j) as pool:
-        for name, status, diagnostic in pool.map(scan, paths, chunksize=16):
+        for name, status, diagnostic, warnings in pool.map(scan, paths, chunksize=16):
             counts[status] += 1
             files[name] = {"status": status}
+            if warnings:
+                files[name]["warnings"] = warnings
             if status == "translated" and diagnostic:
                 files[name]["linkage_diagnostic"] = diagnostic
             elif diagnostic:

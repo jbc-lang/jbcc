@@ -4234,6 +4234,55 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertNotEqual(run.returncode, 0)
         self.assertIn(f"{source}:2:1: CLEARSELECT requires a select list".encode(), run.stderr)
 
+    def test_deferred_scalar_read_warns_and_fails_only_when_reached(self):
+        source = self.work / 'conditional.b'
+        source.write_text("""Flag = GETENV('JBCC_TEST_DEFERRED_READ')
+IF Flag THEN
+    CRT Missing<1>
+END
+CRT 'done'
+""")
+        binary = self.work / 'program'
+        command = [CLI, '--exe', source, '-o', binary]
+        strict = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(strict.returncode, 1)
+        self.assertEqual(strict.stderr, f"{source}:3:9: unknown variable or unsupported function 'Missing'\n")
+        deferred = subprocess.run([*command, '--defer-unassigned-reads'], capture_output=True, text=True, check=True)
+        self.assertEqual(deferred.stderr,
+                         f"{source}:3:9: warning: read of 'Missing' before assignment is deferred to runtime\n")
+        for flag, expected in (
+            ('0', (0, b'done\n', b'')),
+            ('1', (1, b'', f"{source}:3:9: unassigned variable 'Missing'\n".encode())),
+        ):
+            with self.subTest(flag=flag):
+                run = subprocess.run([binary], capture_output=True, timeout=5,
+                                     env=dict(os.environ, JBCC_TEST_DEFERRED_READ=flag))
+                self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
+
+    def test_deferred_reads_still_reject_unknown_functions(self):
+        source = self.work / 'function.b'
+        source.write_text("CRT Missing(1)\n")
+        result = subprocess.run([CLI, '--defer-unassigned-reads', source, '-o', self.c],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{source}:1:5: unknown variable or unsupported function 'Missing'\n")
+
+    def test_corpus_reports_deferred_reads_in_includes(self):
+        (self.work / 'main.b').write_text('$INSERT I_EXAMPLE\n')
+        (self.work / 'I_EXAMPLE').write_text("FOR I = 1 TO 2\nCRT Missing\nNEXT I\n")
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        strict = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(strict['files']['main.b'], {
+            'status': 'rejected',
+            'diagnostic': "I_EXAMPLE:2:5: unknown variable or unsupported function 'Missing'",
+        })
+        deferred = json.loads(subprocess.check_output(command + ['--defer-unassigned-reads'], text=True))
+        self.assertEqual(deferred['first_blockers'], {})
+        self.assertEqual(deferred['files']['main.b'], {
+            'status': 'translated',
+            'warnings': ["I_EXAMPLE:2:5: warning: read of 'Missing' before assignment is deferred to runtime"],
+        })
+
     def test_corpus_report(self):
         (self.work / 'ok').write_text('SUBROUTINE S(X)\nDEFFUN F()\nCALL OTHER(X)\n'
                                       'X = F(X)\nIF X THEN CALL S(X)\nCALL @X(X)\n')
