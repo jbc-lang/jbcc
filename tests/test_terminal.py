@@ -12,6 +12,8 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from functools import partial
 
+import pytest
+
 from compiler_support import CLI, ROOT, expected_bytes, expected_text
 
 
@@ -283,22 +285,25 @@ time_t test_clock(time_t *out)
             assert run.stderr == ''
 
 
-def test_cursor_coordinate_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('cursor_1.b', expected_text('cursor-coordinate-diagnostics.stderr')),
-        ('cursor_2.b', expected_text('cursor-coordinate-diagnostics_2.stderr')),
-        ('cursor_3.b', expected_text('cursor-coordinate-diagnostics_2.stderr')),
-        ('cursor_4.b', expected_text('cursor-coordinate-diagnostics_3.stderr')),
-        ('cursor_5.b', expected_text('cursor-coordinate-diagnostics_3.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/cursor-coordinate-diagnostics' / fixture_name
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (
-                expected_text('cursor-coordinate-diagnostics_4.stderr', source=source, message=message).encode()
-                in run.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('cursor_1.b', 'cursor-coordinate-diagnostics.stderr', id='cursor-1'),
+        pytest.param('cursor_2.b', 'cursor-coordinate-diagnostics_2.stderr', id='cursor-2'),
+        pytest.param('cursor_3.b', 'cursor-coordinate-diagnostics_2.stderr', id='cursor-3'),
+        pytest.param('cursor_4.b', 'cursor-coordinate-diagnostics_3.stderr', id='cursor-4'),
+        pytest.param('cursor_5.b', 'cursor-coordinate-diagnostics_3.stderr', id='cursor-5'),
+    ],
+)
+def test_cursor_coordinate_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/io/cursor-coordinate-diagnostics' / fixture_name
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (
+        expected_text('cursor-coordinate-diagnostics_4.stderr', source=source, message=message).encode()
+        in run.stderr
+    )
 
 
 def test_input_from_pipe(compiler):
@@ -506,16 +511,21 @@ def test_keyin_reads_unedited_terminal_byte_and_restores_mode(compiler, subtests
                     proc.kill()
 
 
-def test_keyin_function_diagnostics(compiler, subtests):
-    for case_number, function in enumerate(('KEYIN', 'IN'), 1):
-        with subtests.test(function=function):
-            source = ROOT / 'tests/io/keyin-function-diagnostics' / f'keyin_{case_number}.b'
-            result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
-            assert result.returncode != 0
-            assert (
-                expected_text('keyin-function-diagnostics.stderr', source=source, function=function).encode()
-                in result.stderr
-            )
+@pytest.mark.parametrize(
+    'case_number, function',
+    [
+        pytest.param(1, 'KEYIN', id='keyin'),
+        pytest.param(2, 'IN', id='in'),
+    ],
+)
+def test_keyin_function_diagnostics(compiler, case_number, function):
+    source = ROOT / 'tests/io/keyin-function-diagnostics' / f'keyin_{case_number}.b'
+    result = subprocess.run([CLI, source, '-o', compiler.c], capture_output=True)
+    assert result.returncode != 0
+    assert (
+        expected_text('keyin-function-diagnostics.stderr', source=source, function=function).encode()
+        in result.stderr
+    )
 
 
 def test_timed_input_restarts_after_each_byte(compiler):
@@ -621,19 +631,22 @@ def test_input_negative_one_detects_terminal_typeahead(compiler, request):
                 proc.kill()
 
 
-def test_input_length_diagnostics(compiler, subtests):
-    for fixture_name, message in (
-        ('input_1.b', expected_text('input-length-diagnostics.stderr')),
-        ('input_2.b', expected_text('input-length-diagnostics_2.stderr')),
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/io/input-length-diagnostics' / fixture_name
-            run = compiler.run_native(source)
-            assert run.returncode != 0
-            assert (
-                expected_text('input-length-diagnostics_3.stderr', source=source, message=message).encode()
-                in run.stderr
-            )
+@pytest.mark.parametrize(
+    'fixture_name, message_fixture',
+    [
+        pytest.param('input_1.b', 'input-length-diagnostics.stderr', id='input-1'),
+        pytest.param('input_2.b', 'input-length-diagnostics_2.stderr', id='input-2'),
+    ],
+)
+def test_input_length_diagnostics(compiler, fixture_name, message_fixture):
+    message = expected_text(message_fixture)
+    source = ROOT / 'tests/io/input-length-diagnostics' / fixture_name
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert (
+        expected_text('input-length-diagnostics_3.stderr', source=source, message=message).encode()
+        in run.stderr
+    )
 
 
 def test_hush_nonnumeric_operand(compiler):
