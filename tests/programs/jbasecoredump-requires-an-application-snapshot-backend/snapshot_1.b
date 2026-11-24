@@ -1,0 +1,1 @@
+CRT JBASECOREDUMP('snapshot')

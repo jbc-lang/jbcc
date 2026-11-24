@@ -1,0 +1,5 @@
+DIM Codes(1)
+IF 0 THEN CRT DYNTOXML('skip', '', Skipped)
+CRT ASSIGNED(Skipped)
+Value = DYNTOXML('a':@FM:'b', '', Codes(1))
+CRT Codes(1)

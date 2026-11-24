@@ -219,13 +219,13 @@ case and descriptive names for separate behaviors or linked routines.
 
 ## External services and backend diagnostics (7)
 
-- [ ] `test_jbasecoredump_requires_an_application_snapshot_backend`
-- [ ] `test_xml_transforms_require_a_backend_when_reached`
-- [ ] `test_xml_transform_argument_diagnostics`
-- [ ] `test_indices_requires_backend_only_when_a_query_is_reached`
-- [ ] `test_transactions_report_missing_backend_at_the_call`
-- [ ] `test_defc_declarations_and_runtime_diagnostics`
-- [ ] `test_defc_rejects_invalid_types_and_argument_counts`
+- [x] `test_jbasecoredump_requires_an_application_snapshot_backend` — Stage fixtures in the temporary directory to preserve the test setup.
+- [x] `test_xml_transforms_require_a_backend_when_reached`
+- [x] `test_xml_transform_argument_diagnostics`
+- [x] `test_indices_requires_backend_only_when_a_query_is_reached`
+- [x] `test_transactions_report_missing_backend_at_the_call`
+- [x] `test_defc_declarations_and_runtime_diagnostics`
+- [x] `test_defc_rejects_invalid_types_and_argument_counts`
 
 ## Corpus scanning and reporting (3)
 

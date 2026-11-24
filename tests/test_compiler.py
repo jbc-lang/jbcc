@@ -1326,9 +1326,12 @@ time_t test_clock(time_t *out)
         self.assertEqual(list(self.work.glob('JBASECOREDUMP*')), [])
 
         source = self.work / 'snapshot.b'
-        for args in ("'snapshot'", "'snapshot', 0, 1"):
-            with self.subTest(args=args):
-                source.write_text(f'CRT JBASECOREDUMP({args})\n')
+        for fixture_name in (
+            'snapshot_1.b',
+            'snapshot_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                copyfile(ROOT / 'tests/programs/jbasecoredump-requires-an-application-snapshot-backend' / fixture_name, source)
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"{source}:1:5: wrong argument count for 'JBASECOREDUMP'", result.stderr)
@@ -1341,53 +1344,43 @@ time_t test_clock(time_t *out)
                           f'{source}:6:5: ITYPE requires a compiled dictionary backend\n'.encode()))
 
     def test_xml_transforms_require_a_backend_when_reached(self):
-        source = self.work / 'xml.b'
-        for call, status in (
-            ("XMLTOXML('<doc/>', '', Code)", 'Code'),
-            ("XMLTODYN('<array/>', '', Codes(1))", 'Codes(1)'),
-            ("XMLTODYN('<array/>', '')", 'Value'),
-            ("DYNTOXML('a':@FM:'b', '', Code)", 'Code'),
-            ("DYNTOXML('a':@FM:'b', '', Codes(1))", 'Codes(1)'),
-            ("DYNTOXML('a':@FM:'b', '')", 'Value'),
+        for fixture_name, call in (
+            ('xml_1.b', "XMLTOXML('<doc/>', '', Code)"),
+            ('xml_2.b', "XMLTODYN('<array/>', '', Codes(1))"),
+            ('xml_3.b', "XMLTODYN('<array/>', '')"),
+            ('xml_4.b', "DYNTOXML('a':@FM:'b', '', Code)"),
+            ('xml_5.b', "DYNTOXML('a':@FM:'b', '', Codes(1))"),
+            ('xml_6.b', "DYNTOXML('a':@FM:'b', '')"),
         ):
-            with self.subTest(call=call):
-                source.write_text("DIM Codes(1)\n"
-                                  "IF 0 THEN CRT DYNTOXML('skip', '', Skipped)\n"
-                                  "CRT ASSIGNED(Skipped)\n"
-                                  f"Value = {call}\nCRT {status}\n")
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/xml-transforms-require-a-backend-when-reached' / fixture_name
                 result = self.run_native(source)
                 name = call.split('(', 1)[0]
                 self.assertEqual((result.returncode, result.stdout, result.stderr),
                                  (1, b'0\n', f'{source}:4:9: {name} requires an XML backend\n'.encode()))
 
     def test_xml_transform_argument_diagnostics(self):
-        source = self.work / 'xml.b'
-        for call, marker, message in (
+        for case_number, (call, marker, message) in enumerate((
             ("XMLTODYN('<array/>')", ')', "expected ','"),
             ("XMLTOXML('<doc/>', '', 0)", '0', 'expected a name'),
             ("XMLTODYN('<array/>', '', Code<1>)", '<1>', "expected ')'"),
             ("XMLTOXML('<doc/>', '', Code, Extra)", ', Extra', "expected ')'"),
             ("DYNTOXML('a', '', 0)", '0', 'expected a name'),
-        ):
+        ), 1):
             with self.subTest(call=call):
                 statement = f'CRT {call}'
-                source.write_text(statement + '\n')
+                source = ROOT / 'tests/programs/xml-transform-argument-diagnostics' / f'xml_{case_number}.b'
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'{source}:1:{statement.rindex(marker) + 1}: {message}', result.stderr)
 
     def test_indices_requires_backend_only_when_a_query_is_reached(self):
-        source = self.work / 'indices.b'
-        for query in ('INDICES(File)', "INDICES(Handles(1), 'BY.':'TITLE')"):
-            with self.subTest(query=query):
-                source.write_text(f"""OPEN 'BOOKS' TO File ELSE ABORT
-DIM Handles(2)
-Handles(1) = File
-IF 0 THEN CRT INDICES(File)<1>
-CRT 'before'
-CRT {query}
-CRT 'after'
-""")
+        for fixture_name in (
+            'indices_1.b',
+            'indices_2.b',
+        ):
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/indices-requires-backend-only-when-a-query-is-reached' / fixture_name
                 result = self.run_native(source, options=('--memory-file', 'BOOKS'))
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stdout, b'before\n')
@@ -1640,7 +1633,6 @@ CRT 'main'
         self.assertEqual(result.stderr, f"{source}:1:36: expected 'SETTING'\n")
 
     def test_transactions_report_missing_backend_at_the_call(self):
-        source = self.work / 'transactions.b'
         statements = (
             ('TRANSTART', "TRANSTART ELSE CRT 'failure'"),
             ('TRANSTART', "TRANSTART SYNC THEN CRT 'success'"),
@@ -1648,12 +1640,9 @@ CRT 'main'
             ('TRANSEND', "TRANSEND Note THEN\n    CRT 'success'\nEND ELSE CRT 'failure'"),
             ('TRANSABORT', "TRANSABORT 'rollback' ELSE CRT 'failure'"),
         )
-        for keyword, statement in statements:
+        for case_number, (keyword, statement) in enumerate(statements, 1):
             with self.subTest(statement=statement):
-                source.write_text(
-                    "Note = 'batch'\nIF 0 THEN TRANSABORT ELSE ABORT\nCRT Note\n"
-                    + statement + "\nCRT 'after'\n"
-                )
+                source = ROOT / 'tests/programs/transactions-report-missing-backend-at-the-call' / f'transactions_{case_number}.b'
                 result = self.run_native(source)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, b'batch\n')
@@ -2274,21 +2263,15 @@ CRT {function}('text', '', {method})
                          (0, b'3\t0\n3\n', b''))
 
     def test_defc_declarations_and_runtime_diagnostics(self):
-        include = self.work / 'native.h'
-        include.write_text("""DEFC ReadNative(INT, VAR)
-DEFC FLOAT Measure(STRING);
-DEFC VAR LocalNative()
-DEFC ReadNative()
-""")
-        source = self.work / 'foreign.b'
-        for call, diagnostic in (
-            ('IF 0 THEN ReadNative(1, Output)\nCRT "done"\n', b''),
-            ('ReadNative(1, Output)\n', b":2:1: C function 'ReadNative' requires the jBASE C runtime"),
-            ('CRT Measure("abc")\n', b":2:5: C function 'Measure' requires the jBASE C runtime"),
-            ('CRT LocalNative()\n', b":2:5: C function 'LocalNative' requires the jBASE C runtime"),
+        include = ROOT / 'tests/programs/defc-declarations-and-runtime-diagnostics/native.h'
+        for fixture_name, diagnostic in (
+            ('foreign_1.b', b''),
+            ('foreign_2.b', b":2:1: C function 'ReadNative' requires the jBASE C runtime"),
+            ('foreign_3.b', b":2:5: C function 'Measure' requires the jBASE C runtime"),
+            ('foreign_4.b', b":2:5: C function 'LocalNative' requires the jBASE C runtime"),
         ):
-            with self.subTest(call=call):
-                source.write_text('INCLUDE native.h\n' + call)
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/defc-declarations-and-runtime-diagnostics' / fixture_name
                 result = self.run_native(source)
                 if diagnostic:
                     self.assertEqual((result.returncode, result.stdout), (1, b''))
@@ -2298,14 +2281,13 @@ DEFC ReadNative()
                                      (0, b'done\n', b''))
 
     def test_defc_rejects_invalid_types_and_argument_counts(self):
-        source = self.work / 'foreign.b'
-        for program, diagnostic in (
-            ('DEFC Native(INT, Number)\n', ":1:18: expected a DEFC argument type"),
-            ('DEFC Native(INT)\nCRT Native()\n', ":2:5: too few arguments for DEFC 'Native'"),
-            ('DEFC Native(INT)\nNative(1, 2)\n', ":2:1: too many arguments for DEFC 'Native'"),
+        for fixture_name, diagnostic in (
+            ('foreign_1.b', ':1:18: expected a DEFC argument type'),
+            ('foreign_2.b', ":2:5: too few arguments for DEFC 'Native'"),
+            ('foreign_3.b', ":2:1: too many arguments for DEFC 'Native'"),
         ):
-            with self.subTest(program=program):
-                source.write_text(program)
+            with self.subTest(source=fixture_name):
+                source = ROOT / 'tests/programs/defc-rejects-invalid-types-and-argument-counts' / fixture_name
                 result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 1)
                 self.assertEqual(result.stderr, f"{source}{diagnostic}\n")

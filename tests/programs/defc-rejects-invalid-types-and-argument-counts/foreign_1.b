@@ -1,0 +1,1 @@
+DEFC Native(INT, Number)

@@ -1,0 +1,5 @@
+Note = 'batch'
+IF 0 THEN TRANSABORT ELSE ABORT
+CRT Note
+TRANSTART ELSE CRT 'failure'
+CRT 'after'
