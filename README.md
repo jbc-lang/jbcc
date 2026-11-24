@@ -1190,6 +1190,13 @@ callee reads the status field, selects a CASE arm, and updates the output.
 CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
 reports a runtime diagnostic while strings use NUL termination.
 
+`CHECKSUM(value)` sums each unsigned byte times its one-based position
+in the string representation. For example, `CHECKSUM('AB')` returns 197
+and an empty string returns 0. jbcc reports an out-of-range result if
+the sum exceeds the native unsigned integer range. The guide's example
+with CHAR(0) requires embedded NUL support.
+[CHECKSUM](https://jbc-lang.org/pages/checksum.html).
+
 `SEQ(value)` returns the unsigned value of the first byte of its string
 representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.
 jbcc provisionally returns 0 for an empty string. UTF-8 strings use the

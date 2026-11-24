@@ -2668,6 +2668,18 @@ const char *jbc_len(const char *s)
     return size_value(strlen(s));
 }
 
+const char *jbc_checksum(const char *text, const char *file, int line, int column)
+{
+    const unsigned char *byte = (const unsigned char *)text;
+    uintmax_t sum = 0;
+    for (uintmax_t position = 1; *byte; ++position, ++byte) {
+        if (position > (UINTMAX_MAX - sum) / *byte)
+            numeric_error(file, line, column, "CHECKSUM result out of range");
+        sum += position * *byte;
+    }
+    return size_value(sum);
+}
+
 const char *jbc_fold(const char *text, const char *size, const char *file, int line, int column)
 {
     struct decimal n;

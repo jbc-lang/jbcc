@@ -2921,6 +2921,21 @@ Adding the local reference source directory to the include path advances
 38 corpus units from missing JBC.h to its missing dependency jportB.h.
 The bundled reference sources supply JBC.h.
 
-- [ ] Investigate CHECKSUM in OS.CHECKSUM.JBASE. Verify the documented
+- [x] Investigate CHECKSUM in OS.CHECKSUM.JBASE. Verify the documented
   position-weighted byte sum and how it interacts with jbcc's native
   string representation.
+
+The reference compiler emits CHECKSUM_BBB with one argument. jbcc
+implements the guide's one-based weighted sum over unsigned bytes.
+Native tests cover the ASCII examples, empty and numeric inputs,
+delimiter and UTF-8 bytes, and a sum greater than 32 bits. The runtime
+reports overflow beyond UINTMAX_MAX. The guide's CHAR(0) example
+needs a string representation that can store embedded NUL bytes.
+[CHECKSUM](https://jbc-lang.org/pages/checksum.html).
+
+OS.CHECKSUM.JBASE now passes strict C99 checking in byte mode, bringing
+the total to 17,192 of 17,336 candidates with all previous passes intact.
+
+- [ ] Investigate @USER.ROOT in VALIDATE.SIGN.ON. Check reads, writes,
+  the guide's 63-byte limit and the scope a standalone process can
+  provide.

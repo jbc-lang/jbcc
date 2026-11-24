@@ -4082,6 +4082,30 @@ CLOSESEQ F
                 self.assertIn(message.encode(), run.stderr)
                 self.assertIn(f'{source}:1:5:'.encode(), run.stderr)
 
+    def test_checksum_weighted_bytes(self):
+        source = self.work / 'checksum.b'
+        source.write_text("""CRT CHECKSUM(''), CHECKSUM('A'), CHECKSUM('AA'), CHECKSUM('B')
+CRT CHECKSUM('AB'), CHECKSUM(12), CHECKSUM(@FM:CHAR(255))
+CRT CHECKSUM('é'), CHECKSUM(STR('A', 100000))
+""", encoding='utf-8')
+        run = self.run_native(source)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (0, b'0\t65\t195\t66\n197\t149\t764\n533\t325003250000\n', b''))
+
+    def test_checksum_argument_diagnostics(self):
+        source = self.work / 'checksum.b'
+        for expression in ("CHECKSUM()", "CHECKSUM('a', 'b')"):
+            with self.subTest(expression=expression):
+                source.write_text(f'CRT {expression}\n')
+                result = subprocess.run([CLI, source, '-o', self.c], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:1:5: wrong argument count for 'CHECKSUM'", result.stderr)
+
+        source.write_text("CRT CHECKSUM(CHAR(0):'!')\n")
+        run = self.run_native(source)
+        self.assertEqual((run.returncode, run.stdout, run.stderr),
+                         (1, b'', f"{source}:1:14: CHAR(0) requires strings with embedded NUL support\n".encode()))
+
     def test_common_storage(self):
         caller = self.work / 'caller.b'
         sub = self.work / 'sub.b'
