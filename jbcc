@@ -512,6 +512,11 @@ def matrix_declarations(tokens):
     return ((token, shape, block) for token, shape, block in members.values() if shape)
 
 
+class ForAssignments(NamedTuple):
+    initializers: set
+    reads: list
+
+
 class Compiler:
     def __init__(self, path, unit=0, encoding='utf-8'):
         self.path = path
@@ -533,6 +538,7 @@ class Compiler:
         self.gosub_sites = {}
         self.has_unstructured_jumps = False
         self.for_stack = []
+        self.for_assignments = []
         self.saved_steps = {}
         self.names = {}
         self.matrices = {}
@@ -601,6 +607,9 @@ class Compiler:
         return self.names[name]
 
     def assignment_error(self, message, token):
+        if self.for_assignments:
+            self.for_assignments[-1].reads.append((message, token))
+            return
         if not self.possible_go:
             self.error(message, token)
         if self.pending_assignment_error is None:
@@ -2272,6 +2281,7 @@ class Compiler:
         self.assigned.add(counter.word)
         self.expect('TO')
         self.begin_loop()
+        self.for_assignments.append(ForAssignments(set(), []))
         limit = self.expression()
         self.for_stack.append(self.loops)
         step = '"1"'
@@ -2306,6 +2316,13 @@ class Compiler:
         self.emit(f"assign_value(&{symbol}, {increment});")
         self.for_stack.pop()
         self.end_loop()
+        # A plain assignment in the loop can supply a read on a later iteration.
+        assignments = self.for_assignments.pop()
+        if self.for_assignments:
+            self.for_assignments[-1].initializers.update(assignments.initializers)
+        for message, token in assignments.reads:
+            if token.word not in assignments.initializers:
+                self.assignment_error(message, token)
         # The first bounds check can skip the body, so check its new scalars on read.
         self.maybe_assigned.update((self.assigned - before) & self.names.keys())
         self.assigned = before
@@ -3097,6 +3114,8 @@ class Compiler:
             self.prefix_step(statement=True)
         elif self.current.kind == 'name':
             start = self.current
+            assignments = self.for_assignments[-1] if self.for_assignments else None
+            first_read = len(assignments.reads) if assignments else 0
             self.advance()
             matrix = start.word in self.matrices
             var = self.matrix_slot(start) if matrix else None
@@ -3156,6 +3175,9 @@ class Compiler:
             self.emit(f"assign_value(&{var}, {value});")
             if not matrix:
                 self.assigned.add(start.word)
+                if (assignments and not compound
+                        and not any(token.word == start.word for _, token in assignments.reads[first_read:])):
+                    assignments.initializers.add(start.word)
         else:
             self.error("expected an assignment, CRT or IF")
 

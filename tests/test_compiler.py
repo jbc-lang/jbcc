@@ -4433,6 +4433,34 @@ IF Bound # -1 THEN CRT Value
                 run = subprocess.run([binary, bound], capture_output=True, timeout=5)
                 self.assertEqual((run.returncode, run.stdout, run.stderr), expected)
 
+    def test_for_reads_check_values_from_earlier_iterations(self):
+        source = self.work / 'iteration.b'
+        binary = self.work / 'iteration'
+        for branch in (
+            "IF I = 1 THEN Value = 'first' ELSE Value := ':' : I",
+            "IF I # 1 THEN Value := ':' : I ELSE Value = 'first'",
+        ):
+            with self.subTest(branch=branch):
+                source.write_text(f"GET(ARG.) First\nFOR I = First TO 3\n{branch}\nNEXT I\nCRT Value\n")
+                subprocess.run([CLI, '--exe', source, '-o', binary], check=True,
+                               env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'))
+                hit = subprocess.run([binary, '1'], capture_output=True, timeout=5)
+                self.assertEqual((hit.returncode, hit.stdout, hit.stderr), (0, b'first:2:3\n', b''))
+                miss = subprocess.run([binary, '2'], capture_output=True, timeout=5)
+                column = branch.index('Value :=') + 1
+                self.assertEqual((miss.returncode, miss.stdout, miss.stderr),
+                                 (1, b'', f"{source}:3:{column}: unassigned variable 'Value'\n".encode()))
+
+    def test_for_reads_without_an_initializer_are_compile_errors(self):
+        source = self.work / 'iteration.b'
+        for statement, column in (('CRT Value', 5), ('Value += 1', 1), ('Value = Value + 1', 9)):
+            with self.subTest(statement=statement):
+                source.write_text(f'FOR I = 1 TO 3\n{statement}\nNEXT I\n')
+                result = subprocess.run([CLI, source, '-o', self.c], text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{source}:2:{column}:", result.stderr)
+                self.assertIn("'Value'", result.stderr)
+
     def test_assignment_probe_does_not_initialize(self):
         source = self.work / 'probe.b'
         for program, location in [('PRINT ASSIGNED(X)\nPRINT X', ':2:7:'),

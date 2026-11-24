@@ -871,7 +871,10 @@ and an optional variable name after NEXT. Following the reference parser,
 jbcc warns if that name differs from the innermost FOR counter. The NEXT
 still increments the counter from that FOR header. The limit and step are evaluated
 at the start of each iteration. The captured step increments the counter
-after the body. FOR accepts WHILE and UNTIL guards in its header.
+after the body. A scalar read inside FOR can use a value initialized by
+a plain assignment on an earlier iteration. jbcc checks the value at
+the read, including on the first iteration. FOR accepts WHILE and UNTIL
+guards in its header.
 The reference grammar also allows guards between statements in FOR and
 LOOP bodies, with an optional DO after the condition. An inline arm can
 end at a loop guard. In `LOOP READNEXT ID ELSE ID = "" WHILE ID <> ""`,

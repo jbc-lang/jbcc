@@ -2883,6 +2883,24 @@ MB.E.STMT.ENT.DETAIL and EXPAND.MULTI.AUTOM now pass strict C99
 checking in byte mode. The total is 17,186 of 17,336 candidates,
 including all 17,184 previous passes.
 
-- [ ] Investigate reads that depend on assignments from earlier FOR
+- [x] Investigate reads that depend on assignments from earlier FOR
   iterations. Start with YFLD in CONV.LOCAL.TABLE.G12.2, where the first
   iteration initializes the scalar and a later sibling arm appends to it.
+
+The reference compiler emits the same scalar for initialization and
+concatenation, so the loop keeps its value between iterations. jbcc
+checks tentative reads against plain assignments in the enclosing FOR
+and checks the value at runtime. A read followed only by a compound
+update or a self-referential assignment still gets a compile diagnostic
+when the loop has no initializer. Native tests cover both branch orders
+and a first iteration that skips initialization.
+[FOR](https://jbc-lang.org/pages/for.html).
+
+CONV.LOCAL.TABLE.G12.2 and DE.ADD.TAG.DETAILS now pass strict C99 checking
+in byte mode. The total is 17,188 of 17,336 candidates, including all
+17,186 previous passes.
+
+- [ ] Investigate preprocessor conditionals and include guards.
+  Start with the #ifndef blocks in qbasiccommonpick, qbasiccommonseq
+  and EB.DEV.CHECK.LICENSE. Verify how a symbol is defined and how the
+  preprocessor skips inactive branches.
