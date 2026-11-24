@@ -2163,8 +2163,11 @@ python3 tools/check_corpus.py ~/Downloads/t24 -j 8 > /tmp/jbcc-corpus.json
 The checker visits regular files recursively. It counts `I_` files as include
 fragments and expands them when referenced by a compilation unit. It runs
 the compiler's preprocessor, parser and C generator on each remaining file.
-For direct external calls it declares the observed signature so that the system C
-compiler can check the complete generated unit with C99 warnings as errors.
+For direct external calls it declares a prototype per observed arity so
+the system C compiler can check the generated unit with C99 warnings as
+errors. Different argument counts for one target produce a
+`linkage_diagnostic` in the JSON report. Executable builds still validate
+each call against its target's actual parameter list.
 For indirect calls and exit callbacks it checks the dispatch code using the
 current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.

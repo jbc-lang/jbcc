@@ -3065,9 +3065,10 @@ RE.BALANCE.PRINT and RE.PRINT.DEAL.DETAILS call FATAL.ERROR with both
 zero and one argument. FATAL.ERROR declares one formal and extracts
 fields from SOURCE.INFO directly. The reference compiler emits distinct
 argument descriptors for the two calls and delegates formal binding to
-SUBROUTINE_INIT. The guide requires exact arity, so jbcc diagnoses both
-inconsistent call sites. The standalone reference probe establishes
-the emitted descriptors. [jBASE CALL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CALL.htm).
+SUBROUTINE_INIT. The guide requires exact arity, so executable builds
+diagnose the zero-argument calls. The standalone reference probe
+establishes the emitted descriptors.
+[jBASE CALL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_CALL.htm).
 
 - [x] Verify percent signs within names used by the asset valuation reports.
 
@@ -3234,11 +3235,25 @@ Fourteen additional units pass and all 17,313 previous passes are preserved.
 - [ ] Decide how to handle the remaining T24 source diagnostics.
   The reference emits local reads for PROGRAM.NAME, YACCNO, RR.DATES,
   FILE.NAME and FM, which jbcc cannot establish as assigned at those
-  sites. Two reporting routines call FATAL.ERROR with inconsistent
-  arity. The remaining two files use .AZ.SLS.TYPE.I as an array selector
+  sites. The other two files use .AZ.SLS.TYPE.I as an array selector
   and 1ST.RECORD as an assignment target. In the reference output the
   leading-dot selector becomes a string constant, and 1ST.RECORD becomes
   a scalar store on assignment and a format expression when read.
   Temporary source probes pass strict C99 checking after removing the
   leading dot in STEST.AZ.PD.DATES.CHK, renaming 1ST.RECORD to FIRST.RECORD
   in TK.VALIDATE.SYSGEN.FILES, or using @FM in LIST.DATA.
+
+- [x] Check both FATAL.ERROR call arities in the single-unit corpus scan.
+
+The corpus checker uses separate C prototypes for the observed external
+arities and records the first conflict as a linkage diagnostic.
+RE.BALANCE.PRINT and RE.PRINT.DEAL.DETAILS pass strict C99 checking and
+report the zero-argument calls at lines 521 and 914, respectively. Temporary
+copies pass without that diagnostic when each call supplies the same
+routine name as its caller's other FATAL.ERROR calls. A native compiler
+test confirms that a build with a one-parameter definition rejects an
+omitted argument. Recursive calls are checked against the current unit.
+
+The PB201214 Linux scan reports 17,329 of 17,336 candidates passing strict
+C99 checking. The two FATAL.ERROR callers account for both new passes
+and retain their linkage diagnostics.

@@ -4313,6 +4313,30 @@ CRT RECORDLOCKED(F, 'busy')
         self.assertEqual(files['forward']['status'], 'translated')
         self.assertIn('mixed:3:6: external calls disagree on signature', files['mixed']['diagnostic'])
 
+    def test_corpus_checks_external_arities_and_reports_the_linkage_conflict(self):
+        source = self.work / 'caller'
+        source.write_text("CALL Report('')\nCALL Report\n")
+        command = [sys.executable, ROOT / 'tools/check_corpus.py', self.work]
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['first_blockers'], {})
+        self.assertEqual(report['files']['caller'], {
+            'status': 'translated',
+            'linkage_diagnostic': "caller:2:6: calls to 'Report' use different argument counts (1 and 0)",
+        })
+
+        definition = self.work / 'report'
+        definition.write_text('SUBROUTINE Report(Value)\nCRT Value\n')
+        result = subprocess.run([CLI, source, definition, '-o', self.c], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, f"{source}:2:6: wrong argument count for 'Report'\n")
+
+        source.write_text('SUBROUTINE Recur(MAT A)\nCALL Recur\n')
+        report = json.loads(subprocess.check_output(command, text=True))
+        self.assertEqual(report['files']['caller'], {
+            'status': 'rejected',
+            'diagnostic': 'caller:2:6: recursive call has incompatible signature',
+        })
+
     def test_quine(self):
         source = ROOT / 'tests/programs/quine.b'
         run = self.run_native(source)

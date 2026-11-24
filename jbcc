@@ -603,10 +603,11 @@ class ForAssignments(NamedTuple):
 
 
 class Compiler:
-    def __init__(self, path, unit=0, encoding='utf-8'):
+    def __init__(self, path, unit=0, encoding='utf-8', *, separate_external_arities=False):
         self.path = path
         self.unit = unit
         self.encoding = encoding
+        self.separate_external_arities = separate_external_arities
         self.routine = None
         self.is_function = False
         self.functions = {}
@@ -2523,10 +2524,17 @@ class Compiler:
         if declared and (any(declared) or any(kinds)) and not compatible_call_kinds(kinds, declared):
             self.error(f"arguments disagree with DEFFUN for '{target.word}'", target)
         self.calls.append((target, kinds, True))
-        args = direct_arguments(target.word, args, kinds)
+        symbol = self.call_symbol(target.word, kinds)
+        args = direct_arguments(symbol, args, kinds)
         result = self.temporary("NULL")
-        self.emit(f"{routine_symbol(target.word)}({', '.join(['&' + result] + args)});")
+        self.emit(f"{symbol}({', '.join(['&' + result] + args)});")
         return result
+
+    def call_symbol(self, name, kinds):
+        symbol = routine_symbol(name)
+        if self.separate_external_arities and (not self.routine or self.routine.word != name):
+            return f"{symbol}_arity_{len(kinds)}"
+        return symbol
 
     def c_function_declaration(self):
         self.expect('DEFC')
@@ -2660,7 +2668,8 @@ class Compiler:
         target = self.subroutine_name()
         args, kinds = self.call_arguments()
         self.calls.append((target, kinds, False))
-        self.emit(f"{routine_symbol(target.word)}({', '.join(direct_arguments(target.word, args, kinds))});")
+        symbol = self.call_symbol(target.word, kinds)
+        self.emit(f"{symbol}({', '.join(direct_arguments(symbol, args, kinds))});")
 
     def label_number(self, name):
         return self.targets.setdefault(name, len(self.targets) + 1)
@@ -3532,7 +3541,7 @@ class Compiler:
     def signature(self):
         if not self.routine:
             return "int main(int argc, char **argv)" if self.needs_arguments else "int main(void)"
-        return routine_signature(self.routine.word, self.formals.values(), self.is_function)
+        return routine_signature(routine_symbol(self.routine.word), self.formals.values(), self.is_function)
 
     def render(self, memory_files=(), memory_dicts=(), memory_locks=()):
         u = self.unit
@@ -3648,10 +3657,10 @@ def routine_parameters(kinds):
     return [f"jbc_matrix arg{i}" if matrix else f"jbc_variable *arg{i}" for i, matrix in enumerate(kinds)]
 
 
-def routine_signature(name, kinds, is_function):
+def routine_signature(symbol, kinds, is_function):
     params = ["const char **result"] if is_function else []
     params.extend(routine_parameters(kinds))
-    return f"void {routine_symbol(name)}({', '.join(params) or 'void'})"
+    return f"void {symbol}({', '.join(params) or 'void'})"
 
 
 def argument_fields(kinds):
@@ -3661,12 +3670,12 @@ def argument_fields(kinds):
 EMPTY_SCALAR_ARGUMENT = '(&(jbc_variable){"", 0, 0})'
 
 
-def empty_argument_name(name, index):
-    return f"JBCC_EMPTY_{routine_symbol(name)}_{index}"
+def empty_argument_name(symbol, index):
+    return f"JBCC_EMPTY_{symbol}_{index}"
 
 
-def direct_arguments(name, args, kinds):
-    return [empty_argument_name(name, i) if kind is None else arg
+def direct_arguments(symbol, args, kinds):
+    return [empty_argument_name(symbol, i) if kind is None else arg
             for i, (arg, kind) in enumerate(zip(args, kinds))]
 
 
@@ -3678,10 +3687,11 @@ def render_empty_arguments(units, signatures):
     definitions = {}
     for unit in units:
         for target, kinds, _ in unit.calls:
+            symbol = unit.call_symbol(target.word, kinds)
             for i, kind in enumerate(kinds):
                 if kind is None:
-                    matrix = signatures[target.word][i]
-                    definitions[empty_argument_name(target.word, i)] = (
+                    matrix = signatures[symbol][i]
+                    definitions[empty_argument_name(symbol, i)] = (
                         '((jbc_matrix){0})' if matrix else EMPTY_SCALAR_ARGUMENT)
     return "\n".join(f"#define {name} {value}" for name, value in definitions.items())
 
@@ -3770,9 +3780,9 @@ def render_subroutine_exists(units):
     return "\n".join(lines)
 
 
-def compile_unit(path, directories, index=0, *, source_encoding='utf-8'):
+def compile_unit(path, directories, index=0, *, source_encoding='utf-8', separate_external_arities=False):
     encoding = SOURCE_ENCODINGS[source_encoding]
-    unit = Compiler(path, index, encoding)
+    unit = Compiler(path, index, encoding, separate_external_arities=separate_external_arities)
     unit.parse(list(Preprocessor(directories, encoding).read(path)))
     return unit
 
@@ -3821,7 +3831,8 @@ def compile_program(paths, directories, memory_files=(), memory_dicts=(), memory
     prototypes.append(render_indirect_calls(units))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
-    prototypes.append(render_empty_arguments(units, {name: tuple(u.formals.values()) for name, u in routines.items()}))
+    prototypes.append(render_empty_arguments(units, {routine_symbol(name): tuple(u.formals.values())
+                                                     for name, u in routines.items()}))
     features = runtime_features(units)
     return "\n".join([features, runtime] + prototypes + [u.render(memory_files, memory_dicts, memory_locks) for u in units])
 

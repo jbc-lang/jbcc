@@ -31,23 +31,34 @@ def check(relative, root, directories, source_encoding='utf-8'):
     if path.name.startswith("I_"):
         return relative, "include fragment", ""
     try:
-        unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding)
+        unit = COMPILER["compile_unit"](path, directories, source_encoding=source_encoding,
+                                       separate_external_arities=True)
         externals = {}
+        first_signatures = {}
+        linkage_diagnostic = ""
         for target, kinds, is_function in unit.calls:
             if unit.routine and unit.routine.word == target.word:
                 formals = tuple(unit.formals.values())
                 if is_function != unit.is_function or not COMPILER["compatible_call_kinds"](kinds, formals):
                     unit.error("recursive call has incompatible signature", target)
                 kinds = formals
-            if target.word in externals:
-                previous, previous_is_function = externals[target.word]
-                if (is_function != previous_is_function or len(previous) != len(kinds)
-                        or any(a is not None and b is not None and a != b for a, b in zip(previous, kinds))):
+            else:
+                first_arity, first_is_function = first_signatures.setdefault(target.word, (len(kinds), is_function))
+                if is_function != first_is_function:
+                    unit.error("external calls disagree on signature", target)
+                if len(kinds) != first_arity and not linkage_diagnostic:
+                    linkage_diagnostic = (f"{target.path}:{target.line}:{target.column}: calls to '{target.word}' "
+                                          f"use different argument counts ({first_arity} and {len(kinds)})")
+                    linkage_diagnostic = linkage_diagnostic.replace(str(root) + os.sep, "")
+            symbol = unit.call_symbol(target.word, kinds)
+            if symbol in externals:
+                previous, _ = externals[symbol]
+                if any(a is not None and b is not None and a != b for a, b in zip(previous, kinds)):
                     unit.error("external calls disagree on signature", target)
                 kinds = tuple(b if a is None else a for a, b in zip(previous, kinds))
-            externals[target.word] = kinds, is_function
-        prototypes = [COMPILER["routine_signature"](name, kinds, is_function) + ";"
-                      for name, (kinds, is_function) in externals.items()]
+            externals[symbol] = kinds, is_function
+        prototypes = [COMPILER["routine_signature"](symbol, kinds, is_function) + ";"
+                      for symbol, (kinds, is_function) in externals.items()]
         if unit.routine and (unit.has_indirect_call or unit.uses_callonexit):
             prototypes.append(unit.signature() + ";")
         prototypes.append(COMPILER["render_indirect_calls"]([unit]))
@@ -60,7 +71,7 @@ def check(relative, root, directories, source_encoding='utf-8'):
                                 input=generated, text=True, capture_output=True)
         if result.returncode:
             return relative, "C diagnostic", result.stderr.splitlines()[0]
-        return relative, "translated", ""
+        return relative, "translated", linkage_diagnostic
     except COMPILER["Diagnostic"] as error:
         detail = str(error).replace(str(root) + os.sep, "")
         return relative, "rejected", detail
@@ -92,7 +103,9 @@ def main():
         for name, status, diagnostic in pool.map(scan, paths, chunksize=16):
             counts[status] += 1
             files[name] = {"status": status}
-            if diagnostic:
+            if status == "translated" and diagnostic:
+                files[name]["linkage_diagnostic"] = diagnostic
+            elif diagnostic:
                 files[name]["diagnostic"] = diagnostic
                 reason = re.sub(r"^.*?:\d+:\d+: ", "", diagnostic)
                 blockers[group(reason) if status == "rejected" else status] += 1
