@@ -37,21 +37,22 @@ keeps generated assets out of Git history.
 
 ## 2. Build the standalone playground
 
-- [ ] Create `jbc-lang/jbc-playground`. Move the editor, Python adapter,
-  browser workers, Wasm toolchain configuration, examples, Playwright
-  tests, and applicable licenses and notices. Give the repo its own local
-  build and test commands. Keep compiler test fixtures with `jbcc`.
-- [ ] Pin the PyPI version and wheel SHA-256. Have the build download and
-  verify the wheel, then copy it into the static artifact. Load it from
-  that artifact on the first **Run**. Use the same pin when browser tests
-  compare results against the native CLI.
-- [ ] Preserve localStorage keys, IndexedDB database and schema, and the
-  project JSON format. Keep existing browser limits, editor behavior, and
-  runtime isolation through the move.
-- [ ] Enable the Pages workflow and verify the site at its default
-  `github.io` URL, including asset paths under the repository prefix.
-  Run the full browser suite. Verify the cold first run and confirm that
-  opening the editor still fetches no Wasm.
+- [x] Move the editor, Python adapter, browser workers, toolchain,
+  examples, browser tests, and notices to
+  [jbc-lang/jbc-playground](https://github.com/jbc-lang/jbc-playground).
+  The new repository has its own local build and test commands.
+- [x] Pin the PyPI wheel for `jbcc 0.2.0` and verify its SHA-256 at build
+  time. The browser loads the published asset on the first **Run**, and
+  native test comparisons use the same wheel.
+- [x] Preserve localStorage keys, the IndexedDB schema, and the project
+  JSON format. The existing browser limits and Wasm runner sandbox are
+  covered by the standalone browser suite.
+- [x] Publish the [GitHub Pages preview](https://jbc-lang.github.io/jbc-playground/).
+  All 32 browser tests passed locally and in Actions. On the live preview,
+  single-file and multi-file runs, project import and export, and offline
+  execution passed. The editor fetched neither Wasm nor the wheel until
+  the first **Run**, and the wheel matched the pinned SHA-256.
+  [Preview deployment](https://github.com/jbc-lang/jbc-playground/actions/runs/45670092625)
 
 ## 3. Put the Google tag in the served HTML
 
