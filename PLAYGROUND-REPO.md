@@ -21,11 +21,12 @@ keeps generated assets out of Git history.
 
 ## 1. Release the compiler dependency
 
-- [x] Define and document the [Python interface](README.md#browser-translation-api) the playground needs. Cover
-  multi-file translation, browser-target diagnostics, include resolution
+- [x] Define and document the [Python interface](README.md#browser-translation-api)
+  the playground needs. Cover multi-file translation, browser-target
+  diagnostics, include resolution
   and limits, and access to the packaged C runtime. Keep the JSON request
   adapter and playground-specific policies in the playground repo.
-- [ ] Build a release candidate wheel and test the browser adapter against
+- [x] Build a release candidate wheel and test the browser adapter against
   the installed package in Pyodide. Include a single-file program, a
   linked routine with a shared include, and a source-located diagnostic.
 - [ ] Publish the tested `jbcc` release to PyPI. The current `0.1.0` wheel

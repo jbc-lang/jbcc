@@ -33,6 +33,11 @@ from `playground/`. For Playwright's Firefox or WebKit, install the engines
 with `bunx playwright install firefox webkit` and set
 `JBCC_PLAYWRIGHT_BROWSER` to `firefox` or `webkit` in place of the channel.
 
+To rehearse a compiler release, build the wheel with `just dist`, then
+run `JBCC_WHEEL=/absolute/path/to/jbcc-VERSION-py3-none-any.whl just playground`.
+This serves the wheel in the static build and installs it into Pyodide
+on the first run. Use the same browser suite against that server.
+
 ## Writing and running programs
 
 The editor starts with `hello.b`. Choose **Status lookup (3 files)** to
