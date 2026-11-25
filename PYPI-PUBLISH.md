@@ -44,7 +44,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
 - [x] Run `just check` and `just test-parallel` through the checkout launcher.
   Run the R07 and R10 syntax checks with the local corpora to catch regressions
   in the shared runtime loader and corpus checker.
-- [ ] Run `uv build` from a clean checkout and `uvx twine check dist/*`.
+- [x] Run `uv build` from a clean checkout and `uvx twine check dist/*`.
   Inspect the file lists of both archives. Confirm the wheel is
   platform-independent, contains the C runtime and license files, and
   declares the `jbcc` entry point. Build a wheel from the source archive
