@@ -8,8 +8,8 @@ const { devDependencies } = await Bun.file("package.json").json();
 const pyodide = `toolchain/pyodide-${devDependencies.pyodide}`;
 const clang = `toolchain/clang-${devDependencies["@yowasp/clang"]}`;
 const analytics = process.env.JBCC_ANALYTICS_FRAME && new URL(process.env.JBCC_ANALYTICS_FRAME);
-if (analytics && (analytics.protocol !== "https:" || analytics.href !== `${analytics.origin}/`)) {
-  throw new Error("JBCC_ANALYTICS_FRAME must be an HTTPS origin");
+if (analytics && (analytics.protocol !== "https:" || analytics.username || analytics.password || analytics.search || analytics.hash)) {
+  throw new Error("JBCC_ANALYTICS_FRAME must be an HTTPS URL without credentials, query, or fragment");
 }
 
 async function bundle(options) {
@@ -66,7 +66,7 @@ const html = await readFile("web/index.html", "utf8");
 const stamp = new Date().toISOString().slice(0, 16);
 const analyticsScript = '    <script type="module" src="./analytics.js"></script>\n';
 const page = analytics
-  ? html.replace('data-compiler="browser"', `data-compiler="browser" data-analytics-origin="${analytics.origin}"`)
+  ? html.replace('data-compiler="browser"', `data-compiler="browser" data-analytics-frame="${analytics.href}"`)
   : html.replace(analyticsScript, "");
 await writeFile(join(output, "index.html"), page
   .replace("__BUILD_TIME_ISO__", `${stamp}:00Z`)

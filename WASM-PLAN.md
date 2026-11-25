@@ -121,7 +121,7 @@ The raw compiler and Python payloads already exceed the documented
   `jbc-lang.github.io`. For Vercel, use the CNAME shown in its domain
   settings. Keep the existing hostname so drafts from the live site
   remain accessible. DNS, HTTPS, browser runs, and storage passed
-  verification. Firebase Hosting still serves the Analytics frame.
+  verification.
   [GitHub domain verification](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages) ·
   [Vercel custom domains](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
 
@@ -142,8 +142,6 @@ The raw compiler and Python payloads already exceed the documented
   `jbc-playground` Firestore database and its build-quota records.
   Remove the dedicated playground spend cap and retain the shared
   billing account and account-wide alert.
-- [ ] Move the live Analytics frame to a separate static origin and verify
-  collection against the existing Tag Manager container and GA4 property.
 - [ ] Verify that the static site has no dependency on `jbc-online`
   and confirm which project resources remain. Shut down the dedicated
   GCP project only after checking the inventory and receiving approval

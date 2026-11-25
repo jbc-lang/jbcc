@@ -90,8 +90,8 @@ More examples in jBC
 ## Playground
 
 Open the [online jBC playground](https://online.jbc-lang.org/) to edit a
-multi-file project. Invited GitHub accounts can compile, run, and save
-projects.
+multi-file project. The browser compiles and runs your code and saves
+projects locally.
 
 Run `just playground` for a local copy at <http://127.0.0.1:18766/>. The [playground guide](playground/README.md)
 covers multi-file projects, browser runtime limits, and local tests.

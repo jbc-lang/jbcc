@@ -15,13 +15,14 @@ All Google Analytics properties are in the GA account **Sites**
 
 - The docs site loads `GTM-MKW38C6B` from `site/head.html`. GA reports
   data flowing.
-- The hosted playground loads `GTM-5QTPTVWF` on page load,
-  inside an iframe at `https://jbc-online-metrics.web.app`. The frame's
-  code is `playground/analytics/tag.js` and `index.html`. The GitHub Pages
-  build includes the frame address in its HTML. The legacy editor
-  gets the address from `/api/v1/analytics`.
-  `playground/analytics/tag-check.html` loads the same container as a
-  full page, so Google's tag installation check can see it.
+- The playground loads `GTM-5QTPTVWF` on page load in a cross-origin,
+  sandboxed iframe at `https://jbc-lang.github.io/playground-metrics/`.
+  The GitHub Pages workflow sets the address at build time. Local builds
+  omit Analytics by default. The separate
+  [frame repository](https://github.com/jbc-lang/playground-metrics) publishes
+  its static HTML.
+- `playground/analytics/tag-check.html` loads the same container as a
+  full page for Google's tag installation check.
 - Each container sends only to its own measurement ID. Never put the
   docs IDs on the playground or the playground IDs on the docs site.
 - **Retired, do not use:** `GTM-MTVGQN94` and `G-WCXYWY5LFQ`. Their

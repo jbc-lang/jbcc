@@ -1,7 +1,7 @@
 async function loadAnalytics() {
-  const origin = document.documentElement.dataset.analyticsOrigin;
-  if (!origin) return;
-  const url = new URL(origin);
+  const address = document.documentElement.dataset.analyticsFrame;
+  if (!address) return;
+  const url = new URL(address);
   if (url.protocol !== "https:" || url.origin === location.origin) return;
 
   const frame = document.createElement("iframe");
