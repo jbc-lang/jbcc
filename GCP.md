@@ -2,22 +2,24 @@
 
 The [implementation checklist](ONLINE-COMPILER.md) uses the dedicated
 `jBC Online` Google Cloud project (ID `jbc-online`), linked to the
-existing billing account.
+existing billing account, displayed as `General`. The billing link uses
+the account ID.
 Cloud Run service `compiler` serves the editor and API at
 `https://online.jbc-lang.org/`. Service `compiler-worker` runs jbcc and
 Emscripten and accepts calls from the Go service identity.
 
 ## Inventory already verified
 
-- The intended billing account has an account-wide alert. The `jBC Online`
-  project needs its own Cloud Run spend cap.
+- The existing billing account has an all-projects, all-services alert
+  that covers `jbc-online`.
+- The `jbc-online` project has its own £1 monthly Cloud Run spend cap.
+  The Budget API reports it as **Configured**.
 - Squarespace hosts DNS for `jbc-lang.org`. No A or CNAME record was
   found for `online.jbc-lang.org`.
 
 Use the intended personal Google Cloud account. Set `JBCC_ACCOUNT` to
 that account and `JBCC_REGION` to the selected Cloud Run and Artifact
-Registry region. Choose the Firestore
-region before creating the database.
+Registry region. Choose the Firestore region before creating the database.
 
 ```sh
 gcloud auth list
@@ -32,8 +34,9 @@ dig +short online.jbc-lang.org A
 Complete the [local playground milestone](ONLINE-COMPILER.md#1-build-and-test-the-playground-locally)
 before running the provisioning commands.
 
-Set `JBCC_BILLING_ACCOUNT` to the intended account ID from the billing
-accounts listed above. Google Cloud project IDs are globally unique.
+`jbc-online` was created and linked to billing on 2026-11-25. These
+commands record the setup. Set `JBCC_BILLING_ACCOUNT` to the intended
+account ID. Google Cloud project IDs are globally unique.
 [Project IDs](https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects).
 
 ```sh
@@ -41,7 +44,7 @@ JBCC_PROJECT=jbc-online
 JBCC_PROJECT_DISPLAY_NAME="jBC Online"
 
 gcloud projects create "$JBCC_PROJECT" --name="$JBCC_PROJECT_DISPLAY_NAME" \
-  --account="$JBCC_ACCOUNT"
+  --account="$JBCC_ACCOUNT" --no-enable-cloud-apis
 
 gcloud billing projects link "$JBCC_PROJECT" \
   --billing-account="$JBCC_BILLING_ACCOUNT" --account="$JBCC_ACCOUNT"
@@ -50,28 +53,52 @@ gcp() {
   gcloud --project="$JBCC_PROJECT" --account="$JBCC_ACCOUNT" "$@"
 }
 
+gcp projects describe "$JBCC_PROJECT" --format='table(projectId,name,lifecycleState)'
 gcp billing projects describe "$JBCC_PROJECT"
+gcp services enable billingbudgets.googleapis.com
+gcp billing budgets list --billing-account="$JBCC_BILLING_ACCOUNT" \
+  --billing-project="$JBCC_PROJECT"
 ```
 
-1. In **Billing → Budgets and caps**, verify the account-wide alert covers
-   the `jBC Online` project and reaches the intended recipients.
-2. Create a monthly **Spend cap enforcement** budget scoped to
-   `jbc-online` and **Cloud Run**. Choose the amount for the pilot and
-   verify the cap shows **Configured**. This caps both playground services.
-3. Confirm alert coverage for Firestore, Hosting or the load balancer,
-   Artifact Registry, logs, and network spend. Add a separate
-   all-services project alert if earlier notices are needed.
+The existing alerts-only budget covers all projects and services on the
+account. It alerts the default billing recipients at 50%, 90%, and 100%
+of its £0.50 budget. The intended account holds the Billing Account
+Administrator role and owns `jbc-online`.
 
-Spend cap enforcement can lag usage.
+The dedicated **jBC Online Cloud Run spend cap** covers Cloud Run usage
+for both planned playground services. The cap posts notifications to
+billing administrators and project owners at 50%, 80%, and 100%.
+Firestore, Artifact Registry, and other services fall under the
+account-wide alert. Spend cap enforcement can lag usage.
 [Cloud Billing spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
 [Budget alerts](https://docs.cloud.google.com/billing/docs/how-to/budgets).
 
-If the Budget API is enabled and the account has budget read access, verify
-the scopes from the CLI as well.
+The cap was created with `POST /v1/billingAccounts/{account_id}/budgets`
+at `billingbudgets.googleapis.com` using the `x-goog-user-project` value
+`jbc-online`. Use the numeric project number in the project filter.
+Check for a matching cap before creating one. Verify **Configured** in
+Billing → Budgets and caps or check `spendCap.outputState` with the
+Budget API.
+[Create a budget](https://docs.cloud.google.com/billing/docs/reference/budget/rest/v1/billingAccounts.budgets/create).
 
-```sh
-gcp billing budgets list --billing-account="$JBCC_BILLING_ACCOUNT" \
-  --billing-project="$JBCC_PROJECT"
+```json
+{
+  "displayName": "jBC Online Cloud Run spend cap",
+  "budgetFilter": {
+    "projects": ["projects/{project_number}"],
+    "services": ["services/152E-C115-5142"],
+    "calendarPeriod": "MONTH",
+    "creditTypesTreatment": "EXCLUDE_ALL_CREDITS"
+  },
+  "amount": {"specifiedAmount": {"currencyCode": "GBP", "units": "1"}},
+  "thresholdRules": [
+    {"thresholdPercent": 0.5, "spendBasis": "CURRENT_SPEND"},
+    {"thresholdPercent": 0.8, "spendBasis": "CURRENT_SPEND"},
+    {"thresholdPercent": 1, "spendBasis": "CURRENT_SPEND"}
+  ],
+  "notificationsRule": {"enableProjectLevelRecipients": true},
+  "spendCap": {"inputState": "CONFIGURED"}
+}
 ```
 
 ## Enable APIs and provision service identities

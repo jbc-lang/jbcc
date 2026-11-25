@@ -94,22 +94,22 @@ Initial build limits to verify locally and tune during the pilot:
   project ID.
 - [x] Verify that `gcloud` is installed and the intended Google Cloud
   account can authenticate.
-- [ ] Create project `jbc-online` with the display name `jBC Online`
-  using `gcloud projects create`. The account needs project creation
-  permission and the ID must be available. See [GCP.md](GCP.md#create-the-project-and-set-its-budgets)
-  for the command.
-- [ ] Link `jbc-online` to the existing billing account and verify the
+- [x] Create `jbc-online` with display name `jBC Online` and verify the
+  project is active.
+- [x] Link `jbc-online` to the existing billing account and verify the
   link.
-- [ ] Configure a monthly spend cap scoped to Cloud Run in `jbc-online`.
-  Confirm the alert recipients and verify that the account-wide alert
-  includes the project.
-- [ ] Check that alerts cover expected Firestore, Hosting or load
-  balancer, Artifact Registry, logging, and network spend. Add a
-  project-wide alert if separate or earlier notices are needed.
-- [ ] Start with request-based billing, zero minimum instances, and
-  service-level instance limits sized for the pilot. Add and verify an
-  operator switch that pauses new playground builds. Verify billing
-  attribution after deployment. Spend cap enforcement can lag usage.
+- [x] Configure a £1 monthly Cloud Run spend cap scoped to `jbc-online`.
+  Verify its **Configured** state and the intended owner's and billing
+  administrator's eligibility for notifications.
+- [x] Verify the existing all-projects, all-services alert covers
+  `jbc-online`, including Firestore, Hosting or the load balancer,
+  Artifact Registry, logs, and network charges.
+- [x] Record the Cloud Run pilot settings in [GCP.md](GCP.md). Use
+  request-based billing, zero minimum instances, and at most two
+  instances per service.
+- [ ] Add and verify an operator switch that pauses new playground builds.
+  Confirm billing attribution and cap coverage after deployment. Spend
+  cap enforcement can lag usage.
   [Spend cap scope](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
   [Cloud Run scaling limits](https://docs.cloud.google.com/run/docs/configuring/max-instances).
 
