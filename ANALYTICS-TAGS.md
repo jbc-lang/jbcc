@@ -17,8 +17,9 @@ All Google Analytics properties are in the GA account **Sites**
   data flowing.
 - The hosted playground loads `GTM-5QTPTVWF` on page load,
   inside an iframe at `https://jbc-online-metrics.web.app`. The frame's
-  code is `playground/analytics/tag.js` and `index.html`, and
-  `/api/v1/analytics` returns the frame's address.
+  code is `playground/analytics/tag.js` and `index.html`. The GitHub Pages
+  build includes the frame address in its HTML. The legacy editor
+  gets the address from `/api/v1/analytics`.
   `playground/analytics/tag-check.html` loads the same container as a
   full page, so Google's tag installation check can see it.
 - Each container sends only to its own measurement ID. Never put the

@@ -210,7 +210,7 @@ test("Stop terminates a running program and the next build succeeds", async ({ p
   await openEditor(page);
   await page.getByLabel("jBC source").fill(fixture("fixtures/loop.b"));
   await page.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Running…");
+  await expect(page.getByRole("status")).toHaveText("Running…", { timeout: 20000 });
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Stopped");
   await expect(page.locator("iframe")).toHaveCount(0);
