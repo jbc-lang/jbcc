@@ -1,5 +1,10 @@
 # News
 
+## 2026-11-25 · Playground link on PyPI
+
+[jbcc 0.2.1](https://pypi.org/project/jbcc/0.2.1/) links to the
+[jBC Playground](https://online.jbc-lang.org/) from its PyPI description.
+
 ## 2026-11-25 · Browser translation API
 
 [jbcc 0.2.0](https://pypi.org/project/jbcc/0.2.0/) packages the

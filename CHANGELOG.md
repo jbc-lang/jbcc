@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-11-25)
+
+### Changed
+
+- Link to the online jBC Playground from the PyPI description.
+
 ## 0.2.0 (2026-11-25)
 
 ### Added
