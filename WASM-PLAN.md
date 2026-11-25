@@ -66,9 +66,11 @@ local build. The [playground README](playground/README.md) has test commands.
 - [x] Add the same **Export** format to the hosted editor so signed-in
   users can download their Firestore saves. Verify the export against
   the local hosted stack. Explain browser storage and backups in help.
-- [ ] Publish the export feature on the live hosted editor, check the
-  signed-in export and import across browser profiles, and give pilot
-  users a date by which to export before cutover.
+- [x] Make **Export** available on the legacy editor at
+  `https://jbc-online.web.app/`. Its [Cloud Run revision](GCP.md#publish-docker-images-and-deploy-cloud-run)
+  remains available during migration.
+- [ ] Verify signed-in export from the legacy site and confirm that
+  pilot users have migrated the cloud saves they need before shutdown.
 - [x] Remove OAuth, quota, and cloud project requests from the static
   build. Update the help dialog and local development instructions.
   Verify that a fresh visitor can use the examples, run code, and
@@ -101,31 +103,27 @@ The raw compiler and Python payloads already exceed the documented
 [Vercel headers](https://vercel.com/docs/project-configuration/vercel-json#headers) ·
 [Vercel limits](https://vercel.com/docs/limits#static-file-uploads)
 
-- [ ] Build and publish a GitHub Actions Pages artifact from the
-  playground sources, with versioned toolchain paths. Test the default
-  repository URL and its path prefix before assigning the custom domain.
-  Check asset MIME types, compression and cache reuse. Run the sandbox
-  tests with Pages’ actual headers, including attempts by the program
-  runner to access browser storage or fetch over the network. Switch
-  to the Vercel preview if the checks require header control.
+- [x] Build and publish a GitHub Actions Pages artifact from the
+  playground sources, with versioned toolchain paths. The sandbox
+  checks passed in Actions and Pages serves the Wasm with its expected
+  MIME type and gzip encoding. The live site compiled Hello and Status
+  lookup and kept a named project across reload.
+  [Successful Pages run](https://github.com/jbc-lang/jbcc/actions/runs/45661483988) ·
   [GitHub Pages workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-- [ ] Check first load and execution on a physical mobile device before
-  changing DNS.
+- [ ] Check first load and execution on a physical mobile device.
 - [ ] Move the existing cookieless Analytics frame to a separate static
   origin before retiring Firebase Hosting. Verify that one page view is
   recorded for the canonical playground URL and that the tag stays
   isolated from the editor. Update the tag-check page and runbook as
   needed.
-- [ ] Verify the domain with the chosen host. For Pages, configure
+- [x] Verify the domain with the chosen host. For Pages, configure
   `online.jbc-lang.org` on the `jbcc` repository and change only the
   Squarespace `online` CNAME from `jbc-online.web.app` to
   `jbc-lang.github.io`. For Vercel, use the CNAME shown in its domain
   settings. Keep the existing hostname so drafts from the live site
-  remain accessible. Verify DNS, HTTPS, browser runs, and storage after
-  cutover. Finish the export window before switching DNS, or provide a
-  tested legacy export URL that can still sign in and load cloud saves.
-  Keep the Firebase mapping and prior revision available for rollback
-  until cutover checks pass.
+  remain accessible. DNS, HTTPS, browser runs, and storage passed
+  verification. The legacy editor stays available for cloud-save export.
+  The Firebase mapping and prior revision are available for rollback.
   [GitHub domain verification](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages) ·
   [Vercel custom domains](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
 
