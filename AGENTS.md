@@ -12,6 +12,7 @@ Read README.md for the current milestone and its acceptance example.
 - Keep test snippets small and independently authored. Record whether an
   expected result comes from a guide example, an observed reference run or
   a provisional project decision. Keep external source corpora local.
+  A local T24 corpus may exist at `../t24-extract`; read its AGENTS.md.
 - Put static jBC test source in checked-in `.b` files by default, including
   for diagnostics, multiple sources, setup or side effects. Generate jBC
   source in Python only when the test needs to construct or vary it.
