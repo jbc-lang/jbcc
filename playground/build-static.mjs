@@ -24,6 +24,10 @@ async function copy(source, destination) {
   await copyFile(source, join(output, destination));
 }
 
+function scriptHash(source) {
+  return createHash("sha256").update(source).digest("base64");
+}
+
 await rm(output, { recursive: true, force: true });
 await Promise.all(["examples", "python/jbcc", pyodide].map((path) =>
   mkdir(join(output, path), { recursive: true })));
@@ -75,11 +79,19 @@ const [[frame], [program]] = await Promise.all([
 ]);
 const script = (`const wasiWorkerSource = ${JSON.stringify(await program.text())};\n` +
   await frame.text()).replace(/<\/script/gi, "<\\/script");
-const hash = createHash("sha256").update(script).digest("base64");
 const runner = await readFile("web/runner.html", "utf8");
-const policy = `default-src 'none'; script-src 'sha256-${hash}' 'wasm-unsafe-eval'; worker-src blob:; base-uri 'none'; form-action 'none'`;
+const policy = `default-src 'none'; script-src 'sha256-${scriptHash(script)}' 'wasm-unsafe-eval'; worker-src blob:; base-uri 'none'; form-action 'none'`;
 await writeFile(join(output, "runner.html"), runner.replace(
   '  <script src="./runner.js"></script>',
   `  <meta http-equiv="Content-Security-Policy" content="${policy}">\n  <script>${script}</script>`,
 ));
+if (analytics) {
+  const tagCheck = await readFile("analytics/tag-check.html", "utf8");
+  const initializer = tagCheck.match(/<script>([\s\S]+?)<\/script>/)?.[1];
+  if (!initializer) throw new Error("Could not find the Google tag initializer");
+  const tagPolicy = `default-src 'none'; script-src 'sha256-${scriptHash(initializer)}' https://www.googletagmanager.com; base-uri 'none'; form-action 'none'`;
+  await writeFile(join(output, "tag-check.html"), tagCheck.replace(
+    "    <title>", `    <meta http-equiv="Content-Security-Policy" content="${tagPolicy}">\n    <title>`,
+  ));
+}
 console.log(`Built ${output}`);
