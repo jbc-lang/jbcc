@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
@@ -12,14 +14,21 @@ async function openEditor(page: Page) {
 }
 
 async function compareWithNative(page: Page, paths: string[], input = "") {
-  const native = spawnSync("./jbcc", ["--run", ...paths], {
-    cwd: repo, encoding: "utf8", input,
-  });
-  expect(native.error).toBeUndefined();
-  await page.getByRole("button", { name: "Run", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText(`Exited with status ${native.status}`, { timeout: 20000 });
-  expect(await page.locator("#stdout").textContent()).toBe(native.stdout);
-  expect(await page.locator("#stderr").textContent()).toBe(native.stderr);
+  const directory = mkdtempSync(join(tmpdir(), "jbcc-playground-"));
+  try {
+    const executable = join(directory, "program");
+    const build = spawnSync("./jbcc", ["--exe", "-o", executable, ...paths], { cwd: repo, encoding: "utf8" });
+    expect(build.error).toBeUndefined();
+    expect(build.status, build.stderr).toBe(0);
+    const native = spawnSync(executable, [], { cwd: repo, encoding: "utf8", input });
+    expect(native.error).toBeUndefined();
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText(`Exited with status ${native.status}`, { timeout: 20000 });
+    expect(await page.locator("#stdout").textContent()).toBe(native.stdout);
+    expect(await page.locator("#stderr").textContent()).toBe(native.stderr);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 test("runs Hello and Status lookup, then reloads the multi-file draft", async ({ page }) => {
