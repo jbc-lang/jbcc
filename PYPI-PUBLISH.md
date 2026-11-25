@@ -79,15 +79,27 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   with OIDC so releases can run without a stored upload token.
   [Creating a project with Trusted Publishing](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
   [Publishing from GitHub Actions](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
-- [ ] Publish to TestPyPI first. From outside the checkout, run
+- [x] Publish to TestPyPI first. From outside the checkout, run
   `uvx --default-index https://test.pypi.org/simple/ jbcc@0.1.0 --run hello.b`
   and check the output. Verify that the project page renders the README
   and identifies the repository and license. Check links to examples and
   other repository files from the rendered PyPI description.
-- [ ] After the rehearsal passes, publish the verified distributions to
+- [x] After the rehearsal passes, publish the verified distributions to
   production PyPI. Use a fresh uv cache and a temporary working directory
   to verify `uvx jbcc --help`, `uvx jbcc --run hello.b`, and the pinned
   invocation `uvx jbcc@0.1.0 --run hello.b`.
-- [ ] Add the verified `uvx` commands and the PyPI link to the README.
+- [x] Add the verified `uvx` commands and the PyPI link to the README.
   If a release needs correcting, publish a new version and yank the
   faulty version if needed. [PyPI yanking guidance](https://docs.pypi.org/project-management/yanking/).
+
+## First release record
+
+Version `0.1.0` passed its TestPyPI smoke test in the
+[release workflow](https://github.com/jbc-lang/jbcc/actions/runs/45577432278).
+The test index served a browser challenge to the workflow's HTML check.
+The project page was verified in a browser, and the two CI archives were
+uploaded to production with the 1Password-backed token. Both indexes
+serve the same SHA-256 digests for the wheel and source archive.
+
+Future releases use the TestPyPI JSON API for the metadata check and
+Trusted Publishing in both environments.
