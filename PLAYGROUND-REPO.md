@@ -21,7 +21,7 @@ keeps generated assets out of Git history.
 
 ## 1. Release the compiler dependency
 
-- [ ] Define and document the Python interface the playground needs. Cover
+- [x] Define and document the [Python interface](README.md#browser-translation-api) the playground needs. Cover
   multi-file translation, browser-target diagnostics, include resolution
   and limits, and access to the packaged C runtime. Keep the JSON request
   adapter and playground-specific policies in the playground repo.

@@ -51,7 +51,7 @@ await Promise.all([
   ...["caller.b", "get.status.b", "I_STATUS"].map((file) =>
     copy(`../tests/routines/${file}`, `examples/${file}`)),
   copy("browser.py", "python/browser.py"),
-  ...["__init__.py", "compiler.py", "jbc.c"].map((file) =>
+  ...["__init__.py", "browser.py", "compiler.py", "jbc.c"].map((file) =>
     copy(`../src/jbcc/${file}`, `python/jbcc/${file}`)),
   ...["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"]
     .map((file) => copy(`node_modules/pyodide/${file}`, `${pyodide}/${file}`)),

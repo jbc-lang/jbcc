@@ -32,7 +32,7 @@ async function loadPython() {
   const { loadPyodide } = await import(url) as { loadPyodide(): Promise<Python> };
   const py = await loadPyodide();
   py.FS.mkdirTree("/opt/jbcc");
-  const files = ["browser.py", "jbcc/__init__.py", "jbcc/compiler.py", "jbcc/jbc.c"];
+  const files = ["browser.py", "jbcc/__init__.py", "jbcc/browser.py", "jbcc/compiler.py", "jbcc/jbc.c"];
   await Promise.all(files.map(async (file) => {
     const response = await fetch(new URL(`./python/${file}`, import.meta.url));
     if (!response.ok) throw new Error(`Could not load ${file}`);
