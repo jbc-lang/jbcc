@@ -24,8 +24,7 @@ async function compareWithNative(page: Page, paths: string[], input = "") {
 
 test("runs Hello and Status lookup, then reloads the multi-file draft", async ({ page }) => {
   await openEditor(page);
-  await page.getByRole("button", { name: "Build", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Build succeeded", { timeout: 20000 });
+  await expect(page.getByRole("button", { name: "Build", exact: true })).toHaveCount(0);
   await compareWithNative(page, ["tests/programs/hello.b"]);
 
   page.once("dialog", (dialog) => void dialog.accept());
@@ -66,7 +65,7 @@ test("highlights the error line and column in an included file", async ({ page }
   const brokenInclude = await editor.inputValue() + fixture("fixtures/unsupported.b");
   await editor.fill(brokenInclude);
   await page.getByRole("button", { name: "caller.b", exact: true }).click();
-  await page.getByRole("button", { name: "Build", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Build failed");
   await expect(page.locator("#diagnostics")).toContainText("PERFORM is unavailable in the browser");
   await expect(page.locator("#filename")).toHaveValue("I_STATUS");

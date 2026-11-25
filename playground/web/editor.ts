@@ -47,7 +47,6 @@ const stderr = element("stderr");
 const status = element("status");
 const box = element("diagnostics");
 const theme = element<HTMLButtonElement>("theme");
-const buildButton = element<HTMLButtonElement>("build");
 const runButton = element<HTMLButtonElement>("run");
 const stopButton = element<HTMLButtonElement>("stop");
 
@@ -112,7 +111,7 @@ let draft: Draft = saved ?? {
 };
 let activity: Activity | null = null;
 let marked: SourceLocation | undefined;
-let cached: { source: string; reply: Build } | undefined;
+let cached: { source: string; reply: Build & { javascript: string; wasm: string } } | undefined;
 const views = new Map<string, { start: number; end: number; top: number; left: number }>();
 
 function current(): SourceFile {
@@ -340,7 +339,7 @@ function showDiagnostics(items: Diagnostic[], sources?: Map<string, string>) {
 
 function setActivity(value: Activity | null) {
   activity = value;
-  buildButton.disabled = runButton.disabled = examples.disabled = value !== null;
+  runButton.disabled = examples.disabled = value !== null;
   stopButton.disabled = value === null;
 }
 
@@ -393,7 +392,7 @@ function isActive(op: Activity): boolean {
   return activity === op;
 }
 
-async function build(run: boolean) {
+async function runProgram() {
   if (activity) return;
   const op = { request: new AbortController() };
   const source = JSON.stringify({ files: draft.files, entry: draft.entry, units: draft.units });
@@ -406,7 +405,7 @@ async function build(run: boolean) {
     const session = await onlineAuth;
     const identity = await session?.session();
     if (!isActive(op)) return;
-    let reply = run && cached?.source === source && !session ? cached.reply : undefined;
+    let reply = cached?.source === source && !session ? cached.reply : undefined;
     if (!reply) {
       const response = await fetch("/api/v1/compile", {
         method: "POST",
@@ -414,25 +413,22 @@ async function build(run: boolean) {
         body: source,
         signal: op.request.signal,
       });
-      reply = await response.json() as Build;
+      const result = await response.json() as Build;
       if (!isActive(op)) return;
-      showDiagnostics(reply.diagnostics, sources);
-      if (!response.ok || !reply.javascript || !reply.wasm) {
+      showDiagnostics(result.diagnostics, sources);
+      const { javascript, wasm } = result;
+      if (!response.ok || !javascript || !wasm) {
         status.textContent = "Build failed";
         setActivity(null);
         return;
       }
+      reply = { ...result, javascript, wasm };
       cached = { source, reply };
     } else {
       showDiagnostics(reply.diagnostics, sources);
     }
-    if (run && reply.javascript && reply.wasm) {
-      status.textContent = "Running…";
-      startRunner(op, reply.javascript, reply.wasm, input);
-    } else {
-      status.textContent = "Build succeeded";
-      setActivity(null);
-    }
+    status.textContent = "Running…";
+    startRunner(op, reply.javascript, reply.wasm, input);
   } catch (error) {
     if (!isActive(op)) return;
     status.textContent = error instanceof Error && error.message === "Sign in with GitHub first"
@@ -555,8 +551,7 @@ theme.addEventListener("click", () => {
   applyTheme(light);
   putStorage(themeKey, light ? "light" : "dark");
 });
-buildButton.addEventListener("click", () => void build(false));
-runButton.addEventListener("click", () => void build(true));
+runButton.addEventListener("click", () => void runProgram());
 stopButton.addEventListener("click", () => {
   if (!activity) return;
   activity.request.abort();
@@ -567,7 +562,7 @@ stopButton.addEventListener("click", () => {
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
-    void build(true);
+    void runProgram();
   }
 });
 

@@ -53,7 +53,7 @@ the stack and its tests.
 
 - [x] Adapt the HTML, CSS, and TypeScript from `../asm8/docs`. Reuse the
   editor tabs, main-file selector, local drafts, examples, theme, and
-  diagnostic navigation. Replace assembly output with Build, Run, Stop,
+  diagnostic navigation. Replace assembly output with Run, Stop,
   and a console. Let users choose auxiliary source units and include files.
 - [x] Serve the bundled UI and versioned API on the same origin. Define
   `POST /api/v1/compile` with `entry`, `units`, and `files`. Return structured

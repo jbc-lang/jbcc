@@ -14,8 +14,8 @@ by `$INSERT` or `$INCLUDE` and can stay unchecked. An include searches
 relative to its source file, then relative to the project root. Paths
 are case-sensitive. Drafts and the theme are saved in the browser.
 
-**Build** compiles the project. **Run** compiles changed sources and
-executes the Wasm in an isolated browser worker. Fill **Standard input**
+**Run** compiles the project and executes the Wasm in an isolated browser
+worker if compilation succeeds. Fill **Standard input**
 before running a program that reads with `INPUT`. **Stop** cancels a
 build or terminates a running program. The runner allows five seconds,
 64 MiB of Wasm memory, and 64 KiB of combined console output.
