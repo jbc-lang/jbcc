@@ -65,6 +65,10 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
 
 ## 3. Rehearse and publish
 
+- [x] Add `just version`, `just bump`, `just dist`, `just check-dist`,
+  and `just publish`. The publish recipe pushes the version tag from synced
+  `main` to trigger the release workflow.
+
 - [ ] Add a GitHub Actions release workflow that builds and checks the
   distributions before handing the same files to a separate upload job.
   Use a deliberate release trigger with a tag that matches the package
