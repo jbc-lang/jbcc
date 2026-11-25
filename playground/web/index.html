@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-compiler="browser">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
     <link rel="stylesheet" href="./style.css">
     <script type="module" src="./editor.js"></script>
-    <script type="module" src="/analytics.js"></script>
+    <script type="module" src="./analytics.js"></script>
   </head>
   <body>
     <header class="topbar">
@@ -16,8 +16,6 @@
         <time id="build-time" datetime="__BUILD_TIME_ISO__" title="Build time (UTC)">__BUILD_TIME_LABEL__</time>
       </div>
       <div class="actions">
-        <span id="auth-status" aria-live="polite"></span>
-        <button type="button" id="sign-in" hidden>Sign in with GitHub</button>
         <button type="button" id="theme" aria-label="Switch to light theme" title="Switch to light theme">☀︎</button>
         <button type="button" id="run" class="primary" title="Run (Ctrl or Command + Enter)">Run</button>
         <button type="button" id="stop" disabled>Stop</button>
@@ -53,25 +51,24 @@
           <label class="check"><input type="checkbox" id="unit"> Link as routine</label>
           <button type="button" id="remove" aria-label="Remove current file">Remove</button>
         </div>
-        <div class="settings" id="cloud-projects" hidden>
+        <div class="settings" id="project-controls">
           <div class="field">
-            <label for="cloud-project" id="project-label">Cloud project</label>
-            <input id="cloud-project" value="draft" size="16" maxlength="64" autocomplete="off" spellcheck="false">
+            <label for="project-name">Project name</label>
+            <input id="project-name" value="draft" size="16" maxlength="64" autocomplete="off" spellcheck="false">
           </div>
-          <button type="button" id="cloud-save">Save</button>
-          <button type="button" id="cloud-load">Load</button>
-          <details id="cloud-picker">
+          <button type="button" id="project-save">Save</button>
+          <button type="button" id="project-load">Load</button>
+          <details id="project-picker">
             <summary>Projects</summary>
             <div class="project-menu">
-              <div id="cloud-names"></div>
-              <div id="cloud-list-status" role="status"></div>
-              <button type="button" id="cloud-more" hidden>Show more</button>
+              <div id="project-names"></div>
+              <div id="project-list-status" role="status"></div>
             </div>
           </details>
           <button type="button" id="project-export">Export</button>
-          <button type="button" id="project-import" hidden>Import</button>
+          <button type="button" id="project-import">Import</button>
           <input type="file" id="project-file" accept=".json,application/json" hidden>
-          <span id="cloud-status" aria-live="polite"></span>
+          <span id="project-status" aria-live="polite"></span>
         </div>
         <div class="editor">
           <pre id="lines" aria-hidden="true"></pre>
@@ -136,35 +133,13 @@
             program that uses <code>INPUT</code>, fill in <strong>Standard input</strong>
             before running. <strong>Stop</strong> cancels a build or stops a running program.</p>
         </section>
-        <section data-hosted-only>
-          <h3>GitHub sign-in and limits</h3>
-          <p>The hosted playground uses GitHub sign-in to verify pilot access, keep cloud saves
-            private to your account, and share build capacity fairly. Each invited account can
-            have one build in progress and start up to six builds in a rolling minute. Local
-            mode can run programs without sign-in and uses browser drafts.</p>
-        </section>
         <section>
           <h3>Program limits</h3>
           <p>A build can include up to 32 files, 64 KiB of source per file, and 256 KiB of source
             total. A browser run has five seconds, 64 MiB of WebAssembly memory, and 64 KiB of
             combined output.</p>
         </section>
-        <section data-hosted-only>
-          <h3>Save and load a cloud project</h3>
-          <ol>
-            <li>Sign in on the hosted playground. To save, enter a name in <strong>Cloud project</strong>
-              and click <strong>Save</strong>. This stores your source files, main file, and linked routines.</li>
-            <li>To open a save, click <strong>Projects</strong> and select its name, or type the name directly.
-              The selection fills the name field. Click <strong>Load</strong> and confirm to replace the
-              current draft.</li>
-            <li>To update a saved project, load it, make your edits, and save under the same name. If another
-              tab saved a newer version, keep a copy of your edits before loading that version.</li>
-          </ol>
-          <p>The browser also keeps a local draft as you edit. Use <strong>Save</strong> when you
-            want to open the project from another browser or device with the same GitHub account.
-            To download a cloud save as a file, load it and click <strong>Export</strong>.</p>
-        </section>
-        <section data-browser-only>
+        <section>
           <h3>Save, load, and back up projects</h3>
           <ol>
             <li>Enter a <strong>Project name</strong> and click <strong>Save</strong> to keep
@@ -176,11 +151,8 @@
           </ol>
           <p>The browser also keeps a local draft as you edit. To back up a project or
             move it to another browser, click <strong>Export</strong> to download a file.
-            Use <strong>Import</strong> to open a project file, including an export from
-            the cloud playground. Clearing this site's data removes browser saves.</p>
-          <p>For an earlier cloud save, sign in to the
-            <a href="https://jbc-online.web.app/" target="_blank" rel="noopener">previous playground</a>,
-            load the project, and export it before importing it here.</p>
+            Use <strong>Import</strong> to open a project file. Clearing this site's data removes
+            browser saves.</p>
         </section>
       </div>
     </dialog>

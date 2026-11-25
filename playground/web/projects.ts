@@ -70,7 +70,7 @@ export async function writeProject(name: string, draft: Draft, previous: number)
   });
 }
 
-export function exportProject(name: string, draft: Omit<Draft, "stdin"> & { stdin?: string }) {
+export function exportProject(name: string, draft: Draft) {
   const { files, entry, units, active, stdin } = draft;
   const file = new Blob([JSON.stringify({ version: 1, name, files, entry, units, active, stdin }, null, 2) + "\n"], {
     type: "application/json",

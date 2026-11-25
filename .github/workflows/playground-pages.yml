@@ -35,8 +35,6 @@ jobs:
         working-directory: playground
         run: bun install --frozen-lockfile
       - name: Check the static playground
-        env:
-          JBCC_PLAYGROUND_STATIC: '1'
         run: |
           bun playground/build-static.mjs
           python3 -m http.server 18766 --bind 127.0.0.1 --directory dist/playground &
@@ -48,7 +46,7 @@ jobs:
           bunx playwright test
       - name: Build the site for release
         env:
-          JBCC_ANALYTICS_FRAME: https://jbc-online-metrics.web.app
+          JBCC_ANALYTICS_FRAME: https://jbc-lang.github.io/playground-metrics/
         run: bun playground/build-static.mjs
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

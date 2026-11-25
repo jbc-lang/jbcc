@@ -107,11 +107,8 @@ button:disabled { cursor: default; opacity: 0.5; }
   gap: 0.65rem;
 }
 .actions { flex-wrap: wrap; }
-#cloud-projects[hidden] { display: none; }
-[data-compiler="browser"] [data-hosted-only],
-html:not([data-compiler="browser"]) [data-browser-only] { display: none; }
-#cloud-picker { position: relative; }
-#cloud-picker summary {
+#project-picker { position: relative; }
+#project-picker summary {
   padding: 0.35rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 0.35rem;
@@ -133,18 +130,18 @@ html:not([data-compiler="browser"]) [data-browser-only] { display: none; }
   border-radius: 0.35rem;
   background: var(--panel);
 }
-#cloud-names button {
+#project-names button {
   display: block;
   width: 100%;
   text-align: start;
   overflow-wrap: anywhere;
 }
-#cloud-list-status:not(:empty) { padding: 0.35rem; }
-#auth-status, #cloud-status {
+#project-list-status:not(:empty) { padding: 0.35rem; }
+#project-status {
   color: var(--secondary);
   font-size: 0.875rem;
 }
-#auth-status:empty, #cloud-status:empty { display: none; }
+#project-status:empty { display: none; }
 .topbar {
   flex-shrink: 0;
   justify-content: space-between;
@@ -353,7 +350,7 @@ main {
   .settings { gap: 0.45rem; }
 }
 @media (max-width: 62rem) {
-  #cloud-projects { position: relative; }
-  #cloud-picker { position: static; }
+  #project-controls { position: relative; }
+  #project-picker { position: static; }
   .project-menu { inset-inline: 0.9rem auto; }
 }

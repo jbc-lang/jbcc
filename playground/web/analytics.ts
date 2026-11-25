@@ -1,12 +1,7 @@
 async function loadAnalytics() {
-  let origin = document.documentElement.dataset.analyticsOrigin;
-  if (!origin) {
-    const response = await fetch("/api/v1/analytics");
-    if (response.status !== 200) return;
-    origin = await response.text();
-  }
-
-  const url = new URL(origin);
+  const address = document.documentElement.dataset.analyticsFrame;
+  if (!address) return;
+  const url = new URL(address);
   if (url.protocol !== "https:" || url.origin === location.origin) return;
 
   const frame = document.createElement("iframe");
