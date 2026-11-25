@@ -21,6 +21,7 @@
         <button type="button" id="theme" aria-label="Switch to light theme" title="Switch to light theme">☀︎</button>
         <button type="button" id="run" class="primary" title="Run (Ctrl or Command + Enter)">Run</button>
         <button type="button" id="stop" disabled>Stop</button>
+        <button type="button" id="help" aria-label="Playground help" aria-haspopup="dialog" aria-controls="help-dialog" title="Help">?</button>
       </div>
     </header>
     <main>
@@ -102,5 +103,61 @@
         </div>
       </section>
     </main>
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <header class="help-header">
+        <h2 id="help-title">Playground help</h2>
+        <form method="dialog">
+          <button type="submit" autofocus>Close</button>
+        </form>
+      </header>
+      <div class="help-content">
+        <section>
+          <h3>Files and projects</h3>
+          <p>A project is the set of jBC files you’re working on. Use <strong>+</strong> to add a
+            file, click a tab to edit it, and use <strong>Main</strong> to pick the file where
+            execution starts. Try <strong>Status lookup (3 files)</strong> in the
+            <strong>Example</strong> menu to see how multiple files fit together.</p>
+        </section>
+        <section>
+          <h3>Link as routine</h3>
+          <p>Check this on a separate file that declares a <code>SUBROUTINE</code> or
+            <code>FUNCTION</code> your program uses. In Status lookup, <code>caller.b</code>
+            is the main file, and linking <code>get.status.b</code> makes
+            <code>CALL GET.STATUS(...)</code> work. Leave <code>I_STATUS</code> unchecked
+            because <code>$INSERT I_STATUS</code> already brings it into the files that use it.</p>
+        </section>
+        <section>
+          <h3>Run and stop</h3>
+          <p><strong>Run</strong> compiles the project and executes it in your browser if
+            compilation succeeds. Click a diagnostic’s file and line to jump to it. For a
+            program that uses <code>INPUT</code>, fill in <strong>Standard input</strong>
+            before running. <strong>Stop</strong> cancels a build or stops a running program.</p>
+        </section>
+        <section>
+          <h3>GitHub sign-in and limits</h3>
+          <p>The hosted playground uses GitHub sign-in to verify pilot access, keep cloud saves
+            private to your account, and share build capacity fairly. Each invited account can
+            have one build in progress and start up to six builds in a rolling minute. Local
+            mode can run programs without sign-in and uses browser drafts.</p>
+          <p>A project can have up to 32 files, 64 KiB of source per file, and 256 KiB of source
+            total. A browser run has five seconds, 64 MiB of WebAssembly memory, and 64 KiB of
+            combined output.</p>
+        </section>
+        <section>
+          <h3>Save and load a cloud project</h3>
+          <ol>
+            <li>Sign in on the hosted playground. To save, enter a name in <strong>Cloud project</strong>
+              and click <strong>Save</strong>. This stores your source files, main file, and linked routines.</li>
+            <li>To open a save, click <strong>Projects</strong> and select its name, or type the name directly.
+              The selection fills the name field. Click <strong>Load</strong> and confirm to replace the
+              current draft.</li>
+            <li>To update a saved project, load it, make your edits, and save under the same name. If another
+              tab saved a newer version, keep a copy of your edits before loading that version.</li>
+          </ol>
+          <p>The browser also keeps a local draft as you edit. Use <strong>Save</strong> when you
+            want to open the project from another browser or device with the same GitHub account.</p>
+        </section>
+      </div>
+    </dialog>
   </body>
 </html>

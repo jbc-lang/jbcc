@@ -19,6 +19,8 @@ worker if compilation succeeds. Fill **Standard input**
 before running a program that reads with `INPUT`. **Stop** cancels a
 build or terminates a running program. The runner allows five seconds,
 64 MiB of Wasm memory, and 64 KiB of combined console output.
+The **?** button opens help for files, routines, hosted limits, and cloud
+projects.
 
 This version targets console programs. The compiler reports source
 locations for unsupported operations such as shell commands, sequential

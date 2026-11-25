@@ -49,6 +49,8 @@ const box = element("diagnostics");
 const theme = element<HTMLButtonElement>("theme");
 const runButton = element<HTMLButtonElement>("run");
 const stopButton = element<HTMLButtonElement>("stop");
+const helpButton = element<HTMLButtonElement>("help");
+const helpDialog = element<HTMLDialogElement>("help-dialog");
 
 const onlineAuth = fetch("/api/v1/auth/config").then(async (response) => {
   if (!response.ok) throw new Error("Could not load sign-in configuration");
@@ -630,6 +632,7 @@ theme.addEventListener("click", () => {
   putStorage(themeKey, light ? "light" : "dark");
 });
 runButton.addEventListener("click", () => void runProgram());
+helpButton.addEventListener("click", () => helpDialog.showModal());
 stopButton.addEventListener("click", () => {
   if (!activity) return;
   activity.request.abort();
@@ -638,7 +641,7 @@ stopButton.addEventListener("click", () => {
   status.textContent = "Stopped";
 });
 document.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+  if (!helpDialog.open && (event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     void runProgram();
   }

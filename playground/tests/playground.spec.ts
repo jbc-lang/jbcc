@@ -60,7 +60,8 @@ test("choosing a cloud project name keeps the local draft", async ({ page }) => 
   await openEditor(page);
   const editor = page.getByLabel("jBC source");
   const source = await editor.inputValue();
-  await page.getByText("Projects", { exact: true }).click();
+  await page.getByRole("region", { name: "Project", exact: true })
+    .getByText("Projects", { exact: true }).click();
   await expect(page.getByRole("button", { name: "first", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Show more" }).click();
   await page.getByRole("button", { name: "second", exact: true }).click();
@@ -126,6 +127,38 @@ test("fills the desktop height, shows build time, and keeps the theme toggle acc
   await expect(page.getByRole("button", { name: "Switch to dark theme", exact: true })).toHaveText("☾");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
+test("opens and dismisses playground help on desktop and mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openEditor(page);
+  const help = page.getByRole("button", { name: "Playground help" });
+  await expect(page.locator("#stop + #help")).toBeVisible();
+  await help.click();
+  const dialog = page.getByRole("dialog", { name: "Playground help" });
+  const close = dialog.getByRole("button", { name: "Close" });
+  await expect(dialog).toBeVisible();
+  await expect(close).toBeFocused();
+  await expect(dialog.getByRole("heading", { name: "Link as routine" })).toBeVisible();
+  await expect(dialog).toContainText("six builds in a rolling minute");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#status")).toHaveText("Ready");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(help).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 680 });
+  await help.click();
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeLessThan(390);
+  expect(box!.height).toBeLessThan(680);
+  const lastParagraph = dialog.getByText("The browser also keeps a local draft", { exact: false });
+  await lastParagraph.scrollIntoViewIfNeeded();
+  await expect(lastParagraph).toBeInViewport();
+  await close.click();
+  await expect(dialog).toBeHidden();
+  await expect(help).toBeFocused();
 });
 
 test("Stop terminates a running program and the next build succeeds", async ({ page }) => {
