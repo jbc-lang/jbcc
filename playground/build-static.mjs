@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
 
+const wheel = process.env.JBCC_WHEEL && resolve(process.env.JBCC_WHEEL);
 process.chdir(import.meta.dir);
 const output = "../dist/playground";
+const wheelAsset = wheel ? `python/${basename(wheel)}` : null;
 const { devDependencies } = await Bun.file("package.json").json();
 const pyodide = `toolchain/pyodide-${devDependencies.pyodide}`;
 const clang = `toolchain/clang-${devDependencies["@yowasp/clang"]}`;
@@ -41,6 +43,7 @@ await Promise.all([
     entrypoints: ["web/compile-worker.ts"],
     outdir: output,
     define: {
+      JBCC_WHEEL_ASSET: JSON.stringify(wheelAsset && `./${wheelAsset}`),
       PYODIDE_ASSET: JSON.stringify(`./${pyodide}/pyodide.mjs`),
       CLANG_ASSET: JSON.stringify(`./${clang}/bundle.js`),
     },
@@ -51,8 +54,9 @@ await Promise.all([
   ...["caller.b", "get.status.b", "I_STATUS"].map((file) =>
     copy(`../tests/routines/${file}`, `examples/${file}`)),
   copy("browser.py", "python/browser.py"),
-  ...["__init__.py", "compiler.py", "jbc.c"].map((file) =>
-    copy(`../src/jbcc/${file}`, `python/jbcc/${file}`)),
+  ...(wheel ? [copy(wheel, wheelAsset)] :
+    ["__init__.py", "browser.py", "compiler.py", "jbc.c"].map((file) =>
+      copy(`../src/jbcc/${file}`, `python/jbcc/${file}`))),
   ...["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"]
     .map((file) => copy(`node_modules/pyodide/${file}`, `${pyodide}/${file}`)),
   cp("node_modules/@yowasp/clang/gen", join(output, clang), { recursive: true }),

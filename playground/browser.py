@@ -9,22 +9,22 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from jbcc.compiler import Diagnostic, SourceLimitError, compile_program
+from jbcc.browser import Diagnostic, SourceLimitError, translate
 
 PART = re.compile(r"[A-Za-z0-9_.-]+")
 
 
-def resolve_include(source, name, _, token):
+def resolve_include(source, name, line, column):
     if any(not PART.fullmatch(part) for part in name.split("/")):
         raise Diagnostic(
-            f"{source}:{token.line}:{token.column}: invalid include path '{name}'"
+            f"{source}:{line}:{column}: invalid include path '{name}'"
         )
     relative = posixpath.normpath(
         posixpath.join(source.parent.as_posix(), name)
     )
     if relative == ".." or relative.startswith("../"):
         raise Diagnostic(
-            f"{source}:{token.line}:{token.column}: include escapes project root"
+            f"{source}:{line}:{column}: include escapes project root"
         )
     if Path(relative).is_file():
         return Path(relative)
@@ -34,7 +34,7 @@ def resolve_include(source, name, _, token):
     return None
 
 
-def translate(sources):
+def translate_project(sources):
     remaining = 1024 * 1024
 
     def count_expansion(path, source):
@@ -47,15 +47,12 @@ def translate(sources):
             )
         return source
 
-    source, _ = compile_program(
+    return translate(
         sources,
-        [],
-        browser=True,
         include_resolver=resolve_include,
         include_depth=16,
         source_filter=count_expansion,
     )
-    return source
 
 
 def project_files(project):
@@ -111,7 +108,7 @@ def compile_project(raw):
             try:
                 os.chdir(workspace)
                 with redirect_stderr(diagnostics):
-                    source = translate(list(map(Path, units)))
+                    source = translate_project(list(map(Path, units)))
             finally:
                 os.chdir(previous)
     except (Diagnostic, OSError, UnicodeError) as error:

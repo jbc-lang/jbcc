@@ -96,6 +96,29 @@ projects locally.
 Run `just playground` for a local copy at <http://127.0.0.1:18766/>. The [playground guide](playground/README.md)
 covers multi-file projects, browser runtime limits, and local tests.
 
+## Browser translation API
+
+Import `translate`, `Diagnostic`, `SourceLimitError`, and `read_runtime`
+from `jbcc.browser`. Call `translate(paths, include_resolver=resolver)`
+with a sequence of `pathlib.Path` values. Put the main program first,
+followed by any linked subroutines and functions. The compiler reads UTF-8
+source and returns a standalone C translation with the packaged runtime
+included. `read_runtime()` returns that runtime as C source when needed on
+its own. A separate C compiler builds the generated source for WASI.
+
+The resolver receives `(including_path, include_name, line, column)` and
+returns a `Path` or `None` if the include is missing. Lines and columns are
+one-based. The caller controls filesystem access and include lookup.
+`include_depth` optionally limits nesting. `source_filter(path, text)`
+can inspect or replace the decoded source of each unit and each expanded
+include. It can raise `SourceLimitError` to abort when a workspace budget
+is exceeded.
+
+Translation errors raise `Diagnostic` with source locations where
+available. `SourceLimitError` is a subclass of `Diagnostic`. Compiler
+warnings go to standard error. The caller handles browser-specific
+concerns such as project JSON, staging files, and UI diagnostics.
+
 ## Try the compiler
 
 You need Python 3.8 or newer to run jbcc. Using `uv` is recommended for

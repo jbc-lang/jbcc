@@ -1,11 +1,13 @@
 import type { CompilerMessage, Diagnostic } from "./browser-compiler";
 
+declare const JBCC_WHEEL_ASSET: string | null;
 declare const PYODIDE_ASSET: string;
 declare const CLANG_ASSET: string;
 
 type Python = {
   FS: { mkdirTree(path: string): void; writeFile(path: string, contents: Uint8Array): void };
   globals: { set(name: string, value: string): void; delete(name: string): void };
+  loadPackage(url: string): Promise<void>;
   runPython(code: string): string;
 };
 
@@ -31,8 +33,14 @@ async function loadPython() {
   const url = new URL(PYODIDE_ASSET, import.meta.url).href;
   const { loadPyodide } = await import(url) as { loadPyodide(): Promise<Python> };
   const py = await loadPyodide();
-  py.FS.mkdirTree("/opt/jbcc");
-  const files = ["browser.py", "jbcc/__init__.py", "jbcc/compiler.py", "jbcc/jbc.c"];
+  py.FS.mkdirTree("/opt");
+  const files = ["browser.py"];
+  if (JBCC_WHEEL_ASSET) {
+    await py.loadPackage(new URL(JBCC_WHEEL_ASSET, import.meta.url).href);
+  } else {
+    py.FS.mkdirTree("/opt/jbcc");
+    files.push("jbcc/__init__.py", "jbcc/browser.py", "jbcc/compiler.py", "jbcc/jbc.c");
+  }
   await Promise.all(files.map(async (file) => {
     const response = await fetch(new URL(`./python/${file}`, import.meta.url));
     if (!response.ok) throw new Error(`Could not load ${file}`);
