@@ -31,7 +31,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   if the installed smoke tests pass on Python 3.8. Keep runtime Python
   dependencies empty. Include the project URLs, README, MIT license, and
   Unicode notice for the bundled CP037 data.
-- [ ] Use explicit file inclusion for the wheel and source distribution.
+- [x] Use explicit file inclusion for the wheel and source distribution.
   Ship the compiler, C runtime, and packaging documents. Keep local corpus
   inputs, vendor files, credentials, caches, and build output out of both
   archives. Update the README and third-party notice if they refer to a

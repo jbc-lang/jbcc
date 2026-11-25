@@ -27,6 +27,19 @@ Issues = "https://github.com/jbc-lang/jbcc/issues"
 [project.scripts]
 jbcc = "jbcc.compiler:main"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/jbcc"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/jbcc",
+    "jbcc",
+    "pyproject.toml",
+    "README-PYPI.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+]
+
 [tool.ruff]
 line-length = 80
 target-version = "py38"
