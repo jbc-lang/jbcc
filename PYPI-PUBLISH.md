@@ -121,7 +121,11 @@ The wheel SHA-256 for the playground pin is
 b7dc3b31727eefebd6f4ebd420d8b4fb0906b290c8efd7f59099b5e324fe70ea
 ```
 
-- [ ] Before the next automated production release, register
-  `jbc-lang/jbcc`, `publish.yml`, and environment `pypi` as a trusted
-  publisher in the existing `jbcc` project settings.
-  [Configure an existing PyPI project](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
+## Playground link release record
+
+Version `0.2.1` passed the build, TestPyPI checks, and production upload
+using Trusted Publishing. The published description links to the
+Playground. Both published artifact hashes match the locally verified
+distributions.
+[Release workflow](https://github.com/jbc-lang/jbcc/actions/runs/45684849146) ·
+[jbcc 0.2.1 on PyPI](https://pypi.org/project/jbcc/0.2.1/)
