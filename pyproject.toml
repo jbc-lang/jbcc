@@ -1,3 +1,10 @@
+[project]
+name = "jbcc"
+version = "0.1.0"
+
+[project.scripts]
+jbcc = "jbcc.compiler:main"
+
 [tool.ruff]
 line-length = 80
 target-version = "py38"
