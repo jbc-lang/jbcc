@@ -45,9 +45,14 @@ gcloud billing projects describe jbc-online --account="$JBCC_ACCOUNT" \
 Google Cloud reported `DELETE_REQUESTED` and billing disabled. Google
 Cloud schedules permanent deletion after its 30-day recovery period.
 Project shutdown covers Firebase Hosting, Firebase Authentication, and
-the other project-owned resources. The separate [Tag Manager container and GA4 property](ANALYTICS-TAGS.md)
-continue to receive the playground tag. The old GitHub OAuth application
-is registered separately in GitHub.
+the other project-owned resources. The Firebase Hosting API reported
+that the project had been deleted. The old public endpoints still
+responded in the first minutes after shutdown. The live playground
+passed its browser checks again after shutdown.
+
+The dedicated [Analytics configuration](ANALYTICS-TAGS.md) continues to
+use the same Tag Manager container and GA4 stream. The old GitHub OAuth
+application is registered separately in GitHub.
 [Google Cloud project shutdown](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects) ·
 [Cloud Billing spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
 
