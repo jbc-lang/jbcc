@@ -17,30 +17,32 @@ terminal devices, and jBASE or T24 backends.
 
 Finish the browser-to-compiler flow on one machine before creating cloud
 resources. The local stack runs the same Go API and compiler worker used
-for deployment.
+for deployment. Verified from a fresh checkout without Google Cloud
+credentials. See the [local playground guide](playground/README.md) to run
+the stack and its tests.
 
 ### Prove multi-file jBC to WebAssembly
 
 - [x] Verify that the existing caller/subroutine pair shares an
   `$INSERT I_STATUS` file and translates to valid C99. The native program
   prints `open` and `closed`.
-- [ ] Build a local Linux Docker image with pinned jbcc and Emscripten
+- [x] Build a local Linux Docker image with pinned jbcc and Emscripten
   versions. Compile `hello.b` and the three-file caller example through
   `jbcc → C → emcc → Wasm`. Compare browser stdout, stderr, and exit status
   with the native fixtures.
-- [ ] Introduce a browser target policy for supported runtime operations.
+- [x] Introduce a browser target policy for supported runtime operations.
   Report unsupported operations with source locations when possible.
   Verify a program using one unavailable feature and document its result.
   Add compatibility tests as features become available.
-- [ ] Define project files by case-sensitive relative paths. Pick one main
+- [x] Define project files by case-sensitive relative paths. Pick one main
   program and list additional units separately. Use jBC's `$INSERT` and
   `$INCLUDE` directives for include files and resolve names relative to
   the including file, then the project root.
-- [ ] Pass a workspace-restricted include resolver through jbcc's
+- [x] Pass a workspace-restricted include resolver through jbcc's
   multi-file compile path. Test nested and shared includes, missing files,
   cycles, attempts to escape the project root, and repeated expansion.
   Preserve project-relative paths, lines and columns in diagnostics.
-- [ ] Generate an Emscripten module and run it in a worker in an isolated
+- [x] Generate an Emscripten module and run it in a worker in an isolated
   browser runner. Capture stdout and stderr, pass prefilled stdin, and
   make Stop terminate the worker. Verify that a running program cannot
   access the editor's credentials or storage. Add an execution timeout,
@@ -49,27 +51,27 @@ for deployment.
 
 ### Build the Go API and port the editor
 
-- [ ] Adapt the HTML, CSS, and TypeScript from `../asm8/docs`. Reuse the
+- [x] Adapt the HTML, CSS, and TypeScript from `../asm8/docs`. Reuse the
   editor tabs, main-file selector, local drafts, examples, theme, and
   diagnostic navigation. Replace assembly output with Build, Run, Stop,
   and a console. Let users choose auxiliary source units and include files.
-- [ ] Serve the bundled UI and versioned API on the same origin. Define
+- [x] Serve the bundled UI and versioned API on the same origin. Define
   `POST /api/v1/compile` with `entry`, `units`, and `files`. Return structured
   diagnostics and bounded JS/Wasm artifacts. Keep artifact downloads private
   to the requesting user, with short lifetimes if served separately.
-- [ ] Run the compiler worker behind the Go API with fixed tool arguments
+- [x] Run the compiler worker behind the Go API with fixed tool arguments
   and a fresh workspace for each request. Keep the worker unreachable
   from the browser. Verify request isolation and cleanup.
-- [ ] Enforce request, include-expansion, time, and output limits before
+- [x] Enforce request, include-expansion, time, and output limits before
   accepting untrusted builds. Reject unsafe paths and duplicate filenames.
   Cancel the compiler subprocesses and clean up the workspace on failure,
   cancellation, or timeout. Return `413` for oversized requests.
-- [ ] Provide one command to start the bundled editor, Go API, and
+- [x] Provide one command to start the bundled editor, Go API, and
   compiler worker locally. Bind the published port to loopback. Allow
   builds without GitHub sign-in or per-user rate limiting in explicit
   local mode. Use browser storage for local drafts and keep request size,
   workspace, build timeout, and output limits active.
-- [ ] Test locally from a fresh checkout without cloud credentials. Open
+- [x] Test locally from a fresh checkout without cloud credentials. Open
   the editor, build and run `hello.b` and the three-file example, reload a
   draft, and verify output, source-linked diagnostics, rejected oversized
   requests, cancellation, and recovery on the next build.
