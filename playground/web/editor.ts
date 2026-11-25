@@ -8,6 +8,13 @@ type Diagnostic = {
   severity: string;
   message: string;
 };
+type SourceLocation = {
+  path: string;
+  source: string;
+  line: number;
+  column?: number;
+  severity: string;
+};
 type Build = { diagnostics: Diagnostic[]; javascript?: string; wasm?: string };
 type RunEvent =
   | { type: "stdout" | "stderr"; text: string }
@@ -25,6 +32,10 @@ function element<T extends HTMLElement>(id: string): T {
 const tabs = element("tabs");
 const editor = element<HTMLTextAreaElement>("source");
 const lines = element("lines");
+const sourceMark = element("source-mark");
+const errorLine = element("error-line");
+const errorColumn = element("error-column");
+const sourceMeasure = element("source-measure");
 const filename = element<HTMLInputElement>("filename");
 const entrySelect = element<HTMLSelectElement>("entry");
 const unit = element<HTMLInputElement>("unit");
@@ -44,6 +55,9 @@ const draftKey = "jbcc.playground.draft";
 const themeKey = "jbcc.playground.theme";
 const exampleFiles = {
   hello: ["hello.b"],
+  fibonacci: ["fibonacci.b"],
+  factorial: ["factorial.b"],
+  rule110: ["rule110.b"],
   status: ["caller.b", "get.status.b", "I_STATUS"],
 };
 
@@ -84,6 +98,7 @@ let draft: Draft = saved ?? {
   stdin: "",
 };
 let activity: Activity | null = null;
+let marked: SourceLocation | undefined;
 let cached: { source: string; reply: Build } | undefined;
 const views = new Map<string, { start: number; end: number; top: number; left: number }>();
 
@@ -98,7 +113,7 @@ function save() {
 function numberLines() {
   const count = editor.value.split("\n").length;
   lines.textContent = Array.from({ length: count }, (_, i) => i + 1).join("\n");
-  lines.scrollTop = editor.scrollTop;
+  syncEditorScroll();
 }
 
 function captureView() {
@@ -147,6 +162,7 @@ function render() {
   editor.scrollTop = view?.top ?? 0;
   editor.scrollLeft = view?.left ?? 0;
   numberLines();
+  renderSourceMark();
 }
 
 function clearResult() {
@@ -220,30 +236,93 @@ async function loadExample(key: keyof typeof exampleFiles) {
   }
 }
 
-function showDiagnostics(items: Diagnostic[]) {
+function syncEditorScroll() {
+  lines.scrollTop = editor.scrollTop;
+  sourceMark.style.setProperty("--scroll-top", `${editor.scrollTop}px`);
+  sourceMark.style.setProperty("--scroll-left", `${editor.scrollLeft}px`);
+}
+
+function measureSource(text: string): number {
+  sourceMeasure.textContent = text;
+  return sourceMeasure.getBoundingClientRect().width;
+}
+
+function renderSourceMark(reveal = false, focus = false) {
+  const file = current();
+  const location = marked?.path === file.path && marked.source === file.source ? marked : undefined;
+  sourceMark.hidden = true;
+  editor.removeAttribute("aria-invalid");
+  if (!location) return;
+
+  const sourceLines = editor.value.split("\n");
+  const line = sourceLines[location.line - 1];
+  if (line === undefined) return;
+  const style = getComputedStyle(editor);
+  const height = parseFloat(style.lineHeight);
+  const top = parseFloat(style.paddingTop) + (location.line - 1) * height;
+  const chars = Array.from(line);
+  const index = Math.min((location.column ?? 1) - 1, chars.length);
+  const prefix = chars.slice(0, index).join("");
+  const prefixWidth = measureSource(prefix);
+  const left = parseFloat(style.paddingLeft) + prefixWidth;
+  const width = Math.max(2, measureSource(prefix + (chars[index] ?? "")) - prefixWidth);
+  sourceMeasure.textContent = "";
+
+  if (reveal) {
+    const offset = sourceLines.slice(0, location.line - 1)
+      .reduce((sum, previous) => sum + previous.length + 1, prefix.length);
+    if (focus) editor.focus({ preventScroll: true });
+    editor.setSelectionRange(offset, offset);
+    if (top < editor.scrollTop || top + height > editor.scrollTop + editor.clientHeight) {
+      editor.scrollTop = Math.max(0, top - height * 2);
+    }
+    if (left < editor.scrollLeft || left + width > editor.scrollLeft + editor.clientWidth) {
+      editor.scrollLeft = Math.max(0, left - editor.clientWidth / 3);
+    }
+  }
+
+  sourceMark.style.width = `${editor.clientWidth}px`;
+  sourceMark.style.height = `${editor.clientHeight}px`;
+  errorLine.style.top = `calc(${top}px - var(--scroll-top))`;
+  errorLine.style.height = `${height}px`;
+  errorColumn.hidden = location.column === undefined;
+  errorColumn.style.left = `calc(${left}px - var(--scroll-left))`;
+  errorColumn.style.width = `${width}px`;
+  sourceMark.dataset.severity = location.severity;
+  sourceMark.hidden = false;
+  if (location.severity === "error") editor.setAttribute("aria-invalid", "true");
+  syncEditorScroll();
+}
+
+function revealDiagnostic(location: SourceLocation, focus: boolean) {
+  if (!draft.files.some((file) => file.path === location.path && file.source === location.source)) return;
+  marked = location;
+  if (draft.active !== location.path) switchTab(location.path);
+  renderSourceMark(true, focus);
+}
+
+function showDiagnostics(items: Diagnostic[], sources?: Map<string, string>) {
+  marked = undefined;
+  renderSourceMark();
   box.replaceChildren();
   box.hidden = items.length === 0;
+  let firstError: SourceLocation | undefined;
   for (const item of items) {
     const row = document.createElement("p");
     row.dataset.severity = item.severity;
     const { path, line, column } = item;
-    if (path && line && draft.files.some((file) => file.path === path)) {
-      row.append(button(`${path}:${line}:${column ?? 1}`, () => {
-        if (!draft.files.some((file) => file.path === path)) return;
-        switchTab(path);
-        const sourceLines = editor.value.split("\n");
-        const previous = sourceLines.slice(0, line - 1);
-        const prefix = Array.from(sourceLines[line - 1] ?? "").slice(0, (column ?? 1) - 1).join("");
-        const start = previous.reduce((n, value) => n + value.length + 1, 0) + prefix.length;
-        editor.focus();
-        editor.setSelectionRange(start, start);
-        editor.scrollTop = Math.max(0, line - 3) * parseFloat(getComputedStyle(editor).lineHeight);
-        lines.scrollTop = editor.scrollTop;
+    const source = path ? sources?.get(path) : undefined;
+    if (path && line && source !== undefined) {
+      const location = { path, source, line, column, severity: item.severity };
+      row.append(button(`${path}:${line}${column ? `:${column}` : ""}`, () => {
+        revealDiagnostic(location, true);
       }), " ");
+      if (item.severity === "error" && !firstError) firstError = location;
     }
     row.append(item.message);
     box.append(row);
   }
+  if (firstError) revealDiagnostic(firstError, false);
 }
 
 function setActivity(value: Activity | null) {
@@ -301,6 +380,7 @@ async function build(run: boolean) {
   if (activity) return;
   const op = { request: new AbortController() };
   const source = JSON.stringify({ files: draft.files, entry: draft.entry, units: draft.units });
+  const sources = new Map(draft.files.map((file) => [file.path, file.source]));
   const input = stdin.value;
   setActivity(op);
   clearResult();
@@ -316,7 +396,7 @@ async function build(run: boolean) {
       });
       reply = await response.json() as Build;
       if (activity !== op) return;
-      showDiagnostics(reply.diagnostics);
+      showDiagnostics(reply.diagnostics, sources);
       if (!response.ok || !reply.javascript || !reply.wasm) {
         status.textContent = "Build failed";
         setActivity(null);
@@ -324,7 +404,7 @@ async function build(run: boolean) {
       }
       cached = { source, reply };
     } else {
-      showDiagnostics(reply.diagnostics);
+      showDiagnostics(reply.diagnostics, sources);
     }
     if (run && reply.javascript && reply.wasm) {
       status.textContent = "Running…";
@@ -342,16 +422,20 @@ async function build(run: boolean) {
 
 function applyTheme(light: boolean) {
   document.documentElement.dataset.theme = light ? "light" : "dark";
-  theme.setAttribute("aria-pressed", String(light));
-  theme.textContent = light ? "Dark theme" : "Light theme";
+  const label = light ? "Switch to dark theme" : "Switch to light theme";
+  theme.setAttribute("aria-label", label);
+  theme.title = label;
+  theme.textContent = light ? "☾" : "☀︎";
 }
 
 editor.addEventListener("input", () => {
   current().source = editor.value;
   numberLines();
+  renderSourceMark();
   save();
 });
-editor.addEventListener("scroll", () => { lines.scrollTop = editor.scrollTop; });
+editor.addEventListener("scroll", syncEditorScroll);
+new ResizeObserver(() => renderSourceMark()).observe(editor);
 stdin.addEventListener("input", () => { draft.stdin = stdin.value; save(); });
 filename.addEventListener("change", rename);
 filename.addEventListener("keydown", (event) => {

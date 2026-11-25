@@ -22,7 +22,7 @@ async function compareWithNative(page: Page, paths: string[], input = "") {
   expect(await page.locator("#stderr").textContent()).toBe(native.stderr);
 }
 
-test("builds and runs both examples, then reloads the multi-file draft", async ({ page }) => {
+test("runs Hello and Status lookup, then reloads the multi-file draft", async ({ page }) => {
   await openEditor(page);
   await page.getByRole("button", { name: "Build", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Build succeeded", { timeout: 20000 });
@@ -39,6 +39,16 @@ test("builds and runs both examples, then reloads the multi-file draft", async (
   await expect(page.getByLabel("Main", { exact: true })).toHaveValue("caller.b");
 });
 
+for (const example of ["fibonacci", "factorial", "rule110"]) {
+  test(`runs the ${example} example with native output`, async ({ page }) => {
+    await openEditor(page);
+    page.once("dialog", (dialog) => void dialog.accept());
+    await page.getByLabel("Example").selectOption(example);
+    await expect(page.locator("#filename")).toHaveValue(`${example}.b`);
+    await compareWithNative(page, [`tests/programs/${example}.b`]);
+  });
+}
+
 test("passes prefilled stdin and preserves stderr and a nonzero exit status", async ({ page }) => {
   await openEditor(page);
   await page.getByLabel("jBC source").fill(fixture("fixtures/input.b"));
@@ -46,14 +56,45 @@ test("passes prefilled stdin and preserves stderr and a nonzero exit status", as
   await compareWithNative(page, ["playground/tests/fixtures/input.b"], "Wasm\n");
 });
 
-test("links unsupported operation errors back to their file and column", async ({ page }) => {
+test("highlights the error line and column in an included file", async ({ page }) => {
   await openEditor(page);
-  await page.getByLabel("jBC source").fill(fixture("fixtures/unsupported.b"));
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByLabel("Example").selectOption("status");
+  await expect(page.locator("#filename")).toHaveValue("caller.b");
+  await page.getByRole("button", { name: "I_STATUS", exact: true }).click();
+  const editor = page.getByLabel("jBC source");
+  const brokenInclude = await editor.inputValue() + fixture("fixtures/unsupported.b");
+  await editor.fill(brokenInclude);
+  await page.getByRole("button", { name: "caller.b", exact: true }).click();
   await page.getByRole("button", { name: "Build", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Build failed");
   await expect(page.locator("#diagnostics")).toContainText("PERFORM is unavailable in the browser");
-  await page.getByRole("button", { name: "hello.b:1:1" }).click();
-  await expect(page.getByLabel("jBC source")).toBeFocused();
+  await expect(page.locator("#filename")).toHaveValue("I_STATUS");
+  await expect(page.locator("#error-line")).toBeVisible();
+  await expect(page.locator("#error-column")).toBeVisible();
+  await expect(editor).toHaveAttribute("aria-invalid", "true");
+  await page.getByRole("button", { name: "I_STATUS:3:12" }).click();
+  await expect(editor).toBeFocused();
+  expect(await editor.evaluate((source: HTMLTextAreaElement) => source.selectionStart)).toBe(brokenInclude.indexOf("PERFORM"));
+  await editor.fill(fixture("../../tests/routines/I_STATUS"));
+  await expect(page.locator("#error-line")).toBeHidden();
+});
+
+test("fills the desktop height, shows build time, and keeps the theme toggle accessible", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await openEditor(page);
+  const bottom = await page.getByRole("region", { name: "Project", exact: true })
+    .evaluate((panel) => window.innerHeight - panel.getBoundingClientRect().bottom);
+  expect(bottom).toBeLessThan(24);
+  const buildTime = page.locator("#build-time");
+  await expect(buildTime).toHaveText(/^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}$/);
+  await expect(buildTime).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00Z$/);
+  const light = page.getByRole("button", { name: "Switch to light theme", exact: true });
+  await expect(light).toHaveText("☀︎");
+  await light.click();
+  await expect(page.getByRole("button", { name: "Switch to dark theme", exact: true })).toHaveText("☾");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
 test("Stop terminates a running program and the next build succeeds", async ({ page }) => {

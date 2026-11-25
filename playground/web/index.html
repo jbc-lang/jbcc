@@ -9,9 +9,12 @@
   </head>
   <body>
     <header class="topbar">
-      <h1><span>jBC</span> Playground</h1>
+      <div class="title">
+        <h1><span>jBC</span> Playground</h1>
+        <time id="build-time" datetime="__BUILD_TIME_ISO__" title="Build time (UTC)">__BUILD_TIME_LABEL__</time>
+      </div>
       <div class="actions">
-        <button type="button" id="theme" aria-pressed="false">Light theme</button>
+        <button type="button" id="theme" aria-label="Switch to light theme" title="Switch to light theme">☀︎</button>
         <button type="button" id="build">Build</button>
         <button type="button" id="run" class="primary" title="Run (Ctrl or Command + Enter)">Run</button>
         <button type="button" id="stop" disabled>Stop</button>
@@ -26,6 +29,9 @@
             <select id="example">
               <option value="">Choose an example</option>
               <option value="hello">Hello, jBC!</option>
+              <option value="fibonacci">Fibonacci</option>
+              <option value="factorial">Factorial</option>
+              <option value="rule110">Rule 110</option>
               <option value="status">Status lookup (3 files)</option>
             </select>
           </div>
@@ -45,7 +51,13 @@
         </div>
         <div class="editor">
           <pre id="lines" aria-hidden="true"></pre>
-          <textarea id="source" aria-label="jBC source" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+          <div class="source-wrap">
+            <div id="source-mark" aria-hidden="true" hidden>
+              <div id="error-line"><span id="error-column" hidden></span></div>
+            </div>
+            <span id="source-measure" aria-hidden="true"></span>
+            <textarea id="source" aria-label="jBC source" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+          </div>
         </div>
       </section>
       <section class="pane results" aria-label="Build and run results">

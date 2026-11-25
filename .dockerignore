@@ -14,6 +14,9 @@
 !tests/
 !tests/programs/
 !tests/programs/hello.b
+!tests/programs/fibonacci.b
+!tests/programs/factorial.b
+!tests/programs/rule110.b
 !tests/routines/
 !tests/routines/caller.b
 !tests/routines/get.status.b

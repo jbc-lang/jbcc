@@ -3,8 +3,10 @@ WORKDIR /build
 COPY playground/web ./
 RUN mkdir /web && cp *.html *.css /web/ && \
     bun build editor.ts runner.ts --target=browser --format=esm --outdir=/web
-COPY tests/programs/hello.b /web/examples/
+COPY tests/programs/hello.b tests/programs/fibonacci.b tests/programs/factorial.b tests/programs/rule110.b /web/examples/
 COPY tests/routines/caller.b tests/routines/get.status.b tests/routines/I_STATUS /web/examples/
+RUN stamp=$(date -u '+%Y.%m.%d %H:%M|%Y-%m-%dT%H:%M:00Z') && \
+    sed -i "s|__BUILD_TIME_LABEL__|${stamp%%|*}|g; s|__BUILD_TIME_ISO__|${stamp#*|}|g" /web/index.html
 
 FROM golang:1.27.1-alpine AS go-build
 WORKDIR /build
