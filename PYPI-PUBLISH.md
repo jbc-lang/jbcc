@@ -21,7 +21,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
 - [x] Move the existing implementation into `src/jbcc/compiler.py` and
   keep `./jbcc` as a thin checkout launcher. Register the same `main()`
   function with `[project.scripts]` as `jbcc = "jbcc.compiler:main"`.
-- [ ] Move `runtime/jbc.c` into the package and read it relative to the
+- [x] Move `runtime/jbc.c` into the package and read it relative to the
   compiler module. Update `tools/check_corpus.py` to import the compiler and
   use the same runtime loader. It currently loads the root script via
   `runpy` and reads the C file separately. Preserve source-relative include

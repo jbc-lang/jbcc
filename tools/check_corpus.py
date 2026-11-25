@@ -26,7 +26,7 @@ else:
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 COMPILER = import_module("jbcc.compiler")
-RUNTIME = (ROOT / "runtime/jbc.c").read_text()
+RUNTIME = COMPILER.read_runtime()
 R07_LA_PARAMETER_STUB = ROOT / "tools/corpus_stubs/r07/I_F.LA.PARAMETER"
 
 T24_SOURCE_FIXES = {

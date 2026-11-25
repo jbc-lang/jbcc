@@ -5374,6 +5374,10 @@ def compile_unit(
     return unit
 
 
+def read_runtime():
+    return Path(__file__).with_name('jbc.c').read_text(encoding='utf-8')
+
+
 def compile_program(
     paths,
     directories,
@@ -5447,9 +5451,7 @@ def compile_program(
                 unit.error(
                     f"scalar/MAT argument mismatch for '{target.word}'", target
                 )
-    runtime = (
-        Path(__file__).resolve().parents[2] / 'runtime' / 'jbc.c'
-    ).read_text()
+    runtime = read_runtime()
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
     prototypes.append(render_exit_callbacks(units))
