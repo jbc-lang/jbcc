@@ -18,6 +18,15 @@ still awaits verification.
 The [jBC language reference repository](https://github.com/jbc-lang/jbc-language)
 maintains the programmer’s guide, grammar, and function catalogue.
 
+## Playground
+
+Open the [online jBC playground](https://online.jbc-lang.org/) to edit a
+multi-file project. The browser compiles and runs your code and saves
+projects locally.
+
+The [jbc-playground repository](https://github.com/jbc-lang/jbc-playground)
+maintains the site, browser tests, and local development commands.
+
 ## Compiler performance
 
 On a 10-core Apple M5 Mac with eight workers, the
@@ -86,15 +95,6 @@ More examples in jBC
 - [life.b](tests/programs/life.b) animates Conway’s Game of Life.
 - [snake.b](tests/programs/snake.b) lets you play Snake with the WASD keys.
 - [banner.b](tests/programs/banner.b) animates a waving jBC banner.
-
-## Playground
-
-Open the [online jBC playground](https://online.jbc-lang.org/) to edit a
-multi-file project. The browser compiles and runs your code and saves
-projects locally.
-
-The [jbc-playground repository](https://github.com/jbc-lang/jbc-playground)
-maintains the site, browser tests, and local development commands.
 
 ## Browser translation API
 

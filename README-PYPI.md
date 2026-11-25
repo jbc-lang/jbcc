@@ -3,6 +3,8 @@
 jbcc is an experimental compiler for jBC, the MultiValue BASIC dialect used
 in jBASE and Temenos T24. It translates jBC to standalone C99.
 
+Try jBC in your browser at the [jBC Playground](https://online.jbc-lang.org/).
+
 ```sh
 printf '%s\n' 'CRT "Hello, jBC!"' > hello.b
 uvx jbcc hello.b -o hello.c
