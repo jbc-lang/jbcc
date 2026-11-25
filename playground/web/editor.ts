@@ -51,6 +51,19 @@ const buildButton = element<HTMLButtonElement>("build");
 const runButton = element<HTMLButtonElement>("run");
 const stopButton = element<HTMLButtonElement>("stop");
 
+const onlineAuth = fetch("/api/v1/auth/config").then(async (response) => {
+  if (!response.ok) throw new Error("Could not load sign-in configuration");
+  const config = await response.json();
+  if (config === null) return null;
+  const { connectAuth } = await import("./auth");
+  const auth = connectAuth(config);
+  element("cloud-projects").hidden = false;
+  return auth;
+});
+void onlineAuth.catch(() => {
+  element("auth-status").textContent = "Could not load sign-in";
+});
+
 const draftKey = "jbcc.playground.draft";
 const themeKey = "jbcc.playground.theme";
 const exampleFiles = {
@@ -376,6 +389,10 @@ function startRunner(op: Activity, javascript: string, wasm: string, input: stri
   document.body.append(frame);
 }
 
+function isActive(op: Activity): boolean {
+  return activity === op;
+}
+
 async function build(run: boolean) {
   if (activity) return;
   const op = { request: new AbortController() };
@@ -386,16 +403,19 @@ async function build(run: boolean) {
   clearResult();
   status.textContent = "Building…";
   try {
-    let reply = run && cached?.source === source ? cached.reply : undefined;
+    const session = await onlineAuth;
+    const identity = await session?.session();
+    if (!isActive(op)) return;
+    let reply = run && cached?.source === source && !session ? cached.reply : undefined;
     if (!reply) {
       const response = await fetch("/api/v1/compile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...identity?.headers },
         body: source,
         signal: op.request.signal,
       });
       reply = await response.json() as Build;
-      if (activity !== op) return;
+      if (!isActive(op)) return;
       showDiagnostics(reply.diagnostics, sources);
       if (!response.ok || !reply.javascript || !reply.wasm) {
         status.textContent = "Build failed";
@@ -413,12 +433,70 @@ async function build(run: boolean) {
       status.textContent = "Build succeeded";
       setActivity(null);
     }
-  } catch {
-    if (activity !== op) return;
-    status.textContent = "Could not complete the build";
+  } catch (error) {
+    if (!isActive(op)) return;
+    status.textContent = error instanceof Error && error.message === "Sign in with GitHub first"
+      ? error.message
+      : "Could not complete the build";
     setActivity(null);
   }
 }
+
+const revisions = new Map<string, number>();
+const cloudName = element<HTMLInputElement>("cloud-project");
+const cloudStatus = element("cloud-status");
+const cloudSave = element<HTMLButtonElement>("cloud-save");
+const cloudLoad = element<HTMLButtonElement>("cloud-load");
+
+async function cloudProject(write: boolean) {
+  const id = cloudName.value.trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    cloudStatus.textContent = "Use letters, digits, hyphens or underscores";
+    return;
+  }
+  if (!write && !confirm("Replace this local draft with the saved project?")) return;
+
+  cloudSave.disabled = cloudLoad.disabled = true;
+  cloudStatus.textContent = write ? "Saving…" : "Loading…";
+  const before = JSON.stringify(draft);
+  const { files, entry, units } = JSON.parse(before) as Draft;
+  try {
+    const auth = await onlineAuth;
+    if (!auth) return;
+    const identity = await auth.session();
+    const key = JSON.stringify([identity.uid, id]);
+    const revision = revisions.get(key) ?? 0;
+    const response = await fetch(`/api/v1/projects/${encodeURIComponent(id)}`, write ? {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...identity.headers },
+      body: JSON.stringify({ project: { files, entry, units }, revision }),
+    } : { headers: identity.headers });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.diagnostics?.[0]?.message ?? "Could not access the cloud project");
+    if ((await auth.session()).uid !== identity.uid) throw new Error("The signed-in account changed");
+    if (!write) {
+      if (activity || JSON.stringify(draft) !== before) {
+        throw new Error("Draft kept because it changed while loading");
+      }
+      const project = result.project as Project;
+      draft = { ...project, active: project.entry, stdin: draft.stdin };
+      views.clear();
+      clearResult();
+      render();
+      save();
+      status.textContent = "Ready";
+    }
+    revisions.set(key, result.revision);
+    cloudStatus.textContent = write ? "Saved" : "Loaded";
+  } catch (error) {
+    cloudStatus.textContent = error instanceof Error ? error.message : "Could not access the cloud project";
+  } finally {
+    cloudSave.disabled = cloudLoad.disabled = false;
+  }
+}
+
+cloudSave.addEventListener("click", () => void cloudProject(true));
+cloudLoad.addEventListener("click", () => void cloudProject(false));
 
 function applyTheme(light: boolean) {
   document.documentElement.dataset.theme = light ? "light" : "dark";

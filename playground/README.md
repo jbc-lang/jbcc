@@ -39,6 +39,15 @@ Both services can run without Google Cloud credentials.
 The local editor adapts the textarea, tab, draft, and theme patterns
 from [asm8](https://github.com/begoon/asm8).
 
+## Hosted access
+
+In production the editor accepts GitHub sign-in through Firebase. The
+API enforces the pilot allowlist, a shared six-starts-per-minute quota,
+and one build at a time per account. Each invited account can save
+private named projects. Load a newer revision before retrying a save
+that reports a conflict. The [GCP runbook](../GCP.md) lists the hosting
+configuration.
+
 ## Verify locally
 
 Start the Docker stack, then run these commands from the repository
@@ -54,3 +63,7 @@ go test ./...
 ```
 
 Set `JBCC_PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome.
+Set `JBCC_TEST_FIRESTORE_PROJECT` and `JBCC_TEST_FIRESTORE_DATABASE` to
+enable the two-client Firestore integration test. It uses Application
+Default Credentials or a short-lived `JBCC_TEST_FIRESTORE_TOKEN`, creates
+temporary documents, and deletes them after the test.

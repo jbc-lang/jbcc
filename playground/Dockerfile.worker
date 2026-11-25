@@ -1,6 +1,8 @@
 FROM golang:1.27.1-alpine AS go-build
 WORKDIR /build
-COPY playground/go.mod playground/main.go ./
+COPY playground/go.mod playground/go.sum ./
+RUN go mod download
+COPY playground/*.go ./
 RUN CGO_ENABLED=0 go build -trimpath -o /playground .
 
 FROM emscripten/emsdk:4.0.23

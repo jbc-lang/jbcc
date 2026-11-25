@@ -46,7 +46,7 @@ func TestCompilePausePreventsWorkerRequests(t *testing.T) {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/compile", strings.NewReader("{}"))
 		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
-		compileHandler(worker.URL, test.enabled).ServeHTTP(response, request)
+		(&webServer{worker: worker.URL, client: worker.Client(), enabled: test.enabled}).compile(response, request)
 		if response.Code != test.status || calls.Load() != test.calls {
 			t.Fatalf("enabled=%t: status=%d, worker calls=%d", test.enabled, response.Code, calls.Load())
 		}

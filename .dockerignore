@@ -5,7 +5,11 @@
 !src/jbcc/jbc.c
 !playground/
 !playground/go.mod
-!playground/main.go
+!playground/*.go
+playground/*_test.go
+!playground/go.sum
+!playground/package.json
+!playground/bun.lock
 !playground/translate.py
 !playground/web/
 !playground/web/*.html

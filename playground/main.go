@@ -30,14 +30,14 @@ const (
 )
 
 type project struct {
-	Entry string       `json:"entry"`
-	Units []string     `json:"units"`
-	Files []sourceFile `json:"files"`
+	Entry string       `json:"entry" firestore:"entry"`
+	Units []string     `json:"units" firestore:"units"`
+	Files []sourceFile `json:"files" firestore:"files"`
 }
 
 type sourceFile struct {
-	Path   string `json:"path"`
-	Source string `json:"source"`
+	Path   string `json:"path" firestore:"path"`
+	Source string `json:"source" firestore:"source"`
 }
 
 type diagnostic struct {
@@ -130,6 +130,12 @@ func projectBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	return body, true
 }
 
+func strictJSON(body []byte, value any) bool {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(value) == nil && decoder.Decode(new(any)) == io.EOF
+}
+
 type boundedLog struct {
 	bytes.Buffer
 }
@@ -198,9 +204,7 @@ func compile(w http.ResponseWriter, r *http.Request, translator string) {
 		return
 	}
 	var p project
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&p); err != nil || decoder.Decode(new(any)) != io.EOF {
+	if !strictJSON(body, &p) {
 		failure(w, 400, "invalid project request")
 		return
 	}
@@ -289,15 +293,7 @@ func localHost(host string) bool {
 	return host == "127.0.0.1" || host == "localhost" || host == "::1" || host == "[::1]"
 }
 
-func proxyBuild(w http.ResponseWriter, r *http.Request, worker string) {
-	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-		failure(w, 403, "expected a same-origin request")
-		return
-	}
-	body, ok := projectBody(w, r)
-	if !ok {
-		return
-	}
+func proxyBuild(w http.ResponseWriter, r *http.Request, client *http.Client, worker string, body []byte) {
 	ctx, cancel := context.WithTimeout(r.Context(), buildTimeout+3*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, worker+"/compile", bytes.NewReader(body))
@@ -306,7 +302,7 @@ func proxyBuild(w http.ResponseWriter, r *http.Request, worker string) {
 		return
 	}
 	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {
 			failure(w, 504, "compilation cancelled or timed out")
@@ -325,16 +321,6 @@ func proxyBuild(w http.ResponseWriter, r *http.Request, worker string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(response.StatusCode)
 	_, _ = w.Write(result)
-}
-
-func compileHandler(worker string, enabled bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !enabled {
-			failure(w, http.StatusServiceUnavailable, "playground builds are paused")
-			return
-		}
-		proxyBuild(w, r, worker)
-	}
 }
 
 func main() {
@@ -363,40 +349,15 @@ func main() {
 			}
 		})
 	case "web":
-		if os.Getenv("JBCC_MODE") != "local" || os.Getenv("K_SERVICE") != "" {
-			log.Fatal("this build of the playground only supports local development")
-		}
-		worker := os.Getenv("JBCC_WORKER_URL")
 		webRoot := os.Getenv("JBCC_WEB_ROOT")
-		if worker == "" || webRoot == "" {
-			log.Fatal("set JBCC_WORKER_URL and JBCC_WEB_ROOT")
+		if webRoot == "" {
+			log.Fatal("set JBCC_WEB_ROOT")
 		}
-		buildsEnabled := true
-		if value, set := os.LookupEnv("JBCC_BUILDS_ENABLED"); set {
-			var err error
-			buildsEnabled, err = strconv.ParseBool(value)
-			if err != nil {
-				log.Fatal("JBCC_BUILDS_ENABLED must be true or false")
-			}
+		config, err := makeWebServer(context.Background())
+		if err != nil {
+			log.Fatal(err)
 		}
-		mux.HandleFunc("POST /api/v1/compile", compileHandler(worker, buildsEnabled))
-		mux.HandleFunc("GET /runner.html", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
-			http.ServeFile(w, r, filepath.Join(webRoot, "runner.html"))
-		})
-		files := http.FileServer(http.Dir(webRoot))
-		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Security-Policy", "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
-			files.ServeHTTP(w, r)
-		})
-		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !localHost(r.Host) {
-				failure(w, 403, "local playground requires a loopback host")
-				return
-			}
-			w.Header().Set("X-Content-Type-Options", "nosniff")
-			mux.ServeHTTP(w, r)
-		})
+		handler = config.register(mux, webRoot)
 	default:
 		log.Fatal("usage: playground web|worker")
 	}
@@ -407,6 +368,9 @@ func main() {
 	listen := os.Getenv("JBCC_LISTEN_HOST")
 	if listen == "" {
 		listen = "127.0.0.1"
+		if os.Getenv("K_SERVICE") != "" {
+			listen = "0.0.0.0"
+		}
 	}
 	addr := net.JoinHostPort(listen, port)
 	server := &http.Server{
