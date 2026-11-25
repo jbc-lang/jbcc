@@ -10,10 +10,12 @@ COPY playground/translate.py /opt/jbcc/translate.py
 ENV PYTHONPATH=/opt/jbcc \
     PYTHONDONTWRITEBYTECODE=1 \
     JBCC_TRANSLATOR=/opt/jbcc/translate.py \
+    JBCC_LISTEN_HOST=0.0.0.0 \
     HOME=/tmp
 # Prepare the sysroot and libraries before running with a read-only root.
 RUN printf '#include <stdio.h>\nint main(void) { puts("ready"); return 0; }\n' > /tmp/warmup.c \
     && emcc /tmp/warmup.c -O0 -sEXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -o /tmp/warmup.js \
-    && rm /tmp/warmup.*
+    && rm /tmp/warmup.* \
+    && chown -R 65532:65532 /emsdk/upstream/emscripten/cache/symbol_lists
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/playground", "worker"]

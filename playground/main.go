@@ -327,11 +327,24 @@ func proxyBuild(w http.ResponseWriter, r *http.Request, worker string) {
 	_, _ = w.Write(result)
 }
 
+func compileHandler(worker string, enabled bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !enabled {
+			failure(w, http.StatusServiceUnavailable, "playground builds are paused")
+			return
+		}
+		proxyBuild(w, r, worker)
+	}
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("usage: playground web|worker")
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	var handler http.Handler = mux
 	switch os.Args[1] {
 	case "worker":
@@ -358,9 +371,15 @@ func main() {
 		if worker == "" || webRoot == "" {
 			log.Fatal("set JBCC_WORKER_URL and JBCC_WEB_ROOT")
 		}
-		mux.HandleFunc("POST /api/v1/compile", func(w http.ResponseWriter, r *http.Request) {
-			proxyBuild(w, r, worker)
-		})
+		buildsEnabled := true
+		if value, set := os.LookupEnv("JBCC_BUILDS_ENABLED"); set {
+			var err error
+			buildsEnabled, err = strconv.ParseBool(value)
+			if err != nil {
+				log.Fatal("JBCC_BUILDS_ENABLED must be true or false")
+			}
+		}
+		mux.HandleFunc("POST /api/v1/compile", compileHandler(worker, buildsEnabled))
 		mux.HandleFunc("GET /runner.html", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
 			http.ServeFile(w, r, filepath.Join(webRoot, "runner.html"))
