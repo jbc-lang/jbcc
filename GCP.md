@@ -259,14 +259,15 @@ service URL. It uses a Cloud Run identity token to call the worker.
 
 Firebase Hosting serves `https://online.jbc-lang.org/` through a
 catch-all rewrite to Cloud Run service `compiler` in `europe-west2`.
-The main Hosting release is `sites/jbc-online/releases/1795607642943000`.
+The main Hosting release is `sites/jbc-online/releases/1795609337836000`.
 The Hosting API created a version with this rewrite and the static
 `/tag-check.html` page, finalized it with `versions.patch`, and published
 it with `releases.create`. Use
 <https://online.jbc-lang.org/tag-check.html> for the top-level Google
 tag installation check. The check page serves the supplied snippet with
-an opaque sandbox. Its content security policy must include the SHA-256
-hash of the inline initializer when that initializer changes.
+an opaque sandbox. It sets storage and advertising consent to denied
+before loading the tag and blocks analytics requests. Update the inline
+initializer's SHA-256 hash in the content security policy if it changes.
 
 ```json
 {"config":{"rewrites":[{"glob":"**","run":{"serviceId":"compiler","region":"europe-west2"}}]}}
@@ -285,7 +286,7 @@ certificate was verified for `online.jbc-lang.org`.
 The separate Firebase Hosting site `jbc-online-metrics` serves
 `index.html` and `tag.js` from [playground/analytics](playground/analytics).
 Its live release is
-`sites/jbc-online-metrics/releases/1795607598198000`. To publish the
+`sites/jbc-online-metrics/releases/1795609330873000`. To publish the
 frame, create a Hosting version, call `versions.populateFiles` with
 SHA-256 hashes of the gzip-compressed files, upload required hashes,
 finalize the version, and create a release. The response CSP permits
@@ -297,9 +298,11 @@ The **Analytics** button loads `GTM-5QTPTVWF` after opt-in. The tag runs
 inside the cross-origin frame. It cannot read editor content, filenames,
 compiler output, or sign-in state. The published container directs hits
 to GA4 measurement ID `G-NCPVZT08XG`. A live browser test observed a
-cookieless `page_view` with HTTP 204 from GA4. The event's page location
-is `https://jbc-online-metrics.web.app/` and its title is **jBC Playground**.
-The GA4 Realtime report check remains pending.
+cookieless `page_view` with HTTP 204 from GA4. The tag suppresses
+automatic page views and emits one event for `https://online.jbc-lang.org/`
+with the title **jBC Playground**. User-provided data capabilities were
+disabled in the playground and documentation containers and published as
+Version 2 in each. The GA4 Realtime report check remains pending.
 
 If deploying through an external HTTPS load balancer for Cloud Armor
 instead, restrict Go service ingress to the load balancer.

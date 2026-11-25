@@ -3,13 +3,20 @@
   <head>
     <meta charset="UTF-8">
     <title>jBC Playground tag check</title>
-    <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-5QTPTVWF"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      });
+      gtag('set', 'send_page_view', false);
       gtag('js', new Date());
       dataLayer.push({'gtm.start': Date.now(), event: 'gtm.js'});
     </script>
+    <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-5QTPTVWF"></script>
   </head>
   <body>
     <h1>jBC Playground tag check</h1>

@@ -1,6 +1,7 @@
 if (window.parent !== window) {
   const container = "GTM-5QTPTVWF";
   const measurement = "G-NCPVZT08XG";
+  const pageLocation = "https://online.jbc-lang.org/";
   window.dataLayer = window.dataLayer || [];
 
   function gtag() {
@@ -16,11 +17,19 @@ if (window.parent !== window) {
     ad_personalization: "denied",
     analytics_storage: "denied",
   });
+  // Disable automatic page views before GTM initializes its Google tag.
+  gtag("set", { send_page_view: false, page_location: pageLocation });
   gtag("js", new Date());
   gtag("config", measurement, {
     client_id: clientID,
+    send_page_view: false,
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
+  });
+  gtag("event", "page_view", {
+    send_to: measurement,
+    page_location: pageLocation,
+    page_title: "jBC Playground",
   });
   window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
 
