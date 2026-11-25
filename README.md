@@ -93,6 +93,20 @@ You need Python 3.8 or newer to run jbcc. Using `uv` is recommended for
 managing Python and running the developer tools. Native builds also need
 a C99 compiler on `PATH`, such as Clang or GCC. jbcc uses `cc` by default.
 
+Once jbcc is available on PyPI, `uvx` will download it and run it without
+a separate installation. Run this from any working directory.
+
+```sh
+printf '%s\n' 'CRT "Hello, jBC!"' > hello.b
+uvx jbcc --run hello.b
+```
+
+From a source checkout, `uvx` can also run the local compiler.
+
+```sh
+uvx --from . jbcc --run tests/programs/hello.b
+```
+
 From the checkout, build and start the banner animation. Press Enter to stop it.
 
 ```sh

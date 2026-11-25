@@ -1,3 +1,45 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jbcc"
+version = "0.1.0"
+description = "An experimental jBC/jBASE to C compiler"
+readme = "README-PYPI.md"
+requires-python = ">=3.8"
+license = "MIT AND Unicode-3.0"
+license-files = ["LICENSE", "THIRD-PARTY-NOTICES.md"]
+dependencies = []
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Compilers",
+]
+
+[project.urls]
+Homepage = "https://github.com/jbc-lang/jbcc"
+Documentation = "https://jbc-lang.org/"
+Issues = "https://github.com/jbc-lang/jbcc/issues"
+
+[project.scripts]
+jbcc = "jbcc.compiler:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jbcc"]
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/jbcc",
+    "jbcc",
+    "pyproject.toml",
+    "README-PYPI.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+]
+
 [tool.ruff]
 line-length = 80
 target-version = "py38"

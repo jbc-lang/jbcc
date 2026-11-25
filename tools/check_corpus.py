@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import re
-import runpy
 import shutil
 import sqlite3
 import subprocess
@@ -14,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from contextlib import closing
 from decimal import Decimal
 from functools import partial
+from importlib import import_module
 from pathlib import Path
 
 if __package__:
@@ -24,8 +24,9 @@ else:
     from t24_components import read_component_members
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPILER = runpy.run_path(str(ROOT / "jbcc"))
-RUNTIME = (ROOT / "runtime/jbc.c").read_text()
+sys.path.insert(0, str(ROOT / "src"))
+COMPILER = import_module("jbcc.compiler")
+RUNTIME = COMPILER.read_runtime()
 R07_LA_PARAMETER_STUB = ROOT / "tools/corpus_stubs/r07/I_F.LA.PARAMETER"
 
 T24_SOURCE_FIXES = {
@@ -203,7 +204,7 @@ class IncludeIndex:
                 return found(self.root / candidates[0], rule)
             names = [candidate.as_posix() for candidate in candidates]
             entry.update(status="ambiguous", rule=rule, candidates=names)
-            COMPILER["directive_error"](
+            COMPILER.directive_error(
                 token, f"ambiguous include file '{name}': {', '.join(names)}"
             )
 
@@ -339,7 +340,7 @@ def check(
             if include_index is not None
             else None
         )
-        unit = COMPILER["compile_unit"](
+        unit = COMPILER.compile_unit(
             path,
             directories,
             source_encoding=source_encoding,
@@ -358,9 +359,10 @@ def check(
         for target, kinds, is_function in unit.calls:
             if unit.routine and unit.routine.word == target.word:
                 formals = tuple(unit.formals.values())
-                if is_function != unit.is_function or not COMPILER[
-                    "compatible_call_kinds"
-                ](kinds, formals):
+                if (
+                    is_function != unit.is_function
+                    or not COMPILER.compatible_call_kinds(kinds, formals)
+                ):
                     unit.error(
                         "recursive call has incompatible signature", target
                     )
@@ -392,21 +394,21 @@ def check(
                 )
             externals[symbol] = kinds, is_function
         prototypes = [
-            COMPILER["routine_signature"](symbol, kinds, is_function) + ";"
+            COMPILER.routine_signature(symbol, kinds, is_function) + ";"
             for symbol, (kinds, is_function) in externals.items()
         ]
         if unit.routine and (unit.has_indirect_call or unit.uses_callonexit):
             prototypes.append(unit.signature() + ";")
-        prototypes.append(COMPILER["render_indirect_calls"]([unit]))
-        prototypes.append(COMPILER["render_exit_callbacks"]([unit]))
-        prototypes.append(COMPILER["render_subroutine_exists"]([unit]))
+        prototypes.append(COMPILER.render_indirect_calls([unit]))
+        prototypes.append(COMPILER.render_exit_callbacks([unit]))
+        prototypes.append(COMPILER.render_subroutine_exists([unit]))
         prototypes.append(
-            COMPILER["render_empty_arguments"](
+            COMPILER.render_empty_arguments(
                 [unit], {name: kinds for name, (kinds, _) in externals.items()}
             )
         )
         generated = "\n".join(
-            [COMPILER["runtime_features"]([unit]), RUNTIME]
+            [COMPILER.runtime_features([unit]), RUNTIME]
             + prototypes
             + [unit.render()]
         )
@@ -455,7 +457,7 @@ def check(
             lookups,
             package_directives,
         )
-    except COMPILER["Diagnostic"] as error:
+    except COMPILER.Diagnostic as error:
         detail = str(error).replace(str(root) + os.sep, "")
         return (
             relative,
@@ -469,7 +471,7 @@ def check(
             lookups,
             package_directives,
         )
-    except COMPILER["SourceEncodingError"] as error:
+    except COMPILER.SourceEncodingError as error:
         detail = str(error).replace(str(root) + os.sep, "")
         return (
             relative,
@@ -528,7 +530,7 @@ def main():
     parser.add_argument("-j", type=int, default=1, metavar="JOBS")
     parser.add_argument(
         "--source-encoding",
-        choices=COMPILER["SOURCE_ENCODINGS"],
+        choices=COMPILER.SOURCE_ENCODINGS,
         default="utf-8",
         help="decode source as UTF-8 or preserve literal source bytes (default: utf-8)",
     )
@@ -722,8 +724,8 @@ def main():
             calls = []
             name = str(path.relative_to(ROOT))
             try:
-                COMPILER["compile_unit"](path, [], api_call=record_calls(calls))
-            except (COMPILER["Diagnostic"], UnicodeError, OSError) as error:
+                COMPILER.compile_unit(path, [], api_call=record_calls(calls))
+            except (COMPILER.Diagnostic, UnicodeError, OSError) as error:
                 coverage.fixture_scan_failures.append(
                     {"file": name, "diagnostic": str(error)}
                 )

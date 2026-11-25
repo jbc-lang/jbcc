@@ -22,6 +22,47 @@ test *args:
 test-parallel jobs="auto" *args:
     @jobs="$1"; shift; uvx --from 'pytest>=9,<10' --with pytest-xdist pytest -n "$jobs" "$@"
 
+# Show the package version in pyproject.toml.
+version:
+    @uv version --short
+
+# Bump the package version in pyproject.toml.
+bump part="patch":
+    uv version --frozen --bump "$1"
+
+# Build the PyPI source distribution and wheel.
+dist directory="dist":
+    uv build --no-sources --out-dir "$1"
+
+# Check the source distribution and wheel for the current version.
+check-dist directory="dist":
+    @version=$(uv version --short); uvx twine check --strict "$1/jbcc-$version.tar.gz" "$1/jbcc-$version-py3-none-any.whl"
+
+# Push the version tag to start the release workflow.
+publish:
+    #!/usr/bin/env sh
+    set -eu
+    if [ "$(git branch --show-current)" != main ] || [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        echo 'Publish from a clean main branch.' >&2
+        exit 1
+    fi
+    git fetch origin main
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+        echo 'Sync main with origin before publishing.' >&2
+        exit 1
+    fi
+    version=$(uv version --short)
+    tag="v$version"
+    if git show-ref --verify --quiet "refs/tags/$tag"; then
+        if [ "$(git rev-parse "refs/tags/$tag^{commit}")" != "$(git rev-parse HEAD)" ]; then
+            echo "Tag $tag already points to another commit." >&2
+            exit 1
+        fi
+    else
+        git tag -a "$tag" -m "Release jbcc $version"
+    fi
+    git push origin "refs/tags/$tag"
+
 # Build a native executable from one or more sources.
 build output +sources:
     @out="$1"; shift; ./jbcc --exe -o "$out" "$@"

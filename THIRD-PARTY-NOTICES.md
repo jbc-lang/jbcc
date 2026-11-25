@@ -2,7 +2,7 @@
 
 ## IBM CP037 mapping
 
-The CP037 conversion tables in [runtime/jbc.c](runtime/jbc.c) contain
+The CP037 conversion tables in [src/jbcc/jbc.c](src/jbcc/jbc.c) contain
 the CP037-to-ISO-8859-1 mapping and its inverse. They are derived from the
 [CP037 mapping published by the Unicode Consortium](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT)
 and distributed under the [Unicode License v3](https://www.unicode.org/license.txt).
