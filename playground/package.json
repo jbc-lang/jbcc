@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "@bjorn3/browser_wasi_shim": "0.4.2",
+    "@playwright/test": "1.65.1",
+    "@yowasp/clang": "21.1.4-3",
+    "pyodide": "314.0.8"
+  },
+  "type": "module",
+  "dependencies": {
+    "firebase": "13.4.0"
+  }
+}

@@ -1,0 +1,26 @@
+FROM oven/bun:1.4.2 AS web-build
+WORKDIR /build
+COPY playground/package.json playground/bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY playground/web ./
+RUN mkdir /web && cp *.html *.css favicon-32.png /web/ && \
+    bun build editor.ts runner.ts analytics.ts --target=browser --format=esm --splitting --outdir=/web
+COPY tests/programs/hello.b tests/programs/fibonacci.b tests/programs/factorial.b tests/programs/rule110.b /web/examples/
+COPY tests/routines/caller.b tests/routines/get.status.b tests/routines/I_STATUS /web/examples/
+RUN stamp=$(date -u '+%Y.%m.%d %H:%M|%Y-%m-%dT%H:%M:00Z') && \
+    sed -i "s|__BUILD_TIME_LABEL__|${stamp%%|*}|g; s|__BUILD_TIME_ISO__|${stamp#*|}|g" /web/index.html
+
+FROM golang:1.27.1-alpine AS go-build
+WORKDIR /build
+COPY playground/go.mod playground/go.sum ./
+RUN go mod download
+COPY playground/*.go ./
+RUN CGO_ENABLED=0 go build -trimpath -o /playground .
+
+FROM scratch
+COPY --from=go-build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=go-build /playground /playground
+COPY --from=web-build /web /web
+ENV JBCC_WEB_ROOT=/web
+USER 65532:65532
+ENTRYPOINT ["/playground", "web"]

@@ -580,7 +580,11 @@ class Preprocessor:
         source_filter=None,
         include_resolver=None,
         package_directives=None,
+        include_depth=None,
+        expansion_steps=None,
     ):
+        self.include_depth = include_depth
+        self.expansion_steps = expansion_steps
         self.directories = directories
         self.encoding = encoding
         self.source_filter = source_filter
@@ -631,6 +635,13 @@ class Preprocessor:
 
     def expand(self, words, stack=()):
         for i, token in enumerate(words):
+            if self.expansion_steps is not None:
+                self.expansion_steps -= 1
+                if self.expansion_steps < 0 or len(stack) > 128:
+                    raise SourceLimitError(
+                        f"{token.path}:{token.line}:{token.column}: "
+                        "EQUATE expansion limit exceeded"
+                    )
             if token.kind == 'equate_text':
                 replacement = []
                 # Preserve the column within the quoted text, including for lexer errors.
@@ -811,6 +822,13 @@ class Preprocessor:
                     )
                 if child is None:
                     directive_error(opening, f"include file '{name}' not found")
+                if (
+                    self.include_depth is not None
+                    and len(parents) >= self.include_depth
+                ):
+                    raise SourceLimitError(
+                        f"{path}:{n}:{opening.column}: include depth limit exceeded"
+                    )
                 ancestors = parents + (path.resolve(),)
                 if child.resolve() in ancestors:
                     directive_error(
@@ -851,6 +869,10 @@ class Preprocessor:
 
 
 class Diagnostic(Exception):
+    pass
+
+
+class SourceLimitError(Diagnostic):
     pass
 
 
@@ -1049,7 +1071,9 @@ class Compiler:
         next_warning=None,
         api_call=None,
         component_members=None,
+        browser=False,
     ):
+        self.browser = browser
         self.path = path
         self.unit = unit
         self.encoding = encoding
@@ -1138,6 +1162,13 @@ class Compiler:
         token = token or self.current
         directive_error(token, message)
 
+    def host_only(self, token, operation=None):
+        if self.browser:
+            self.error(
+                f"{operation or token.word} is unavailable in the browser",
+                token,
+            )
+
     def emit(self, line):
         self.body.append("    " * self.depth + line)
 
@@ -1211,6 +1242,7 @@ class Compiler:
             self.api_call(token, arity, kind, form)
 
     def cursor_expression(self, opening):
+        self.host_only(opening, 'terminal cursor operations')
         self.terminal = True
         self.expect('(')
         col = self.expression()
@@ -1298,6 +1330,7 @@ class Compiler:
                     self.temporary("jbc_terminal_name()"), locate_source
                 )
             if self.word == 'LPTRHIGH':
+                self.host_only(self.current, '@LPTRHIGH')
                 self.uses_report = True
                 self.advance()
                 return self.postfix(
@@ -1325,6 +1358,7 @@ class Compiler:
                     self.temporary("jbc_user_root()"), locate_source
                 )
             if self.word == 'USERSTATS':
+                self.host_only(self.current, '@USERSTATS')
                 self.uses_session = True
                 self.uses_userstats = True
                 self.needs_arguments = True
@@ -1544,6 +1578,7 @@ class Compiler:
             if word == "CALLONEXIT":
                 self.uses_callonexit = True
             if word == "PUTENV":
+                self.host_only(target)
                 self.uses_putenv = True
             if word == "SENTENCE":
                 self.needs_arguments = True
@@ -1551,12 +1586,14 @@ class Compiler:
                     args.append("NULL")
                 args.append(self.location(target))
             if word in ("KEYIN", "IN"):
+                self.host_only(target)
                 self.terminal = True
                 word = "KEYIN"
                 args.append(self.location(target))
             if word == "TIMESTAMP":
                 self.uses_timestamp = True
             if word == "SYSTEM":
+                self.host_only(target)
                 self.terminal = True
                 self.uses_session = True
             if word in (
@@ -2448,6 +2485,7 @@ class Compiler:
 
     def execute_statement(self, stops):
         opening = self.current
+        self.host_only(opening)
         self.advance()
         self.uses_execute = True
         clauses = ('CAPTURING', 'RETURNING', 'SETTING', 'RTNLIST')
@@ -2530,6 +2568,7 @@ class Compiler:
 
     def sequential_statement(self):
         opening = self.current
+        self.host_only(opening)
         op = opening.word
         self.advance()
         self.uses_sequential = True
@@ -2924,6 +2963,7 @@ class Compiler:
 
     def saved_list_statement(self):
         opening = self.current
+        self.host_only(opening)
         self.advance()
         self.uses_saved_lists = True
         if opening.word == 'DELETELIST':
@@ -3181,6 +3221,7 @@ class Compiler:
 
     def report_statement(self):
         opening = self.current
+        self.host_only(opening)
         self.advance()
         self.uses_report = True
         unit = 'NULL'
@@ -3205,6 +3246,7 @@ class Compiler:
 
     def printer_statement(self):
         opening = self.current
+        self.host_only(opening)
         self.advance()
         mode = self.word
         self.advance()
@@ -3226,6 +3268,7 @@ class Compiler:
             'jbc_print_channel' if opening.word == 'PRINT' else 'JBC_SCREEN'
         )
         if opening.word == 'PRINT' and self.word == 'ON':
+            self.host_only(opening, 'PRINT ON')
             self.uses_report = True
             self.advance()
             unit = self.primary()
@@ -3612,6 +3655,7 @@ class Compiler:
         return symbol
 
     def c_function_declaration(self):
+        self.host_only(self.current)
         self.expect('DEFC')
         if self.word in C_FUNCTION_TYPES:
             self.advance()
@@ -4307,6 +4351,7 @@ class Compiler:
         ):
             opening = self.current
             self.advance()
+            self.host_only(opening)
             enabled = int(self.word == 'ON')
             self.advance()
             self.terminal = True
@@ -4567,6 +4612,7 @@ class Compiler:
             and not (self.word in self.matrices and self.following.word == '(')
         ):
             opening = self.current
+            self.host_only(opening)
             self.advance()
             self.uses_hush = True
             if self.word in ('ON', 'OFF'):
@@ -4582,6 +4628,7 @@ class Compiler:
             and self.following.word not in ASSIGNMENT_PREFIXES
             and not (self.word in self.matrices and self.following.word == '(')
         ):
+            self.host_only(self.current)
             self.advance()
             self.terminal = True
             if self.word in ('ON', 'OFF'):
@@ -4596,6 +4643,7 @@ class Compiler:
             and not (self.word in self.matrices and self.following.word == '(')
         ):
             opening = self.current
+            self.host_only(opening)
             self.advance()
             self.uses_sleep = True
             duration = (
@@ -4623,6 +4671,7 @@ class Compiler:
             opening = self.current
             self.advance()
             self.terminal = True
+            self.host_only(opening)
             self.emit(f"jbc_inputclear({self.location(opening)});")
         elif (
             self.word == 'GET'
@@ -4673,6 +4722,7 @@ class Compiler:
                         self.advance()
                 timeout = 'NULL'
                 if self.word == 'FOR':
+                    self.host_only(opening, 'timed INPUT')
                     self.advance()
                     timeout = self.expression()
                 call = (
@@ -5347,6 +5397,8 @@ def compile_unit(
     api_call=None,
     package_directives=None,
     component_members=None,
+    browser=False,
+    include_depth=None,
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -5358,6 +5410,7 @@ def compile_unit(
         next_warning=next_warning,
         api_call=api_call,
         component_members=component_members,
+        browser=browser,
     )
     preprocessor = Preprocessor(
         directories,
@@ -5365,6 +5418,8 @@ def compile_unit(
         source_filter=source_filter,
         include_resolver=include_resolver,
         package_directives=package_directives,
+        include_depth=include_depth,
+        expansion_steps=250_000 if browser else None,
     )
     tokens = list(preprocessor.read(path))
     if preprocessor.package:
@@ -5387,6 +5442,10 @@ def compile_program(
     *,
     source_encoding='utf-8',
     defer_unassigned_reads=False,
+    browser=False,
+    source_filter=None,
+    include_resolver=None,
+    include_depth=None,
 ):
     for name, _ in memory_locks:
         if name not in memory_files:
@@ -5401,7 +5460,15 @@ def compile_program(
             i,
             source_encoding=source_encoding,
             defer_unassigned_reads=defer_unassigned_reads,
+            browser=browser,
+            source_filter=source_filter,
+            include_resolver=include_resolver,
+            include_depth=include_depth,
         )
+        if browser and bool(i) != bool(unit.routine):
+            if unit.routine:
+                unit.error("entry file must be a main program", unit.routine)
+            raise Diagnostic(f"{path}:1:1: linked unit must declare a routine")
         if len(paths) > 1 and unit.package_directives:
             unit.error(
                 "package-aware linkage is unsupported",
