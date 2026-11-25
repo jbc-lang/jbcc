@@ -49,7 +49,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   platform-independent, contains the C runtime and license files, and
   declares the `jbcc` entry point. Build a wheel from the source archive
   and check it contains the same runtime and entry point.
-- [ ] In a temporary directory outside the checkout with no `PYTHONPATH`,
+- [x] In a temporary directory outside the checkout with no `PYTHONPATH`,
   copy in a checked-in example and run the installed command from each
   wheel. Verify C emission, `--exe`, `--run` with and without `-o`, and
   source-relative includes. Check exact stdout and exit status. Cover
