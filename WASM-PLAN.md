@@ -118,7 +118,7 @@ The raw compiler and Python payloads already exceed the documented
 - [x] Move the existing cookieless Analytics frame to a separate static
   origin on GitHub Pages. Verify that GA4 accepts one page view for
   the canonical playground URL and that the frame stays isolated.
-  [Metrics frame repository](https://github.com/jbc-lang/playground-metrics)
+  The frame was retired during the [repository cutover](PLAYGROUND-REPO.md).
 - [x] Verify the domain with the chosen host. For Pages, configure
   `online.jbc-lang.org` on the `jbcc` repository and change only the
   Squarespace `online` CNAME from `jbc-online.web.app` to

@@ -93,9 +93,9 @@ keeps generated assets out of Git history.
   from the direct tag for the canonical URL.
 - [x] Remove the old playground sources and Pages workflow from `jbcc`
   and unpublish its Pages site. Link to the standalone repo and live site.
-- [x] Unpublish the `playground-metrics` Pages site and archive its
-  repository. Keep the existing GA4 property and stream and record the
-  old Tag Manager container in [ANALYTICS-TAGS.md](ANALYTICS-TAGS.md).
+- [x] Unpublish the `playground-metrics` Pages site and delete its
+  repository. The direct tag uses the existing GA4 property and stream.
+  The former container is recorded in [ANALYTICS-TAGS.md](ANALYTICS-TAGS.md).
 
 ### Rollback record
 
@@ -103,9 +103,9 @@ The [last jbcc deployment](https://github.com/jbc-lang/jbcc/actions/runs/4566865
 was built from `20de795`. The [final jbcc checkout with the playground](https://github.com/jbc-lang/jbcc/tree/eb4221a)
 also includes the migration notes. To restore that deployment after
 cleanup, restore the playground sources and workflow from that checkout
-and re-enable GitHub Actions for Pages in `jbcc`. Unarchive
-`playground-metrics` and republish its `main` branch root if the
-previous Analytics setup is needed.
+and re-enable GitHub Actions for Pages in `jbcc`. Omit
+`JBCC_ANALYTICS_FRAME` from the restored workflow so the fallback build
+can run with Analytics disabled.
 
 Once the old artifact works at its default Pages URL, clear the custom
 domain from `jbc-playground`, attach it to `jbcc`, and verify HTTPS and

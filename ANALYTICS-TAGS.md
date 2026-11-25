@@ -27,8 +27,9 @@ consent is denied.
 [Google DebugView guidance](https://support.google.com/analytics/answer/7201382)
 
 The former playground container `GTM-5QTPTVWF` was used by the
-`playground-metrics` iframe and the old tag-check page. The live site
-uses the direct tag and the same GA4 stream.
+`playground-metrics` iframe and the old tag-check page. The iframe
+repository was deleted after cutover. The live site uses the direct
+tag and the same GA4 stream.
 [Repository cutover](PLAYGROUND-REPO.md)
 
 ## Documentation site
