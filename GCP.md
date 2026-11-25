@@ -1,15 +1,16 @@
 # GCP deployment archive
 
-The [browser-only playground](WASM-PLAN.md) is hosted on GitHub Pages
-at `https://online.jbc-lang.org/`. The sections below record the former
-Cloud Run and Firebase deployment in **jBC Online** (`jbc-online`).
+The [standalone playground](https://github.com/jbc-lang/jbc-playground) is
+hosted on GitHub Pages at `https://online.jbc-lang.org/`. The sections below
+record the former Cloud Run and Firebase deployment in **jBC Online** (`jbc-online`).
 The original deployment checklist is in [ONLINE-COMPILER.md](ONLINE-COMPILER.md).
 
 ## Retirement
 
-On 2026-11-25 the public playground compiles and runs in the browser and uses browser
-storage for projects. The Analytics frame moved from Firebase Hosting
-to [GitHub Pages](https://jbc-lang.github.io/playground-metrics/). The
+On 2026-11-25 the browser-only playground replaced the Cloud Run editor.
+During that migration the Analytics frame moved from Firebase Hosting
+to GitHub Pages. The frame has since been retired as part of the
+[standalone repository cutover](PLAYGROUND-REPO.md). The
 browser test compiled and ran two projects, reloaded a named save, and
 observed a cookieless GA4 page view with HTTP 204 while blocking Firebase
 and Cloud Run requests. The Squarespace CNAME still points to
@@ -50,8 +51,8 @@ that the project had been deleted. The old public endpoints still
 responded in the first minutes after shutdown. The live playground
 passed its browser checks again after shutdown.
 
-The dedicated [Analytics configuration](ANALYTICS-TAGS.md) continues to
-use the same Tag Manager container and GA4 stream. The old GitHub OAuth
+The [live Analytics configuration](ANALYTICS-TAGS.md) continues to use
+the same GA4 stream. The old GitHub OAuth
 application is registered separately in GitHub.
 [Google Cloud project shutdown](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects) ·
 [Cloud Billing spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).

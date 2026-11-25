@@ -79,23 +79,34 @@ keeps generated assets out of Git history.
 
 ## 4. Transfer the domain and retire the old deployment
 
-- [ ] Record the current working deployment and the rollback steps.
-  Before the transfer, save a test project at the production URL in a
-  dedicated browser profile for the storage continuity check. Set the
-  Actions variable `JBCC_ENABLE_ANALYTICS=1` in `jbc-playground` and
-  publish the production artifact before assigning the domain.
-- [ ] Remove the `online.jbc-lang.org` custom domain from `jbcc` Pages
-  and immediately assign it to `jbc-playground` Pages. Keep the
-  Squarespace CNAME targeting `jbc-lang.github.io`. Verify HTTPS and
-  canonical routing. If cutover fails, reassign the domain to the old
-  Pages deployment and verify it serves the previous site.
+- [x] Save a multi-file project in a dedicated browser profile before
+  cutover. Set `JBCC_ENABLE_ANALYTICS=1` in the new repository and verify
+  the staged HTML and pinned wheel before assigning the domain.
+  [Production deployment](https://github.com/jbc-lang/jbc-playground/actions/runs/45672286013)
+- [x] Transfer the Pages custom domain from `jbcc` to
+  `jbc-playground`. The Squarespace CNAME still points to
+  `jbc-lang.github.io`. The new binding serves HTTPS and redirects HTTP.
   [GitHub Pages custom domains](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site)
-- [ ] On the live domain, compile and run single-file and multi-file
-  examples, reopen the saved project in the same browser profile,
-  exercise JSON import and export, and verify the GA4 page view again.
-- [ ] Remove playground source and the Pages workflow from `jbcc` after
-  the new deployment passes. Keep links to the live site and the new
-  repo, and update the Analytics and deployment notes.
-- [ ] Once the direct tag is verified and the old site is no longer in use,
-  retire `jbc-lang/playground-metrics`. Keep the existing GA4 property and
-  stream. Record the retired Tag Manager container in the tag inventory.
+- [x] Reopen the saved project in the same browser profile and run both
+  Hello and the linked-routine example on the live domain. Export and
+  reimport the project. Verify that GA4 accepts one cookieless page view
+  from the direct tag for the canonical URL.
+- [x] Remove the old playground sources and Pages workflow from `jbcc`
+  and unpublish its Pages site. Link to the standalone repo and live site.
+- [x] Unpublish the `playground-metrics` Pages site and archive its
+  repository. Keep the existing GA4 property and stream and record the
+  old Tag Manager container in [ANALYTICS-TAGS.md](ANALYTICS-TAGS.md).
+
+### Rollback record
+
+The [last jbcc deployment](https://github.com/jbc-lang/jbcc/actions/runs/45668656419)
+was built from `20de795`. The [final jbcc checkout with the playground](https://github.com/jbc-lang/jbcc/tree/eb4221a)
+also includes the migration notes. To restore that deployment after
+cleanup, restore the playground sources and workflow from that checkout
+and re-enable GitHub Actions for Pages in `jbcc`. Unarchive
+`playground-metrics` and republish its `main` branch root if the
+previous Analytics setup is needed.
+
+Once the old artifact works at its default Pages URL, clear the custom
+domain from `jbc-playground`, attach it to `jbcc`, and verify HTTPS and
+a browser run. Both the transfer and rollback use the same DNS record.

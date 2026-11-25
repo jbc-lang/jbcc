@@ -1,5 +1,10 @@
 # Browser-only jBC playground
 
+This document records the original browser migration. The
+[standalone playground repository](https://github.com/jbc-lang/jbc-playground)
+now serves `online.jbc-lang.org`. See [PLAYGROUND-REPO.md](PLAYGROUND-REPO.md)
+for the repository cutover.
+
 Keep the current multi-file editor at `https://online.jbc-lang.org/`.
 Run **jBC → C → WebAssembly → browser runner** on the visitor’s device.
 Keep named projects in browser storage and support files for backup and
@@ -48,8 +53,8 @@ and reuse the downloaded assets and initialized toolchain.
   Chromium, Firefox, and WebKit, including iPhone emulation. After
   loading the toolchain, run a new program with the network disconnected.
 
-Run `just playground-static` and open <http://127.0.0.1:18766/> for the
-local build. The [playground README](playground/README.md) has test commands.
+For local development and test commands, see the
+[standalone playground guide](https://github.com/jbc-lang/jbc-playground#local-development).
 
 ## 2. Store projects locally and export existing cloud saves
 
