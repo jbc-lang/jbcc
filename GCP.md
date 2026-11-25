@@ -1,16 +1,62 @@
-# GCP deployment runbook
+# GCP deployment archive
 
-The [implementation checklist](ONLINE-COMPILER.md) uses the dedicated
-`jBC Online` Google Cloud project (ID `jbc-online`), linked to the
-existing billing account, displayed as `General`. The billing link uses
-the account ID.
-Cloud Run service `compiler` serves the legacy editor and API at
-`https://jbc-online.web.app/` for cloud-save export and rollback.
-Service `compiler-worker` runs jbcc and Emscripten and accepts calls
-from the Go service identity. The [browser-only playground](WASM-PLAN.md)
-uses GitHub Pages at `https://online.jbc-lang.org/`.
+The [browser-only playground](WASM-PLAN.md) is hosted on GitHub Pages
+at `https://online.jbc-lang.org/`. The sections below record the former
+Cloud Run and Firebase deployment in **jBC Online** (`jbc-online`).
+The original deployment checklist is in [ONLINE-COMPILER.md](ONLINE-COMPILER.md).
 
-## Inventory already verified
+## Retirement
+
+On 2026-11-25 the public playground compiles and runs in the browser and uses browser
+storage for projects. The Analytics frame moved from Firebase Hosting
+to [GitHub Pages](https://jbc-lang.github.io/playground-metrics/). The
+browser test compiled and ran two projects, reloaded a named save, and
+observed a cookieless GA4 page view with HTTP 204 while blocking Firebase
+and Cloud Run requests. The Squarespace CNAME still points to
+`jbc-lang.github.io`.
+
+The final `jbc-online` inventory included the Cloud Run services
+`compiler` and `compiler-worker`, the Firestore database and Artifact
+Registry repository both named `jbc-playground`, Firebase Authentication,
+and Hosting sites `jbc-online` and `jbc-online-metrics`. The Firebase
+custom domain binding belonged to the old site. There were no Cloud
+Storage buckets or BigQuery datasets and no cloud saves to migrate.
+
+The General billing account had a dedicated £1 Cloud Run spend cap
+for `jbc-online`, with alerts at 50%, 80%, and 100%. The £0.50 overall
+alerts-only policy covers all projects and services, with thresholds
+at 50%, 90%, and 100%. Only the dedicated cap was removed. A before
+and after Budget API comparison verified that all four other policies
+on the account were unchanged.
+
+```sh
+gcloud billing budgets list --billing-account="$JBCC_BILLING_ACCOUNT" \
+  --billing-project=jbc-online --account="$JBCC_ACCOUNT"
+gcloud billing budgets delete 193c5d12-262c-43ba-9173-f0eabe9debf7 \
+  --billing-account="$JBCC_BILLING_ACCOUNT" --billing-project=jbc-online \
+  --account="$JBCC_ACCOUNT"
+gcloud projects delete jbc-online --account="$JBCC_ACCOUNT"
+gcloud projects describe jbc-online --account="$JBCC_ACCOUNT" \
+  --format='value(lifecycleState)'
+gcloud billing projects describe jbc-online --account="$JBCC_ACCOUNT" \
+  --format='value(billingEnabled)'
+```
+
+Google Cloud reported `DELETE_REQUESTED` and billing disabled. Google
+Cloud schedules permanent deletion after its 30-day recovery period.
+Project shutdown covers Firebase Hosting, Firebase Authentication, and
+the other project-owned resources. The Firebase Hosting API reported
+that the project had been deleted. The old public endpoints still
+responded in the first minutes after shutdown. The live playground
+passed its browser checks again after shutdown.
+
+The dedicated [Analytics configuration](ANALYTICS-TAGS.md) continues to
+use the same Tag Manager container and GA4 stream. The old GitHub OAuth
+application is registered separately in GitHub.
+[Google Cloud project shutdown](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects) ·
+[Cloud Billing spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
+
+## Historical deployment inventory
 
 - The existing billing account has an all-projects, all-services alert
   that covers `jbc-online`.
@@ -167,19 +213,18 @@ collection through `GET /api/v1/projects`.
 
 ## Publish Docker images and deploy Cloud Run
 
-Both Cloud Run services are live in `europe-west2`. The initial pilot
-allowlist contains `begoon`. The services use request-based billing
+Both Cloud Run services ran in `europe-west2`. The initial pilot
+allowlist contained `begoon`. The services used request-based billing
 with zero minimum and two maximum instances per service.
 
-| Service | Active revision | Build commit | Image digest |
+| Service | Final revision | Build commit | Image digest |
 | --- | --- | --- | --- |
 | `compiler` | `compiler-00007-b8w` | `84448da` | `sha256:0841254fc6f9476a137072e910bea310908bfce27879d24f83b2297406501883` |
 | `compiler-worker` | `compiler-worker-00001-lcj` | `e2b548e` | `sha256:5aacef622639080285a4956eed86f1a49a307e6ecf8d1fa8d878dd17ea858d79` |
 
 The web update added **Export** for cloud saves. The worker continued
-serving its existing revision. Firebase lists `jbc-online.web.app` as an
-authorized sign-in domain. For a cloud save, sign in at that address,
-load the project, click **Export**, then import the JSON at the new site.
+serving its existing revision. Firebase listed `jbc-online.web.app` as an
+authorized sign-in domain during the migration window.
 
 ```sh
 gcp run services update compiler --region="$JBCC_REGION" \
@@ -271,7 +316,7 @@ service URL. It uses a Cloud Run identity token to call the worker.
 
 ## Firebase Hosting and Analytics
 
-Firebase Hosting serves `https://jbc-online.web.app/` through a
+Firebase Hosting served `https://jbc-online.web.app/` through a
 catch-all rewrite to Cloud Run service `compiler` in `europe-west2`.
 The main Hosting release is `sites/jbc-online/releases/1795609337836000`.
 The Hosting API created a version with this rewrite and the static
@@ -287,17 +332,16 @@ build computes the SHA-256 hash of the inline initializer.
 ```
 
 The original Firebase custom domain mapping was added with
-`projects.sites.customDomains.create`. Keep it for rollback. The former
-Squarespace record and the current CNAME use a four-hour TTL.
+`projects.sites.customDomains.create`. The former Squarespace record and
+the current CNAME use a four-hour TTL.
 [Custom domain setup](https://firebase.google.com/docs/hosting/custom-domain).
 
-| Host | Type | Active target | Rollback target |
+| Host | Type | Active target | Former target |
 | --- | --- | --- | --- |
 | `online` | CNAME | `jbc-lang.github.io` | `jbc-online.web.app` |
 
-The separate Firebase Hosting site `jbc-online-metrics` serves
-`index.html` and `tag.js` from [playground/analytics](playground/analytics).
-Its live release is
+The Firebase Hosting site `jbc-online-metrics` served the isolated
+Analytics frame before the move to GitHub Pages. Its final release was
 `sites/jbc-online-metrics/releases/1795609330873000`. To publish the
 frame, create a Hosting version, call `versions.populateFiles` with
 SHA-256 hashes of the gzip-compressed files, upload required hashes,
@@ -306,17 +350,8 @@ the Google tag and collection endpoints and allows framing by
 `online.jbc-lang.org` and `jbc-online.web.app`.
 [Firebase Hosting deploy API](https://firebase.google.com/docs/hosting/api-deploy).
 
-The GitHub Pages workflow sets `JBCC_ANALYTICS_FRAME` to this Firebase
-Hosting site when building the public editor. The editor loads
-`GTM-5QTPTVWF` on page load. The tag runs
-inside the cross-origin frame. It cannot read editor content, filenames,
-compiler output, or sign-in state. The published container directs hits
-to GA4 measurement ID `G-NCPVZT08XG`. A live browser test observed a
-cookieless `page_view` with HTTP 204 from GA4. The tag suppresses
-automatic page views and emits one event for `https://online.jbc-lang.org/`
-with the title **jBC Playground**. User-provided data capabilities were
-disabled in the playground and documentation containers and published as
-Version 2 in each. The GA4 Realtime report check remains pending.
+See [ANALYTICS-TAGS.md](ANALYTICS-TAGS.md) for the active GitHub Pages
+configuration and tag verification.
 
 If deploying through an external HTTPS load balancer for Cloud Armor
 instead, restrict Go service ingress to the load balancer.

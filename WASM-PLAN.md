@@ -110,11 +110,10 @@ The raw compiler and Python payloads already exceed the documented
   [Successful Pages run](https://github.com/jbc-lang/jbcc/actions/runs/45661483988) ·
   [GitHub Pages workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 - [ ] Check first load and execution on a physical mobile device.
-- [ ] Move the existing cookieless Analytics frame to a separate static
-  origin before retiring Firebase Hosting. Verify that one page view is
-  recorded for the canonical playground URL and that the tag stays
-  isolated from the editor. Update the tag-check page and runbook as
-  needed.
+- [x] Move the existing cookieless Analytics frame to a separate static
+  origin on GitHub Pages. Verify that GA4 accepts one page view for
+  the canonical playground URL and that the frame stays isolated.
+  [Metrics frame repository](https://github.com/jbc-lang/playground-metrics)
 - [x] Verify the domain with the chosen host. For Pages, configure
   `online.jbc-lang.org` on the `jbcc` repository and change only the
   Squarespace `online` CNAME from `jbc-online.web.app` to
@@ -129,22 +128,13 @@ The raw compiler and Python payloads already exceed the documented
 
 - [x] Remove the legacy editor, compilation API, Cloud Run build files,
   and Firebase sign-in code from the repository.
-- [ ] Reconcile the live inventory and record the exact commands,
-  console actions, and outcomes in [GCP.md](GCP.md). Confirm the static
-  site is stable before retiring the old resources.
-- [ ] Remove the old Firebase Hosting custom domain mapping and retire
-  the legacy Hosting site. Disable Firebase GitHub sign-in and retire
-  the dedicated **jBC Online** GitHub OAuth app.
-- [ ] Retire Cloud Run services `compiler` and `compiler-worker` in
-  `europe-west2`, then remove the `jbc-playground` Artifact Registry
-  repository, worker VPC/subnet/firewall, and dedicated service accounts
-  and IAM bindings. After the data retention decision, remove the
-  `jbc-playground` Firestore database and its build-quota records.
-  Remove the dedicated playground spend cap and retain the shared
-  billing account and account-wide alert.
-- [ ] Verify that the static site has no dependency on `jbc-online`
-  and confirm which project resources remain. Shut down the dedicated
-  GCP project only after checking the inventory and receiving approval
-  for deletion. Recheck public DNS, HTTPS, Analytics, and billing after
-  cleanup. [Firestore database management](https://docs.cloud.google.com/firestore/native/docs/manage-databases) ·
-  [Google Cloud project shutdown](https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects#shutting_down_projects)
+- [x] Reconcile the live inventory and record the retirement commands
+  in [GCP.md](GCP.md#retirement). Verify the public playground and its
+  Analytics with Firebase and Cloud Run requests blocked.
+- [x] Remove the dedicated £1 Cloud Run spend cap and verify the
+  shared billing account's alerts and other caps.
+- [x] Shut down `jbc-online`, including the Cloud Run services, Firestore,
+  Artifact Registry, Firebase Hosting and sign-in, and the legacy
+  custom domain mapping. Recheck public DNS, HTTPS, and Analytics.
+  [Google Cloud project shutdown](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)
+- [ ] Remove the old **jBC Online** OAuth app from its GitHub account.
