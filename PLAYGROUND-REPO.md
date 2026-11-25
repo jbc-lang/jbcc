@@ -56,24 +56,24 @@ keeps generated assets out of Git history.
 
 ## 3. Put the Google tag in the served HTML
 
-- [ ] Embed the direct Google tag (`gtag.js`) for the existing playground
-  stream `G-NCPVZT08XG` in the production `index.html`. Enable it only in
-  the production build. The production page will use a single tag and
-  remove the old Tag Manager iframe and its loader.
-- [ ] Keep the cookieless page view. Set denied Analytics and advertising
-  consent defaults before measurement, suppress automatic page views,
-  and send one explicit page view with the canonical playground URL.
-  Keep user-provided data collection disabled.
-- [ ] Review the tag configuration and verify that its requests carry
-  no project contents, filenames, names, input, or output. The direct
-  Google script runs in the editor's page and has access to its DOM and
-  same-origin browser storage. This change removes the iframe's
-  isolation for Analytics. Keep the Wasm runner sandbox in place.
-- [ ] Test the rendered production HTML before cutover. Verify that GA4
-  accepts one cookieless page view for `https://online.jbc-lang.org/`,
-  that no Analytics cookies appear, and that there are no requests to
-  `playground-metrics`. Verify default preview and local builds omit
-  Analytics.
+- [x] Embed `gtag.js` for playground stream `G-NCPVZT08XG` in the
+  standalone production `index.html`. The Actions variable
+  `JBCC_ENABLE_ANALYTICS=1` enables it for the main-branch artifact. The
+  script checks the production origin. Local and preview builds omit
+  the tag by default.
+- [x] Set denied Analytics and advertising consent before sending one
+  explicit page view for the canonical URL. Suppress the automatic page
+  view and verify that user-provided data collection is disabled in the
+  published Google tag configuration.
+- [x] Verify the browser traffic with sample project names, filenames,
+  source, input, and output. The direct tag runs in the editor's origin
+  and can access its DOM and storage. The Wasm runner remains sandboxed.
+  The tag skips URLs with query strings because GA4 Enhanced Measurement
+  can collect search terms from them.
+- [x] Test the production artifact at the canonical origin in a test
+  browser before cutover. The test observed one cookieless page view
+  with an HTTP 204 from GA4, zero cookies, and zero requests to
+  `playground-metrics`. The preview remains Analytics-free.
   [Google tag setup](https://developers.google.com/tag-platform/gtagjs) ·
   [Google consent defaults](https://developers.google.com/tag-platform/security/guides/consent)
 
@@ -81,7 +81,9 @@ keeps generated assets out of Git history.
 
 - [ ] Record the current working deployment and the rollback steps.
   Before the transfer, save a test project at the production URL in a
-  dedicated browser profile for the storage continuity check.
+  dedicated browser profile for the storage continuity check. Set the
+  Actions variable `JBCC_ENABLE_ANALYTICS=1` in `jbc-playground` and
+  publish the production artifact before assigning the domain.
 - [ ] Remove the `online.jbc-lang.org` custom domain from `jbcc` Pages
   and immediately assign it to `jbc-playground` Pages. Keep the
   Squarespace CNAME targeting `jbc-lang.github.io`. Verify HTTPS and
