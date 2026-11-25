@@ -45,6 +45,20 @@ All Google Analytics properties are in the GA account **Sites**
   events when analytics cookie consent is denied.
   [Google DebugView guidance](https://support.google.com/analytics/answer/7201382).
 
+## Standalone playground cutover
+
+The new repository embeds `gtag.js` in production HTML for the same
+`G-NCPVZT08XG` stream. The preview still omits Analytics. The previous
+Tag Manager frame serves the live domain until cutover.
+
+A browser test substituted the production artifact at the canonical
+origin and observed one cookieless `page_view` accepted by GA4. No Analytics
+cookies or test project data appeared in the requests. The published
+tag configuration has user-provided data collection disabled. The
+implementation skips URLs with query strings to avoid collecting search
+terms through enhanced measurement. The Google script runs in the
+editor's origin. The Wasm runner retains its sandbox.
+
 ## Small issue on the docs site
 
 `site/head.html` doesn't add the
