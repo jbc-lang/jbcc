@@ -3,7 +3,7 @@ WORKDIR /build
 COPY playground/package.json playground/bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY playground/web ./
-RUN mkdir /web && cp *.html *.css /web/ && \
+RUN mkdir /web && cp *.html *.css favicon-32.png /web/ && \
     bun build editor.ts runner.ts analytics.ts --target=browser --format=esm --splitting --outdir=/web
 COPY tests/programs/hello.b tests/programs/fibonacci.b tests/programs/factorial.b tests/programs/rule110.b /web/examples/
 COPY tests/routines/caller.b tests/routines/get.status.b tests/routines/I_STATUS /web/examples/

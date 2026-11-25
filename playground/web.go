@@ -190,8 +190,9 @@ func (s *webServer) compile(w http.ResponseWriter, r *http.Request) {
 func (s *webServer) register(mux *http.ServeMux, root string) http.Handler {
 	mux.HandleFunc("POST /api/v1/compile", s.compile)
 	if s.projects != nil {
-		mux.HandleFunc("GET /api/v1/projects/{id}", s.serveProject)
-		mux.HandleFunc("PUT /api/v1/projects/{id}", s.serveProject)
+		mux.HandleFunc("GET /api/v1/projects", s.serveProjects)
+		mux.HandleFunc("GET /api/v1/projects/{id}", s.serveProjects)
+		mux.HandleFunc("PUT /api/v1/projects/{id}", s.serveProjects)
 	}
 	mux.HandleFunc("GET /api/v1/auth/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

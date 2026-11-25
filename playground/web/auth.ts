@@ -9,7 +9,7 @@ import {
   signOut,
 } from "firebase/auth";
 
-export function connectAuth(config: FirebaseOptions) {
+export function connectAuth(config: FirebaseOptions, onAccountChange: () => void) {
   const auth = initializeAuth(initializeApp(config), {
     persistence: browserSessionPersistence,
     popupRedirectResolver: browserPopupRedirectResolver,
@@ -19,6 +19,7 @@ export function connectAuth(config: FirebaseOptions) {
   control.hidden = false;
 
   onAuthStateChanged(auth, async (user) => {
+    onAccountChange();
     control.textContent = user ? "Sign out" : "Sign in with GitHub";
     message.textContent = "";
     if (!user) return;

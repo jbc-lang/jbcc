@@ -73,6 +73,36 @@ button:disabled { cursor: default; opacity: 0.5; }
 }
 .actions { flex-wrap: wrap; }
 #cloud-projects[hidden] { display: none; }
+#cloud-picker { position: relative; }
+#cloud-picker summary {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--panel);
+  cursor: pointer;
+}
+.project-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 0.25rem);
+  inset-inline-end: 0;
+  z-index: 3;
+  min-width: 10rem;
+  width: max-content;
+  max-width: min(16rem, calc(100vw - 2rem));
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--panel);
+}
+#cloud-names button {
+  display: block;
+  width: 100%;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+#cloud-list-status:not(:empty) { padding: 0.35rem; }
 #auth-status, #cloud-status {
   color: var(--secondary);
   font-size: 0.875rem;
@@ -284,4 +314,9 @@ h3 { padding: 0.75rem 0.9rem 0; color: var(--secondary); font-size: 0.875rem; }
   .topbar { flex-wrap: wrap; }
   .pane-header { flex-wrap: wrap; }
   .settings { gap: 0.45rem; }
+}
+@media (max-width: 62rem) {
+  #cloud-projects { position: relative; }
+  #cloud-picker { position: static; }
+  .project-menu { inset-inline: 0.9rem auto; }
 }

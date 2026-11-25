@@ -160,6 +160,8 @@ allowlist before compiling or accessing saves. It uses the Firebase UID
 for Firestore document ownership and build quotas. Each account can have
 one build in flight and six build starts in a rolling minute. Saved
 projects at `users/{uid}/projects/{id}` use revisions to detect conflicts.
+The project picker lists document IDs from the signed-in user's
+collection through `GET /api/v1/projects`.
 
 ## Publish Docker images and deploy Cloud Run
 

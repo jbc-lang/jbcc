@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>jBC Playground</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="stylesheet" href="/style.css">
     <script type="module" src="/editor.js"></script>
     <script type="module" src="/analytics.js"></script>
@@ -58,6 +59,14 @@
           </div>
           <button type="button" id="cloud-save">Save</button>
           <button type="button" id="cloud-load">Load</button>
+          <details id="cloud-picker">
+            <summary>Projects</summary>
+            <div class="project-menu">
+              <div id="cloud-names"></div>
+              <div id="cloud-list-status" role="status"></div>
+              <button type="button" id="cloud-more" hidden>Show more</button>
+            </div>
+          </details>
           <span id="cloud-status" aria-live="polite"></span>
         </div>
         <div class="editor">

@@ -38,6 +38,38 @@ test("runs Hello and Status lookup, then reloads the multi-file draft", async ({
   await expect(page.getByLabel("Main", { exact: true })).toHaveValue("caller.b");
 });
 
+test("choosing a cloud project name keeps the local draft", async ({ page }) => {
+  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ json: {} }));
+  await page.route(/\/auth-[^/]+\.js$/, (route) => route.fulfill({
+    contentType: "text/javascript",
+    body: `export function connectAuth() {
+      return { session: async () => ({ uid: "test", headers: {} }) };
+    }`,
+  }));
+  const requests: string[] = [];
+  await page.route("**/api/v1/projects**", (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url.pathname + url.search);
+    return route.fulfill({
+      json: url.searchParams.get("after")
+        ? { names: ["second"] }
+        : { names: ["first"], next: "first" },
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openEditor(page);
+  const editor = page.getByLabel("jBC source");
+  const source = await editor.inputValue();
+  await page.getByText("Projects", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "first", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Show more" }).click();
+  await page.getByRole("button", { name: "second", exact: true }).click();
+  await expect(page.getByLabel("Cloud project")).toHaveValue("second");
+  await expect(page.locator("#cloud-picker")).not.toHaveAttribute("open");
+  await expect(editor).toHaveValue(source);
+  expect(requests).toEqual(["/api/v1/projects", "/api/v1/projects?after=first"]);
+});
+
 for (const example of ["fibonacci", "factorial", "rule110"]) {
   test(`runs the ${example} example with native output`, async ({ page }) => {
     await openEditor(page);

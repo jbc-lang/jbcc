@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestFirestoreSharedLimitsAndPrivateProjects(t *testing.T) {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		for _, doc := range []*firestore.DocumentRef{db1.Collection("compileLimits").Doc(uid), p1.doc(uid, "draft")} {
+		for _, doc := range []*firestore.DocumentRef{db1.Collection("compileLimits").Doc(uid), p1.doc(uid, "draft"), p1.doc(uid, "second")} {
 			if _, err := doc.Delete(ctx); err != nil {
 				t.Errorf("delete disposable test document: %v", err)
 			}
@@ -116,5 +117,21 @@ func TestFirestoreSharedLimitsAndPrivateProjects(t *testing.T) {
 	}
 	if _, err := p2.get(ctx, uid+"-other", "draft"); !errors.Is(err, errNoProject) {
 		t.Fatalf("another user's project returned %v", err)
+	}
+	draft.Revision = 0
+	if _, err := p1.save(ctx, uid, "second", draft); err != nil {
+		t.Fatal(err)
+	}
+	page, err := p2.list(ctx, uid, "")
+	if err != nil || !slices.Equal(page.Names, []string{"draft", "second"}) || page.Next != "" {
+		t.Fatalf("list projects: %+v, %v", page, err)
+	}
+	page, err = p2.list(ctx, uid, "draft")
+	if err != nil || !slices.Equal(page.Names, []string{"second"}) {
+		t.Fatalf("list after draft: %+v, %v", page, err)
+	}
+	page, err = p2.list(ctx, uid+"-other", "")
+	if err != nil || page.Names == nil || len(page.Names) != 0 {
+		t.Fatalf("list another user's projects: %+v, %v", page, err)
 	}
 }

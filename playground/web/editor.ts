@@ -55,7 +55,10 @@ const onlineAuth = fetch("/api/v1/auth/config").then(async (response) => {
   const config = await response.json();
   if (config === null) return null;
   const { connectAuth } = await import("./auth");
-  const auth = connectAuth(config);
+  const auth = connectAuth(config, () => {
+    closeProjectList();
+    cloudPicker.open = false;
+  });
   element("cloud-projects").hidden = false;
   return auth;
 });
@@ -443,6 +446,81 @@ const cloudName = element<HTMLInputElement>("cloud-project");
 const cloudStatus = element("cloud-status");
 const cloudSave = element<HTMLButtonElement>("cloud-save");
 const cloudLoad = element<HTMLButtonElement>("cloud-load");
+const cloudPicker = element<HTMLDetailsElement>("cloud-picker");
+const cloudNames = element("cloud-names");
+const cloudListStatus = element("cloud-list-status");
+const cloudMore = element<HTMLButtonElement>("cloud-more");
+let cloudListRequest: AbortController | undefined;
+let nextProjectName = "";
+
+function closeProjectList() {
+  cloudListRequest?.abort();
+  cloudListRequest = undefined;
+  nextProjectName = "";
+  cloudNames.replaceChildren();
+  cloudListStatus.textContent = "";
+  cloudMore.hidden = true;
+  cloudMore.disabled = false;
+}
+
+async function listCloudProjects(after = "") {
+  if (cloudListRequest) return;
+  const request = new AbortController();
+  cloudListRequest = request;
+  cloudListStatus.textContent = "Loading projects…";
+  cloudMore.disabled = true;
+  try {
+    const auth = await onlineAuth;
+    if (!auth || request.signal.aborted) return;
+    const identity = await auth.session();
+    const query = after ? `?after=${encodeURIComponent(after)}` : "";
+    const response = await fetch(`/api/v1/projects${query}`, {
+      headers: identity.headers,
+      signal: request.signal,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.diagnostics?.[0]?.message ?? "Could not list cloud projects");
+    }
+    if (!cloudPicker.open || request.signal.aborted) return;
+    for (const name of result.names as string[]) {
+      cloudNames.append(button(name, () => {
+        cloudName.value = name;
+        cloudPicker.open = false;
+        cloudName.focus();
+      }));
+    }
+    nextProjectName = result.next ?? "";
+    cloudMore.hidden = !nextProjectName;
+    cloudListStatus.textContent = cloudNames.childElementCount ? "" : "No saved projects";
+  } catch (error) {
+    if (!request.signal.aborted) {
+      cloudListStatus.textContent = error instanceof Error ? error.message : "Could not list cloud projects";
+    }
+  } finally {
+    if (cloudListRequest === request) {
+      cloudListRequest = undefined;
+      cloudMore.disabled = false;
+    }
+  }
+}
+
+cloudPicker.addEventListener("toggle", () => {
+  if (cloudPicker.open) void listCloudProjects();
+  else closeProjectList();
+});
+cloudPicker.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && cloudPicker.open) {
+    cloudPicker.open = false;
+    cloudPicker.querySelector("summary")?.focus();
+  }
+});
+document.addEventListener("pointerdown", (event) => {
+  if (cloudPicker.open && event.target instanceof Node && !cloudPicker.contains(event.target)) {
+    cloudPicker.open = false;
+  }
+});
+cloudMore.addEventListener("click", () => void listCloudProjects(nextProjectName));
 
 async function cloudProject(write: boolean) {
   const id = cloudName.value.trim();

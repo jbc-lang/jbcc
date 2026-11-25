@@ -149,14 +149,30 @@ func TestCloudSavesRequireAnInvite(t *testing.T) {
 			}),
 		},
 	}
-	for _, method := range []string{http.MethodGet, http.MethodPut} {
-		r := httptest.NewRequest(method, "/api/v1/projects/draft", nil)
-		r.Header.Set("Authorization", "Bearer uninvited")
-		r.SetPathValue("id", "draft")
-		w := httptest.NewRecorder()
-		s.serveProject(w, r)
-		if w.Code != http.StatusForbidden {
-			t.Fatalf("%s got %d, want %d", method, w.Code, http.StatusForbidden)
+	for _, route := range []struct{ method, id string }{
+		{http.MethodGet, ""},
+		{http.MethodGet, "draft"},
+		{http.MethodPut, "draft"},
+	} {
+		path := "/api/v1/projects"
+		if route.id != "" {
+			path += "/" + route.id
+		}
+		for _, auth := range []struct {
+			header string
+			want   int
+		}{
+			{"", http.StatusUnauthorized},
+			{"Bearer uninvited", http.StatusForbidden},
+		} {
+			r := httptest.NewRequest(route.method, path, nil)
+			r.Header.Set("Authorization", auth.header)
+			r.SetPathValue("id", route.id)
+			w := httptest.NewRecorder()
+			s.serveProjects(w, r)
+			if w.Code != auth.want {
+				t.Fatalf("%s %s got %d, want %d", route.method, path, w.Code, auth.want)
+			}
 		}
 	}
 }

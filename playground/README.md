@@ -44,7 +44,9 @@ from [asm8](https://github.com/begoon/asm8).
 In production the editor accepts GitHub sign-in through Firebase. The
 API enforces the pilot allowlist, a shared six-starts-per-minute quota,
 and one build at a time per account. Each invited account can save
-private named projects. Load a newer revision before retrying a save
+private named projects. Open **Projects** and select a saved name to fill
+the **Cloud project** field. Click **Load** to replace the current draft.
+Load a newer revision before retrying a save
 that reports a conflict. The [GCP runbook](../GCP.md) lists the hosting
 configuration.
 
