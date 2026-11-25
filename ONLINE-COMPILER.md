@@ -20,9 +20,9 @@ terminal devices, and jBASE or T24 backends.
 
 Finish the browser-to-compiler flow on one machine before creating cloud
 resources. The local stack runs the same Go API and compiler worker used
-for deployment. Verified from a fresh checkout without Google Cloud
-credentials. See the [local playground guide](playground/README.md) to run
-the stack and its tests.
+for deployment. The pilot passed this check from a fresh checkout without Google Cloud
+credentials. Local development now uses the
+[standalone playground](https://github.com/jbc-lang/jbc-playground#local-development).
 
 ### Prove multi-file jBC to WebAssembly
 
