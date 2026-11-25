@@ -2562,6 +2562,12 @@ just test-parallel
 just test-parallel 4 -k executable_mode
 ```
 
+With Clang as `cc`, native tests share one compiled object for the default
+runtime, including across pytest-xdist workers. Feature-specific runtime
+builds and compiler driver tests use embedded C. Other C compilers use
+embedded C for every native build. Pass `--embedded-runtime` to compare
+both modes.
+
 Use a full run after changing the compiler, C runtime, or fixtures.
 The tests exercise these files through subprocesses, so Python
 test-selection caches alone cannot establish coverage for such changes.
