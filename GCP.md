@@ -17,9 +17,10 @@ Emscripten and accepts calls from the Go service identity.
 - Squarespace hosts DNS for `jbc-lang.org`. No A or CNAME record was
   found for `online.jbc-lang.org`.
 
-Use the intended personal Google Cloud account. Set `JBCC_ACCOUNT` to
-that account and `JBCC_REGION` to the selected Cloud Run and Artifact
-Registry region. Choose the Firestore region before creating the database.
+Set `JBCC_ACCOUNT` to the intended Google Cloud account. Use London
+(`europe-west2`) for Cloud Run, Artifact Registry, and Firestore.
+[Firestore locations](https://docs.cloud.google.com/firestore/native/docs/locations).
+[Firebase Hosting rewrites to Cloud Run](https://firebase.google.com/docs/hosting/cloud-run).
 
 ```sh
 gcloud auth list
@@ -103,9 +104,16 @@ Budget API.
 
 ## Enable APIs and provision service identities
 
+The APIs, empty Docker repository, runtime service accounts, and
+Firestore database below were provisioned in `jbc-online`. Firestore is
+in Native mode with deletion protection enabled. The web service account
+has database-scoped access. The worker has no direct project role.
+
 ```sh
+JBCC_REGION=europe-west2
 gcp services enable run.googleapis.com artifactregistry.googleapis.com \
-  compute.googleapis.com firestore.googleapis.com
+  compute.googleapis.com firestore.googleapis.com firebase.googleapis.com \
+  identitytoolkit.googleapis.com
 gcp artifacts repositories create jbc-playground \
   --repository-format=docker --location="$JBCC_REGION"
 gcp iam service-accounts create compiler-web
@@ -127,13 +135,22 @@ gcp projects add-iam-policy-binding "$JBCC_PROJECT" \
   --condition="expression=resource.name==\"projects/$JBCC_PROJECT/databases/jbc-playground\",title=JbcPlaygroundDatabase"
 ```
 
-In Firebase, add the dedicated Cloud project and register a web app.
-Register a GitHub OAuth app and use the callback Firebase supplies.
-Enable the GitHub provider and authorize `online.jbc-lang.org`. The
-Go API verifies Firebase ID tokens and checks the allowlist of invited
-GitHub account IDs before compiling or serving saved projects. Request
-no repository scopes. [Firebase GitHub provider](https://firebase.google.com/docs/auth/web/github-auth).
+Firebase was linked and the web app **jBC Online** was created with
+`projects.addFirebase` and `projects.webApps.create` in the Firebase
+Management API. The web app config was verified with
+`projects.webApps.getConfig`.
+[Firebase Management API](https://firebase.google.com/docs/reference/firebase-management/rest/v1beta1/projects).
 [Firestore database IAM](https://docs.cloud.google.com/firestore/docs/manage-databases).
+
+Initialize Firebase Authentication and register a GitHub OAuth app with
+homepage `https://online.jbc-lang.org/` and the authorization callback
+`https://jbc-online.firebaseapp.com/__/auth/handler`. Enable the GitHub
+provider in Firebase and add `online.jbc-lang.org` to the authorized
+domains. Keep the OAuth client secret in the provider configuration.
+The Go API must verify Firebase ID tokens and check the allowlist of
+invited GitHub account IDs before compiling or serving saved projects.
+Request no repository scopes.
+[Firebase GitHub provider](https://firebase.google.com/docs/auth/web/github-auth).
 
 ## Publish Docker images and deploy Cloud Run
 
@@ -234,7 +251,8 @@ curl -s -o /dev/null -w '%{http_code}\n' "$JBCC_WORKER_URL/healthz"
 Confirm that the unauthenticated worker request is denied. Verify sign-in,
 save and reload, excluded accounts, the multi-file browser example, and
 rate limiting. Confirm billing attribution and the cap scope in the
-Console. Use the application build switch once it has been implemented.
+Console. The build switch returns HTTP 503 from the compile endpoint
+while paused. The editor and health endpoint remain available.
 
 ```sh
 gcp run services update compiler --region="$JBCC_REGION" \

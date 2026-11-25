@@ -107,17 +107,22 @@ Initial build limits to verify locally and tune during the pilot:
 - [x] Record the Cloud Run pilot settings in [GCP.md](GCP.md). Use
   request-based billing, zero minimum instances, and at most two
   instances per service.
-- [ ] Add and verify an operator switch that pauses new playground builds.
-  Confirm billing attribution and cap coverage after deployment. Spend
-  cap enforcement can lag usage.
+- [x] Add and verify locally that `JBCC_BUILDS_ENABLED=false` pauses
+  new builds while the editor and health endpoint stay available.
+- [ ] Verify the pause switch, billing attribution, and spend cap on the
+  deployed services. Spend cap enforcement can lag usage.
   [Spend cap scope](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
   [Cloud Run scaling limits](https://docs.cloud.google.com/run/docs/configuring/max-instances).
 
 ## 3. Add invite-only GitHub sign-in, rate limits, and Firestore saves
 
-- [ ] Enable Firestore and Firebase Authentication after confirming the
-  database location in the dedicated project. Configure GitHub OAuth
-  for sign-in only. Request no repository scopes and keep GitHub access tokens out of playground storage.
+- [x] Enable the service APIs and provision the Docker repository, web
+  and worker service accounts, and the Firestore database in
+  `europe-west2`.
+- [x] Link Firebase to the project and register the `jBC Online` web app.
+- [ ] Initialize Firebase Authentication and configure GitHub OAuth for
+  sign-in only. Request no repository scopes and keep GitHub access tokens
+  out of playground storage.
   [Firebase GitHub sign-in](https://firebase.google.com/docs/auth/web/github-auth).
 - [ ] Verify Firebase ID tokens in the Go API. Admit only GitHub accounts on
   the pilot allowlist. Use stable provider account IDs for the allowlist,
