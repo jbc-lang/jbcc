@@ -328,9 +328,9 @@ func main() {
 		log.Fatal("usage: playground web|worker")
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
+	health := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	mux.HandleFunc("GET /healthz", health)
+	mux.HandleFunc("GET /api/v1/health", health)
 	var handler http.Handler = mux
 	switch os.Args[1] {
 	case "worker":

@@ -4,7 +4,7 @@ COPY playground/package.json playground/bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY playground/web ./
 RUN mkdir /web && cp *.html *.css /web/ && \
-    bun build editor.ts runner.ts --target=browser --format=esm --splitting --outdir=/web
+    bun build editor.ts runner.ts analytics.ts --target=browser --format=esm --splitting --outdir=/web
 COPY tests/programs/hello.b tests/programs/fibonacci.b tests/programs/factorial.b tests/programs/rule110.b /web/examples/
 COPY tests/routines/caller.b tests/routines/get.status.b tests/routines/I_STATUS /web/examples/
 RUN stamp=$(date -u '+%Y.%m.%d %H:%M|%Y-%m-%dT%H:%M:00Z') && \

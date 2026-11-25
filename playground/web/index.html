@@ -6,6 +6,7 @@
     <title>jBC Playground</title>
     <link rel="stylesheet" href="/style.css">
     <script type="module" src="/editor.js"></script>
+    <script type="module" src="/analytics.js"></script>
   </head>
   <body>
     <header class="topbar">
@@ -16,6 +17,7 @@
       <div class="actions">
         <span id="auth-status" aria-live="polite"></span>
         <button type="button" id="sign-in" hidden>Sign in with GitHub</button>
+        <button type="button" id="analytics" aria-pressed="false" title="Share page views with Google Analytics" hidden>Analytics</button>
         <button type="button" id="theme" aria-label="Switch to light theme" title="Switch to light theme">☀︎</button>
         <button type="button" id="build">Build</button>
         <button type="button" id="run" class="primary" title="Run (Ctrl or Command + Enter)">Run</button>

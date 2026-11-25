@@ -28,14 +28,15 @@ type browserAuth struct {
 }
 
 type webServer struct {
-	origin   string
-	worker   string
-	client   *http.Client
-	enabled  bool
-	auth     *browserAuth
-	access   *accessPolicy
-	quota    buildQuota
-	projects projectStore
+	origin    string
+	worker    string
+	client    *http.Client
+	enabled   bool
+	auth      *browserAuth
+	access    *accessPolicy
+	quota     buildQuota
+	projects  projectStore
+	analytics string
 }
 
 var authDomain = regexp.MustCompile(`^[a-z0-9-]+\.firebaseapp\.com$`)
@@ -55,6 +56,13 @@ func makeWebServer(ctx context.Context) (*webServer, error) {
 	}
 	if config.worker == "" {
 		return nil, errors.New("set JBCC_WORKER_URL")
+	}
+	if analytics := os.Getenv("JBCC_ANALYTICS_ORIGIN"); analytics != "" {
+		u, err := hostOrigin(analytics)
+		if err != nil || !strings.HasSuffix(u.Hostname(), ".web.app") || u.Port() != "" {
+			return nil, errors.New("JBCC_ANALYTICS_ORIGIN must be a Firebase Hosting origin")
+		}
+		config.analytics = u.String()
 	}
 	mode := os.Getenv("JBCC_MODE")
 	config.enabled = mode == "local"
@@ -88,6 +96,9 @@ func makeWebServer(ctx context.Context) (*webServer, error) {
 		return nil, errors.New("set JBCC_WORKER_URL to the private Cloud Run service origin")
 	}
 	config.origin = origin.String()
+	if config.analytics != "" && config.analytics == config.origin {
+		return nil, errors.New("analytics must use an origin separate from the editor")
+	}
 	authConfig := &browserAuth{
 		APIKey: os.Getenv("JBCC_FIREBASE_API_KEY"), AuthDomain: os.Getenv("JBCC_FIREBASE_AUTH_DOMAIN"),
 		ProjectID: os.Getenv("JBCC_FIREBASE_PROJECT"), AppID: os.Getenv("JBCC_FIREBASE_APP_ID"),
@@ -198,6 +209,14 @@ func (s *webServer) register(mux *http.ServeMux, root string) http.Handler {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("GET /api/v1/analytics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if s.analytics == "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		_, _ = w.Write([]byte(s.analytics))
+	})
 	mux.HandleFunc("GET /runner.html", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", "sandbox allow-scripts; default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
 		http.ServeFile(w, r, filepath.Join(root, "runner.html"))
@@ -205,11 +224,16 @@ func (s *webServer) register(mux *http.ServeMux, root string) http.Handler {
 	files := http.FileServer(http.Dir(root))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		csp := "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+		frames := "'self'"
 		if s.auth != nil {
-			csp += "; script-src 'self' https://apis.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com; frame-src 'self' https://" + s.auth.AuthDomain
+			csp += "; script-src 'self' https://apis.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com"
+			frames += " https://" + s.auth.AuthDomain
 			w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		}
-		w.Header().Set("Content-Security-Policy", csp)
+		if s.analytics != "" {
+			frames += " " + s.analytics
+		}
+		w.Header().Set("Content-Security-Policy", csp+"; frame-src "+frames)
 		files.ServeHTTP(w, r)
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
