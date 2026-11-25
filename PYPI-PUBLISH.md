@@ -88,7 +88,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   production PyPI. Use a fresh uv cache and a temporary working directory
   to verify `uvx jbcc --help`, `uvx jbcc --run hello.b`, and the pinned
   invocation `uvx jbcc@0.1.0 --run hello.b`.
-- [ ] Add the verified `uvx` commands and the PyPI link to the README.
+- [x] Add the verified `uvx` commands and the PyPI link to the README.
   If a release needs correcting, publish a new version and yank the
   faulty version if needed. [PyPI yanking guidance](https://docs.pypi.org/project-management/yanking/).
 
