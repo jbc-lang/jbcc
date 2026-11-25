@@ -1,8 +1,11 @@
 import type { Diagnostic } from "./browser-compiler";
+import {
+  exportProject, importProject, listProjects, projectName, readProject, writeProject,
+  type Draft, type Project, type SourceFile,
+} from "./projects";
 
-type SourceFile = { path: string; source: string };
-type Project = { files: SourceFile[]; entry: string; units: string[] };
-type Draft = Project & { active: string; stdin: string };
+type ProjectBinding = { name: string; revision: number; savedVersion: number; failed?: boolean };
+type StoredDraft = Draft & { localProject?: { name: string; revision: number; dirty: boolean } };
 type SourceLocation = {
   path: string;
   source: string;
@@ -85,12 +88,13 @@ function getStorage(key: string): string | null {
 function putStorage(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
+    return true;
   } catch {
-    // The editor still works when browser storage is unavailable.
+    return false;
   }
 }
 
-function loadDraft(): Draft | null {
+function loadDraft(): StoredDraft | null {
   try {
     const item = JSON.parse(getStorage(draftKey) ?? "null");
     if (item?.files?.length && item.files.some((f: SourceFile) => f.path === item.active)) {
@@ -103,13 +107,24 @@ function loadDraft(): Draft | null {
 }
 
 const saved = loadDraft();
-let draft: Draft = saved ?? {
+const { localProject: storedProject, ...storedDraft }: StoredDraft = saved ?? {
   files: [{ path: "main.b", source: "" }],
   entry: "main.b",
   units: [],
   active: "main.b",
   stdin: "",
 };
+let draft: Draft = storedDraft;
+let localProject: ProjectBinding | undefined = browserCompiler && storedProject &&
+    typeof storedProject.name === "string" && projectName.test(storedProject.name) &&
+    Number.isSafeInteger(storedProject.revision) && storedProject.revision > 0
+  ? { name: storedProject.name, revision: storedProject.revision, savedVersion: storedProject.dirty ? -1 : 0 }
+  : undefined;
+let draftVersion = 0;
+let saveTimer: number | undefined;
+let saveStarted: number | undefined;
+let projectBusy = false;
+let autosaves = Promise.resolve();
 let activity: Activity | null = null;
 let marked: SourceLocation | undefined;
 let cached: { source: string; reply: Build & { javascript: string; wasm: string } } | undefined;
@@ -119,8 +134,68 @@ function current(): SourceFile {
   return draft.files.find((file) => file.path === draft.active)!;
 }
 
+function persistDraft() {
+  const binding = localProject;
+  const snapshot: StoredDraft = binding ? {
+    ...draft,
+    localProject: { name: binding.name, revision: binding.revision, dirty: binding.savedVersion !== draftVersion },
+  } : draft;
+  if (!putStorage(draftKey, JSON.stringify(snapshot)) && browserCompiler) {
+    cloudStatus.textContent = "Could not store the recovery draft";
+  }
+}
+
+function flushDraft() {
+  if (saveTimer === undefined) return;
+  window.clearTimeout(saveTimer);
+  saveTimer = undefined;
+  saveStarted = undefined;
+  persistDraft();
+  const binding = localProject;
+  if (!binding || projectBusy || binding.savedVersion === draftVersion) return;
+  const version = draftVersion;
+  const snapshot = structuredClone(draft);
+  autosaves = autosaves.then(async () => {
+    if (binding.failed || binding.savedVersion >= version) return;
+    try {
+      binding.revision = await writeProject(binding.name, snapshot, binding.revision);
+      binding.savedVersion = version;
+      if (localProject === binding) persistDraft();
+    } catch (error) {
+      binding.failed = true;
+      if (localProject === binding) {
+        localProject = undefined;
+        persistDraft();
+        cloudStatus.textContent = error instanceof Error ? error.message : "Could not autosave the project";
+      }
+    }
+  });
+}
+
+function scheduleSave() {
+  window.clearTimeout(saveTimer);
+  const now = performance.now();
+  saveStarted ??= now;
+  const delay = Math.max(0, Math.min(350, 2000 - (now - saveStarted)));
+  saveTimer = window.setTimeout(flushDraft, delay);
+}
+
 function save() {
-  putStorage(draftKey, JSON.stringify(draft));
+  draftVersion++;
+  scheduleSave();
+}
+
+function replaceDraft(value: Draft, binding?: { name: string; revision: number }) {
+  flushDraft();
+  draft = value;
+  draftVersion++;
+  localProject = binding ? { ...binding, savedVersion: draftVersion } : undefined;
+  views.clear();
+  stdin.value = draft.stdin;
+  clearResult();
+  render();
+  persistDraft();
+  status.textContent = "Ready";
 }
 
 function numberLines() {
@@ -227,23 +302,21 @@ async function loadExample(key: keyof typeof exampleFiles) {
       if (!response.ok) throw new Error("Could not load example");
       return { path, source: await response.text() };
     }));
-    if (activity || JSON.stringify(draft) !== before) {
+    if (activity || projectBusy || JSON.stringify(draft) !== before) {
       if (!activity) status.textContent = "Draft kept because it changed while loading";
       return;
     }
-    draft = {
+    replaceDraft({
       files,
       entry: files[0].path,
       active: files[0].path,
       units: key === "status" ? [files[1].path] : [],
       stdin: "",
-    };
-    views.clear();
-    stdin.value = "";
-    render();
-    save();
-    clearResult();
-    status.textContent = "Ready";
+    });
+    if (browserCompiler) {
+      cloudName.value = "draft";
+      cloudStatus.textContent = "";
+    }
   } catch {
     if (!activity) status.textContent = "Could not load example";
   }
@@ -483,6 +556,8 @@ const cloudName = element<HTMLInputElement>("cloud-project");
 const cloudStatus = element("cloud-status");
 const cloudSave = element<HTMLButtonElement>("cloud-save");
 const cloudLoad = element<HTMLButtonElement>("cloud-load");
+const projectImport = element<HTMLButtonElement>("project-import");
+const projectFile = element<HTMLInputElement>("project-file");
 const cloudPicker = element<HTMLDetailsElement>("cloud-picker");
 const cloudNames = element("cloud-names");
 const cloudListStatus = element("cloud-list-status");
@@ -500,6 +575,21 @@ function closeProjectList() {
   cloudMore.disabled = false;
 }
 
+async function projectPage(after: string, signal: AbortSignal): Promise<{ names: string[]; next?: string }> {
+  if (browserCompiler) return { names: await listProjects() };
+  const auth = await onlineAuth;
+  if (!auth) return { names: [] };
+  signal.throwIfAborted();
+  const identity = await auth.session();
+  const query = after ? `?after=${encodeURIComponent(after)}` : "";
+  const response = await fetch(`/api/v1/projects${query}`, { headers: identity.headers, signal });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.diagnostics?.[0]?.message ?? "Could not list cloud projects");
+  }
+  return result;
+}
+
 async function listCloudProjects(after = "") {
   if (cloudListRequest) return;
   const request = new AbortController();
@@ -507,20 +597,9 @@ async function listCloudProjects(after = "") {
   cloudListStatus.textContent = "Loading projects…";
   cloudMore.disabled = true;
   try {
-    const auth = await onlineAuth;
-    if (!auth || request.signal.aborted) return;
-    const identity = await auth.session();
-    const query = after ? `?after=${encodeURIComponent(after)}` : "";
-    const response = await fetch(`/api/v1/projects${query}`, {
-      headers: identity.headers,
-      signal: request.signal,
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.diagnostics?.[0]?.message ?? "Could not list cloud projects");
-    }
+    const result = await projectPage(after, request.signal);
     if (!cloudPicker.open || request.signal.aborted) return;
-    for (const name of result.names as string[]) {
+    for (const name of result.names) {
       cloudNames.append(button(name, () => {
         cloudName.value = name;
         cloudPicker.open = false;
@@ -532,7 +611,7 @@ async function listCloudProjects(after = "") {
     cloudListStatus.textContent = cloudNames.childElementCount ? "" : "No saved projects";
   } catch (error) {
     if (!request.signal.aborted) {
-      cloudListStatus.textContent = error instanceof Error ? error.message : "Could not list cloud projects";
+      cloudListStatus.textContent = error instanceof Error ? error.message : "Could not list projects";
     }
   } finally {
     if (cloudListRequest === request) {
@@ -561,7 +640,7 @@ cloudMore.addEventListener("click", () => void listCloudProjects(nextProjectName
 
 async function cloudProject(write: boolean) {
   const id = cloudName.value.trim();
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+  if (!projectName.test(id)) {
     cloudStatus.textContent = "Use letters, digits, hyphens or underscores";
     return;
   }
@@ -590,12 +669,7 @@ async function cloudProject(write: boolean) {
         throw new Error("Draft kept because it changed while loading");
       }
       const project = result.project as Project;
-      draft = { ...project, active: project.entry, stdin: draft.stdin };
-      views.clear();
-      clearResult();
-      render();
-      save();
-      status.textContent = "Ready";
+      replaceDraft({ ...project, active: project.entry, stdin: draft.stdin });
     }
     revisions.set(key, result.revision);
     cloudStatus.textContent = write ? "Saved" : "Loaded";
@@ -606,8 +680,89 @@ async function cloudProject(write: boolean) {
   }
 }
 
-cloudSave.addEventListener("click", () => void cloudProject(true));
-cloudLoad.addEventListener("click", () => void cloudProject(false));
+async function runLocalProject(action: () => Promise<void>) {
+  if (projectBusy) return;
+  flushDraft();
+  projectBusy = true;
+  cloudSave.disabled = cloudLoad.disabled = projectImport.disabled = true;
+  try {
+    await autosaves;
+    await action();
+  } catch (error) {
+    cloudStatus.textContent = error instanceof Error ? error.message : "Could not access browser projects";
+  } finally {
+    projectBusy = false;
+    cloudSave.disabled = cloudLoad.disabled = projectImport.disabled = false;
+    if (localProject && localProject.savedVersion !== draftVersion) scheduleSave();
+  }
+}
+
+function manageLocalProject(write: boolean) {
+  const name = cloudName.value.trim();
+  if (!projectName.test(name)) {
+    cloudStatus.textContent = "Use letters, digits, hyphens or underscores";
+    return;
+  }
+  const before = draftVersion;
+  void runLocalProject(async () => {
+    const saved = await readProject(name);
+    if (write) {
+      if (saved && saved.revision !== (localProject?.name === name ? localProject.revision : 0) &&
+          !confirm(`Replace the saved project “${name}” with this draft?`)) return;
+      const version = draftVersion;
+      const revision = await writeProject(name, structuredClone(draft), saved?.revision ?? 0);
+      localProject = { name, revision, savedVersion: version };
+      cloudStatus.textContent = `Autosaving ${name}`;
+      persistDraft();
+    } else {
+      if (!saved) throw new Error("Project not found");
+      if (activity || draftVersion !== before) throw new Error("Draft kept because it changed while loading");
+      if (!confirm(`Replace this draft with “${name}”?`)) return;
+      cloudStatus.textContent = `Autosaving ${name}`;
+      replaceDraft(saved.draft, { name, revision: saved.revision });
+    }
+    cloudName.value = name;
+  });
+}
+
+cloudSave.addEventListener("click", () => browserCompiler ? manageLocalProject(true) : void cloudProject(true));
+cloudLoad.addEventListener("click", () => browserCompiler ? manageLocalProject(false) : void cloudProject(false));
+element("project-export").addEventListener("click", () => {
+  const name = localProject?.name ?? cloudName.value.trim();
+  if (!projectName.test(name)) {
+    cloudStatus.textContent = "Enter a project name before exporting";
+    return;
+  }
+  try {
+    exportProject(name, browserCompiler ? draft : { ...draft, stdin: undefined });
+    cloudStatus.textContent = `Exported ${name}`;
+  } catch (error) {
+    cloudStatus.textContent = error instanceof Error ? error.message : "Could not export the project";
+  }
+});
+projectImport.addEventListener("click", () => projectFile.click());
+projectFile.addEventListener("change", () => {
+  const file = projectFile.files?.[0];
+  projectFile.value = "";
+  if (!browserCompiler || !file) return;
+  const before = draftVersion;
+  void runLocalProject(async () => {
+    const imported = await importProject(file);
+    const { name } = imported;
+    const saved = await readProject(name);
+    if (activity || before !== draftVersion) throw new Error("Draft kept because it changed while importing");
+    if (!confirm(saved
+      ? `Overwrite “${name}” and replace the current draft with this import?`
+      : `Save “${name}” and replace the current draft with this import?`)) return;
+    const revision = await writeProject(name, imported.draft, saved?.revision ?? 0);
+    if (activity || before !== draftVersion) {
+      throw new Error(`Imported ${name}. The current draft changed and was kept`);
+    }
+    cloudStatus.textContent = `Autosaving ${name}`;
+    replaceDraft(imported.draft, { name, revision });
+    cloudName.value = name;
+  });
+});
 
 function applyTheme(light: boolean) {
   document.documentElement.dataset.theme = light ? "light" : "dark";
@@ -626,6 +781,10 @@ editor.addEventListener("input", () => {
 editor.addEventListener("scroll", syncEditorScroll);
 new ResizeObserver(() => renderSourceMark()).observe(editor);
 stdin.addEventListener("input", () => { draft.stdin = stdin.value; save(); });
+window.addEventListener("pagehide", flushDraft);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushDraft();
+});
 filename.addEventListener("change", rename);
 filename.addEventListener("keydown", (event) => {
   if (event.key === "Enter") filename.blur();
@@ -686,4 +845,14 @@ document.addEventListener("keydown", (event) => {
 applyTheme(getStorage(themeKey) === "light");
 stdin.value = draft.stdin;
 render();
+if (browserCompiler) {
+  element("cloud-projects").hidden = false;
+  element("project-label").textContent = "Project name";
+  projectImport.hidden = false;
+  if (localProject) {
+    cloudName.value = localProject.name;
+    cloudStatus.textContent = `Autosaving ${localProject.name}`;
+    if (localProject.savedVersion !== draftVersion) scheduleSave();
+  }
+}
 if (!saved) void loadExample("hello");

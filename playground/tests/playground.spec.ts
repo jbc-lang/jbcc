@@ -51,6 +51,16 @@ test("choosing a cloud project name keeps the local draft", async ({ page }) => 
   await page.route("**/api/v1/projects**", (route) => {
     const url = new URL(route.request().url());
     requests.push(url.pathname + url.search);
+    if (url.pathname.endsWith("/second")) {
+      return route.fulfill({ json: {
+        project: {
+          files: [{ path: "saved.b", source: fixture("../../tests/programs/hello.b") }],
+          entry: "saved.b",
+          units: [],
+        },
+        revision: 1,
+      } });
+    }
     return route.fulfill({
       json: url.searchParams.get("after")
         ? { names: ["second"] }
@@ -70,6 +80,20 @@ test("choosing a cloud project name keeps the local draft", async ({ page }) => 
   await expect(page.locator("#cloud-picker")).not.toHaveAttribute("open");
   await expect(editor).toHaveValue(source);
   expect(requests).toEqual(["/api/v1/projects", "/api/v1/projects?after=first"]);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Load", exact: true }).click();
+  await expect(page.locator("#filename")).toHaveValue("saved.b");
+  await page.getByLabel("Standard input").fill("not stored in a cloud save");
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const download = await downloaded;
+  expect(download.suggestedFilename()).toBe("second.jbc-project.json");
+  const exported = JSON.parse(readFileSync(await download.path(), "utf8"));
+  expect(exported).toMatchObject({
+    version: 1, name: "second", entry: "saved.b", units: [],
+    files: [{ path: "saved.b", source: fixture("../../tests/programs/hello.b") }],
+  });
+  expect(exported).not.toHaveProperty("stdin");
 });
 
 for (const example of ["fibonacci", "factorial", "rule110"]) {
@@ -148,7 +172,11 @@ test("opens and dismisses playground help on desktop and mobile", async ({ page 
   await expect(dialog).toBeVisible();
   await expect(close).toBeFocused();
   await expect(dialog.getByRole("heading", { name: "Link as routine" })).toBeVisible();
-  await expect(dialog).toContainText("six builds in a rolling minute");
+  if (process.env.JBCC_PLAYGROUND_STATIC) {
+    await expect(dialog.getByRole("heading", { name: "Save, load, and back up projects" })).toBeVisible();
+  } else {
+    await expect(dialog).toContainText("six builds in a rolling minute");
+  }
   await page.keyboard.press("Control+Enter");
   await expect(page.locator("#status")).toHaveText("Ready");
   await page.keyboard.press("Escape");
@@ -161,7 +189,7 @@ test("opens and dismisses playground help on desktop and mobile", async ({ page 
   expect(box).not.toBeNull();
   expect(box!.width).toBeLessThan(390);
   expect(box!.height).toBeLessThan(680);
-  const lastParagraph = dialog.getByText("The browser also keeps a local draft", { exact: false });
+  const lastParagraph = dialog.getByText("The browser also keeps a local draft", { exact: false }).filter({ visible: true });
   await lastParagraph.scrollIntoViewIfNeeded();
   await expect(lastParagraph).toBeInViewport();
   await close.click();

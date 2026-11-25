@@ -53,22 +53,23 @@ local build. The [playground README](playground/README.md) has test commands.
 
 ## 2. Store projects locally and export existing cloud saves
 
-- [ ] Keep the existing browser draft key and use IndexedDB for named
+- [x] Keep the existing browser draft key and use IndexedDB for named
   projects. Reuse the **Projects** picker. Selecting a name fills the
   input, **Load** confirms before replacing the draft, and **Save**
-  stores the name and project. Show storage failures in the editor.
-- [ ] Define a versioned JSON file format and implement **Export** and
+  stores the name and project. Debounce draft and named autosaves.
+  Show storage failures and conflicting edits in the editor.
+- [x] Define a versioned JSON file format and implement **Export** and
   **Import**. Round-trip the project name, source paths and contents,
   main file, linked routines, and prefilled stdin where present. Validate
   imports before applying them and ask before overwriting a saved name
   or replacing the current draft.
-- [ ] Add the same **Export** format to the hosted editor before
-  cutover so signed-in users can download their Firestore saves. Test
-  export on the old site and import on the static build in another
-  browser profile. Give pilot users a date by which to export. Explain
-  in help that named saves belong to the current browser profile and
-  site, and that export files can be used for backups or transfers.
-- [ ] Remove OAuth, quota, and cloud project requests from the static
+- [x] Add the same **Export** format to the hosted editor so signed-in
+  users can download their Firestore saves. Verify the export against
+  the local hosted stack. Explain browser storage and backups in help.
+- [ ] Publish the export feature on the live hosted editor, check the
+  signed-in export and import across browser profiles, and give pilot
+  users a date by which to export before cutover.
+- [x] Remove OAuth, quota, and cloud project requests from the static
   build. Update the help dialog and local development instructions.
   Verify that a fresh visitor can use the examples, run code, and
   save and load a project without signing in.

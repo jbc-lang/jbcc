@@ -6,9 +6,18 @@ Run `just playground-static` from the repository root and open
 <http://127.0.0.1:18766/>. This builds `dist/playground` with Bun and serves
 it with Python's static HTTP server. **Run** loads the compiler on demand.
 The worker uses Pyodide for jbcc and Clang/LLD for the generated C, and a
-separate sandboxed worker runs the Wasm. The browser keeps the current
-draft. Named local saves and Import/Export are tracked in
-[WASM-PLAN.md](../WASM-PLAN.md).
+separate sandboxed worker runs the Wasm. The browser saves the working
+draft in localStorage. Use **Project name** and **Save** to keep a named
+project in IndexedDB. **Projects** lists the names, and **Load** opens the
+chosen save after confirmation. Edits to a saved or loaded project
+autosave after a short pause. If another tab updates the same name, the
+editor keeps its working draft and reports a conflict. Save under a
+different name to keep both versions.
+
+Use **Export** to download the open project as a versioned JSON file.
+**Import** can open it in another browser profile, including a file from
+the hosted editor. Exports contain the project name, files, **Main**,
+linked routines, selected tab, and prefilled stdin.
 Browser session values use a virtual working directory of `/`, zero for
 the process and port numbers, and an empty OS login.
 
@@ -77,6 +86,7 @@ API enforces the pilot allowlist, a shared six-starts-per-minute quota,
 and one build at a time per account. Each invited account can save
 private named projects. Open **Projects** and select a saved name to fill
 the **Cloud project** field. Click **Load** to replace the current draft.
+Click **Export** after loading to download a copy for the browser-only build.
 Load a newer revision before retrying a save
 that reports a conflict. The [GCP runbook](../GCP.md) lists the hosting
 configuration.
