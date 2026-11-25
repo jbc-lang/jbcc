@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const fixture = (path: string) => readFileSync(new URL(`fixtures/includes/${path}`, import.meta.url), "utf8");
 const file = (path: string) => ({ path, source: fixture(path) });
+const staticPlayground = !!process.env.JBCC_PLAYGROUND_STATIC;
 
 function build(request: APIRequestContext, entry: string, files: { path: string; source: string }[], units: string[] = []) {
   return request.post("/api/v1/compile", { data: { entry, units, files } });
@@ -21,6 +22,16 @@ test("compiles nested and case-sensitive includes with shared files and relative
   await expect(page.getByRole("status")).toHaveText("Exited with status 0", { timeout: 20000 });
   expect(await page.locator("#stdout").textContent()).toBe("shared-local\nshared\n");
 
+  if (staticPlayground) {
+    await page.getByRole("button", { name: "I_SHARED", exact: true }).click();
+    const path = page.getByLabel("Path", { exact: true });
+    await path.fill("I_shared");
+    await path.press("Enter");
+    await page.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(page.locator("#diagnostics")).toContainText("include file 'I_SHARED' not found");
+    await expect(page.locator("#filename")).toHaveValue("library/defs/I_NESTED");
+    return;
+  }
   const wrongCase = files.map((f) => f.path === "I_SHARED" ? { ...f, path: "I_shared" } : f);
   const rejected = await build(request, "app/main.b", wrongCase, ["library/show.b"]);
   expect(rejected.status()).toBe(422);
@@ -30,6 +41,7 @@ test("compiles nested and case-sensitive includes with shared files and relative
 });
 
 test("diagnoses missing, recursive and out-of-project includes", async ({ request }) => {
+  test.skip(staticPlayground, "Exercises the compile API");
   for (const [entry, paths, origin, message] of [
     ["missing.b", ["missing.b"], "missing.b", "include file 'Missing' not found"],
     ["first.b", ["first.b", "second.b"], "second.b", "recursive include 'first.b'"],
@@ -43,6 +55,7 @@ test("diagnoses missing, recursive and out-of-project includes", async ({ reques
 });
 
 test("rejects unsafe and duplicate names, and enforces request and expanded-source limits", async ({ request }) => {
+  test.skip(staticPlayground, "Exercises the compile API");
   const main = file("missing.b");
   for (const files of [
     [main, main],
@@ -78,6 +91,7 @@ test("rejects unsafe and duplicate names, and enforces request and expanded-sour
 });
 
 test("rejects other browser origins and nonlocal host names", async ({ request }) => {
+  test.skip(staticPlayground, "Exercises the compile API");
   const response = await request.post("/api/v1/compile", {
     headers: { Origin: "https://example.invalid" },
     data: {},

@@ -1,5 +1,5 @@
 type RunRequest = {
-  javascript: Uint8Array<ArrayBuffer>;
+  javascript?: Uint8Array<ArrayBuffer>;
   wasm: Uint8Array<ArrayBuffer>;
   stdin: string;
 };
@@ -15,6 +15,7 @@ declare const createProgram: (options: {
   stderr: (byte: number | null) => void;
   onExit: (code: number) => void;
 }) => Promise<unknown>;
+declare const wasiWorkerSource: string;
 
 // This function is serialized into the dedicated worker alongside the loader.
 function workerMain() {
@@ -74,7 +75,13 @@ function workerMain() {
 }
 
 function connect(event: MessageEvent<RunRequest>) {
-  if (event.source !== parent || event.ports.length !== 1) return;
+  // Static serving also exposes runner.html as a standalone document.
+  if (
+    window.origin !== "null" ||
+    event.source !== parent ||
+    event.origin !== new URL(document.baseURI).origin ||
+    event.ports.length !== 1
+  ) return;
   window.removeEventListener("message", connect);
   const port = event.ports[0];
   let worker: Worker;
@@ -89,10 +96,10 @@ function connect(event: MessageEvent<RunRequest>) {
   }
   try {
     const { javascript, wasm, stdin } = event.data;
-    url = URL.createObjectURL(new Blob(
-      [javascript, "\n;", `(${workerMain.toString()})();`],
-      { type: "text/javascript" },
-    ));
+    const scripts = javascript
+      ? [javascript, "\n;", `(${workerMain.toString()})();`]
+      : [wasiWorkerSource];
+    url = URL.createObjectURL(new Blob(scripts, { type: "text/javascript" }));
     worker = new Worker(url);
     worker.onmessage = ({ data }: MessageEvent<RunEvent>) => {
       if (data.type === "exit" || data.type === "error") finish(data);

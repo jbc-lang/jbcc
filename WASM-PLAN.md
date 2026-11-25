@@ -22,31 +22,34 @@ and reuse the downloaded assets and initialized toolchain.
 
 ## 1. Build and test the static playground locally
 
-- [ ] Produce a static build served by a plain local HTTP server. Pin
+- [x] Produce a static build served by a plain local HTTP server. Pin
   Pyodide, Clang/LLD, the WASI sysroot, and the runner. Record versions,
   checksums, and redistribution notices. Use the tested YoWASP Clang
   package as the baseline and verify its update path after the upstream
   move to Codeberg. [Pyodide workers](https://pyodide.org/en/stable/usage/webworker.html) ·
   [YoWASP Clang](https://codeberg.org/YoWASP/clang)
-- [ ] Load the compiler in a worker and stage each build in its own
+- [x] Load the compiler in a worker and stage each build in its own
   virtual workspace. Reuse the browser target policy and include
   resolver. Preserve case-sensitive paths, nested includes, linked
   routines, and source-located diagnostics.
-- [ ] Compile C99 with the WASI C library, including long-double
+- [x] Compile C99 with the WASI C library, including long-double
   formatting. Add a prefilled stdin path that avoids POSIX terminal
   APIs. Verify input, EOF, stderr and exit status against native fixtures.
-- [ ] Run generated Wasm in a separate, disposable worker inside a
+- [x] Run generated Wasm in a separate, disposable worker inside a
   sandboxed iframe. Give it only the WASI imports needed for the
   playground, including standard streams and the supported clock and
   random functions. Keep project storage, browser APIs, and the network
   outside the runner. Verify **Stop** during loading, compilation, and
   execution, and keep limits on source expansion, runtime, memory, and
   output.
-- [ ] Run the playground suite against the static build. Check Hello,
+- [x] Run the playground suite against the static build. Check Hello,
   Fibonacci, Factorial, Rule 110, Status lookup, syntax errors,
   unsupported operations, and stdin. Check cold and warm runs on
-  Chromium, Firefox, and Safari, including a mobile browser. After
+  Chromium, Firefox, and WebKit, including iPhone emulation. After
   loading the toolchain, run a new program with the network disconnected.
+
+Run `just playground-static` and open <http://127.0.0.1:18766/> for the
+local build. The [playground README](playground/README.md) has test commands.
 
 ## 2. Store projects locally and export existing cloud saves
 
@@ -105,6 +108,8 @@ The raw compiler and Python payloads already exceed the documented
   runner to access browser storage or fetch over the network. Switch
   to the Vercel preview if the checks require header control.
   [GitHub Pages workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+- [ ] Check first load and execution on a physical mobile device before
+  changing DNS.
 - [ ] Move the existing cookieless Analytics frame to a separate static
   origin before retiring Firebase Hosting. Verify that one page view is
   recorded for the canonical playground URL and that the tag stays

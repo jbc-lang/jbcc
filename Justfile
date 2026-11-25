@@ -91,3 +91,9 @@ corpus directory jobs="8":
 # Build and start the local jBC playground.
 playground:
     docker compose -f playground/compose.yaml up --build
+
+# Build and serve the browser-only playground.
+playground-static port="18766":
+    cd playground && bun install --frozen-lockfile
+    bun playground/build-static.mjs
+    python3 -m http.server {{port}} --bind 127.0.0.1 --directory dist/playground

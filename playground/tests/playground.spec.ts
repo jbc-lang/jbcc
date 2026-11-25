@@ -39,6 +39,7 @@ test("runs Hello and Status lookup, then reloads the multi-file draft", async ({
 });
 
 test("choosing a cloud project name keeps the local draft", async ({ page }) => {
+  test.skip(!!process.env.JBCC_PLAYGROUND_STATIC, "Cloud saves use the hosted API");
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ json: {} }));
   await page.route(/\/auth-[^/]+\.js$/, (route) => route.fulfill({
     contentType: "text/javascript",
@@ -86,6 +87,13 @@ test("passes prefilled stdin and preserves stderr and a nonzero exit status", as
   await page.getByLabel("jBC source").fill(fixture("fixtures/input.b"));
   await page.getByLabel("Standard input").fill("Wasm\n");
   await compareWithNative(page, ["playground/tests/fixtures/input.b"], "Wasm\n");
+});
+
+test("reads a final input line without a newline and returns an empty value at EOF", async ({ page }) => {
+  await openEditor(page);
+  await page.getByLabel("jBC source").fill(fixture("fixtures/input-eof.b"));
+  await page.getByLabel("Standard input").fill("last line");
+  await compareWithNative(page, ["playground/tests/fixtures/input-eof.b"], "last line");
 });
 
 test("highlights the error line and column in an included file", async ({ page }) => {

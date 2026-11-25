@@ -1,13 +1,8 @@
+import type { Diagnostic } from "./browser-compiler";
+
 type SourceFile = { path: string; source: string };
 type Project = { files: SourceFile[]; entry: string; units: string[] };
 type Draft = Project & { active: string; stdin: string };
-type Diagnostic = {
-  path?: string;
-  line?: number;
-  column?: number;
-  severity: string;
-  message: string;
-};
 type SourceLocation = {
   path: string;
   source: string;
@@ -52,7 +47,8 @@ const stopButton = element<HTMLButtonElement>("stop");
 const helpButton = element<HTMLButtonElement>("help");
 const helpDialog = element<HTMLDialogElement>("help-dialog");
 
-const onlineAuth = fetch("/api/v1/auth/config").then(async (response) => {
+const browserCompiler = document.documentElement.dataset.compiler === "browser";
+const onlineAuth = browserCompiler ? Promise.resolve(null) : fetch("/api/v1/auth/config").then(async (response) => {
   if (!response.ok) throw new Error("Could not load sign-in configuration");
   const config = await response.json();
   if (config === null) return null;
@@ -227,7 +223,7 @@ async function loadExample(key: keyof typeof exampleFiles) {
   status.textContent = "Loading example…";
   try {
     const files = await Promise.all(exampleFiles[key].map(async (path) => {
-      const response = await fetch(`/examples/${path}`);
+      const response = await fetch(`./examples/${path}`);
       if (!response.ok) throw new Error("Could not load example");
       return { path, source: await response.text() };
     }));
@@ -348,7 +344,16 @@ function setActivity(value: Activity | null) {
   stopButton.disabled = value === null;
 }
 
-function startRunner(op: Activity, javascript: string, wasm: string, input: string) {
+function decodeArtifact(encoded: string) {
+  return Uint8Array.from(atob(encoded), (byte) => byte.charCodeAt(0));
+}
+
+function startRunner(
+  op: Activity,
+  wasm: Uint8Array<ArrayBuffer>,
+  input: string,
+  artifacts: { javascript: Uint8Array<ArrayBuffer> } | { document: string },
+) {
   const frame = document.createElement("iframe");
   frame.hidden = true;
   frame.title = "Isolated jBC runner";
@@ -383,14 +388,24 @@ function startRunner(op: Activity, javascript: string, wasm: string, input: stri
   };
   frame.addEventListener("load", () => {
     if (activity !== op) return;
-    const js = Uint8Array.from(atob(javascript), (byte) => byte.charCodeAt(0));
-    const module = Uint8Array.from(atob(wasm), (byte) => byte.charCodeAt(0));
-    frame.contentWindow!.postMessage({ javascript: js, wasm: module, stdin: input }, "*", [
-      port2, js.buffer, module.buffer,
+    const javascript = "javascript" in artifacts ? artifacts.javascript : undefined;
+    frame.contentWindow!.postMessage({ javascript, wasm, stdin: input }, "*", [
+      port2, wasm.buffer, ...(javascript ? [javascript.buffer] : []),
     ]);
   }, { once: true });
-  frame.src = "/runner.html";
+  if ("document" in artifacts) frame.srcdoc = artifacts.document;
+  else frame.src = "./runner.html";
   document.body.append(frame);
+}
+
+let runnerDocument: string | undefined;
+
+async function loadRunnerDocument(signal: AbortSignal) {
+  if (runnerDocument !== undefined) return runnerDocument;
+  const response = await fetch("./runner.html", { signal });
+  if (!response.ok) throw new Error("Could not load the browser runner");
+  runnerDocument = await response.text();
+  return runnerDocument;
 }
 
 function isActive(op: Activity): boolean {
@@ -407,6 +422,25 @@ async function runProgram() {
   clearResult();
   status.textContent = "Building…";
   try {
+    if (browserCompiler) {
+      const { compileInBrowser } = await import("./browser-compiler");
+      const [result, document] = await Promise.all([
+        compileInBrowser(source, op.request.signal, (text) => {
+          if (isActive(op)) status.textContent = text;
+        }),
+        loadRunnerDocument(op.request.signal),
+      ]);
+      if (!isActive(op)) return;
+      showDiagnostics(result.diagnostics, sources);
+      if (!result.wasm) {
+        status.textContent = "Build failed";
+        setActivity(null);
+        return;
+      }
+      status.textContent = "Running…";
+      startRunner(op, result.wasm, input, { document });
+      return;
+    }
     const session = await onlineAuth;
     const identity = await session?.session();
     if (!isActive(op)) return;
@@ -433,10 +467,11 @@ async function runProgram() {
       showDiagnostics(reply.diagnostics, sources);
     }
     status.textContent = "Running…";
-    startRunner(op, reply.javascript, reply.wasm, input);
+    startRunner(op, decodeArtifact(reply.wasm), input, { javascript: decodeArtifact(reply.javascript) });
   } catch (error) {
     if (!isActive(op)) return;
-    status.textContent = error instanceof Error && error.message === "Sign in with GitHub first"
+    op.request.abort();
+    status.textContent = error instanceof Error && (browserCompiler || error.message === "Sign in with GitHub first")
       ? error.message
       : "Could not complete the build";
     setActivity(null);
@@ -633,6 +668,7 @@ theme.addEventListener("click", () => {
 });
 runButton.addEventListener("click", () => void runProgram());
 helpButton.addEventListener("click", () => helpDialog.showModal());
+helpDialog.addEventListener("close", () => helpButton.focus());
 stopButton.addEventListener("click", () => {
   if (!activity) return;
   activity.request.abort();

@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef __wasi__
+#include <wasi/api.h>
+#endif
 
 struct jbc_buffer {
     struct jbc_buffer *next;
@@ -1042,7 +1045,7 @@ static void jbc_run_exit_callbacks(void)
 }
 #endif
 
-#if defined(JBC_SESSION) || defined(JBC_SEQUENTIAL)
+#if (defined(JBC_SESSION) && !defined(__wasi__)) || defined(JBC_SEQUENTIAL)
 #include <unistd.h>
 
 static const char *working_directory(void)
@@ -1058,7 +1061,9 @@ static const char *working_directory(void)
 #endif
 
 #ifdef JBC_SESSION
+#ifndef __wasi__
 #include <pwd.h>
+#endif
 
 static uintmax_t port_number;
 static int invalid_port_number;
@@ -1080,6 +1085,15 @@ static const char *session_environment(const char *name)
     return value && *value ? strcpy(allocate(strlen(value)), value) : NULL;
 }
 
+static uintmax_t session_process_id(void)
+{
+#ifdef __wasi__
+    return 0;
+#else
+    return (uintmax_t)getpid();
+#endif
+}
+
 void jbc_init_session(void)
 {
 #ifdef JBC_USERSTATS
@@ -1093,7 +1107,7 @@ void jbc_init_session(void)
 
     const char *value = getenv("JBCPORTNO");
     if (!value || !*value) {
-        port_number = (uintmax_t)getpid();
+        port_number = session_process_id();
         return;
     }
     char *end;
@@ -1117,9 +1131,13 @@ const char *jbc_port_number(const char *file, int line, int column)
 const char *jbc_login_name(void)
 {
     if (login_override) return login_override;
+#ifdef __wasi__
+    return "";
+#else
     const struct passwd *user = getpwuid(getuid());
     if (!user || !user->pw_name) return "";
     return strcpy(allocate(strlen(user->pw_name)), user->pw_name);
+#endif
 }
 
 const char *jbc_account_name(void)
@@ -1129,14 +1147,21 @@ const char *jbc_account_name(void)
 
 const char *jbc_account_path(const char *file, int line, int column)
 {
+#ifdef __wasi__
+    (void)file;
+    (void)line;
+    (void)column;
+    return "/";
+#else
     const char *path = working_directory();
     if (!path) numeric_error(file, line, column, "cannot resolve @PATH");
     return path;
+#endif
 }
 
 const char *jbc_process_id(void)
 {
-    return size_value((uintmax_t)getpid());
+    return size_value(session_process_id());
 }
 
 const char *jbc_terminal_type(void)
@@ -1147,8 +1172,12 @@ const char *jbc_terminal_type(void)
 
 const char *jbc_terminal_name(void)
 {
+#ifdef __wasi__
+    return "phantom";
+#else
     const char *terminal = ttyname(STDIN_FILENO);
     return terminal ? strcpy(allocate(strlen(terminal)), terminal) : "phantom";
+#endif
 }
 
 const char *jbc_user_root(void)
@@ -1763,11 +1792,17 @@ const char *jbc_rnd(const char *value, const char *file, int line, int column)
     uint32_t bound = (uint32_t)magnitude;
     if (bound == 1) return "0";
 
-    FILE *random = fopen("/dev/urandom", "rb");
-    if (!random) numeric_error(file, line, column, "RND cannot open /dev/urandom");
     /* Discard the incomplete interval so each remainder is equally likely. */
     uint32_t threshold = (UINT64_C(1) << 32) % bound;
     uint32_t sample;
+#ifdef __wasi__
+    do {
+        if (__wasi_random_get((unsigned char *)&sample, sizeof sample))
+            numeric_error(file, line, column, "RND cannot get random bytes");
+    } while (sample < threshold);
+#else
+    FILE *random = fopen("/dev/urandom", "rb");
+    if (!random) numeric_error(file, line, column, "RND cannot open /dev/urandom");
     do {
         if (fread(&sample, sizeof sample, 1, random) != 1) {
             fclose(random);
@@ -1775,6 +1810,7 @@ const char *jbc_rnd(const char *value, const char *file, int line, int column)
         }
     } while (sample < threshold);
     fclose(random);
+#endif
     return size_value(sample % bound);
 }
 
@@ -2237,12 +2273,17 @@ const char *jbc_timestamp(const char *file, int line, int column)
 const char *jbc_uniquekey(const char *file, int line, int column)
 {
     unsigned char bytes[16];
+#ifdef __wasi__
+    if (__wasi_random_get(bytes, sizeof bytes))
+        numeric_error(file, line, column, "UNIQUEKEY cannot get random bytes");
+#else
     FILE *random = fopen("/dev/urandom", "rb");
     if (!random) numeric_error(file, line, column, "UNIQUEKEY cannot open /dev/urandom");
     size_t count = fread(bytes, 1, sizeof bytes, random);
     fclose(random);
     if (count != sizeof bytes)
         numeric_error(file, line, column, "UNIQUEKEY cannot read /dev/urandom");
+#endif
 
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -4760,6 +4801,62 @@ void jbc_sleep(const char *duration, const char *file, int line, int column)
 #endif
 
 #ifdef JBC_TERMINAL
+#ifdef __wasi__
+/* The playground provides a finite byte stream in place of a terminal. */
+static int stream_input_byte(void)
+{
+    if (!input_data) return fgetc(stdin);
+    int c = input_data->bytes[input_data->offset++];
+    if (input_data->offset == input_data->length) drop_input_chunk();
+    return c;
+}
+
+int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int suppress_newline, int discard_excess,
+              const char *timeout_text, const char *file, int line, int column)
+{
+    (void)suppress_newline;
+    int64_t limit = limit_text ? truncated(limit_text, file, line, column) : 0;
+    if (limit < -1) numeric_error(file, line, column, "negative INPUT length");
+    if (timeout_text) numeric_error(file, line, column, "timed INPUT is unavailable in the browser");
+    if (limit == -1) {
+        int ready = input_data != NULL;
+        if (!ready) {
+            int c = fgetc(stdin);
+            ready = c != EOF && ungetc(c, stdin) != EOF;
+            if (ferror(stdin)) numeric_error(file, line, column, "cannot read input");
+        }
+        assign_value(out, ready ? "1" : "0");
+        return ready;
+    }
+    if ((cursor && fputs(cursor, stdout) == EOF) ||
+        fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout))
+        numeric_error(file, line, column, "cannot write input prompt");
+    char *text = NULL;
+    size_t length = 0, capacity = 0;
+    while (discard_excess || !limit_text || length < (uint64_t)limit) {
+        int c = stream_input_byte();
+        if (c == EOF || c == '\n') break;
+        if (discard_excess && length == (uint64_t)limit) continue;
+        if (c == 0) { free(text); numeric_error(file, line, column, "INPUT cannot store a NUL byte"); }
+        if (length == capacity) {
+            if (capacity > SIZE_MAX / 2) { free(text); numeric_error(file, line, column, "input line too long"); }
+            capacity = capacity ? 2 * capacity : 128;
+            char *grown = realloc(text, capacity);
+            if (!grown) { free(text); numeric_error(file, line, column, "out of memory"); }
+            text = grown;
+        }
+        text[length++] = (char)c;
+    }
+    if (ferror(stdin)) { free(text); numeric_error(file, line, column, "cannot read input"); }
+    char *value = allocate(length);
+    if (length) memcpy(value, text, length);
+    value[length] = '\0';
+    free(text);
+    assign_value(out, value);
+    count_userstat(&input_count);
+    return 1;
+}
+#else
 #include <fcntl.h>
 #include <signal.h>
 #include <termios.h>
@@ -5086,6 +5183,7 @@ const char *jbc_cursor(const char *col, const char *row, const char *file, int l
     snprintf(out, capacity, "\033[%" PRIu64 ";%" PRIu64 "H", (uint64_t)y + 1, (uint64_t)x + 1);
     return out;
 }
+#endif
 #endif
 
 #ifdef JBC_REPORT

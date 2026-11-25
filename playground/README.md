@@ -1,5 +1,34 @@
 # Local jBC playground
 
+## Browser-only build
+
+Run `just playground-static` from the repository root and open
+<http://127.0.0.1:18766/>. This builds `dist/playground` with Bun and serves
+it with Python's static HTTP server. **Run** loads the compiler on demand.
+The worker uses Pyodide for jbcc and Clang/LLD for the generated C, and a
+separate sandboxed worker runs the Wasm. The browser keeps the current
+draft. Named local saves and Import/Export are tracked in
+[WASM-PLAN.md](../WASM-PLAN.md).
+Browser session values use a virtual working directory of `/`, zero for
+the process and port numbers, and an empty OS login.
+
+The lockfile records the npm integrity hashes for Pyodide 314.0.8,
+YoWASP Clang 21.1.4-3 (including the WASI sysroot), and browser_wasi_shim
+0.4.2. The build copies the package toolchain assets into versioned
+paths. See the [Pyodide license](https://github.com/pyodide/pyodide/blob/main/LICENSE),
+[YoWASP package license and upstream sources](https://codeberg.org/YoWASP/clang),
+[LLVM license](https://llvm.org/LICENSE.txt),
+[wasi-libc license](https://github.com/WebAssembly/wasi-libc/blob/main/LICENSE),
+and the [WASI shim license](https://github.com/bjorn3/browser_wasi_shim/blob/main/LICENSE-MIT).
+
+Run the browser suite against this build with
+`JBCC_PLAYGROUND_STATIC=1 JBCC_PLAYWRIGHT_CHANNEL=chrome bunx playwright test`
+from `playground/`. For Playwright's Firefox or WebKit, install the engines
+with `bunx playwright install firefox webkit` and set
+`JBCC_PLAYWRIGHT_BROWSER` to `firefox` or `webkit` in place of the channel.
+
+## Cloud Run stack
+
 From the repository root, run `just playground` with Docker Compose
 running and open <http://127.0.0.1:18765/>. Set `JBCC_PLAYGROUND_PORT` to
 change the host port. With Docker Compose alone, run

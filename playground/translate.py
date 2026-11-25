@@ -1,4 +1,4 @@
-"""Translate a staged playground workspace to C for Emscripten."""
+"""Translate a staged playground workspace to C."""
 
 import argparse
 import posixpath
@@ -31,11 +31,7 @@ def resolve_include(source, name, _, token):
     return None
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("sources", nargs="+", type=Path)
-    args = parser.parse_args()
+def translate(sources):
     remaining = 1024 * 1024
 
     def count_expansion(path, source):
@@ -48,15 +44,24 @@ def main():
             )
         return source
 
+    source, _ = compile_program(
+        sources,
+        [],
+        browser=True,
+        include_resolver=resolve_include,
+        include_depth=16,
+        source_filter=count_expansion,
+    )
+    return source
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("output", type=Path)
+    parser.add_argument("sources", nargs="+", type=Path)
+    args = parser.parse_args()
     try:
-        source, _ = compile_program(
-            args.sources,
-            [],
-            browser=True,
-            include_resolver=resolve_include,
-            include_depth=16,
-            source_filter=count_expansion,
-        )
+        source = translate(args.sources)
         args.output.write_text(source, encoding="utf-8")
     except SourceLimitError as error:
         print(error, file=sys.stderr)
