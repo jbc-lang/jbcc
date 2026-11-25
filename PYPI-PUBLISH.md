@@ -26,7 +26,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   use the same runtime loader. It currently loads the root script via
   `runpy` and reads the C file separately. Preserve source-relative include
   lookup and caller-relative input, output, and execution paths.
-- [ ] Add Hatchling build metadata to `pyproject.toml`, keeping the Ruff
+- [x] Add Hatchling build metadata to `pyproject.toml`, keeping the Ruff
   settings. Use `0.1.0` for the first release and `requires-python = ">=3.8"`
   if the installed smoke tests pass on Python 3.8. Keep runtime Python
   dependencies empty. Include the project URLs, README, MIT license, and
