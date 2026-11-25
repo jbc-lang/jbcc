@@ -7,6 +7,10 @@ const output = "../dist/playground";
 const { devDependencies } = await Bun.file("package.json").json();
 const pyodide = `toolchain/pyodide-${devDependencies.pyodide}`;
 const clang = `toolchain/clang-${devDependencies["@yowasp/clang"]}`;
+const analytics = process.env.JBCC_ANALYTICS_FRAME && new URL(process.env.JBCC_ANALYTICS_FRAME);
+if (analytics && (analytics.protocol !== "https:" || analytics.href !== `${analytics.origin}/`)) {
+  throw new Error("JBCC_ANALYTICS_FRAME must be an HTTPS origin");
+}
 
 async function bundle(options) {
   const result = await Bun.build({ target: "browser", ...options });
@@ -24,7 +28,11 @@ await rm(output, { recursive: true, force: true });
 await Promise.all(["examples", "python/jbcc", pyodide].map((path) =>
   mkdir(join(output, path), { recursive: true })));
 await Promise.all([
-  bundle({ entrypoints: ["web/editor.ts"], outdir: output, splitting: true }),
+  bundle({
+    entrypoints: analytics ? ["web/editor.ts", "web/analytics.ts"] : ["web/editor.ts"],
+    outdir: output,
+    splitting: true,
+  }),
   bundle({
     entrypoints: ["web/compile-worker.ts"],
     outdir: output,
@@ -46,14 +54,18 @@ await Promise.all([
   cp("node_modules/@yowasp/clang/gen", join(output, clang), { recursive: true }),
   copy("../LICENSE", "LICENSE"),
   copy("../THIRD-PARTY-NOTICES.md", "THIRD-PARTY-NOTICES.md"),
+  copy("TOOLCHAIN-NOTICES.md", "TOOLCHAIN-NOTICES.md"),
   copy("node_modules/@bjorn3/browser_wasi_shim/LICENSE-MIT", "WASI-SHIM-LICENSE"),
 ]);
 
 const html = await readFile("web/index.html", "utf8");
 const stamp = new Date().toISOString().slice(0, 16);
+const analyticsScript = '    <script type="module" src="/analytics.js"></script>\n';
 await writeFile(join(output, "index.html"), html
-  .replace('<html lang="en">', '<html lang="en" data-compiler="browser">')
-  .replace('    <script type="module" src="/analytics.js"></script>\n', "")
+  .replace('<html lang="en">', analytics
+    ? `<html lang="en" data-compiler="browser" data-analytics-origin="${analytics.origin}">`
+    : '<html lang="en" data-compiler="browser">')
+  .replace(analyticsScript, analytics ? analyticsScript.replace("/analytics.js", "./analytics.js") : "")
   .replace("__BUILD_TIME_ISO__", `${stamp}:00Z`)
   .replace("__BUILD_TIME_LABEL__", stamp.replaceAll("-", ".").replace("T", " ")));
 
