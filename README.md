@@ -93,8 +93,7 @@ Open the [online jBC playground](https://online.jbc-lang.org/) to edit a
 multi-file project. Invited GitHub accounts can compile, run, and save
 projects.
 
-Run `just playground` with Docker Compose for a local copy at
-<http://127.0.0.1:18765/>. The [playground guide](playground/README.md)
+Run `just playground` for a local copy at <http://127.0.0.1:18766/>. The [playground guide](playground/README.md)
 covers multi-file projects, browser runtime limits, and local tests.
 
 ## Try the compiler

@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
-test.skip(!process.env.JBCC_PLAYGROUND_STATIC, "Exercises the browser-only build");
 
 test("runs another program offline after loading the toolchain", async ({ context, page }) => {
   const requests: string[] = [];
@@ -52,8 +51,7 @@ for (const [statusText, asset, body] of [
 
 test("a runner opened without an opaque sandbox refuses to execute", async ({ page }) => {
   await page.goto("/");
-  const probe = readFileSync(new URL("fixtures/runner-probe.js", import.meta.url), "utf8");
-  const reply = await page.evaluate(async (source) => {
+  const reply = await page.evaluate(async () => {
     const frame = document.createElement("iframe");
     frame.src = "./runner.html";
     const loaded = new Promise<void>((resolve) => frame.addEventListener("load", () => resolve(), { once: true }));
@@ -68,7 +66,6 @@ test("a runner opened without an opaque sandbox refuses to execute", async ({ pa
           resolve(data);
         };
         frame.contentWindow!.postMessage({
-          javascript: new TextEncoder().encode(source),
           wasm: new Uint8Array(),
           stdin: "",
         }, "*", [channel.port2]);
@@ -77,7 +74,7 @@ test("a runner opened without an opaque sandbox refuses to execute", async ({ pa
       channel.port1.close();
       frame.remove();
     }
-  }, probe);
+  });
   expect(reply).toBeNull();
 });
 

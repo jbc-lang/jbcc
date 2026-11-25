@@ -1,8 +1,6 @@
 # Local jBC playground
 
-## Browser-only build
-
-Run `just playground-static` from the repository root and open
+Run `just playground` from the repository root and open
 <http://127.0.0.1:18766/>. This builds `dist/playground` with Bun and serves
 it with Python's static HTTP server. **Run** loads the compiler on demand.
 The worker uses Pyodide for jbcc and Clang/LLD for the generated C, and a
@@ -15,8 +13,7 @@ editor keeps its working draft and reports a conflict. Save under a
 different name to keep both versions.
 
 Use **Export** to download the open project as a versioned JSON file.
-**Import** can open it in another browser profile, including a file from
-the hosted editor. Exports contain the project name, files, **Main**,
+**Import** can open it in another browser profile. Exports contain the project name, files, **Main**,
 linked routines, selected tab, and prefilled stdin.
 Browser session values use a virtual working directory of `/`, zero for
 the process and port numbers, and an empty OS login.
@@ -31,18 +28,12 @@ paths. See the [Pyodide license](https://github.com/pyodide/pyodide/blob/main/LI
 and the [WASI shim license](https://github.com/bjorn3/browser_wasi_shim/blob/main/LICENSE-MIT).
 
 Run the browser suite against this build with
-`JBCC_PLAYGROUND_STATIC=1 JBCC_PLAYWRIGHT_CHANNEL=chrome bunx playwright test`
+`JBCC_PLAYWRIGHT_CHANNEL=chrome bunx playwright test`
 from `playground/`. For Playwright's Firefox or WebKit, install the engines
 with `bunx playwright install firefox webkit` and set
 `JBCC_PLAYWRIGHT_BROWSER` to `firefox` or `webkit` in place of the channel.
 
-## Cloud Run stack
-
-From the repository root, run `just playground` with Docker Compose
-running and open <http://127.0.0.1:18765/>. Set `JBCC_PLAYGROUND_PORT` to
-change the host port. With Docker Compose alone, run
-`docker compose -f playground/compose.yaml up --build`. Stop it with
-Ctrl+C.
+## Writing and running programs
 
 The editor starts with `hello.b`. Choose **Status lookup (3 files)** to
 try a program and a subroutine that share an include. Pick the main file
@@ -57,8 +48,7 @@ worker if compilation succeeds. Fill **Standard input**
 before running a program that reads with `INPUT`. **Stop** cancels a
 build or terminates a running program. The runner allows five seconds,
 64 MiB of Wasm memory, and 64 KiB of combined console output.
-The **?** button opens help for files, routines, hosted limits, and cloud
-projects.
+The **?** button opens help for files, routines, limits, and browser projects.
 
 This version targets console programs. The compiler reports source
 locations for unsupported operations such as shell commands, sequential
@@ -66,47 +56,3 @@ files and devices, terminal cursor and keyboard controls, timed input,
 native C calls, and printer output. Live keystrokes, jBASE file
 backends, and T24 services are unavailable. Standard input is a
 prefilled byte stream that ends when consumed.
-
-The Go API serves the static HTML, CSS, and Bun-bundled TypeScript on
-loopback. It forwards builds to a worker on a private Docker network.
-The worker invokes the checked-out jbcc Python sources and Emscripten
-4.0.23. Local mode skips sign-in, cloud saves, and per-user rate
-limiting. The build API accepts JSON with one `entry` path, a list of
-linked `units`, and `files` as an array of `{path, source}` objects.
-Successful builds return base64 JavaScript and Wasm with diagnostics.
-Both services can run without Google Cloud credentials.
-
-The local editor adapts the textarea, tab, draft, and theme patterns
-from [asm8](https://github.com/begoon/asm8).
-
-## Hosted access
-
-In production the editor accepts GitHub sign-in through Firebase. The
-API enforces the pilot allowlist, a shared six-starts-per-minute quota,
-and one build at a time per account. Each invited account can save
-private named projects. Open **Projects** and select a saved name to fill
-the **Cloud project** field. Click **Load** to replace the current draft.
-Click **Export** after loading to download a copy for the browser-only build.
-Load a newer revision before retrying a save
-that reports a conflict. The [GCP runbook](../GCP.md) lists the hosting
-configuration.
-
-## Verify locally
-
-Start the Docker stack, then run these commands from the repository
-root. Browser tests also use Python and a local C compiler to compare
-Wasm behavior with native jbcc output.
-
-```sh
-cd playground
-bun install --frozen-lockfile
-bunx playwright install chromium
-bunx playwright test
-go test ./...
-```
-
-Set `JBCC_PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome.
-Set `JBCC_TEST_FIRESTORE_PROJECT` and `JBCC_TEST_FIRESTORE_DATABASE` to
-enable the two-client Firestore integration test. It uses Application
-Default Credentials or a short-lived `JBCC_TEST_FIRESTORE_TOKEN`, creates
-temporary documents, and deletes them after the test.

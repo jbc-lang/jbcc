@@ -35,8 +35,6 @@ jobs:
         working-directory: playground
         run: bun install --frozen-lockfile
       - name: Check the static playground
-        env:
-          JBCC_PLAYGROUND_STATIC: '1'
         run: |
           bun playground/build-static.mjs
           python3 -m http.server 18766 --bind 127.0.0.1 --directory dist/playground &

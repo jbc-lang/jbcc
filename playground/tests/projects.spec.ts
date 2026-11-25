@@ -1,12 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
-test.skip(!process.env.JBCC_PLAYGROUND_STATIC, "Exercises local browser projects");
 
 const fixture = (path: string) => readFileSync(new URL(`../../tests/${path}`, import.meta.url), "utf8");
 const source = (page: Page) => page.getByLabel("jBC source");
 const name = (page: Page) => page.getByLabel("Project name");
-const status = (page: Page) => page.locator("#cloud-status");
+const status = (page: Page) => page.locator("#project-status");
 
 async function open(page: Page) {
   await page.goto("/");

@@ -69,8 +69,7 @@ local build. The [playground README](playground/README.md) has test commands.
 - [x] Make **Export** available on the legacy editor at
   `https://jbc-online.web.app/`. Its [Cloud Run revision](GCP.md#publish-docker-images-and-deploy-cloud-run)
   remains available during migration.
-- [ ] Verify signed-in export from the legacy site and confirm that
-  pilot users have migrated the cloud saves they need before shutdown.
+- [x] Confirm that no legacy cloud saves need to be migrated.
 - [x] Remove OAuth, quota, and cloud project requests from the static
   build. Update the help dialog and local development instructions.
   Verify that a fresh visitor can use the examples, run code, and
@@ -122,21 +121,20 @@ The raw compiler and Python payloads already exceed the documented
   `jbc-lang.github.io`. For Vercel, use the CNAME shown in its domain
   settings. Keep the existing hostname so drafts from the live site
   remain accessible. DNS, HTTPS, browser runs, and storage passed
-  verification. The legacy editor stays available for cloud-save export.
-  The Firebase mapping and prior revision are available for rollback.
+  verification. Firebase Hosting still serves the Analytics frame.
   [GitHub domain verification](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages) ·
   [Vercel custom domains](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
 
 ## 4. Decommission the GCP deployment
 
+- [x] Remove the legacy editor, compilation API, Cloud Run build files,
+  and Firebase sign-in code from the repository.
 - [ ] Reconcile the live inventory and record the exact commands,
   console actions, and outcomes in [GCP.md](GCP.md). Confirm the static
-  site is stable, the export window has closed, and the required cloud
-  saves were exported before deleting Firestore data.
+  site is stable before retiring the old resources.
 - [ ] Remove the old Firebase Hosting custom domain mapping and retire
-  the playground and metrics Hosting sites. Disable Firebase GitHub
-  sign-in and retire the dedicated **jBC Online** GitHub OAuth app
-  after migration.
+  the legacy Hosting site. Disable Firebase GitHub sign-in and retire
+  the dedicated **jBC Online** GitHub OAuth app.
 - [ ] Retire Cloud Run services `compiler` and `compiler-worker` in
   `europe-west2`, then remove the `jbc-playground` Artifact Registry
   repository, worker VPC/subnet/firewall, and dedicated service accounts
@@ -144,6 +142,8 @@ The raw compiler and Python payloads already exceed the documented
   `jbc-playground` Firestore database and its build-quota records.
   Remove the dedicated playground spend cap and retain the shared
   billing account and account-wide alert.
+- [ ] Move the live Analytics frame to a separate static origin and verify
+  collection against the existing Tag Manager container and GA4 property.
 - [ ] Verify that the static site has no dependency on `jbc-online`
   and confirm which project resources remain. Shut down the dedicated
   GCP project only after checking the inventory and receiving approval

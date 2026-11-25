@@ -1,5 +1,8 @@
 # Online jBC compiler
 
+This records the original Cloud Run pilot. The current playground is
+the browser-only GitHub Pages build described in [WASM-PLAN.md](WASM-PLAN.md).
+
 Build a multi-file playground at `https://online.jbc-lang.org/`. The Go
 service `compiler` serves the editor and API on Cloud Run. A private
 `compiler-worker` runs jbcc and Emscripten. The browser runs the resulting

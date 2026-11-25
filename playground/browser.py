@@ -3,11 +3,59 @@
 import io
 import json
 import os
+import posixpath
+import re
 from contextlib import redirect_stderr
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from translate import PART, Diagnostic, translate
+from jbcc.compiler import Diagnostic, SourceLimitError, compile_program
+
+PART = re.compile(r"[A-Za-z0-9_.-]+")
+
+
+def resolve_include(source, name, _, token):
+    if any(not PART.fullmatch(part) for part in name.split("/")):
+        raise Diagnostic(
+            f"{source}:{token.line}:{token.column}: invalid include path '{name}'"
+        )
+    relative = posixpath.normpath(
+        posixpath.join(source.parent.as_posix(), name)
+    )
+    if relative == ".." or relative.startswith("../"):
+        raise Diagnostic(
+            f"{source}:{token.line}:{token.column}: include escapes project root"
+        )
+    if Path(relative).is_file():
+        return Path(relative)
+    root = posixpath.normpath(name)
+    if root != ".." and not root.startswith("../") and Path(root).is_file():
+        return Path(root)
+    return None
+
+
+def translate(sources):
+    remaining = 1024 * 1024
+
+    def count_expansion(path, source):
+        nonlocal remaining
+        # Count staged bytes, including CRLF and repeated includes across units.
+        remaining -= path.stat().st_size
+        if remaining < 0:
+            raise SourceLimitError(
+                f"{path}:1:1: expanded source limit exceeded"
+            )
+        return source
+
+    source, _ = compile_program(
+        sources,
+        [],
+        browser=True,
+        include_resolver=resolve_include,
+        include_depth=16,
+        source_filter=count_expansion,
+    )
+    return source
 
 
 def project_files(project):

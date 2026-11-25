@@ -50,7 +50,7 @@ await Promise.all([
     copy(`../tests/programs/${file}`, `examples/${file}`)),
   ...["caller.b", "get.status.b", "I_STATUS"].map((file) =>
     copy(`../tests/routines/${file}`, `examples/${file}`)),
-  ...["browser.py", "translate.py"].map((file) => copy(file, `python/${file}`)),
+  copy("browser.py", "python/browser.py"),
   ...["__init__.py", "compiler.py", "jbc.c"].map((file) =>
     copy(`../src/jbcc/${file}`, `python/jbcc/${file}`)),
   ...["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"]
@@ -64,12 +64,11 @@ await Promise.all([
 
 const html = await readFile("web/index.html", "utf8");
 const stamp = new Date().toISOString().slice(0, 16);
-const analyticsScript = '    <script type="module" src="/analytics.js"></script>\n';
-await writeFile(join(output, "index.html"), html
-  .replace('<html lang="en">', analytics
-    ? `<html lang="en" data-compiler="browser" data-analytics-origin="${analytics.origin}">`
-    : '<html lang="en" data-compiler="browser">')
-  .replace(analyticsScript, analytics ? analyticsScript.replace("/analytics.js", "./analytics.js") : "")
+const analyticsScript = '    <script type="module" src="./analytics.js"></script>\n';
+const page = analytics
+  ? html.replace('data-compiler="browser"', `data-compiler="browser" data-analytics-origin="${analytics.origin}"`)
+  : html.replace(analyticsScript, "");
+await writeFile(join(output, "index.html"), page
   .replace("__BUILD_TIME_ISO__", `${stamp}:00Z`)
   .replace("__BUILD_TIME_LABEL__", stamp.replaceAll("-", ".").replace("T", " ")));
 

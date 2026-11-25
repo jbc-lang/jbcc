@@ -88,12 +88,10 @@ routine: (run "tests/routines/caller.b" "tests/routines/get.status.b")
 corpus directory jobs="8":
     @python3 tools/check_corpus.py "$1" -j "$2"
 
-# Build and start the local jBC playground.
-playground:
-    docker compose -f playground/compose.yaml up --build
+alias playground-static := playground
 
-# Build and serve the browser-only playground.
-playground-static port="18766":
+# Build and serve the browser playground.
+playground port="18766":
     cd playground && bun install --frozen-lockfile
     bun playground/build-static.mjs
     python3 -m http.server {{port}} --bind 127.0.0.1 --directory dist/playground

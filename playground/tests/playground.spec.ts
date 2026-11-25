@@ -47,64 +47,6 @@ test("runs Hello and Status lookup, then reloads the multi-file draft", async ({
   await expect(page.getByLabel("Main", { exact: true })).toHaveValue("caller.b");
 });
 
-test("choosing a cloud project name keeps the local draft", async ({ page }) => {
-  test.skip(!!process.env.JBCC_PLAYGROUND_STATIC, "Cloud saves use the hosted API");
-  await page.route("**/api/v1/auth/config", (route) => route.fulfill({ json: {} }));
-  await page.route(/\/auth-[^/]+\.js$/, (route) => route.fulfill({
-    contentType: "text/javascript",
-    body: `export function connectAuth() {
-      return { session: async () => ({ uid: "test", headers: {} }) };
-    }`,
-  }));
-  const requests: string[] = [];
-  await page.route("**/api/v1/projects**", (route) => {
-    const url = new URL(route.request().url());
-    requests.push(url.pathname + url.search);
-    if (url.pathname.endsWith("/second")) {
-      return route.fulfill({ json: {
-        project: {
-          files: [{ path: "saved.b", source: fixture("../../tests/programs/hello.b") }],
-          entry: "saved.b",
-          units: [],
-        },
-        revision: 1,
-      } });
-    }
-    return route.fulfill({
-      json: url.searchParams.get("after")
-        ? { names: ["second"] }
-        : { names: ["first"], next: "first" },
-    });
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await openEditor(page);
-  const editor = page.getByLabel("jBC source");
-  const source = await editor.inputValue();
-  await page.getByRole("region", { name: "Project", exact: true })
-    .getByText("Projects", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "first", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Show more" }).click();
-  await page.getByRole("button", { name: "second", exact: true }).click();
-  await expect(page.getByLabel("Cloud project")).toHaveValue("second");
-  await expect(page.locator("#cloud-picker")).not.toHaveAttribute("open");
-  await expect(editor).toHaveValue(source);
-  expect(requests).toEqual(["/api/v1/projects", "/api/v1/projects?after=first"]);
-  page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Load", exact: true }).click();
-  await expect(page.locator("#filename")).toHaveValue("saved.b");
-  await page.getByLabel("Standard input").fill("not stored in a cloud save");
-  const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  const download = await downloaded;
-  expect(download.suggestedFilename()).toBe("second.jbc-project.json");
-  const exported = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(exported).toMatchObject({
-    version: 1, name: "second", entry: "saved.b", units: [],
-    files: [{ path: "saved.b", source: fixture("../../tests/programs/hello.b") }],
-  });
-  expect(exported).not.toHaveProperty("stdin");
-});
-
 for (const example of ["fibonacci", "factorial", "rule110"]) {
   test(`runs the ${example} example with native output`, async ({ page }) => {
     await openEditor(page);
@@ -181,11 +123,7 @@ test("opens and dismisses playground help on desktop and mobile", async ({ page 
   await expect(dialog).toBeVisible();
   await expect(close).toBeFocused();
   await expect(dialog.getByRole("heading", { name: "Link as routine" })).toBeVisible();
-  if (process.env.JBCC_PLAYGROUND_STATIC) {
-    await expect(dialog.getByRole("heading", { name: "Save, load, and back up projects" })).toBeVisible();
-  } else {
-    await expect(dialog).toContainText("six builds in a rolling minute");
-  }
+  await expect(dialog.getByRole("heading", { name: "Save, load, and back up projects" })).toBeVisible();
   await page.keyboard.press("Control+Enter");
   await expect(page.locator("#status")).toHaveText("Ready");
   await page.keyboard.press("Escape");
@@ -233,37 +171,24 @@ test("terminates runs at the output and execution limits", async ({ page }) => {
 
 test("the iframe has an opaque origin and the runner cannot use editor storage or fetch", async ({ page }) => {
   await openEditor(page);
-  const probe = fixture("fixtures/runner-probe.js");
-  const result = await page.evaluate(async (source) => {
-    localStorage.setItem("runner-probe", "editor");
+  const iframe = await page.evaluateHandle(async () => {
     const frame = document.createElement("iframe");
     frame.sandbox.add("allow-scripts");
-    frame.src = "/runner.html";
+    frame.src = "./runner.html";
     const loaded = new Promise<void>((resolve) => frame.addEventListener("load", () => resolve(), { once: true }));
     document.body.append(frame);
     await loaded;
-    const target = frame.contentWindow!;
-    let inaccessible = false;
-    try {
-      void target.localStorage;
-    } catch {
-      inaccessible = true;
-    }
-    const channel = new MessageChannel();
-    const result = await new Promise<string>((resolve) => {
-      let output = "";
-      channel.port1.onmessage = ({ data }) => {
-        if (data.type === "stdout") output += data.text;
-        if (data.type === "exit") resolve(output);
-        if (data.type === "error") resolve(data.message);
-      };
-      const javascript = new TextEncoder().encode(
-        source.replace("http://127.0.0.1:18765", window.location.origin),
-      );
-      target.postMessage({ javascript, wasm: new Uint8Array(), stdin: "" }, "*", [channel.port2]);
-    });
-    frame.remove();
-    return { inaccessible, result };
-  }, probe);
-  expect(result).toEqual({ inaccessible: true, result: "storage=undefined; network=blocked\n" });
+    return frame;
+  });
+  const frame = await iframe.asElement()?.contentFrame();
+  expect(frame).not.toBeNull();
+  expect(await frame!.evaluate(async (url) => {
+    let storage = "allowed";
+    let network = "allowed";
+    try { void localStorage; } catch { storage = "blocked"; }
+    try { await fetch(url); } catch { network = "blocked"; }
+    return { origin, storage, network };
+  }, new URL("./examples/hello.b", page.url()).href)).toEqual({
+    origin: "null", storage: "blocked", network: "blocked",
+  });
 });

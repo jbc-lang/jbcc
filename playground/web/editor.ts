@@ -1,7 +1,7 @@
-import type { Diagnostic } from "./browser-compiler";
+import { compileInBrowser, type Diagnostic } from "./browser-compiler";
 import {
   exportProject, importProject, listProjects, projectName, readProject, writeProject,
-  type Draft, type Project, type SourceFile,
+  type Draft, type SourceFile,
 } from "./projects";
 
 type ProjectBinding = { name: string; revision: number; savedVersion: number; failed?: boolean };
@@ -13,7 +13,6 @@ type SourceLocation = {
   column?: number;
   severity: string;
 };
-type Build = { diagnostics: Diagnostic[]; javascript?: string; wasm?: string };
 type RunEvent =
   | { type: "stdout" | "stderr"; text: string }
   | { type: "exit"; status: number }
@@ -49,23 +48,6 @@ const runButton = element<HTMLButtonElement>("run");
 const stopButton = element<HTMLButtonElement>("stop");
 const helpButton = element<HTMLButtonElement>("help");
 const helpDialog = element<HTMLDialogElement>("help-dialog");
-
-const browserCompiler = document.documentElement.dataset.compiler === "browser";
-const onlineAuth = browserCompiler ? Promise.resolve(null) : fetch("/api/v1/auth/config").then(async (response) => {
-  if (!response.ok) throw new Error("Could not load sign-in configuration");
-  const config = await response.json();
-  if (config === null) return null;
-  const { connectAuth } = await import("./auth");
-  const auth = connectAuth(config, () => {
-    closeProjectList();
-    cloudPicker.open = false;
-  });
-  element("cloud-projects").hidden = false;
-  return auth;
-});
-void onlineAuth.catch(() => {
-  element("auth-status").textContent = "Could not load sign-in";
-});
 
 const draftKey = "jbcc.playground.draft";
 const themeKey = "jbcc.playground.theme";
@@ -115,7 +97,7 @@ const { localProject: storedProject, ...storedDraft }: StoredDraft = saved ?? {
   stdin: "",
 };
 let draft: Draft = storedDraft;
-let localProject: ProjectBinding | undefined = browserCompiler && storedProject &&
+let localProject: ProjectBinding | undefined = storedProject &&
     typeof storedProject.name === "string" && projectName.test(storedProject.name) &&
     Number.isSafeInteger(storedProject.revision) && storedProject.revision > 0
   ? { name: storedProject.name, revision: storedProject.revision, savedVersion: storedProject.dirty ? -1 : 0 }
@@ -127,7 +109,6 @@ let projectBusy = false;
 let autosaves = Promise.resolve();
 let activity: Activity | null = null;
 let marked: SourceLocation | undefined;
-let cached: { source: string; reply: Build & { javascript: string; wasm: string } } | undefined;
 const views = new Map<string, { start: number; end: number; top: number; left: number }>();
 
 function current(): SourceFile {
@@ -140,8 +121,8 @@ function persistDraft() {
     ...draft,
     localProject: { name: binding.name, revision: binding.revision, dirty: binding.savedVersion !== draftVersion },
   } : draft;
-  if (!putStorage(draftKey, JSON.stringify(snapshot)) && browserCompiler) {
-    cloudStatus.textContent = "Could not store the recovery draft";
+  if (!putStorage(draftKey, JSON.stringify(snapshot))) {
+    projectStatus.textContent = "Could not store the recovery draft";
   }
 }
 
@@ -166,7 +147,7 @@ function flushDraft() {
       if (localProject === binding) {
         localProject = undefined;
         persistDraft();
-        cloudStatus.textContent = error instanceof Error ? error.message : "Could not autosave the project";
+        projectStatus.textContent = error instanceof Error ? error.message : "Could not autosave the project";
       }
     }
   });
@@ -313,10 +294,8 @@ async function loadExample(key: keyof typeof exampleFiles) {
       units: key === "status" ? [files[1].path] : [],
       stdin: "",
     });
-    if (browserCompiler) {
-      cloudName.value = "draft";
-      cloudStatus.textContent = "";
-    }
+    projectNameField.value = "draft";
+    projectStatus.textContent = "";
   } catch {
     if (!activity) status.textContent = "Could not load example";
   }
@@ -417,15 +396,11 @@ function setActivity(value: Activity | null) {
   stopButton.disabled = value === null;
 }
 
-function decodeArtifact(encoded: string) {
-  return Uint8Array.from(atob(encoded), (byte) => byte.charCodeAt(0));
-}
-
 function startRunner(
   op: Activity,
   wasm: Uint8Array<ArrayBuffer>,
   input: string,
-  artifacts: { javascript: Uint8Array<ArrayBuffer> } | { document: string },
+  runnerHTML: string,
 ) {
   const frame = document.createElement("iframe");
   frame.hidden = true;
@@ -461,13 +436,9 @@ function startRunner(
   };
   frame.addEventListener("load", () => {
     if (activity !== op) return;
-    const javascript = "javascript" in artifacts ? artifacts.javascript : undefined;
-    frame.contentWindow!.postMessage({ javascript, wasm, stdin: input }, "*", [
-      port2, wasm.buffer, ...(javascript ? [javascript.buffer] : []),
-    ]);
+    frame.contentWindow!.postMessage({ wasm, stdin: input }, "*", [port2, wasm.buffer]);
   }, { once: true });
-  if ("document" in artifacts) frame.srcdoc = artifacts.document;
-  else frame.src = "./runner.html";
+  frame.srcdoc = runnerHTML;
   document.body.append(frame);
 }
 
@@ -495,212 +466,104 @@ async function runProgram() {
   clearResult();
   status.textContent = "Building…";
   try {
-    if (browserCompiler) {
-      const { compileInBrowser } = await import("./browser-compiler");
-      const [result, document] = await Promise.all([
-        compileInBrowser(source, op.request.signal, (text) => {
-          if (isActive(op)) status.textContent = text;
-        }),
-        loadRunnerDocument(op.request.signal),
-      ]);
-      if (!isActive(op)) return;
-      showDiagnostics(result.diagnostics, sources);
-      if (!result.wasm) {
-        status.textContent = "Build failed";
-        setActivity(null);
-        return;
-      }
-      status.textContent = "Running…";
-      startRunner(op, result.wasm, input, { document });
+    const [result, runnerHTML] = await Promise.all([
+      compileInBrowser(source, op.request.signal, (text) => {
+        if (isActive(op)) status.textContent = text;
+      }),
+      loadRunnerDocument(op.request.signal),
+    ]);
+    if (!isActive(op)) return;
+    showDiagnostics(result.diagnostics, sources);
+    if (!result.wasm) {
+      status.textContent = "Build failed";
+      setActivity(null);
       return;
     }
-    const session = await onlineAuth;
-    const identity = await session?.session();
-    if (!isActive(op)) return;
-    let reply = cached?.source === source && !session ? cached.reply : undefined;
-    if (!reply) {
-      const response = await fetch("/api/v1/compile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...identity?.headers },
-        body: source,
-        signal: op.request.signal,
-      });
-      const result = await response.json() as Build;
-      if (!isActive(op)) return;
-      showDiagnostics(result.diagnostics, sources);
-      const { javascript, wasm } = result;
-      if (!response.ok || !javascript || !wasm) {
-        status.textContent = "Build failed";
-        setActivity(null);
-        return;
-      }
-      reply = { ...result, javascript, wasm };
-      cached = { source, reply };
-    } else {
-      showDiagnostics(reply.diagnostics, sources);
-    }
     status.textContent = "Running…";
-    startRunner(op, decodeArtifact(reply.wasm), input, { javascript: decodeArtifact(reply.javascript) });
+    startRunner(op, result.wasm, input, runnerHTML);
   } catch (error) {
     if (!isActive(op)) return;
     op.request.abort();
-    status.textContent = error instanceof Error && (browserCompiler || error.message === "Sign in with GitHub first")
+    status.textContent = error instanceof Error
       ? error.message
       : "Could not complete the build";
     setActivity(null);
   }
 }
 
-const revisions = new Map<string, number>();
-const cloudName = element<HTMLInputElement>("cloud-project");
-const cloudStatus = element("cloud-status");
-const cloudSave = element<HTMLButtonElement>("cloud-save");
-const cloudLoad = element<HTMLButtonElement>("cloud-load");
+const projectNameField = element<HTMLInputElement>("project-name");
+const projectStatus = element("project-status");
+const projectSave = element<HTMLButtonElement>("project-save");
+const projectLoad = element<HTMLButtonElement>("project-load");
 const projectImport = element<HTMLButtonElement>("project-import");
 const projectFile = element<HTMLInputElement>("project-file");
-const cloudPicker = element<HTMLDetailsElement>("cloud-picker");
-const cloudNames = element("cloud-names");
-const cloudListStatus = element("cloud-list-status");
-const cloudMore = element<HTMLButtonElement>("cloud-more");
-let cloudListRequest: AbortController | undefined;
-let nextProjectName = "";
+const projectPicker = element<HTMLDetailsElement>("project-picker");
+const projectNames = element("project-names");
+const projectListStatus = element("project-list-status");
+// Ignore a list result if the picker was closed or reopened while reading.
+let listVersion = 0;
 
 function closeProjectList() {
-  cloudListRequest?.abort();
-  cloudListRequest = undefined;
-  nextProjectName = "";
-  cloudNames.replaceChildren();
-  cloudListStatus.textContent = "";
-  cloudMore.hidden = true;
-  cloudMore.disabled = false;
+  listVersion++;
+  projectNames.replaceChildren();
+  projectListStatus.textContent = "";
 }
 
-async function projectPage(after: string, signal: AbortSignal): Promise<{ names: string[]; next?: string }> {
-  if (browserCompiler) return { names: await listProjects() };
-  const auth = await onlineAuth;
-  if (!auth) return { names: [] };
-  signal.throwIfAborted();
-  const identity = await auth.session();
-  const query = after ? `?after=${encodeURIComponent(after)}` : "";
-  const response = await fetch(`/api/v1/projects${query}`, { headers: identity.headers, signal });
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.diagnostics?.[0]?.message ?? "Could not list cloud projects");
-  }
-  return result;
-}
-
-async function listCloudProjects(after = "") {
-  if (cloudListRequest) return;
-  const request = new AbortController();
-  cloudListRequest = request;
-  cloudListStatus.textContent = "Loading projects…";
-  cloudMore.disabled = true;
+async function listSavedProjects() {
+  const version = ++listVersion;
+  projectListStatus.textContent = "Loading projects…";
   try {
-    const result = await projectPage(after, request.signal);
-    if (!cloudPicker.open || request.signal.aborted) return;
-    for (const name of result.names) {
-      cloudNames.append(button(name, () => {
-        cloudName.value = name;
-        cloudPicker.open = false;
-        cloudName.focus();
-      }));
-    }
-    nextProjectName = result.next ?? "";
-    cloudMore.hidden = !nextProjectName;
-    cloudListStatus.textContent = cloudNames.childElementCount ? "" : "No saved projects";
+    const names = await listProjects();
+    if (!projectPicker.open || version !== listVersion) return;
+    projectNames.replaceChildren(...names.map((name) => button(name, () => {
+      projectNameField.value = name;
+      projectPicker.open = false;
+      projectNameField.focus();
+    })));
+    projectListStatus.textContent = names.length ? "" : "No saved projects";
   } catch (error) {
-    if (!request.signal.aborted) {
-      cloudListStatus.textContent = error instanceof Error ? error.message : "Could not list projects";
-    }
-  } finally {
-    if (cloudListRequest === request) {
-      cloudListRequest = undefined;
-      cloudMore.disabled = false;
+    if (version === listVersion) {
+      projectListStatus.textContent = error instanceof Error ? error.message : "Could not list projects";
     }
   }
 }
 
-cloudPicker.addEventListener("toggle", () => {
-  if (cloudPicker.open) void listCloudProjects();
+projectPicker.addEventListener("toggle", () => {
+  if (projectPicker.open) void listSavedProjects();
   else closeProjectList();
 });
-cloudPicker.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && cloudPicker.open) {
-    cloudPicker.open = false;
-    cloudPicker.querySelector("summary")?.focus();
+projectPicker.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && projectPicker.open) {
+    projectPicker.open = false;
+    projectPicker.querySelector("summary")?.focus();
   }
 });
 document.addEventListener("pointerdown", (event) => {
-  if (cloudPicker.open && event.target instanceof Node && !cloudPicker.contains(event.target)) {
-    cloudPicker.open = false;
+  if (projectPicker.open && event.target instanceof Node && !projectPicker.contains(event.target)) {
+    projectPicker.open = false;
   }
 });
-cloudMore.addEventListener("click", () => void listCloudProjects(nextProjectName));
-
-async function cloudProject(write: boolean) {
-  const id = cloudName.value.trim();
-  if (!projectName.test(id)) {
-    cloudStatus.textContent = "Use letters, digits, hyphens or underscores";
-    return;
-  }
-  if (!write && !confirm("Replace this local draft with the saved project?")) return;
-
-  cloudSave.disabled = cloudLoad.disabled = true;
-  cloudStatus.textContent = write ? "Saving…" : "Loading…";
-  const before = JSON.stringify(draft);
-  const { files, entry, units } = JSON.parse(before) as Draft;
-  try {
-    const auth = await onlineAuth;
-    if (!auth) return;
-    const identity = await auth.session();
-    const key = JSON.stringify([identity.uid, id]);
-    const revision = revisions.get(key) ?? 0;
-    const response = await fetch(`/api/v1/projects/${encodeURIComponent(id)}`, write ? {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...identity.headers },
-      body: JSON.stringify({ project: { files, entry, units }, revision }),
-    } : { headers: identity.headers });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.diagnostics?.[0]?.message ?? "Could not access the cloud project");
-    if ((await auth.session()).uid !== identity.uid) throw new Error("The signed-in account changed");
-    if (!write) {
-      if (activity || JSON.stringify(draft) !== before) {
-        throw new Error("Draft kept because it changed while loading");
-      }
-      const project = result.project as Project;
-      replaceDraft({ ...project, active: project.entry, stdin: draft.stdin });
-    }
-    revisions.set(key, result.revision);
-    cloudStatus.textContent = write ? "Saved" : "Loaded";
-  } catch (error) {
-    cloudStatus.textContent = error instanceof Error ? error.message : "Could not access the cloud project";
-  } finally {
-    cloudSave.disabled = cloudLoad.disabled = false;
-  }
-}
-
 async function runLocalProject(action: () => Promise<void>) {
   if (projectBusy) return;
   flushDraft();
   projectBusy = true;
-  cloudSave.disabled = cloudLoad.disabled = projectImport.disabled = true;
+  projectSave.disabled = projectLoad.disabled = projectImport.disabled = true;
   try {
     await autosaves;
     await action();
   } catch (error) {
-    cloudStatus.textContent = error instanceof Error ? error.message : "Could not access browser projects";
+    projectStatus.textContent = error instanceof Error ? error.message : "Could not access browser projects";
   } finally {
     projectBusy = false;
-    cloudSave.disabled = cloudLoad.disabled = projectImport.disabled = false;
+    projectSave.disabled = projectLoad.disabled = projectImport.disabled = false;
     if (localProject && localProject.savedVersion !== draftVersion) scheduleSave();
   }
 }
 
 function manageLocalProject(write: boolean) {
-  const name = cloudName.value.trim();
+  const name = projectNameField.value.trim();
   if (!projectName.test(name)) {
-    cloudStatus.textContent = "Use letters, digits, hyphens or underscores";
+    projectStatus.textContent = "Use letters, digits, hyphens or underscores";
     return;
   }
   const before = draftVersion;
@@ -712,39 +575,39 @@ function manageLocalProject(write: boolean) {
       const version = draftVersion;
       const revision = await writeProject(name, structuredClone(draft), saved?.revision ?? 0);
       localProject = { name, revision, savedVersion: version };
-      cloudStatus.textContent = `Autosaving ${name}`;
+      projectStatus.textContent = `Autosaving ${name}`;
       persistDraft();
     } else {
       if (!saved) throw new Error("Project not found");
       if (activity || draftVersion !== before) throw new Error("Draft kept because it changed while loading");
       if (!confirm(`Replace this draft with “${name}”?`)) return;
-      cloudStatus.textContent = `Autosaving ${name}`;
+      projectStatus.textContent = `Autosaving ${name}`;
       replaceDraft(saved.draft, { name, revision: saved.revision });
     }
-    cloudName.value = name;
+    projectNameField.value = name;
   });
 }
 
-cloudSave.addEventListener("click", () => browserCompiler ? manageLocalProject(true) : void cloudProject(true));
-cloudLoad.addEventListener("click", () => browserCompiler ? manageLocalProject(false) : void cloudProject(false));
+projectSave.addEventListener("click", () => manageLocalProject(true));
+projectLoad.addEventListener("click", () => manageLocalProject(false));
 element("project-export").addEventListener("click", () => {
-  const name = localProject?.name ?? cloudName.value.trim();
+  const name = localProject?.name ?? projectNameField.value.trim();
   if (!projectName.test(name)) {
-    cloudStatus.textContent = "Enter a project name before exporting";
+    projectStatus.textContent = "Enter a project name before exporting";
     return;
   }
   try {
-    exportProject(name, browserCompiler ? draft : { ...draft, stdin: undefined });
-    cloudStatus.textContent = `Exported ${name}`;
+    exportProject(name, draft);
+    projectStatus.textContent = `Exported ${name}`;
   } catch (error) {
-    cloudStatus.textContent = error instanceof Error ? error.message : "Could not export the project";
+    projectStatus.textContent = error instanceof Error ? error.message : "Could not export the project";
   }
 });
 projectImport.addEventListener("click", () => projectFile.click());
 projectFile.addEventListener("change", () => {
   const file = projectFile.files?.[0];
   projectFile.value = "";
-  if (!browserCompiler || !file) return;
+  if (!file) return;
   const before = draftVersion;
   void runLocalProject(async () => {
     const imported = await importProject(file);
@@ -758,9 +621,9 @@ projectFile.addEventListener("change", () => {
     if (activity || before !== draftVersion) {
       throw new Error(`Imported ${name}. The current draft changed and was kept`);
     }
-    cloudStatus.textContent = `Autosaving ${name}`;
+    projectStatus.textContent = `Autosaving ${name}`;
     replaceDraft(imported.draft, { name, revision });
-    cloudName.value = name;
+    projectNameField.value = name;
   });
 });
 
@@ -845,14 +708,9 @@ document.addEventListener("keydown", (event) => {
 applyTheme(getStorage(themeKey) === "light");
 stdin.value = draft.stdin;
 render();
-if (browserCompiler) {
-  element("cloud-projects").hidden = false;
-  element("project-label").textContent = "Project name";
-  projectImport.hidden = false;
-  if (localProject) {
-    cloudName.value = localProject.name;
-    cloudStatus.textContent = `Autosaving ${localProject.name}`;
-    if (localProject.savedVersion !== draftVersion) scheduleSave();
-  }
+if (localProject) {
+  projectNameField.value = localProject.name;
+  projectStatus.textContent = `Autosaving ${localProject.name}`;
+  if (localProject.savedVersion !== draftVersion) scheduleSave();
 }
 if (!saved) void loadExample("hello");
