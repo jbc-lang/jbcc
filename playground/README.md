@@ -1,0 +1,56 @@
+# Local jBC playground
+
+From the repository root, run `just playground` with Docker Compose
+running and open <http://127.0.0.1:18765/>. Set `JBCC_PLAYGROUND_PORT` to
+change the host port. With Docker Compose alone, run
+`docker compose -f playground/compose.yaml up --build`. Stop it with
+Ctrl+C.
+
+The editor starts with `hello.b`. Choose **Status lookup (3 files)** to
+try a program and a subroutine that share an include. Pick the main file
+with **Main**. For each separately compiled subroutine or function,
+select its tab and check **Link as routine**. Include files are expanded
+by `$INSERT` or `$INCLUDE` and can stay unchecked. An include searches
+relative to its source file, then relative to the project root. Paths
+are case-sensitive. Drafts and the theme are saved in the browser.
+
+**Build** compiles the project. **Run** compiles changed sources and
+executes the Wasm in an isolated browser worker. Fill **Standard input**
+before running a program that reads with `INPUT`. **Stop** cancels a
+build or terminates a running program. The runner allows five seconds,
+64 MiB of Wasm memory, and 64 KiB of combined console output.
+
+This version targets console programs. The compiler reports source
+locations for unsupported operations such as shell commands, sequential
+files and devices, terminal cursor and keyboard controls, timed input,
+native C calls, and printer output. Live keystrokes, jBASE file
+backends, and T24 services are unavailable. Standard input is a
+prefilled byte stream that ends when consumed.
+
+The Go API serves the static HTML, CSS, and Bun-bundled TypeScript on
+loopback. It forwards builds to a worker on a private Docker network.
+The worker invokes the checked-out jbcc Python sources and Emscripten
+4.0.23. Local mode skips sign-in, cloud saves, and per-user rate
+limiting. The build API accepts JSON with one `entry` path, a list of
+linked `units`, and `files` as an array of `{path, source}` objects.
+Successful builds return base64 JavaScript and Wasm with diagnostics.
+Both services can run without Google Cloud credentials.
+
+The local editor adapts the textarea, tab, draft, and theme patterns
+from [asm8](https://github.com/begoon/asm8).
+
+## Verify locally
+
+Start the Docker stack, then run these commands from the repository
+root. Browser tests also use Python and a local C compiler to compare
+Wasm behavior with native jbcc output.
+
+```sh
+cd playground
+bun install --frozen-lockfile
+bunx playwright install chromium
+bunx playwright test
+go test ./...
+```
+
+Set `JBCC_PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome.

@@ -87,6 +87,13 @@ More examples in jBC
 - [snake.b](tests/programs/snake.b) lets you play Snake with the WASD keys.
 - [banner.b](tests/programs/banner.b) animates a waving jBC banner.
 
+## Local playground
+
+Run `just playground` with Docker Compose and open
+<http://127.0.0.1:18765/> to build and run jBC programs as WebAssembly.
+The [playground guide](playground/README.md) covers multi-file projects,
+browser runtime limits, and local tests.
+
 ## Try the compiler
 
 You need Python 3.8 or newer to run jbcc. Using `uv` is recommended for

@@ -1,0 +1,39 @@
+services:
+  compiler:
+    build:
+      context: ..
+      dockerfile: playground/Dockerfile.web
+    environment:
+      JBCC_MODE: local
+      JBCC_LISTEN_HOST: 0.0.0.0
+      JBCC_WORKER_URL: http://compiler-worker:8080
+    ports:
+      - "127.0.0.1:${JBCC_PLAYGROUND_PORT:-18765}:8080"
+    networks:
+      - default
+      - worker
+    depends_on:
+      - compiler-worker
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  compiler-worker:
+    build:
+      context: ..
+      dockerfile: playground/Dockerfile.worker
+    environment:
+      JBCC_LISTEN_HOST: 0.0.0.0
+    networks:
+      - worker
+    read_only: true
+    tmpfs:
+      - /tmp:size=96m,mode=1777
+      - /emsdk/upstream/emscripten/cache/symbol_lists:size=16m,mode=1777
+    mem_limit: 768m
+    pids_limit: 96
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+networks:
+  worker:
+    internal: true

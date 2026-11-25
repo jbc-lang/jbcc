@@ -1,0 +1,19 @@
+FROM golang:1.27.1-alpine AS go-build
+WORKDIR /build
+COPY playground/go.mod playground/main.go ./
+RUN CGO_ENABLED=0 go build -trimpath -o /playground .
+
+FROM emscripten/emsdk:4.0.23
+COPY --from=go-build /playground /usr/local/bin/playground
+COPY src/jbcc /opt/jbcc/jbcc
+COPY playground/translate.py /opt/jbcc/translate.py
+ENV PYTHONPATH=/opt/jbcc \
+    PYTHONDONTWRITEBYTECODE=1 \
+    JBCC_TRANSLATOR=/opt/jbcc/translate.py \
+    HOME=/tmp
+# Prepare the sysroot and libraries before running with a read-only root.
+RUN printf '#include <stdio.h>\nint main(void) { puts("ready"); return 0; }\n' > /tmp/warmup.c \
+    && emcc /tmp/warmup.c -O0 -sEXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -o /tmp/warmup.js \
+    && rm /tmp/warmup.*
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/playground", "worker"]

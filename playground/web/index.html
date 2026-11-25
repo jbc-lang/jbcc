@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>jBC Playground</title>
+    <link rel="stylesheet" href="/style.css">
+    <script type="module" src="/editor.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <h1><span>jBC</span> Playground</h1>
+      <div class="actions">
+        <button type="button" id="theme" aria-pressed="false">Light theme</button>
+        <button type="button" id="build">Build</button>
+        <button type="button" id="run" class="primary" title="Run (Ctrl or Command + Enter)">Run</button>
+        <button type="button" id="stop" disabled>Stop</button>
+      </div>
+    </header>
+    <main>
+      <section class="pane project" aria-label="Project">
+        <div class="pane-header">
+          <h2>Source</h2>
+          <div class="field">
+            <label for="example">Example</label>
+            <select id="example">
+              <option value="">Choose an example</option>
+              <option value="hello">Hello, jBC!</option>
+              <option value="status">Status lookup (3 files)</option>
+            </select>
+          </div>
+        </div>
+        <div id="tabs" class="tabs" role="group" aria-label="Project files"></div>
+        <div class="settings">
+          <div class="field">
+            <label for="filename">Path</label>
+            <input id="filename" size="19" maxlength="240" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="entry">Main</label>
+            <select id="entry"></select>
+          </div>
+          <label class="check"><input type="checkbox" id="unit"> Link as routine</label>
+          <button type="button" id="remove" aria-label="Remove current file">Remove</button>
+        </div>
+        <div class="editor">
+          <pre id="lines" aria-hidden="true"></pre>
+          <textarea id="source" aria-label="jBC source" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        </div>
+      </section>
+      <section class="pane results" aria-label="Build and run results">
+        <div class="pane-header">
+          <h2>Console</h2>
+          <span id="status" role="status">Ready</span>
+        </div>
+        <div class="input-panel">
+          <label for="stdin">Standard input</label>
+          <textarea id="stdin" rows="2" spellcheck="false"></textarea>
+        </div>
+        <div id="diagnostics" hidden></div>
+        <div class="streams">
+          <div>
+            <h3>Standard output</h3>
+            <pre id="stdout" tabindex="0"></pre>
+          </div>
+          <div>
+            <h3>Standard error</h3>
+            <pre id="stderr" tabindex="0"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

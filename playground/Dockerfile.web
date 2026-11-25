@@ -1,0 +1,19 @@
+FROM oven/bun:1.4.2 AS web-build
+WORKDIR /build
+COPY playground/web ./
+RUN mkdir /web && cp *.html *.css /web/ && \
+    bun build editor.ts runner.ts --target=browser --format=esm --outdir=/web
+COPY tests/programs/hello.b /web/examples/
+COPY tests/routines/caller.b tests/routines/get.status.b tests/routines/I_STATUS /web/examples/
+
+FROM golang:1.27.1-alpine AS go-build
+WORKDIR /build
+COPY playground/go.mod playground/main.go ./
+RUN CGO_ENABLED=0 go build -trimpath -o /playground .
+
+FROM scratch
+COPY --from=go-build /playground /playground
+COPY --from=web-build /web /web
+ENV JBCC_WEB_ROOT=/web
+USER 65532:65532
+ENTRYPOINT ["/playground", "web"]

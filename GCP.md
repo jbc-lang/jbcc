@@ -110,8 +110,9 @@ no repository scopes. [Firebase GitHub provider](https://firebase.google.com/doc
 
 ## Publish Docker images and deploy Cloud Run
 
-Once the planned Dockerfiles exist, build Linux AMD64 images from the
-repository root. Record their digests and toolchain versions.
+Once the production configuration is implemented, build Linux AMD64
+images from the repository root. Record their digests and toolchain
+versions. The current web image only serves local development mode.
 
 ```sh
 JBCC_REGISTRY="$JBCC_REGION-docker.pkg.dev"

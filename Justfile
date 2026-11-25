@@ -87,3 +87,7 @@ routine: (run "tests/routines/caller.b" "tests/routines/get.status.b")
 # Scan a local source corpus and write JSON to stdout.
 corpus directory jobs="8":
     @python3 tools/check_corpus.py "$1" -j "$2"
+
+# Build and start the local jBC playground.
+playground:
+    docker compose -f playground/compose.yaml up --build
