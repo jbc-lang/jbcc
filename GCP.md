@@ -171,7 +171,7 @@ with zero minimum and two maximum instances per service.
 
 | Service | Active revision | Build commit | Image digest |
 | --- | --- | --- | --- |
-| `compiler` | `compiler-00005-r65` | `03d7909` | `sha256:3905432426b3703b0576c06daf70dfd762dff1a7ad5ea0889da2c51522664078` |
+| `compiler` | `compiler-00006-ww6` | `efa5be4` | `sha256:0dd72f8b30fba6a20d72eb10d7b51d0eb2f2d56846d9131e76c2972d74d0deee` |
 | `compiler-worker` | `compiler-worker-00001-lcj` | `e2b548e` | `sha256:5aacef622639080285a4956eed86f1a49a307e6ecf8d1fa8d878dd17ea858d79` |
 
 Build Linux AMD64 images from the repository root. Record their digests
