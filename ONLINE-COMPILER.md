@@ -120,28 +120,26 @@ Initial build limits to verify locally and tune during the pilot:
   and worker service accounts, and the Firestore database in
   `europe-west2`.
 - [x] Link Firebase to the project and register the `jBC Online` web app.
-- [ ] Initialize Firebase Authentication and configure GitHub OAuth for
-  sign-in only. Request no repository scopes and keep GitHub access tokens
-  out of playground storage.
+- [x] Initialize Firebase Authentication and configure the GitHub
+  provider with the OAuth app owned by `jbc-lang`. Request no repository
+  scopes and keep GitHub access tokens out of playground storage.
   [Firebase GitHub sign-in](https://firebase.google.com/docs/auth/web/github-auth).
-- [ ] Verify Firebase ID tokens in the Go API. Admit only GitHub accounts on
-  the pilot allowlist. Use stable provider account IDs for the allowlist,
-  and the verified Firebase UID for project ownership and rate limits.
-  Test that a signed-in GitHub user outside the allowlist cannot build or
-  access cloud saves. Anonymous users can edit local drafts.
+- [x] Require Firebase ID tokens and an approved GitHub account ID before
+  compiling or accessing cloud saves. Use the verified Firebase UID for
+  ownership and rate limits. Verify that uninvited identities cannot
+  reach the compiler. Anonymous users can edit local drafts.
   [Verify Firebase ID tokens](https://firebase.google.com/docs/auth/admin/verify-id-tokens).
-- [ ] Store private projects at `users/{uid}/projects/{id}`. Save paths,
-  source text, entry file, units and a revision number. Enforce ownership
-  and size limits on every API read or write. Show conflicts between tabs
-  instead of silently overwriting a newer revision.
+- [x] Save private projects at `users/{uid}/projects/{id}`. Enforce
+  ownership and size limits. Verify with two Firestore clients that
+  stale revisions raise conflicts and each user has private storage.
   [Firestore storage limits](https://firebase.google.com/docs/firestore/quotas).
-- [ ] Enforce shared rate limits across API instances using the verified
-  user ID. Start with one in-flight build and six builds per minute per
-  user. Cap the worker at one request per instance and two instances.
-  Return `429` with `Retry-After` when capacity or a user's quota is
-  exhausted. Test repeated requests against multiple API instances.
-- [ ] Test that the production configuration requires authentication and
-  rate limits. Ensure the production service rejects local mode.
+- [x] Enforce one in-flight build and six build starts per rolling minute
+  per user. Return `429` with `Retry-After`. Verify shared leases and
+  rate limits with two clients against the London Firestore database.
+- [x] Test locally that production requires authentication and rate
+  limits and that Cloud Run rejects local mode.
+- [ ] Verify GitHub sign-in and the pilot allowlist end to end at the
+  deployed HTTPS origin, including a declined account and cloud saves.
 
 ## 4. Deploy and verify the pilot
 

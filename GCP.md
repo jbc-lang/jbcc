@@ -142,21 +142,29 @@ Management API. The web app config was verified with
 [Firebase Management API](https://firebase.google.com/docs/reference/firebase-management/rest/v1beta1/projects).
 [Firestore database IAM](https://docs.cloud.google.com/firestore/docs/manage-databases).
 
-Initialize Firebase Authentication and register a GitHub OAuth app with
-homepage `https://online.jbc-lang.org/` and the authorization callback
-`https://jbc-online.firebaseapp.com/__/auth/handler`. Enable the GitHub
-provider in Firebase and add `online.jbc-lang.org` to the authorized
-domains. Keep the OAuth client secret in the provider configuration.
-The Go API must verify Firebase ID tokens and check the allowlist of
-invited GitHub account IDs before compiling or serving saved projects.
-Request no repository scopes.
+Firebase Authentication was initialized with **Get started** in the
+Firebase console and verified as standard Firebase Authentication.
+The `jbc-lang` organization owns the GitHub OAuth app **jBC Online**.
+It uses homepage `https://online.jbc-lang.org/` and the exact redirect
+`https://jbc-online.firebaseapp.com/__/auth/handler`. The GitHub provider
+was configured with `projects.defaultSupportedIdpConfigs.create`, and
+`online.jbc-lang.org` was added through `projects.updateConfig` with the
+`authorizedDomains` field mask. The OAuth secret is stored in Firebase's
+provider configuration. A Firebase-generated GitHub authorization URL confirmed that no repository
+scopes were requested.
 [Firebase GitHub provider](https://firebase.google.com/docs/auth/web/github-auth).
+[Identity Platform configuration API](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/projects/updateConfig).
+
+The Go API checks Firebase ID tokens and the numeric GitHub account
+allowlist before compiling or accessing saves. It uses the Firebase UID
+for Firestore document ownership and build quotas. Each account can have
+one build in flight and six build starts in a rolling minute. Saved
+projects at `users/{uid}/projects/{id}` use revisions to detect conflicts.
 
 ## Publish Docker images and deploy Cloud Run
 
-Once the production configuration is implemented, build Linux AMD64
-images from the repository root. Record their digests and toolchain
-versions. The current web image only serves local development mode.
+Build Linux AMD64 images from the repository root. Record their digests
+and toolchain versions.
 
 ```sh
 JBCC_REGISTRY="$JBCC_REGION-docker.pkg.dev"
@@ -199,11 +207,35 @@ gcp run services add-iam-policy-binding compiler-worker \
 
 JBCC_WORKER_URL=$(gcp run services describe compiler-worker \
   --region="$JBCC_REGION" --format='value(status.url)')
+```
+
+Prepare an environment YAML file at `JBCC_COMPILER_ENV`. Copy the Firebase
+web app's public configuration from Firebase project settings. Use
+`gh api users/GITHUB_LOGIN --jq .id` to resolve each approved account to
+its numeric ID. Quote the comma-separated list in the YAML file.
+
+```yaml
+JBCC_MODE: "production"
+JBCC_BUILDS_ENABLED: "false"
+JBCC_PUBLIC_ORIGIN: "https://online.jbc-lang.org"
+JBCC_WORKER_URL: "PRIVATE_CLOUD_RUN_SERVICE_ORIGIN"
+JBCC_FIREBASE_API_KEY: "FIREBASE_WEB_API_KEY"
+JBCC_FIREBASE_AUTH_DOMAIN: "jbc-online.firebaseapp.com"
+JBCC_FIREBASE_PROJECT: "jbc-online"
+JBCC_FIREBASE_APP_ID: "FIREBASE_WEB_APP_ID"
+JBCC_FIRESTORE_DATABASE: "jbc-playground"
+JBCC_ALLOWED_GITHUB_IDS: "APPROVED_NUMERIC_GITHUB_IDS"
+```
+
+Replace `PRIVATE_CLOUD_RUN_SERVICE_ORIGIN` with `JBCC_WORKER_URL` from
+the worker deployment. The web service uses its Cloud Run identity to
+obtain the worker's identity token.
+
+```sh
 gcp run deploy compiler --region="$JBCC_REGION" \
   --image="$JBCC_WEB_IMAGE" --service-account="$JBCC_WEB_SA" \
   --allow-unauthenticated --cpu-throttling --min=0 --max=2 \
-  --timeout=30s \
-  --set-env-vars="JBCC_BUILDS_ENABLED=false,JBCC_COMPILER_URL=$JBCC_WORKER_URL,JBCC_FIRESTORE_DATABASE=jbc-playground"
+  --timeout=30s --env-vars-file="$JBCC_COMPILER_ENV"
 ```
 
 Choose worker CPU and memory from the local build measurements. The API
