@@ -86,6 +86,16 @@ jobs:
             sleep 5
           done
           exit 1
+      - name: Check the TestPyPI project page
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-all-errors \
+            "https://test.pypi.org/project/jbcc/$VERSION/" -o project.html
+          grep -qF 'jbcc is an experimental compiler for jBC' project.html
+          grep -qF 'https://github.com/jbc-lang/jbcc/blob/main/LICENSE' project.html
+          grep -qF 'https://github.com/jbc-lang/jbcc/blob/main/THIRD-PARTY-NOTICES.md' project.html
 
   pypi:
     needs: verify-testpypi
