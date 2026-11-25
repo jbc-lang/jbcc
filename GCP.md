@@ -4,9 +4,11 @@ The [implementation checklist](ONLINE-COMPILER.md) uses the dedicated
 `jBC Online` Google Cloud project (ID `jbc-online`), linked to the
 existing billing account, displayed as `General`. The billing link uses
 the account ID.
-Cloud Run service `compiler` serves the editor and API at
-`https://online.jbc-lang.org/`. Service `compiler-worker` runs jbcc and
-Emscripten and accepts calls from the Go service identity.
+Cloud Run service `compiler` serves the legacy editor and API at
+`https://jbc-online.web.app/` for cloud-save export and rollback.
+Service `compiler-worker` runs jbcc and Emscripten and accepts calls
+from the Go service identity. The [browser-only playground](WASM-PLAN.md)
+uses GitHub Pages at `https://online.jbc-lang.org/`.
 
 ## Inventory already verified
 
@@ -14,8 +16,8 @@ Emscripten and accepts calls from the Go service identity.
   that covers `jbc-online`.
 - The `jbc-online` project has its own £1 monthly Cloud Run spend cap.
   The Budget API reports it as **Configured**.
-- Squarespace hosts DNS for `jbc-lang.org`. No A or CNAME record was
-  found for `online.jbc-lang.org`.
+- Squarespace hosts DNS for `jbc-lang.org`. The `online` CNAME points
+  to `jbc-lang.github.io`.
 
 Set `JBCC_ACCOUNT` to the intended Google Cloud account. Use London
 (`europe-west2`) for Cloud Run, Artifact Registry, and Firestore.
@@ -171,8 +173,18 @@ with zero minimum and two maximum instances per service.
 
 | Service | Active revision | Build commit | Image digest |
 | --- | --- | --- | --- |
-| `compiler` | `compiler-00006-ww6` | `efa5be4` | `sha256:0dd72f8b30fba6a20d72eb10d7b51d0eb2f2d56846d9131e76c2972d74d0deee` |
+| `compiler` | `compiler-00007-b8w` | `84448da` | `sha256:0841254fc6f9476a137072e910bea310908bfce27879d24f83b2297406501883` |
 | `compiler-worker` | `compiler-worker-00001-lcj` | `e2b548e` | `sha256:5aacef622639080285a4956eed86f1a49a307e6ecf8d1fa8d878dd17ea858d79` |
+
+The web update added **Export** for cloud saves. The worker continued
+serving its existing revision. Firebase lists `jbc-online.web.app` as an
+authorized sign-in domain. For a cloud save, sign in at that address,
+load the project, click **Export**, then import the JSON at the new site.
+
+```sh
+gcp run services update compiler --region="$JBCC_REGION" \
+  --image=europe-west2-docker.pkg.dev/jbc-online/jbc-playground/compiler@sha256:0841254fc6f9476a137072e910bea310908bfce27879d24f83b2297406501883
+```
 
 Build Linux AMD64 images from the repository root. Record their digests
 and toolchain versions.
@@ -257,33 +269,31 @@ The API enforces the allowlist and quotas on the custom domain and the default
 service URL. It uses a Cloud Run identity token to call the worker.
 [Service-to-service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
 
-## Connect the domain and Analytics
+## Firebase Hosting and Analytics
 
-Firebase Hosting serves `https://online.jbc-lang.org/` through a
+Firebase Hosting serves `https://jbc-online.web.app/` through a
 catch-all rewrite to Cloud Run service `compiler` in `europe-west2`.
 The main Hosting release is `sites/jbc-online/releases/1795609337836000`.
 The Hosting API created a version with this rewrite and the static
 `/tag-check.html` page, finalized it with `versions.patch`, and published
-it with `releases.create`. Use
-<https://online.jbc-lang.org/tag-check.html> for the top-level Google
-tag installation check. The check page serves the supplied snippet with
-an opaque sandbox. It sets storage and advertising consent to denied
-before loading the tag and blocks analytics requests. Update the inline
-initializer's SHA-256 hash in the content security policy if it changes.
+it with `releases.create`. The browser-only site also serves a
+[/tag-check.html](https://online.jbc-lang.org/tag-check.html) page for the
+Google tag installation check. It denies storage and advertising consent
+and blocks collection through its content security policy. The static
+build computes the SHA-256 hash of the inline initializer.
 
 ```json
 {"config":{"rewrites":[{"glob":"**","run":{"serviceId":"compiler","region":"europe-west2"}}]}}
 ```
 
-The custom domain was added with `projects.sites.customDomains.create`.
-In Squarespace DNS for `jbc-lang.org`, save the following record, then
-check the CNAME and Firebase-managed HTTPS certificate. The live
-certificate was verified for `online.jbc-lang.org`.
+The original Firebase custom domain mapping was added with
+`projects.sites.customDomains.create`. Keep it for rollback. The former
+Squarespace record and the current CNAME use a four-hour TTL.
 [Custom domain setup](https://firebase.google.com/docs/hosting/custom-domain).
 
-| Type | Host | Target | TTL |
+| Host | Type | Active target | Rollback target |
 | --- | --- | --- | --- |
-| CNAME | `online` | `jbc-online.web.app` | 4 hours |
+| `online` | CNAME | `jbc-lang.github.io` | `jbc-online.web.app` |
 
 The separate Firebase Hosting site `jbc-online-metrics` serves
 `index.html` and `tag.js` from [playground/analytics](playground/analytics).
@@ -296,7 +306,9 @@ the Google tag and collection endpoints and allows framing by
 `online.jbc-lang.org` and `jbc-online.web.app`.
 [Firebase Hosting deploy API](https://firebase.google.com/docs/hosting/api-deploy).
 
-The hosted editor loads `GTM-5QTPTVWF` on page load. The tag runs
+The GitHub Pages workflow sets `JBCC_ANALYTICS_FRAME` to this Firebase
+Hosting site when building the public editor. The editor loads
+`GTM-5QTPTVWF` on page load. The tag runs
 inside the cross-origin frame. It cannot read editor content, filenames,
 compiler output, or sign-in state. The published container directs hits
 to GA4 measurement ID `G-NCPVZT08XG`. A live browser test observed a
@@ -317,7 +329,7 @@ gcp run services list --region="$JBCC_REGION"
 gcp run services describe compiler --region="$JBCC_REGION"
 gcp run services describe compiler-worker --region="$JBCC_REGION"
 dig +short online.jbc-lang.org
-curl --fail --silent --show-error https://online.jbc-lang.org/api/v1/health
+curl --fail --silent --show-error https://jbc-online.web.app/api/v1/health
 curl -s -o /dev/null -w '%{http_code}\n' "$JBCC_WORKER_URL/compile" \
   -H 'Content-Type: application/json' --data '{}'
 ```
