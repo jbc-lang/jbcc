@@ -8,7 +8,7 @@ if (window.parent !== window) {
     window.dataLayer.push(arguments);
   }
 
-  // A new client ID on each opt-in page load avoids a persistent analytics ID
+  // A new client ID on each page load avoids a persistent analytics ID
   // and lets the tag send a page view from the cross-origin frame.
   const clientID = Array.from(crypto.getRandomValues(new Uint32Array(2))).join(".");
   gtag("consent", "default", {

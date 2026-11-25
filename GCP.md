@@ -294,7 +294,7 @@ the Google tag and collection endpoints and allows framing by
 `online.jbc-lang.org` and `jbc-online.web.app`.
 [Firebase Hosting deploy API](https://firebase.google.com/docs/hosting/api-deploy).
 
-The **Analytics** button loads `GTM-5QTPTVWF` after opt-in. The tag runs
+The hosted editor loads `GTM-5QTPTVWF` on page load. The tag runs
 inside the cross-origin frame. It cannot read editor content, filenames,
 compiler output, or sign-in state. The published container directs hits
 to GA4 measurement ID `G-NCPVZT08XG`. A live browser test observed a

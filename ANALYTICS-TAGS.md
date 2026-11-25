@@ -15,7 +15,7 @@ All Google Analytics properties are in the GA account **Sites**
 
 - The docs site loads `GTM-MKW38C6B` from `site/head.html`. GA reports
   data flowing.
-- The playground loads `GTM-5QTPTVWF` only after the user opts in,
+- The hosted playground loads `GTM-5QTPTVWF` on page load,
   inside an iframe at `https://jbc-online-metrics.web.app`. The frame's
   code is `playground/analytics/tag.js` and `index.html`, and
   `/api/v1/analytics` returns the frame's address.
@@ -30,7 +30,7 @@ All Google Analytics properties are in the GA account **Sites**
 
 ## Deployment follow-up on 2026-11-25
 
-- The opt-in frame sends one cookieless `page_view` for
+- The metrics frame sends one cookieless `page_view` for
   `https://online.jbc-lang.org/`. A live browser test verified the
   destination, page location, event count, and HTTP 204 response.
 - `/tag-check.html` sets denied consent defaults, suppresses automatic
@@ -39,9 +39,8 @@ All Google Analytics properties are in the GA account **Sites**
 - User-provided data capabilities were disabled in both containers.
   The setting was published as Version 2 in each workspace.
 - GA4 Realtime visibility remains unverified. The frame keeps
-  `analytics_storage` denied even when the visitor opts into sending a
-  page view. Google notes that DebugView can omit events when analytics
-  cookie consent is denied.
+  `analytics_storage` denied. Google notes that DebugView can omit
+  events when analytics cookie consent is denied.
   [Google DebugView guidance](https://support.google.com/analytics/answer/7201382).
 
 ## Small issue on the docs site

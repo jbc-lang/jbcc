@@ -152,8 +152,8 @@ Initial build limits to verify locally and tune during the pilot:
 - [x] Connect `online.jbc-lang.org` to Firebase Hosting through the
   Squarespace CNAME. Confirm HTTPS and the Cloud Run rewrite.
   [Firebase custom domains](https://firebase.google.com/docs/hosting/custom-domain).
-- [x] Add the supplied `GTM-5QTPTVWF` container in an opt-in frame on a
-  separate origin. Verify that GA4 accepts a browser `page_view`.
+- [x] Load the supplied `GTM-5QTPTVWF` container automatically in a frame
+  on a separate origin. Verify that GA4 accepts a cookieless `page_view`.
 - [x] Publish a top-level `/tag-check.html` page for the Google tag
   installation check.
 - [ ] Confirm the resulting event in GA4 Realtime.
