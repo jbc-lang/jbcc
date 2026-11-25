@@ -73,7 +73,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   distributions before handing the same files to a separate upload job.
   Use a deliberate release trigger with a tag that matches the package
   version, such as `v0.1.0`. Grant `id-token: write` to the upload job only.
-- [ ] Configure separate pending Trusted Publishers on TestPyPI and PyPI
+- [x] Configure separate pending Trusted Publishers on TestPyPI and PyPI
   for `jbc-lang/jbcc`. Match each publisher's workflow filename and GitHub
   environment to the release configuration. Use PyPA's publishing action
   with OIDC so releases can run without a stored upload token.
