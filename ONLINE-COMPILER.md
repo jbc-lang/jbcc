@@ -109,8 +109,8 @@ Initial build limits to verify locally and tune during the pilot:
   instances per service.
 - [x] Add and verify locally that `JBCC_BUILDS_ENABLED=false` pauses
   new builds while the editor and health endpoint stay available.
-- [ ] Verify the pause switch, billing attribution, and spend cap on the
-  deployed services. Spend cap enforcement can lag usage.
+- [x] Verify the deployed pause switch, project billing link, and
+  Cloud Run spend cap. Spend cap enforcement can lag usage.
   [Spend cap scope](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
   [Cloud Run scaling limits](https://docs.cloud.google.com/run/docs/configuring/max-instances).
 
@@ -138,35 +138,26 @@ Initial build limits to verify locally and tune during the pilot:
   rate limits with two clients against the London Firestore database.
 - [x] Test locally that production requires authentication and rate
   limits and that Cloud Run rejects local mode.
-- [ ] Verify GitHub sign-in and the pilot allowlist end to end at the
-  deployed HTTPS origin, including a declined account and cloud saves.
+- [x] Verify an invited GitHub sign-in and cloud saves end to end at
+  the deployed HTTPS origin.
+- [ ] Verify a signed-in, uninvited GitHub account end to end on the
+  deployed site. The API test already verifies denial.
 
 ## 4. Deploy and verify the pilot
 
-- [x] Verify DNS for `online.jbc-lang.org`. It has no A or CNAME record.
-  The parent domain uses Squarespace DNS.
-- [ ] Build Docker images for the Go service and private compiler worker.
-  Publish them to Artifact Registry in the dedicated project and deploy by
-  image digest. Use separate runtime identities for `compiler` and
-  `compiler-worker`. Restrict worker egress and give the worker no access
-  to OAuth credentials, Firestore, or saved projects.
+- [x] Publish AMD64 Docker images to Artifact Registry and deploy both
+  services by digest in London. Verify that the worker requires Cloud
+  Run IAM and has an active egress-deny rule on its dedicated VPC.
   [Cloud Run container isolation](https://docs.cloud.google.com/run/docs/container-contract).
-  [Artifact Registry image names](https://docs.cloud.google.com/artifact-registry/docs/docker/names).
-- [ ] Attach `online.jbc-lang.org` to the Go service through a supported
-  HTTPS front door, with Firebase Hosting as the first option. Follow
-  its DNS wizard in Squarespace. Use a CNAME if the mapping supplies one.
-  If a literal CNAME is required, verify the chosen mapping supports it
-  before changing DNS. Add the OAuth callback and authorized domain.
-  [Cloud Run custom-domain options](https://docs.cloud.google.com/run/docs/mapping-custom-domains).
-- [ ] Add a Google Analytics 4 web tag to the playground page. Configure
-  its data stream and verify page views in Realtime. Keep source code,
-  filenames, compiler output, and account IDs out of analytics.
-  [GA4 setup](https://support.google.com/analytics/answer/14183469).
-- [ ] Verify HTTPS, invite-only access, the three-file browser example,
-  project save and reload, and diagnostics pointing to the correct tab.
-  Exercise quota, oversized input, cancellation, and unsupported runtime
-  paths in the deployed environment.
-- [ ] Record actual build time and resource usage. Confirm billing reports
-  attribute the deployment to the dedicated project, alerts cover it,
-  and the operator can pause builds independently. Open access to invited
-  users after these checks pass.
+- [x] Connect `online.jbc-lang.org` to Firebase Hosting through the
+  Squarespace CNAME. Confirm HTTPS and the Cloud Run rewrite.
+  [Firebase custom domains](https://firebase.google.com/docs/hosting/custom-domain).
+- [x] Add the supplied `GTM-MTVGQN94` container in an opt-in frame on a
+  separate origin. Verify that GA4 accepts a browser `page_view`.
+- [ ] Confirm the resulting event in GA4 Realtime.
+- [x] Verify live sign-in, the multi-file browser example, cloud save and
+  load, anonymous build rejection, and oversized request rejection.
+- [x] Verify diagnostic navigation, the Stop button, and build quota
+  rejection through the hosted editor.
+- [x] Record observed build times and memory use. Open builds to the
+  initial GitHub allowlist after the deployment checks.

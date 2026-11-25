@@ -150,8 +150,8 @@ It uses homepage `https://online.jbc-lang.org/` and the exact redirect
 was configured with `projects.defaultSupportedIdpConfigs.create`, and
 `online.jbc-lang.org` was added through `projects.updateConfig` with the
 `authorizedDomains` field mask. The OAuth secret is stored in Firebase's
-provider configuration. A Firebase-generated GitHub authorization URL confirmed that no repository
-scopes were requested.
+provider configuration. A Firebase-generated GitHub authorization URL
+confirmed that no repository scopes were requested.
 [Firebase GitHub provider](https://firebase.google.com/docs/auth/web/github-auth).
 [Identity Platform configuration API](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/projects/updateConfig).
 
@@ -163,6 +163,15 @@ projects at `users/{uid}/projects/{id}` use revisions to detect conflicts.
 
 ## Publish Docker images and deploy Cloud Run
 
+Both Cloud Run services are live in `europe-west2`. The initial pilot
+allowlist contains `begoon`. The services use request-based billing
+with zero minimum and two maximum instances per service.
+
+| Service | Active revision | Build commit | Image digest |
+| --- | --- | --- | --- |
+| `compiler` | `compiler-00003-c2z` | `b479e9b` | `sha256:fa0b1dbd2b70b62e3f12700ec109042f6bf28d1cc23aa6de34c8ac759e3a8501` |
+| `compiler-worker` | `compiler-worker-00001-lcj` | `e2b548e` | `sha256:5aacef622639080285a4956eed86f1a49a307e6ecf8d1fa8d878dd17ea858d79` |
+
 Build Linux AMD64 images from the repository root. Record their digests
 and toolchain versions.
 
@@ -170,7 +179,8 @@ and toolchain versions.
 JBCC_REGISTRY="$JBCC_REGION-docker.pkg.dev"
 JBCC_IMAGE_ROOT="$JBCC_REGISTRY/$JBCC_PROJECT/jbc-playground"
 JBCC_TAG=$(git rev-parse HEAD)
-gcloud auth configure-docker "$JBCC_REGISTRY" --account="$JBCC_ACCOUNT"
+gcloud auth print-access-token --account="$JBCC_ACCOUNT" \
+  | docker login -u oauth2accesstoken --password-stdin "$JBCC_REGISTRY"
 docker buildx build --platform linux/amd64 --push \
   -f playground/Dockerfile.web -t "$JBCC_IMAGE_ROOT/compiler:$JBCC_TAG" .
 docker buildx build --platform linux/amd64 --push \
@@ -180,13 +190,14 @@ gcp artifacts docker images describe "$JBCC_IMAGE_ROOT/compiler-worker:$JBCC_TAG
 ```
 
 Set `JBCC_WEB_IMAGE` and `JBCC_WORKER_IMAGE` to the full
-`@sha256:...` references. Set `JBCC_WORKER_CIDR` to an available
-IPv4 `/26` subnet range. Route worker egress through its dedicated VPC and
-verify the egress restriction in the deployed worker.
+`@sha256:...` references. The worker uses the dedicated
+`playground-worker` VPC and the `10.42.0.0/26` subnet, with all IPv4
+egress denied by its network tag.
 [Artifact Registry images](https://docs.cloud.google.com/artifact-registry/docs/docker/pushing-and-pulling).
 [Cloud Run Direct VPC egress](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc).
 
 ```sh
+JBCC_WORKER_CIDR=10.42.0.0/26
 gcp compute networks create playground-worker --subnet-mode=custom
 gcp compute networks subnets create playground-worker \
   --network=playground-worker --region="$JBCC_REGION" \
@@ -198,7 +209,8 @@ gcp compute firewall-rules create playground-worker-deny-egress \
 gcp run deploy compiler-worker --region="$JBCC_REGION" \
   --image="$JBCC_WORKER_IMAGE" --service-account="$JBCC_WORKER_SA" \
   --no-allow-unauthenticated --cpu-throttling --min=0 --max=2 \
-  --concurrency=1 --timeout=25s --network=playground-worker \
+  --cpu=1 --memory=1Gi --concurrency=1 --timeout=25s \
+  --network=playground-worker \
   --subnet=playground-worker --network-tags=playground-worker \
   --vpc-egress=all-traffic
 gcp run services add-iam-policy-binding compiler-worker \
@@ -225,6 +237,7 @@ JBCC_FIREBASE_PROJECT: "jbc-online"
 JBCC_FIREBASE_APP_ID: "FIREBASE_WEB_APP_ID"
 JBCC_FIRESTORE_DATABASE: "jbc-playground"
 JBCC_ALLOWED_GITHUB_IDS: "APPROVED_NUMERIC_GITHUB_IDS"
+JBCC_ANALYTICS_ORIGIN: "https://jbc-online-metrics.web.app"
 ```
 
 Replace `PRIVATE_CLOUD_RUN_SERVICE_ORIGIN` with `JBCC_WORKER_URL` from
@@ -235,35 +248,52 @@ obtain the worker's identity token.
 gcp run deploy compiler --region="$JBCC_REGION" \
   --image="$JBCC_WEB_IMAGE" --service-account="$JBCC_WEB_SA" \
   --allow-unauthenticated --cpu-throttling --min=0 --max=2 \
-  --timeout=30s --env-vars-file="$JBCC_COMPILER_ENV"
+  --cpu=1 --memory=512Mi --timeout=30s --env-vars-file="$JBCC_COMPILER_ENV"
 ```
 
-Choose worker CPU and memory from the local build measurements. The API
-enforces the allowlist and quotas on the custom domain and the default
+The API enforces the allowlist and quotas on the custom domain and the default
 service URL. It uses a Cloud Run identity token to call the worker.
 [Service-to-service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service).
 
 ## Connect the domain and Analytics
 
-1. Create a Firebase Hosting site in the dedicated project and configure
-   its catch-all rewrite to Cloud Run service `compiler` in
-   `JBCC_REGION`. Deploy from the directory with `firebase.json`.
+Firebase Hosting serves `https://online.jbc-lang.org/` through a
+catch-all rewrite to Cloud Run service `compiler` in `europe-west2`.
+The main Hosting release is `sites/jbc-online/releases/1795606024612000`.
+The Hosting API created a version with this rewrite, finalized it with
+`versions.patch`, and published it with `releases.create`.
 
-   ```sh
-   firebase deploy --only hosting --project "$JBCC_PROJECT"
-   ```
+```json
+{"config":{"rewrites":[{"glob":"**","run":{"serviceId":"compiler","region":"europe-west2"}}]}}
+```
 
-2. Add `online.jbc-lang.org` to Hosting. Apply the exact DNS records
-   supplied by its wizard in Squarespace and wait for managed TLS.
-   Verify that the mapping supports a CNAME if that record type is
-   required. Check the Firebase authorized domain and OAuth callback.
-   [Hosting rewrites](https://firebase.google.com/docs/hosting/cloud-run).
-   [Custom domain setup](https://firebase.google.com/docs/hosting/custom-domain).
-3. Configure a GA4 web data stream for the playground. Set its measurement
-   ID in the webpage configuration and verify a page view in Realtime.
-   Limit analytics to site usage and keep source code, filenames,
-   compiler output, and account identifiers out of event payloads.
-   [GA4 setup](https://support.google.com/analytics/answer/14183469).
+The custom domain was added with `projects.sites.customDomains.create`.
+In Squarespace DNS for `jbc-lang.org`, save the following record, then
+check the CNAME and Firebase-managed HTTPS certificate. The live
+certificate was verified for `online.jbc-lang.org`.
+[Custom domain setup](https://firebase.google.com/docs/hosting/custom-domain).
+
+| Type | Host | Target | TTL |
+| --- | --- | --- | --- |
+| CNAME | `online` | `jbc-online.web.app` | 4 hours |
+
+The separate Firebase Hosting site `jbc-online-metrics` serves the files
+under [playground/analytics](playground/analytics). Its live release is
+`sites/jbc-online-metrics/releases/1795606734193000`. To publish the
+frame, create a Hosting version, call `versions.populateFiles` with
+SHA-256 hashes of the gzip-compressed files, upload required hashes,
+finalize the version, and create a release. The response CSP permits
+the Google tag and collection endpoints and allows framing by
+`online.jbc-lang.org` and `jbc-online.web.app`.
+[Firebase Hosting deploy API](https://firebase.google.com/docs/hosting/api-deploy).
+
+The **Analytics** button loads `GTM-MTVGQN94` after opt-in. The tag runs
+inside the cross-origin frame. It cannot read editor content, filenames,
+compiler output, or sign-in state. The published container directs hits
+to GA4 measurement ID `G-WCXYWY5LFQ`. A live browser test observed a
+cookieless `page_view` with HTTP 204 from GA4. The event's page location
+is `https://jbc-online-metrics.web.app/` and its title is **jBC Playground**.
+GA4 Realtime showed no matching event during the deployment check.
 
 If deploying through an external HTTPS load balancer for Cloud Armor
 instead, restrict Go service ingress to the load balancer.
@@ -276,9 +306,23 @@ gcp run services list --region="$JBCC_REGION"
 gcp run services describe compiler --region="$JBCC_REGION"
 gcp run services describe compiler-worker --region="$JBCC_REGION"
 dig +short online.jbc-lang.org
-curl --fail --silent --show-error https://online.jbc-lang.org/healthz
-curl -s -o /dev/null -w '%{http_code}\n' "$JBCC_WORKER_URL/healthz"
+curl --fail --silent --show-error https://online.jbc-lang.org/api/v1/health
+curl -s -o /dev/null -w '%{http_code}\n' "$JBCC_WORKER_URL/compile" \
+  -H 'Content-Type: application/json' --data '{}'
 ```
+
+An unauthenticated worker compile returned HTTP 403. The public compile
+API returned HTTP 401 without a Firebase session and HTTP 413 for an
+oversized request. The approved GitHub account ran Hello and the
+three-file Status lookup example, then saved and loaded a project. The
+hosted editor jumped to an unsupported-operation diagnostic, stopped a
+test run, and reported the shared build quota when exceeded.
+
+Cloud Run logs showed 7.0 seconds for the first worker compile and
+1.55–1.58 seconds for two subsequent builds. The highest sampled mean
+memory utilization during the smoke tests was 8.3% of 512 MiB for the web
+service and 11.1% of 1 GiB for the worker. Cloud Billing still reported
+the £1 monthly Cloud Run cap as **Configured**.
 
 Confirm that the unauthenticated worker request is denied. Verify sign-in,
 save and reload, excluded accounts, the multi-file browser example, and
