@@ -55,7 +55,7 @@ the first upload creates the project. [uv tool execution](https://docs.astral.sh
   source-relative includes. Check exact stdout and exit status. Cover
   macOS and Linux. On the minimum supported Python version, verify both
   installation from the wheel and a build from the source archive.
-- [ ] Use an absolute wheel path to exercise uv's tool installation before
+- [x] Use an absolute wheel path to exercise uv's tool installation before
   upload. [Building packages with uv](https://docs.astral.sh/uv/guides/package/).
 
   ```sh
