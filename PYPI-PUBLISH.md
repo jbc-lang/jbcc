@@ -101,5 +101,27 @@ The project page was verified in a browser, and the two CI archives were
 uploaded to production with the 1Password-backed token. Both indexes
 serve the same SHA-256 digests for the wheel and source archive.
 
-Future releases use the TestPyPI JSON API for the metadata check and
-Trusted Publishing in both environments.
+## Browser API release record
+
+Version `0.2.0` passed the TestPyPI upload, CLI smoke test, and JSON metadata
+check in the [release workflow](https://github.com/jbc-lang/jbcc/actions/runs/45668671388).
+Production PyPI rejected the GitHub identity with
+`invalid-pending-publisher`. The pending registration remained after the
+first release created the project. The verified CI archives were uploaded
+to production with the existing 1Password-backed token.
+
+The PyPI wheel matched the locally tested wheel and CI artifact byte for
+byte. The installed CLI and Pyodide both passed single-file and linked
+routine checks with the published release. Pyodide also reported the
+expected diagnostic location in an include.
+
+The wheel SHA-256 for the playground pin is
+
+```text
+b7dc3b31727eefebd6f4ebd420d8b4fb0906b290c8efd7f59099b5e324fe70ea
+```
+
+- [ ] Before the next automated production release, register
+  `jbc-lang/jbcc`, `publish.yml`, and environment `pypi` as a trusted
+  publisher in the existing `jbcc` project settings.
+  [Configure an existing PyPI project](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
