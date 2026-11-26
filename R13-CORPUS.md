@@ -51,7 +51,10 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
     Not used by the corpora. Decide byte classes first: the guide's
     ISCNTRL example returns 1 for `@FM:CHAR(13):CHAR(10)`.
   - [x] `CHDIR` as a condition
-  - [ ] `UNASSIGNED` with a dynamic-array argument
+  - [x] `UNASSIGNED` with a dynamic-array argument. The local reference
+    (`jbccom` 201015.001, Prime) emits `UNASSIGNED_IB(EXTRACTMV(...))`
+    and accepts any expression; jbcc keeps rejecting non-extraction
+    expressions such as `ASSIGNED(2)`, per its existing fixtures.
 - [ ] 5. Settle `COMMON X` followed by `DIM X(n)` and `DM.GENERATE.ERWIN`
   with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,
   or `bin/JBCCOM` from the tarball in the Linux container). Implement,

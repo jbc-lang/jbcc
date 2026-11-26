@@ -2375,7 +2375,11 @@ empty string. `UNASSIGNED(X)` returns the opposite. Both can inspect a
 scalar, a COMMON variable, a routine argument, or a dimensioned matrix
 element. Testing a variable leaves it untouched. For example,
 `IF UNASSIGNED(X) THEN X = ''` supplies a default while preserving any
-existing value. [ASSIGNED](https://jbc-lang.org/pages/assigned.html),
+existing value. A dynamic-array extraction such as
+`UNASSIGNED(X<I,J>)` is evaluated, and its result is always assigned. The
+local jBC 201015.001 reference applies the test to any expression this way;
+jbcc accepts extractions and otherwise requires a variable.
+[ASSIGNED](https://jbc-lang.org/pages/assigned.html),
 [UNASSIGNED](https://jbc-lang.org/pages/unassigned.html).
 
 ## Walk a dynamic array

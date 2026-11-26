@@ -1475,6 +1475,21 @@ class Compiler:
             opening = self.current
             self.advance()
             self.expect('(')
+            if (
+                self.current.kind == 'name'
+                and self.following.word == '<'
+                and self.word not in self.matrices
+            ):
+                # The reference applies ASSIGNED_IB to the extracted value,
+                # which is always assigned. jbcc accepts only extractions,
+                # as in T24 R13 RAISE.PENDING.ENTRIES.
+                value = self.expression()
+                self.expect(')')
+                self.record_api_call(opening, 1)
+                result = '"1"' if word == 'ASSIGNED' else '"0"'
+                return self.postfix(
+                    self.temporary(f'((void){value}, {result})'), locate_source
+                )
             target = self.identifier()
             slot = self.variable_slot(target)
             self.expect(')')
