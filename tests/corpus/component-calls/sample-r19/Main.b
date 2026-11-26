@@ -11,6 +11,14 @@ CRT Shop.Prices.getItems(1)
 Shop.Prices.setDynArrayToItems(Shop.Prices.getDynArrayFromItems())
 Shop.Prices.clearItems()
 Shop.Prices.clearCurrent()
+* Declaration forms from R19: a result type before the parameters
+* (EB.API.setException), an external service method with domain types
+* (ST.CustomerService.getRecord) and newline-separated parameters
+* (TF.ErrorHandling.setException).
+Shop.Prices.Tally("label")
+CRT Shop.Prices.Tally("label")
+Shop.Prices.lookupItem("item", Item)
+Shop.Prices.Note("code", "text")
 CALL Shop.Prices.Clear()
 Shop.Prices.Reset()
 Record = Shop.Prices.Prices.Read("item", Error)

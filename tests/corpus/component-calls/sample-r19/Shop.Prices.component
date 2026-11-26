@@ -31,3 +31,16 @@ public table Prices {
 private table Ledger {
     t24: SHOP.LEDGER
 }
+public method Tally : string (
+    IN Label string
+)
+{
+    jBC: SHOP.TALLY
+}
+external method lookupItem
+	(IN itemKey string [0..1], OUT item ShopDomain:Item [0..1]) { jBC: variable }
+public method Note (IN code string
+    IN text string)
+{
+    jBC: SHOP.NOTE
+}
