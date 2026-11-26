@@ -53,6 +53,7 @@ TABLE_METHODS = {
     "ReadHis": ("function", (False, False)),
     "ReadU": ("function", (False, False, False)),
     "ReadUNau": ("function", (False, False, False)),
+    "ReadUHis": ("function", (False, False, False)),
     "Write": ("subroutine", (False, False)),
     "WriteNau": ("subroutine", (False, False)),
     "WriteHis": ("subroutine", (False, False)),
@@ -66,7 +67,11 @@ def declarations(source):
     source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
     for method in METHOD.finditer(source):
         # Parameters are separated by commas or, in some definitions, newlines.
-        parts = [p.strip() for p in re.split(r"[,\n]", method["parameters"]) if p.strip()]
+        parts = [
+            p.strip()
+            for p in re.split(r"[,\n]", method["parameters"])
+            if p.strip()
+        ]
         matches = [PARAMETER.fullmatch(part) for part in parts]
         if all(matches):
             access = method["access"]
@@ -74,7 +79,9 @@ def declarations(source):
                 method["name"],
                 (
                     "public" if access == "external" else access,
-                    "function" if method["before"] or method["after"] else "subroutine",
+                    "function"
+                    if method["before"] or method["after"]
+                    else "subroutine",
                     tuple(bool(match[1] or match[2]) for match in matches),
                 ),
             )

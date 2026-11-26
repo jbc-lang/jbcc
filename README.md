@@ -2640,7 +2640,7 @@ parsed declaration in each.
 For `t24:` table declarations, the checker recognizes numbered field
 constants and the call signatures observed in R19 sources. Reads return
 the record: `Read`, `CacheRead`, `ReadNau` and `ReadHis` take the id and
-an error variable, and the locking `ReadU` and `ReadUNau` add a retry
+an error variable, and the locking `ReadU`, `ReadUNau` and `ReadUHis` add a retry
 argument. `Write`, `WriteNau` and `WriteHis` take the id and record, and
 `Delete`, `DeleteNau` and `DeleteHis` take the id. The component also
 has `table<Name>(id, error)`, a read with the table's visibility, as in
