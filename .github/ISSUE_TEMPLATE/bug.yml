@@ -1,0 +1,64 @@
+name: Bug report
+description: jbcc rejects valid jBC, crashes, or the program behaves differently from TAFC or jBASE.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A small program that shows the problem is the most useful thing you can give.
+        For a statement or function jbcc reports as unsupported, use **Missing statement or function** instead.
+  - type: input
+    id: version
+    attributes:
+      label: jbcc version
+      description: "`pip show jbcc`, or the version you run with `uvx jbcc==...`."
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What goes wrong
+      options:
+        - jbcc rejects code that TAFC or jBASE accepts
+        - jbcc crashes or reports an internal error
+        - The generated C does not compile
+        - The program prints or returns something different
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Smallest jBC source that shows it
+      description: Cut the program down as far as you can. Include any $INSERT files it needs.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: "jbcc --run test.b"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What TAFC, TAFJ or jBASE prints, and which one and which version, if you know.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What jbcc printed, including any diagnostic.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and C compiler
+      placeholder: "macOS 15, Apple clang 17"

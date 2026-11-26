@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/jbc-lang/jbcc/discussions
+    about: Ask how to do something with jbcc, or discuss an idea, in Discussions.
+  - name: Problem in the browser playground
+    url: https://github.com/jbc-lang/jbc-playground/issues/new/choose
+    about: The editor, saving projects or running in online.jbc-lang.org. Not sure whether it is the compiler? Start there.
+  - name: Security vulnerability
+    url: https://github.com/jbc-lang/jbcc/security/advisories/new
+    about: Report it privately, not as a public issue.
