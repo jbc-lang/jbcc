@@ -1,5 +1,12 @@
 # News
 
+## 2026-11-26 · T24 R13 corpus
+
+[jbcc 0.3.0](https://pypi.org/project/jbcc/0.3.0/) translates all 19,536
+source units of the T24 R13 corpus to strict C99, alongside every unit of
+R10 and R07. It adds `DELETESEQ`, `CHDIR`, `ISALNUM`, `BITAND` and
+`BITNOT`, among other constructs the R13 sources use.
+
 ## 2026-11-25 · Playground link on PyPI
 
 [jbcc 0.2.1](https://pypi.org/project/jbcc/0.2.1/) links to the

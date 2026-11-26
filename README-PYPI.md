@@ -14,7 +14,7 @@ uvx jbcc --run hello.b
 Native builds with `--exe` or `--run` need a C99 compiler on PATH. jbcc uses
 `cc` by default. Set `CC` and `CC_FLAGS` to override the compiler and flags.
 
-The parser has been tested against T24 R07 and R10 sources. Parts of the
+The parser has been tested against T24 R07, R10 and R13 sources. Parts of the
 jBASE runtime are still to be implemented.
 
 - [Compiler source and examples](https://github.com/jbc-lang/jbcc)
