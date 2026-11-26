@@ -11,7 +11,7 @@ Its parser supports the jBC grammar exercised by the T24 source corpus.
 Parts of the jBASE runtime are still to be implemented.
 
 The [jBC API coverage report](COVERAGE.md) shows which API forms were
-exercised by compiling the T24 R10 corpus and links to available runtime
+exercised by compiling the T24 R13 corpus and links to available runtime
 tests. Some APIs may already be implemented while their runtime behavior
 still awaits verification.
 
@@ -2631,15 +2631,17 @@ are still pending.
 ### API coverage
 
 [COVERAGE.md](COVERAGE.md) summarizes recognized expression and `DEFC` calls
-in R10 against the documentation repo's catalogues. Run the scan with
+in R13 against the documentation repo's catalogues. Run the scan with
 `--api-catalogue` to add guide references, forms, counts, source examples,
 and test references to the JSON report. The report uses paths from your
 local checkout and corpus.
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
-  -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
-  --quiet-next-warnings --api-catalogue ../jbc-language/spec > /tmp/jbcc-api-coverage.json
+R=../t24-extract/201307-R13
+python3 tools/check_corpus.py $R -I .cache/PB201214/include -I $R/T24.BP -I $R/SENSITIVE.BP \
+  --t24-catalog ../t24-extract/catalog.sqlite -j 8 --source-encoding bytes \
+  --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes \
+  --t24-exclude-local-routines --api-catalogue ../jbc-language/spec > /tmp/jbcc-api-coverage.json
 python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
 ```
 
