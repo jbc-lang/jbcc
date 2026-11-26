@@ -2627,8 +2627,9 @@ catalogued `.component` declarations for fully qualified methods,
 property accessors and simple literal constants. It checks visibility
 against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
-accessors such as `getDynArrayFromRNew()`.
-It also recognizes untyped scalar properties. Where the catalog has
+accessors such as `getDynArrayFromRNew()`. A writable property also
+has `clear<Name>()`, with no arguments, as R19 sources call it on scalar
+and matrix-backed properties. It also recognizes untyped scalar properties. Where the catalog has
 multiple definitions for one component, a member must have the same
 parsed declaration in each.
 

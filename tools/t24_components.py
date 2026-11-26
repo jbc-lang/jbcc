@@ -76,6 +76,9 @@ def declarations(source):
                 yield "getDynArrayFrom" + name, (access, "function", ())
         if mode != "readonly":
             yield "set" + name, (access, "subroutine", index + (False,))
+            # R19 sources call clear<Name>() with no arguments on scalar and
+            # matrix-backed properties alike (5,023 calls).
+            yield "clear" + name, (access, "subroutine", ())
             if matrix:
                 yield "setDynArrayTo" + name, (access, "subroutine", (False,))
     for access, name, value in CONSTANT.findall(source):
