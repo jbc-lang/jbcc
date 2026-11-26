@@ -434,13 +434,19 @@ expression without generating a seed operation. jbcc checks the
 expression at compile time and skips it at runtime. `RND` continues to
 draw from `/dev/urandom`.
 
-`BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
+`BITAND(left, right)`, `BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
 toward zero and return an empty value if either operand is empty.
 The guide specifies a 32-bit
 two's-complement operation. jbcc takes the low 32 bits of each truncated
 operand and returns the result as a signed integer on every target.
 Nonempty, nonnumeric operands produce a source-located error.
-[BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
+[BITAND](https://jbc-lang.org/pages/bitand.html), [BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
+
+`BITNOT(value)` inverts the low 32 bits of the truncated operand. It
+returns the result as an unsigned integer, as in the guide's example
+`BITNOT(6)` = 4294967289, unlike the signed results above. That difference
+is provisional until a reference run confirms it. An empty operand returns
+an empty value. [BITNOT](https://jbc-lang.org/pages/bitnot.html).
 
 `ENCRYPT(text, key, method)` and `DECRYPT(text, key, method)` implement
 ROT13 (method 1 in PB201214's JBC.h). They rotate ASCII letters, preserve
@@ -1502,6 +1508,11 @@ transform requires an XML backend.
 `JBASECOREDUMP(suffix, mode)` accepts two expressions. A reached call
 reports a source-located error because application snapshots require a
 backend. [JBASECOREDUMP](https://jbc-lang.org/pages/jbasecoredump.html).
+
+`VALIDATE_PRODUCT_LICENSE(product)` accepts one expression, as in the
+reference grammar and keyword table. The local jBC 201015.001 reference
+lowers it to a TAFC licence check. A reached call reports a
+source-located error because licence checks require a backend.
 
 `SEQ(value)` returns the unsigned value of the first byte of its string
 representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.

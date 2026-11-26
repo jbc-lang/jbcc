@@ -59,6 +59,14 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,
   or `bin/JBCCOM` from the tarball in the Linux container). Implement,
   fix in memory or record as expected failures.
+  - [x] `DM.GENERATE.ERWIN`: the reference accepts it, treating
+    `VALIDATE_PRODUCT_LICENSE` as a builtin and `JBASE_PRODUCT_DM_EXPORT`
+    as an unassigned variable. jbcc now parses `VALIDATE_PRODUCT_LICENSE`
+    (missing licensing backend when reached), `BITAND` and `BITNOT`
+    (unsigned result per the guide example, provisional).
+  - [ ] `COMMON ..., X` then `DIM X(9)`: the reference accepts it and emits
+    `DECLARE_DYN_DIM` on the COMMON slot, so the member becomes a
+    dynamically dimensioned array shared through the block.
 - [x] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
   excluded rather than rejected (`--t24-exclude-local-routines`).
 - [ ] 7. Re-run R10 and R07 to check for regressions and update counts.

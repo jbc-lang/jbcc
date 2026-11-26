@@ -48,6 +48,25 @@ def test_jbasecoredump_requires_an_application_snapshot_backend(
             )
 
 
+def test_validate_product_license_requires_a_backend_when_reached(compiler):
+    source = (
+        ROOT
+        / 'tests/programs/validate-product-license-requires-a-backend-when-reached'
+        / 'license.b'
+    )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        expected_bytes(
+            'validate-product-license-requires-a-backend-when-reached.stdout'
+        ),
+        expected_text(
+            'validate-product-license-requires-a-backend-when-reached.stderr',
+            source=source,
+        ).encode(),
+    )
+
+
 def test_itype_requires_backend_only_when_evaluation_is_reached(compiler):
     source = ROOT / 'tests/programs/itype-missing-backend.b'
     result = compiler.run_native(source)

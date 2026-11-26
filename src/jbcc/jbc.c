@@ -4407,6 +4407,25 @@ const char *jbc_bitxor(const char *left, const char *right, const char *file, in
     return signed_word_value(lhs ^ rhs);
 }
 
+const char *jbc_bitand(const char *left, const char *right, const char *file, int line, int column)
+{
+    if (!*left || !*right) return "";
+    const char *message = "BITAND requires numeric operands";
+    uint32_t lhs = decimal_word(left, message, file, line, column);
+    uint32_t rhs = decimal_word(right, message, file, line, column);
+    return signed_word_value(lhs & rhs);
+}
+
+/* The guide's example shows BITNOT(6) as the unsigned word 4294967289. */
+const char *jbc_bitnot(const char *value, const char *file, int line, int column)
+{
+    if (!*value) return "";
+    uint32_t bits = ~decimal_word(value, "BITNOT requires a numeric operand", file, line, column);
+    char *out = allocate(10);
+    snprintf(out, 11, "%" PRIu32, bits);
+    return out;
+}
+
 const char *jbc_bitor(const char *left, const char *right, const char *file, int line, int column)
 {
     if (!*left || !*right) return "";
@@ -6279,6 +6298,14 @@ const char *jbc_jbasecoredump(const char *suffix, const char *mode, const char *
     (void)suffix;
     (void)mode;
     numeric_error(file, line, column, "JBASECOREDUMP requires an application snapshot backend");
+    return "";
+}
+
+const char *jbc_validate_product_license(const char *product, const char *file, int line,
+                                         int column)
+{
+    (void)product;
+    numeric_error(file, line, column, "VALIDATE_PRODUCT_LICENSE requires a licensing backend");
     return "";
 }
 

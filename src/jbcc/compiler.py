@@ -76,7 +76,10 @@ BUILTINS = {
     "ENCRYPT": (3,),
     "DECRYPT": (3,),
     "BITOR": (2,),
+    "BITAND": (2,),
+    "BITNOT": (1,),
     "JBASECOREDUMP": (2,),
+    "VALIDATE_PRODUCT_LICENSE": (1,),
     "CHECKSUM": (1,),
     "CALLONEXIT": (1,),
     "PUTENV": (1,),
@@ -1619,6 +1622,7 @@ class Compiler:
                 self.uses_session = True
             if word in (
                 "JBASECOREDUMP",
+                "VALIDATE_PRODUCT_LICENSE",
                 "CHECKSUM",
                 "LN",
                 "EXP",
@@ -1626,6 +1630,8 @@ class Compiler:
                 "PWR",
                 "RND",
                 "BITOR",
+                "BITAND",
+                "BITNOT",
                 "BITXOR",
                 "DTX",
                 "LATIN1",
