@@ -15,6 +15,7 @@ BACKENDS = {
     "ITYPE",
     "INDICES",
     "JBASECOREDUMP",
+    "VALIDATE_PRODUCT_LICENSE",
 }
 
 # These are assertions in the native suite. A fixture reference alone does
@@ -23,6 +24,22 @@ RUNTIME_EVIDENCE = {
     ("expression", "BITOR", 2, None): (
         "Signed 32-bit output checked",
         "tests/snippets/bitor.b",
+    ),
+    ("expression", "BITAND", 2, None): (
+        "Signed 32-bit output checked",
+        "tests/snippets/bitand.b",
+    ),
+    ("expression", "BITNOT", 1, None): (
+        "Unsigned 32-bit output checked",
+        "tests/snippets/bitand.b",
+    ),
+    ("expression", "ISALNUM", 1, None): (
+        "ASCII letters and digits checked",
+        "tests/snippets/character-class-predicates.b",
+    ),
+    ("expression", "CHDIR", 1, None): (
+        "Directory change and failure checked",
+        "tests/io/chdir.b",
     ),
     ("expression", "DATE", 0, None): (
         "Local date and epoch checked",
@@ -113,6 +130,10 @@ RUNTIME_EVIDENCE = {
         "tests/test_corpus.py",
     ),
     ("expression", "JBASECOREDUMP", 2, None): (
+        "Missing-backend diagnostic checked",
+        "tests/test_corpus.py",
+    ),
+    ("expression", "VALIDATE_PRODUCT_LICENSE", 1, None): (
         "Missing-backend diagnostic checked",
         "tests/test_corpus.py",
     ),
@@ -311,7 +332,8 @@ def render_markdown(report):
         "counts, and example source locations. See the [scan command](README.md#api-coverage)",
         "to reproduce it.",
         "",
-        f"The corpus scan passed strict C99 checking for {report['counts'].get('translated', 0):,} units.",
+        f"The `{Path(coverage['scan']['corpus']).name}` corpus scan passed strict C99 checking "
+        f"for {report['counts'].get('translated', 0):,} units.",
         "",
         "| Catalogue | Entries | Recognized in T24 | No recognized call in T24 |",
         "|---|---:|---:|---:|",

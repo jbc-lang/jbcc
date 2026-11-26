@@ -784,6 +784,7 @@ def test_corpus_api_coverage_counts_parsed_calls_by_form(compiler):
     markdown = subprocess.check_output(
         [sys.executable, ROOT / 'tools/api_coverage.py', report_path], text=True
     )
+    assert 'The `corpus` corpus scan passed strict C99 checking' in markdown
     assert (
         expected_text('corpus-api-coverage-counts-parsed-calls-by-form.stdout')
         in markdown
