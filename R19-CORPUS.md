@@ -90,18 +90,26 @@ an expression, for example `EB.DataAccess.FRead`.
   - The rule reproduces all 20 sample inserts whose `.domain` file is in
     the dump. The other 10 are `I_AccountService_*`, whose domain model
     is missing but whose inserts are already extracted.
-  - No sample covers a field whose type is another class.
+  - Associations (`name -> byValue Domain:Class *`) count as fields:
+    sources use them as positions, as in
+    `ioPaymentObject<PaymentObject.transaction,1,Transaction.fileSendersReference>`.
+    No sample shows a class with both associations and attributes, so
+    their relative numbering is inferred.
 
-  Coverage: 708 of the 716 missing inserts (3,035 units) resolve to a
-  `.domain` class. The other 8, in 9 units, name a service whose
-  `.domain` file lacks the class.
+  Coverage: 714 of the 716 missing inserts (3,043 units) resolve to a
+  `.domain` class. The other 2, one unit each, are
+  `I_InwardCreditTransferInitiationService_BulkDetails` and
+  `I_InwardCreditTransferInitiationDASService_PORCreditTransferInitiation`.
 
-  - [ ] Extend `t24-extract` to copy `.domain` files and catalog their
-    classes, then rebuild and verify the R19 extract.
+  - [x] Extend `t24-extract` to copy `.domain` files and catalog their
+    classes, then rebuild and verify the R19 extract. Branch
+    `feat/domain-files` adds the 1,139 files and a `domain_field` table
+    with 199,751 fields (50,258 of them associations). All 262,693 R19
+    files match their catalog hashes.
   - [ ] Generate the inserts in the corpus checker from the catalogued
     classes, report each generated insert per unit, and add an
     independent fixture.
-  - [ ] Resolve the 8 remaining inserts.
+  - [ ] Resolve the 2 remaining inserts.
 - [ ] 4. Test framework units (113). Decide whether the `SE_Test*`
   routines and `TF.*` helpers are in scope. If they are, find their
   component declarations.
