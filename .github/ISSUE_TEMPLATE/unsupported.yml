@@ -1,0 +1,42 @@
+name: Missing statement or function
+description: jbcc reports a statement, function or @ variable as unsupported.
+labels: [unsupported]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        jbcc implements a subset of jBC; the README lists what is supported. Ask for what you need here,
+        one name per issue, so that the most wanted ones can be found.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: "MAKETIMESTAMP"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: jbcc version
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: input
+    id: guide
+    attributes:
+      label: Guide chapter
+      description: Its page in the [jBC Programmers Reference Guide](https://jbc-lang.org/), if it has one.
+      placeholder: "https://jbc-lang.org/pages/maketimestamp.html"
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: A small program that uses it, and what it should print.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Where you need it
+      description: For example, T24 routines you want to compile, or a guide example.
