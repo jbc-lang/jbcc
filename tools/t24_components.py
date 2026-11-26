@@ -97,6 +97,9 @@ def declarations(source):
             continue
         for method, (kind, signature) in TABLE_METHODS.items():
             yield f"{table}.{method}", (access, kind, signature)
+        # The component-level read table<Name>(id, error), as in
+        # AC.AccountOpening.tableAccount: 1,622 R19 calls, all with two arguments.
+        yield f"table{table}", (access, "function", (False, False))
         fields = TABLE_FIELDS.search(body)
         if fields:
             for name, number in TABLE_FIELD.findall(fields[1]):

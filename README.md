@@ -2638,7 +2638,9 @@ constants and the call signatures observed in R19 sources. Reads return
 the record: `Read`, `CacheRead`, `ReadNau` and `ReadHis` take the id and
 an error variable, and the locking `ReadU` and `ReadUNau` add a retry
 argument. `Write`, `WriteNau` and `WriteHis` take the id and record, and
-`Delete`, `DeleteNau` and `DeleteHis` take the id. Field numbers are
+`Delete`, `DeleteNau` and `DeleteHis` take the id. The component also
+has `table<Name>(id, error)`, a read with the table's visibility, as in
+`AC.AccountOpening.tableAccount(ID, ERR)`. Field numbers are
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
 
