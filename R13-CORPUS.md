@@ -36,7 +36,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
 - [x] 2. Apply the T24 source fixes per release directory, including R13
   `T24.BP/`, starting with `STEST.AZ.PD.DATES.CHK`. Add a
   `tests/corpus/r13/` fixture and test like the R07 one.
-- [ ] 3. Record the baseline: an "R13 corpus" README section with the
+- [x] 3. Record the baseline: an "R13 corpus" README section with the
   command, an R13 row in the performance table, an "R13 baseline"
   section in PLAN.md and the R13 API coverage report.
 - [ ] 4. Close the language gaps with small independent snippets that

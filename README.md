@@ -1,7 +1,7 @@
 # jbcc
 
 jbcc is an experimental jBC-to-C compiler prototype. Its grammar has been
-tested against the T24 R07 and R10 source corpora. Some system calls are
+tested against the T24 R07, R10 and R13 source corpora. Some system calls are
 stubbed, and development and testing take place mainly on macOS. The
 translator is written in Python 3 and emits standalone C99 that the system C
 compiler can build into a native executable.
@@ -33,12 +33,14 @@ On a 10-core Apple M5 Mac with eight workers, the
 [corpus checker](#check-a-local-source-corpus) scanned each extract,
 translated its source units to C, and syntax-checked the output with
 Apple Clang. These runs used the documented corpus compatibility options,
-including in-memory source fixes and the R07 include stub.
+including in-memory source fixes, the R07 include stub and the R13
+local-routine exclusion.
 
 | T24 release | Files scanned | Source units translated and checked | Wall time |
 | --- | ---: | ---: | ---: |
 | R10 | 22,474 | 17,336 | 2 min 18 s |
 | R07 | 18,362 | 15,030 | 2 min 2 s |
+| R13 | 25,374 | 19,536 | 2 min 42 s |
 
 The file totals also count headers and include fragments.
 
@@ -2484,7 +2486,7 @@ python3 tools/check_corpus.py ../t24-extract/200707-R07 \
   -I ../t24-extract/200707-R07/GLOBUS.BP -I ../t24-extract/200707-R07/SENSITIVE.BP \
   --t24-catalog ../t24-extract/catalog.sqlite -j 12 --source-encoding bytes \
   --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes --stub-r07-la-parameter \
-  --api-catalogue ../temenos-documentation/spec \
+  --api-catalogue ../jbc-language/spec \
   > /tmp/jbcc-r07.json
 ```
 
@@ -2514,6 +2516,30 @@ Render the R07 API report with:
 ```sh
 python3 tools/api_coverage.py /tmp/jbcc-r07.json > /tmp/jbcc-r07-coverage.md
 ```
+
+### R13 corpus
+
+The R13 corpus is in `../t24-extract/201307-R13`. Like R07, it has two
+flat BP folders, `T24.BP` and `SENSITIVE.BP`, and both go on the include
+search path. It has no C headers, so this scan takes `JBC.h` from the
+PB201214 headers unpacked by `just tafc-headers`.
+
+```sh
+python3 tools/check_corpus.py ../t24-extract/201307-R13 -I .cache/PB201214/include \
+  -I ../t24-extract/201307-R13/T24.BP -I ../t24-extract/201307-R13/SENSITIVE.BP \
+  --t24-catalog ../t24-extract/catalog.sqlite -j 8 --source-encoding bytes \
+  --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes \
+  --t24-exclude-local-routines --api-catalogue ../jbc-language/spec \
+  > /tmp/jbcc-r13.json
+```
+
+`--t24-source-fixes` corrects the leading-dot selector in
+`T24.BP/STEST.AZ.PD.DATES.CHK`, as in R10 and R07. The optional
+`--t24-exclude-local-routines` skips `T24.BP/V.PL.B2LIM.NET`, a
+Raiffeisen Bank Polska routine whose includes are not in the dump. The
+JSON reports it with the status `excluded` and a reason. See the
+[R13 baseline](PLAN.md#r13-baseline) and [R13-CORPUS.md](R13-CORPUS.md)
+for the remaining failures.
 
 ### R19 pilot
 
@@ -2568,7 +2594,7 @@ local checkout and corpus.
 ```sh
 python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
   -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
-  --quiet-next-warnings --api-catalogue ../temenos-documentation/spec > /tmp/jbcc-api-coverage.json
+  --quiet-next-warnings --api-catalogue ../jbc-language/spec > /tmp/jbcc-api-coverage.json
 python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
 ```
 
