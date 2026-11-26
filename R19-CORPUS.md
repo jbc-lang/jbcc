@@ -74,17 +74,34 @@ an expression, for example `EB.DataAccess.FRead`.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
   - [ ] Argument count and kind mismatches (55 units).
-- [ ] 3. Domain-generated includes. **Needs a decision before work
-  starts.** The 1,139 `.domain` files exist only in the original dump
-  (`~/Downloads/201809`); the extract leaves them out, and the generator
-  is not in the dump. Options:
-  - (a) Extend `t24-extract` to copy `.domain` files and catalog their
-    classes. Then the corpus checker generates provisional inserts from
-    the classes, with field layout inferred from usage in the sources.
-  - (b) Stub the 716 inserts for translation only, like
-    `--stub-r07-la-parameter`, and report each use.
-  - (c) Exclude those units from the R19 target and report them
-    separately.
+- [ ] 3. Domain-generated includes. The extract left out the 1,139
+  `.domain` model files: `extract_jbc.py` selects only `*.b`, `*.tut`,
+  `I_*`, `*.d` and `*.component`. The original dump
+  (`~/Downloads/201809`) has all of them. It also keeps 30 generated
+  inserts, which give the generator's rule:
+  - `I_<Service>_<Class>` describes class `<Class>` of the `.domain` file
+    in the component whose `.component` name ends in `<Service>`. For
+    example, `I_CustomerService_NameAddress` comes from `NameAddress` in
+    `ST/ST_CustomerService/Definition/CustomerDomain.domain`.
+  - The body is one `EQU <Class>.<field> TO <n>` line per field, numbered
+    from 1 in declaration order. Multi-valued (`*`) fields take one
+    position each. Sources read fields as
+    `customerNameAddress<NameAddress.shortName>`.
+  - The rule reproduces all 20 sample inserts whose `.domain` file is in
+    the dump. The other 10 are `I_AccountService_*`, whose domain model
+    is missing but whose inserts are already extracted.
+  - No sample covers a field whose type is another class.
+
+  Coverage: 708 of the 716 missing inserts (3,035 units) resolve to a
+  `.domain` class. The other 8, in 9 units, name a service whose
+  `.domain` file lacks the class.
+
+  - [ ] Extend `t24-extract` to copy `.domain` files and catalog their
+    classes, then rebuild and verify the R19 extract.
+  - [ ] Generate the inserts in the corpus checker from the catalogued
+    classes, report each generated insert per unit, and add an
+    independent fixture.
+  - [ ] Resolve the 8 remaining inserts.
 - [ ] 4. Test framework units (113). Decide whether the `SE_Test*`
   routines and `TF.*` helpers are in scope. If they are, find their
   component declarations.
