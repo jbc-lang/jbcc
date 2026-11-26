@@ -74,6 +74,11 @@ an expression, for example `EB.DataAccess.FRead`.
 
   After these three, the full scan passes 38,445 of 39,675 units (96.9%),
   with no regressions.
+  - [x] Method declaration forms the reader skipped: a result type before
+    the parameters, `implements`, `external` service methods, domain-typed
+    parameters with a multiplicity, parameters without a direction or
+    separated by newlines. 1,210 more members are declared and none
+    changes. The full scan passes 38,933 units (98.1%).
   - [ ] Methods and accessors without a matching declaration (336 units).
     For each name, decide whether the declaration is missing from the
     extract, sits in a component the checker doesn't read, or is
