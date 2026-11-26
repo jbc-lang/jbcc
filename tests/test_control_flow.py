@@ -62,7 +62,17 @@ def test_matparse_diagnostics(compiler, subtests):
             )
 
 
-@pytest.mark.parametrize('program', ['fibonacci', 'factorial', 'rule110'])
+@pytest.mark.parametrize(
+    'program',
+    [
+        'fibonacci',
+        'factorial',
+        'rule110',
+        'fizzbuzz',
+        'sieve',
+        'hanoi',
+    ],
+)
 def test_example_program(compiler, program):
     source = ROOT / 'tests/programs' / f'{program}.b'
     result = compiler.run_native(source)

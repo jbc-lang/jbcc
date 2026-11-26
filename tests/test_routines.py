@@ -650,8 +650,9 @@ def test_multi_unit_program_requires_package_aware_linkage(compiler):
     )
 
 
-def test_quine(compiler):
-    source = ROOT / 'tests/programs/quine.b'
+@pytest.mark.parametrize('program', ['quine', 'quine2'])
+def test_quine(compiler, program):
+    source = ROOT / 'tests/programs' / f'{program}.b'
     run = compiler.run_native(source)
     assert run.returncode == 0, run.stderr
     assert run.stdout == source.read_bytes()

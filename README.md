@@ -2624,6 +2624,10 @@ These snippets have yet to be run on a reference jBC implementation.
 - `quine.b` reproduces its source byte for byte, including the semicolon
   between statements and the final newline. The native test compares stdout
   directly with the source file.
+- `quine2.b` is a multi-line quine. It keeps its own lines in a
+  `^`-separated string, splits them with `DCOUNT` and `FIELD`, and builds
+  quotes and separators with `CHAR`. Its native test also compares stdout
+  with the source file.
 - `banner.b` animates a 24-by-79 character display until a key is available.
   It exercises dimensioned arrays, substring assignment, fractional
   arithmetic, trigonometry, and terminal I/O. Build it with
@@ -2642,6 +2646,13 @@ These snippets have yet to be run on a reference jBC implementation.
 - `rule110.b` prints 32 generations of the Rule 110 automaton on a
   63-cell row, starting with one live cell and dead cells beyond the edges.
   Run it with `./jbcc --run tests/programs/rule110.b`.
+- `fizzbuzz.b` prints FizzBuzz for 1 to 100 with `MOD` and string
+  concatenation.
+- `sieve.b` runs the Sieve of Eratosthenes up to 200 and prints the primes
+  ten to a row, right-aligned with `FMT`.
+- `hanoi.b` solves the Towers of Hanoi for four disks. `GOSUB` has no local
+  variables, so the recursion saves its arguments in dimensioned arrays
+  indexed by depth.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative
