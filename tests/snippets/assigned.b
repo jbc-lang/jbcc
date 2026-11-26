@@ -24,3 +24,8 @@ LOOP UNTIL ASSIGNED(Done)
   Done = 1
 REPEAT
 PRINT Done
+* An extraction argument, as in T24 R13 RAISE.PENDING.ENTRIES. The
+* reference applies UNASSIGNED to the extracted value, which is assigned.
+List = 'a':@VM:'b'
+IF UNASSIGNED(List<1,3>) THEN PRINT 'wrong' ELSE PRINT 'extracted'
+PRINT ASSIGNED(List<1>), UNASSIGNED(List<2,1,1>)

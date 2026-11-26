@@ -1,7 +1,7 @@
 # jbcc
 
 jbcc is an experimental jBC-to-C compiler prototype. Its grammar has been
-tested against the T24 R07 and R10 source corpora. Some system calls are
+tested against the T24 R07, R10 and R13 source corpora. Some system calls are
 stubbed, and development and testing take place mainly on macOS. The
 translator is written in Python 3 and emits standalone C99 that the system C
 compiler can build into a native executable.
@@ -33,12 +33,14 @@ On a 10-core Apple M5 Mac with eight workers, the
 [corpus checker](#check-a-local-source-corpus) scanned each extract,
 translated its source units to C, and syntax-checked the output with
 Apple Clang. These runs used the documented corpus compatibility options,
-including in-memory source fixes and the R07 include stub.
+including in-memory source fixes, the R07 include stub and the R13
+local-routine exclusion.
 
 | T24 release | Files scanned | Source units translated and checked | Wall time |
 | --- | ---: | ---: | ---: |
 | R10 | 22,474 | 17,336 | 2 min 18 s |
 | R07 | 18,362 | 15,030 | 2 min 2 s |
+| R13 | 25,374 | 19,536 | 2 min 53 s |
 
 The file totals also count headers and include fragments.
 
@@ -361,11 +363,12 @@ divisor reports an error at the call.
 
 `ALPHA` and `ISALPHA` return 1 when every byte in a nonempty value is an
 ASCII letter. `ISDIGIT` returns 1 for nonempty values made entirely of
-ASCII digits. Signs, decimal points, spaces and array marks return 0
+ASCII digits, and `ISALNUM` for values made entirely of ASCII letters and
+digits. Signs, decimal points, spaces and array marks return 0
 from `ISDIGIT`. jbcc provisionally returns 0 for an empty string with
 these character tests. The guide describes Unicode classification
 separately under International Mode.
-[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
+[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
 
 NUM tests whether an expression has numeric text and returns 1 or 0.
 It follows the guide’s prime-emulation examples. Signed decimals and leading
@@ -431,13 +434,19 @@ expression without generating a seed operation. jbcc checks the
 expression at compile time and skips it at runtime. `RND` continues to
 draw from `/dev/urandom`.
 
-`BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
+`BITAND(left, right)`, `BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
 toward zero and return an empty value if either operand is empty.
 The guide specifies a 32-bit
 two's-complement operation. jbcc takes the low 32 bits of each truncated
 operand and returns the result as a signed integer on every target.
 Nonempty, nonnumeric operands produce a source-located error.
-[BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
+[BITAND](https://jbc-lang.org/pages/bitand.html), [BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
+
+`BITNOT(value)` inverts the low 32 bits of the truncated operand. It
+returns the result as an unsigned integer, as in the guide's example
+`BITNOT(6)` = 4294967289, unlike the signed results above. That difference
+is provisional until a reference run confirms it. An empty operand returns
+an empty value. [BITNOT](https://jbc-lang.org/pages/bitnot.html).
 
 `ENCRYPT(text, key, method)` and `DECRYPT(text, key, method)` implement
 ROT13 (method 1 in PB201214's JBC.h). They rotate ASCII letters, preserve
@@ -499,6 +508,11 @@ For example, `PUTENV("MODE=")` leaves MODE present with an empty value.
 Success returns 1. An empty name, a missing `=`, or a host failure
 returns 0. Subsequent GETENV calls and children launched by EXECUTE or
 PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html).
+
+`CHDIR(path)` changes the process working directory and returns 1, or
+returns 0 and leaves it unchanged. An empty path returns 0. Later
+relative paths, including sequential files, resolve from the new
+directory. [CHDIR](https://jbc-lang.org/pages/chdir.html).
 
 `DATA first, second` queues lines for INPUT in FIFO order. Field marks
 split an expression into separate lines, including empty fields.
@@ -1281,6 +1295,14 @@ reports a source-located error if execution would change the bounds. A rank
 change is a compile-time error.
 [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
 
+A DIM in a routine can also dimension a member that its COMMON block lists
+as a scalar, as T24 R13 does in `AM.RECOMMEND.ALERT`. The local jBC
+201015.001 reference dimensions the member's COMMON slot in place. jbcc
+gives the member shared matrix storage keyed by its block and position, so
+every unit that dimensions it sees the same elements. A unit that
+dimensions it with different bounds reports a source-located error. Units
+that use the member as a scalar keep a separate value.
+
 Prime mode emits array accesses with fewer or more subscripts than the
 COMMON declaration supplies. jbcc translates these accesses and reports a
 source-located error if execution reaches one.
@@ -1484,9 +1506,21 @@ reports a source-located error because XML conversion requires a backend.
 [XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
 [XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
 
+`READXML var FROM [file,] key` and `READXMLU` parse like READ and READU,
+with `SETTING`, `ON ERROR`, `LOCKED` for READXMLU, and THEN or ELSE. The
+guide describes a transform through the file's `DICT @READXML` style
+sheet. A reached statement reports a source-located error because that
+transform requires an XML backend.
+[READXML](https://jbc-lang.org/pages/readxml.html).
+
 `JBASECOREDUMP(suffix, mode)` accepts two expressions. A reached call
 reports a source-located error because application snapshots require a
 backend. [JBASECOREDUMP](https://jbc-lang.org/pages/jbasecoredump.html).
+
+`VALIDATE_PRODUCT_LICENSE(product)` accepts one expression, as in the
+reference grammar and keyword table. The local jBC 201015.001 reference
+lowers it to a TAFC licence check. A reached call reports a
+source-located error because licence checks require a backend.
 
 `SEQ(value)` returns the unsigned value of the first byte of its string
 representation. For example, `SEQ("ABC")` is 65 and `SEQ(@FM)` is 254.
@@ -1851,6 +1885,14 @@ for failure. jbcc assigns the same value to the optional `SETTING`
 variable accepted by the reference grammar. A failed deletion runs
 `ON ERROR` or reports the statement location.
 [OSDELETE](https://jbc-lang.org/pages/osdelete.html).
+
+`DELETESEQ directory, item` or `DELETESEQ path` removes a sequential file,
+joining the directory and item with `/` as OPENSEQ does. It accepts
+`SETTING`, `ON ERROR` and `LOCKED`, and requires THEN or ELSE, as in the
+reference grammar. The POSIX backend uses `unlink` without a
+`JEDIFILEPATH` search. A missing file sets status 128 and takes ELSE;
+other failures run `ON ERROR` when present.
+[DELETESEQ](https://jbc-lang.org/pages/deleteseq.html).
 
 `TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
 decimal seconds. A pending or closed handle and an invalid duration
@@ -2352,7 +2394,11 @@ empty string. `UNASSIGNED(X)` returns the opposite. Both can inspect a
 scalar, a COMMON variable, a routine argument, or a dimensioned matrix
 element. Testing a variable leaves it untouched. For example,
 `IF UNASSIGNED(X) THEN X = ''` supplies a default while preserving any
-existing value. [ASSIGNED](https://jbc-lang.org/pages/assigned.html),
+existing value. A dynamic-array extraction such as
+`UNASSIGNED(X<I,J>)` is evaluated, and its result is always assigned. The
+local jBC 201015.001 reference applies the test to any expression this way;
+jbcc accepts extractions and otherwise requires a variable.
+[ASSIGNED](https://jbc-lang.org/pages/assigned.html),
 [UNASSIGNED](https://jbc-lang.org/pages/unassigned.html).
 
 ## Walk a dynamic array
@@ -2435,13 +2481,20 @@ each call against its target's actual parameter list.
 For indirect calls and exit callbacks it checks the dispatch code using the
 current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
-For a local PB201214 installation, point it at the installation's include
-directory to load `JBC.h`, `jportB.h` and `jimiB.h`.
+Legacy T24 sources include `JBC.h`, `jportB.h` and `jimiB.h` from the
+PB201214 installation. A sibling `jbc-extract` checkout holds that
+installation as a tarball. Unpack its headers once into `.cache/`, which
+git ignores:
+
+```sh
+just tafc-headers    # writes .cache/PB201214/include
+```
+
 The checker accepts the same source encoding option as the compiler.
 For legacy T24 sources with those headers, run
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 
@@ -2477,7 +2530,7 @@ python3 tools/check_corpus.py ../t24-extract/200707-R07 \
   -I ../t24-extract/200707-R07/GLOBUS.BP -I ../t24-extract/200707-R07/SENSITIVE.BP \
   --t24-catalog ../t24-extract/catalog.sqlite -j 12 --source-encoding bytes \
   --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes --stub-r07-la-parameter \
-  --api-catalogue ../temenos-documentation/spec \
+  --api-catalogue ../jbc-language/spec \
   > /tmp/jbcc-r07.json
 ```
 
@@ -2507,6 +2560,31 @@ Render the R07 API report with:
 ```sh
 python3 tools/api_coverage.py /tmp/jbcc-r07.json > /tmp/jbcc-r07-coverage.md
 ```
+
+### R13 corpus
+
+The R13 corpus is in `../t24-extract/201307-R13`. Like R07, it has two
+flat BP folders, `T24.BP` and `SENSITIVE.BP`, and both go on the include
+search path. It has no C headers, so this scan takes `JBC.h` from the
+PB201214 headers unpacked by `just tafc-headers`.
+
+```sh
+python3 tools/check_corpus.py ../t24-extract/201307-R13 -I .cache/PB201214/include \
+  -I ../t24-extract/201307-R13/T24.BP -I ../t24-extract/201307-R13/SENSITIVE.BP \
+  --t24-catalog ../t24-extract/catalog.sqlite -j 8 --source-encoding bytes \
+  --defer-unassigned-reads --quiet-next-warnings --t24-source-fixes \
+  --t24-exclude-local-routines --api-catalogue ../jbc-language/spec \
+  > /tmp/jbcc-r13.json
+```
+
+`--t24-source-fixes` corrects the leading-dot selector in
+`T24.BP/STEST.AZ.PD.DATES.CHK`, as in R10 and R07. The optional
+`--t24-exclude-local-routines` skips `T24.BP/V.PL.B2LIM.NET`, a
+Raiffeisen Bank Polska routine whose includes are not in the dump. The
+JSON reports it with the status `excluded` and a reason. With these
+options every other R13 unit passes strict C99 checking. See the
+[R13 baseline](PLAN.md#r13-baseline) and [R13-CORPUS.md](R13-CORPUS.md)
+for the constructs added for R13.
 
 ### R19 pilot
 
@@ -2559,9 +2637,9 @@ and test references to the JSON report. The report uses paths from your
 local checkout and corpus.
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
   -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
-  --quiet-next-warnings --api-catalogue ../temenos-documentation/spec > /tmp/jbcc-api-coverage.json
+  --quiet-next-warnings --api-catalogue ../jbc-language/spec > /tmp/jbcc-api-coverage.json
 python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
 ```
 

@@ -48,6 +48,25 @@ def test_jbasecoredump_requires_an_application_snapshot_backend(
             )
 
 
+def test_validate_product_license_requires_a_backend_when_reached(compiler):
+    source = (
+        ROOT
+        / 'tests/programs/validate-product-license-requires-a-backend-when-reached'
+        / 'license.b'
+    )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        expected_bytes(
+            'validate-product-license-requires-a-backend-when-reached.stdout'
+        ),
+        expected_text(
+            'validate-product-license-requires-a-backend-when-reached.stderr',
+            source=source,
+        ).encode(),
+    )
+
+
 def test_itype_requires_backend_only_when_evaluation_is_reached(compiler):
     source = ROOT / 'tests/programs/itype-missing-backend.b'
     result = compiler.run_native(source)
@@ -93,6 +112,31 @@ def test_xml_transforms_require_a_backend_when_reached(
         expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'),
         expected_text(
             'xml-transforms-require-a-backend-when-reached.stderr',
+            source=source,
+            value_2=name,
+        ).encode(),
+    )
+
+
+@pytest.mark.parametrize(
+    'fixture_name, name',
+    [
+        pytest.param('readxml.b', 'READXML', id='readxml'),
+        pytest.param('readxmlu.b', 'READXMLU', id='readxmlu'),
+    ],
+)
+def test_readxml_requires_a_backend_when_reached(compiler, fixture_name, name):
+    source = (
+        ROOT
+        / 'tests/programs/readxml-requires-a-backend-when-reached'
+        / fixture_name
+    )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        expected_bytes('readxml-requires-a-backend-when-reached.stdout'),
+        expected_text(
+            'readxml-requires-a-backend-when-reached.stderr',
             source=source,
             value_2=name,
         ).encode(),
@@ -568,6 +612,54 @@ def test_r07_corpus_can_apply_source_fixes_and_report_include_stub():
     ]
     assert report[missing] == {'status': 'translated'}
     assert {path: path.read_bytes() for path in bp.iterdir()} == original
+
+
+def test_r13_corpus_applies_source_fixes_in_t24_bp():
+    # R13 T24.BP/STEST.AZ.PD.DATES.CHK line 63 keeps the leading-dot
+    # selector seen in R10 and R07.
+    root = ROOT / 'tests/corpus/r13/201307-R13'
+    dates = 'T24.BP/STEST.AZ.PD.DATES.CHK'
+    original = (root / dates).read_bytes()
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root]
+    baseline = json.loads(subprocess.check_output(command, text=True))['files']
+    assert baseline[dates]['status'] == 'rejected'
+
+    report = json.loads(
+        subprocess.check_output(command + ['--t24-source-fixes'], text=True)
+    )['files']
+    assert report[dates] == {
+        'status': 'translated',
+        'source_fixes': [
+            dict(
+                file=dates,
+                line=3,
+                column=16,
+                before='.AZ.SLS.TYPE.I',
+                after='AZ.SLS.TYPE.I',
+            )
+        ],
+    }
+    assert (root / dates).read_bytes() == original
+
+
+def test_r13_corpus_can_exclude_local_routines():
+    root = ROOT / 'tests/corpus/r13/201307-R13'
+    local = 'T24.BP/V.PL.B2LIM.NET'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root]
+    baseline = json.loads(subprocess.check_output(command, text=True))
+    assert baseline['files'][local] == {
+        'status': 'rejected',
+        'diagnostic': f"{local}:2:1: include file 'I_F.PL.LOCAL.FIXTURE' not found",
+    }
+
+    option = ['--t24-exclude-local-routines']
+    report = json.loads(subprocess.check_output(command + option, text=True))
+    assert report['files'][local] == {
+        'status': 'excluded',
+        'reason': 'Raiffeisen Bank Polska local routine',
+    }
+    assert report['counts']['excluded'] == 1
+    assert 'include file' not in report['first_blockers']
 
 
 def test_corpus_report(compiler):

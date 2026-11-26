@@ -83,9 +83,32 @@ R07_SOURCE_FIXES = {
     "TU.LIB.STD.INV": R07_DECIMAL_COEFFICIENT,
 }
 
+R13_SOURCE_FIXES = {
+    "STEST.AZ.PD.DATES.CHK": T24_SOURCE_FIXES["STEST.AZ.PD.DATES.CHK"],
+}
+
+# Release extracts whose sources sit in BP folders, with the folder that
+# holds the fixed files and the fixes for that release.
+RELEASE_SOURCE_FIXES = {
+    "200707-R07": (Path("GLOBUS.BP"), R07_SOURCE_FIXES),
+    "201307-R13": (Path("T24.BP"), R13_SOURCE_FIXES),
+}
+
+# Files kept in an extract that are not part of the Temenos release.
+LOCAL_ROUTINES = {
+    "201307-R13": {
+        # Its own header and CVS log name Raiffeisen Bank Polska, and its
+        # I_F.PL.* includes are not in the dump.
+        "T24.BP/V.PL.B2LIM.NET": "Raiffeisen Bank Polska local routine",
+    },
+}
+
 
 def fix_t24_source(path, source, *, root, fixes):
-    if path.name not in T24_SOURCE_FIXES and path.name not in R07_SOURCE_FIXES:
+    if path.name not in T24_SOURCE_FIXES and not any(
+        path.name in release_fixes
+        for _, release_fixes in RELEASE_SOURCE_FIXES.values()
+    ):
         return source
     try:
         relative = path.resolve().relative_to(root)
@@ -94,12 +117,13 @@ def fix_t24_source(path, source, *, root, fixes):
     rule = None
     if relative == Path(path.name):
         rule = T24_SOURCE_FIXES.get(path.name)
-    elif root.name == "200707-R07" and relative.parent == Path("GLOBUS.BP"):
-        if (
+    elif root.name in RELEASE_SOURCE_FIXES:
+        folder, release_fixes = RELEASE_SOURCE_FIXES[root.name]
+        if relative.parent == folder and (
             path.name != "COMPARE.DB.JBASE"
-            or (root / "GLOBUS.BP/JBC.h").is_file()
+            or (root / folder / "JBC.h").is_file()
         ):
-            rule = R07_SOURCE_FIXES.get(path.name)
+            rule = release_fixes.get(path.name)
     if rule is None:
         return source
     pattern, replacement = rule
@@ -261,6 +285,7 @@ def check(
     *,
     catalog_kind=None,
     stub_r07_la_parameter=False,
+    exclude_local_routines=False,
     include_index=None,
     component_members=None,
 ):
@@ -289,6 +314,19 @@ def check(
         return (
             relative,
             "C header",
+            "",
+            [],
+            fixes,
+            0,
+            calls,
+            stubs,
+            lookups,
+            package_directives,
+        )
+    if exclude_local_routines and relative in LOCAL_ROUTINES.get(root.name, {}):
+        return (
+            relative,
+            "excluded",
             "",
             [],
             fixes,
@@ -550,6 +588,11 @@ def main():
         help="use a translation-only fallback for missing I_F.LA.PARAMETER and report its use",
     )
     parser.add_argument(
+        "--t24-exclude-local-routines",
+        action="store_true",
+        help="skip known non-Temenos routines kept in an extract and report them as excluded",
+    )
+    parser.add_argument(
         "--quiet-next-warnings",
         action="store_true",
         help="replace individual FOR/NEXT name mismatch warnings with a total on stderr",
@@ -654,6 +697,7 @@ def main():
         quiet_next_warnings=options.quiet_next_warnings,
         collect_apis=coverage is not None,
         stub_r07_la_parameter=options.stub_r07_la_parameter,
+        exclude_local_routines=options.t24_exclude_local_routines,
     )
     counts = Counter()
     blockers = Counter()
@@ -685,6 +729,8 @@ def main():
             if coverage is not None:
                 coverage.add_unit(name, status, calls)
             files[name] = {"status": status}
+            if status == "excluded":
+                files[name]["reason"] = LOCAL_ROUTINES[root.name][name]
             if fixes:
                 files[name]["source_fixes"] = fixes
             if stubs:
@@ -743,6 +789,8 @@ def main():
             scan_settings["t24_catalog"] = str(options.t24_catalog.resolve())
         if options.stub_r07_la_parameter:
             scan_settings["stub_r07_la_parameter"] = True
+        if options.t24_exclude_local_routines:
+            scan_settings["t24_exclude_local_routines"] = True
         report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 

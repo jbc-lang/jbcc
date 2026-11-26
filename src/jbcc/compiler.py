@@ -76,10 +76,14 @@ BUILTINS = {
     "ENCRYPT": (3,),
     "DECRYPT": (3,),
     "BITOR": (2,),
+    "BITAND": (2,),
+    "BITNOT": (1,),
     "JBASECOREDUMP": (2,),
+    "VALIDATE_PRODUCT_LICENSE": (1,),
     "CHECKSUM": (1,),
     "CALLONEXIT": (1,),
     "PUTENV": (1,),
+    "CHDIR": (1,),
     "LN": (1,),
     "EXP": (1,),
     "SQRT": (1,),
@@ -110,6 +114,7 @@ BUILTINS = {
     "ALPHA": (1,),
     "ISALPHA": (1,),
     "ISDIGIT": (1,),
+    "ISALNUM": (1,),
     "ASCII": (1,),
     "EBCDIC": (1,),
     "UTF8": (1,),
@@ -899,6 +904,7 @@ class CommonBlock:
         self.token = token
         self.shapes = []
         self.matrix_slots = {}
+        self.scalar_slots = {}
         self.initializers = []
 
 
@@ -1105,6 +1111,7 @@ class Compiler:
         self.for_assignments = []
         self.saved_steps = {}
         self.names = {}
+        self.scalar_fields = 0
         self.matrices = {}
         self.pending_matrices = {}
         self.local_arrays = {}
@@ -1131,6 +1138,7 @@ class Compiler:
         self.uses_timestamp = False
         self.uses_execute = False
         self.uses_putenv = False
+        self.uses_chdir = False
         self.has_goto = False
         self.sets_precision = False
         self.clear_assignments = None
@@ -1184,7 +1192,8 @@ class Compiler:
         if self.uses_matrix(name):
             self.error(f"array '{name}' requires subscripts")
         if name not in self.names:
-            self.names[name] = f"frame->v{len(self.names)}"
+            self.names[name] = f"frame->v{self.scalar_fields}"
+            self.scalar_fields += 1
         return self.names[name]
 
     def assignment_error(self, message, token, *, warn=False):
@@ -1472,6 +1481,21 @@ class Compiler:
             opening = self.current
             self.advance()
             self.expect('(')
+            if (
+                self.current.kind == 'name'
+                and self.following.word == '<'
+                and self.word not in self.matrices
+            ):
+                # The reference applies ASSIGNED_IB to the extracted value,
+                # which is always assigned. jbcc accepts only extractions,
+                # as in T24 R13 RAISE.PENDING.ENTRIES.
+                value = self.expression()
+                self.expect(')')
+                self.record_api_call(opening, 1)
+                result = '"1"' if word == 'ASSIGNED' else '"0"'
+                return self.postfix(
+                    self.temporary(f'((void){value}, {result})'), locate_source
+                )
             target = self.identifier()
             slot = self.variable_slot(target)
             self.expect(')')
@@ -1580,6 +1604,9 @@ class Compiler:
             if word == "PUTENV":
                 self.host_only(target)
                 self.uses_putenv = True
+            if word == "CHDIR":
+                self.host_only(target)
+                self.uses_chdir = True
             if word == "SENTENCE":
                 self.needs_arguments = True
                 if not args:
@@ -1598,6 +1625,7 @@ class Compiler:
                 self.uses_session = True
             if word in (
                 "JBASECOREDUMP",
+                "VALIDATE_PRODUCT_LICENSE",
                 "CHECKSUM",
                 "LN",
                 "EXP",
@@ -1605,6 +1633,8 @@ class Compiler:
                 "PWR",
                 "RND",
                 "BITOR",
+                "BITAND",
+                "BITNOT",
                 "BITXOR",
                 "DTX",
                 "LATIN1",
@@ -2657,6 +2687,14 @@ class Compiler:
         elif op == 'OSDELETE':
             path = self.expression()
             call = f'jbc_osdelete({path})'
+        elif op == 'DELETESEQ':
+            path = self.expression()
+            name = 'NULL'
+            if self.word == ',':
+                self.advance()
+                path = self.temporary(path)
+                name = self.expression()
+            call = f'jbc_deleteseq({path}, {name})'
         elif op == 'TTYGET':
             target = self.identifier()
             slot = self.variable_slot(target)
@@ -2856,11 +2894,22 @@ class Compiler:
         self.expect('FROM')
         handle, key = self.file_key()
         setting = self.file_setting()
-        update = opening.word == 'READU'
+        update = opening.word in ('READU', 'READXMLU')
         if update and self.word == 'WAIT':
             self.error("READU WAIT requires a backend with timed locks")
         status = f"read_status_{self.temporaries}"
         self.temporaries += 1
+        if opening.word in ('READXML', 'READXMLU'):
+            # The transform uses the file's DICT @READXML style sheet.
+            reason = c_string(f"{opening.word} requires an XML backend")
+            self.emit(
+                f"int {status} = jbc_readxml({handle}, {key}, &{out}, {setting}, "
+                f"{reason}, {self.location(opening)});"
+            )
+            if target is not None:
+                self.assigned.add(target)
+            self.record_read_arms(opening, status)
+            return
         function = 'jbc_readu' if update else 'jbc_read_record'
         self.emit(
             f"int {status} = {function}({handle}, {key}, &{out}, {setting});"
@@ -2885,9 +2934,15 @@ class Compiler:
             self.emit(
                 f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");'
             )
-        sequential_open = opening.word in ('OPENSEQ', 'OPENDEV', 'OSOPEN')
+        sequential_open = opening.word in (
+            'OPENSEQ',
+            'OPENDEV',
+            'OSOPEN',
+            'DELETESEQ',
+        )
         if sequential_open or opening.word in (
             'READU',
+            'READXMLU',
             'READVU',
             'MATREADU',
             'RECORDLOCKU',
@@ -3958,6 +4013,9 @@ class Compiler:
         ):
             self.redeclare_matrix(token, matrix, resize=not common)
             return
+        if not common and name in self.common_scalars and self.word == '(':
+            self.dimension_common_scalar(token)
+            return
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
             matrix = self.matrices[name]
@@ -3984,6 +4042,7 @@ class Compiler:
                 block.shapes[member] = shape
             if not bounds:
                 self.common_scalars[name] = block_name
+                block.scalar_slots[name] = member
                 self.names[name] = f"frame->{block.field}[{member}]"
                 self.assigned.add(name)
                 return
@@ -4008,6 +4067,29 @@ class Compiler:
         self.matrices[name] = Matrix(field, shape, block_name)
         if pending:
             del self.pending_matrices[name]
+
+    def dimension_common_scalar(self, token):
+        # The local jbccom 201015.001 reference accepts DIM of a scalar
+        # COMMON member and dimensions the member's COMMON slot in place
+        # (DECLARE_DYN_DIM), as T24 R13 AM.RECOMMEND.ALERT does. jbcc keys
+        # the matrix by the block and member, so units that DIM the member
+        # share it. The member's scalar slot is no longer used here.
+        name = token.word
+        block_name = self.common_scalars.pop(name)
+        block = self.commons[block_name]
+        member = block.scalar_slots[name]
+        del self.names[name]
+        bounds = self.dimension_bounds()
+        shape = tuple(n if isinstance(n, int) else None for n in bounds)
+        block.matrix_slots[name] = member
+        field = f"{block.field}_m{member}"
+        key = c_string(f"{block_name}:{member}")
+        call = self.matrix_storage_call("NULL", key, bounds, token)
+        if None in shape:
+            self.emit(f"frame->{field} = {call};")
+        else:
+            block.initializers.append(f"frame.{field} = {call};")
+        self.matrices[name] = Matrix(field, shape, block_name)
 
     def matrix_storage_call(
         self, previous, key, bounds, token, mismatch='NULL'
@@ -4439,7 +4521,7 @@ class Compiler:
             )
             self.record_read_arms(opening, status, setting)
         elif self.word == 'READ' or (
-            self.word == 'READU'
+            self.word in ('READU', 'READXML', 'READXMLU')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
@@ -4517,6 +4599,7 @@ class Compiler:
                 'OSBWRITE',
                 'OSWRITE',
                 'OSDELETE',
+                'DELETESEQ',
                 'TTYGET',
                 'TTYSET',
             )
@@ -5555,6 +5638,8 @@ def runtime_features(units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_putenv for unit in units):
         flags.append("#define JBC_PUTENV 1")
+    if any(unit.uses_chdir for unit in units):
+        flags.append("#define JBC_CHDIR 1")
     if any(unit.uses_hush for unit in units):
         flags.append("#define JBC_HUSH 1")
     if any(unit.uses_timestamp for unit in units):

@@ -1,0 +1,78 @@
+# R13 corpus plan
+
+Goal: jbcc translates every source unit in every local T24 corpus
+(`../t24-extract`: R07, R10, R13 and R19) to C that passes strict C99
+checking, with documented commands and recorded baselines. Reference
+compiler evidence comes from `../jbc-extract`.
+
+## Trial scan (2026-11-26, before any change)
+
+`201307-R13` has two flat folders, `T24.BP/` and `SENSITIVE.BP/`, and no
+C headers; 45 units include `JBC.h`. The PB201214 headers in
+`../jbc-extract/TAFC_PB201214_LINUX_ELF_AS6_106034.tar.gz`
+(`PB201214/include`) match the former `~/Downloads/PB201214-linux/include`
+byte for byte. `../jbc-extract/JBC.h` is an older revision.
+
+19,524 of 19,537 source units translated and passed C syntax checking;
+5,837 files are include fragments. Wall time 2 min 33 s with 8 workers.
+
+| Kind | Units | Cause |
+|---|---|---|
+| Missing statement | `CLEAR.TOKENS`, `DW.EXPORT.CONF.EXPORT`, `DW.EXPORT.CONFIGURE` | `DELETESEQ` |
+| Missing function | `IN2SEC` | `ISALNUM(...)` |
+| Missing function form | `SEAT.SCRIPT.ACTIVITY.TRANSFER` | `IF CHDIR(path) THEN` |
+| Parser gap | `RAISE.PENDING.ENTRIES` | `UNASSIGNED(X<I,J>)` |
+| Needs reference check | `AM.RECOMMEND.ALERT(.LOAD)`, `DE.O.CC.TEMPLATE(.LOAD)` | name declared in `COMMON`, then `DIM` in the routine |
+| Source problem | `DM.GENERATE.ERWIN` | `VALIDATE_PRODUCT_LICENSE` with its `jThreadB.h` include commented out |
+| Known fix not applied | `STEST.AZ.PD.DATES.CHK` | `<.AZ.SLS.TYPE.I` fix limited to R10 root and R07 `GLOBUS.BP/` |
+| Out of scope | `V.PL.B2LIM.NET` | Raiffeisen Bank Polska local routine; its include is absent |
+
+## Steps
+
+- [x] 1. Take reference headers from `../jbc-extract` instead of
+  `~/Downloads`: unpack `PB201214/include` from the tarball to a cache
+  and update README.md and SOURCES.md (`~/Downloads/jbc/` becomes
+  `../jbc-extract/jbccom`).
+- [x] 2. Apply the T24 source fixes per release directory, including R13
+  `T24.BP/`, starting with `STEST.AZ.PD.DATES.CHK`. Add a
+  `tests/corpus/r13/` fixture and test like the R07 one.
+- [x] 3. Record the baseline: an "R13 corpus" README section with the
+  command, an R13 row in the performance table, an "R13 baseline"
+  section in PLAN.md and the R13 API coverage report.
+- [x] 4. Close the language gaps with small independent snippets that
+  name the corpus file that showed each construct:
+  - [x] `DELETESEQ` statement with ELSE (`DW.EXPORT.CONF.EXPORT` then
+    stops at `READXML`)
+  - [x] `READXML` statement (parsed; reports a missing XML backend when
+    reached)
+  - [x] `ISALNUM`
+  - [x] `CHDIR` as a condition
+  - [x] `UNASSIGNED` with a dynamic-array argument. The local reference
+    (`jbccom` 201015.001, Prime) emits `UNASSIGNED_IB(EXTRACTMV(...))`
+    and accepts any expression; jbcc keeps rejecting non-extraction
+    expressions such as `ASSIGNED(2)`, per its existing fixtures.
+- [x] 5. Settle `COMMON X` followed by `DIM X(n)` and `DM.GENERATE.ERWIN`
+  with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,
+  or `bin/JBCCOM` from the tarball in the Linux container). Implement,
+  fix in memory or record as expected failures.
+  - [x] `DM.GENERATE.ERWIN`: the reference accepts it, treating
+    `VALIDATE_PRODUCT_LICENSE` as a builtin and `JBASE_PRODUCT_DM_EXPORT`
+    as an unassigned variable. jbcc now parses `VALIDATE_PRODUCT_LICENSE`
+    (missing licensing backend when reached), `BITAND` and `BITNOT`
+    (unsigned result per the guide example, provisional).
+  - [x] `COMMON ..., X` then `DIM X(9)`: the reference accepts it and emits
+    `DECLARE_DYN_DIM` on the COMMON slot, so the member becomes a
+    dynamically dimensioned array shared through the block. jbcc shares
+    matrix storage keyed by block and member; a scalar use of the same
+    member elsewhere keeps a separate value (provisional).
+- [x] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
+  excluded rather than rejected (`--t24-exclude-local-routines`).
+- [x] 7. Re-run R10 and R07 to check for regressions and update counts.
+  Full scans on 2026-11-26 with 8 workers:
+
+  | Release | Units passing strict C99 | Other | Wall time |
+  |---|---:|---|---:|
+  | R13 | 19,536 of 19,536 | 1 excluded, 5,837 include fragments | 2 min 53 s |
+  | R10 | 17,336 of 17,336 | 5,138 include fragments | 2 min 18 s |
+  | R07 | 15,030 of 15,030 | 3,322 include fragments, 10 C headers | 2 min 0 s |
+- [ ] 8. Extend from the R19 pilot to the full R19 corpus.

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 (2026-11-26)
+
+### Added
+
+- Translate every source unit in the T24 R13 corpus, as well as R10 and
+  R07, to strict C99.
+- `DELETESEQ`, `CHDIR`, `ISALNUM`, `BITAND` and `BITNOT`.
+- `READXML`, `READXMLU` and `VALIDATE_PRODUCT_LICENSE` parse and report
+  a missing backend when reached.
+- `ASSIGNED` and `UNASSIGNED` accept a dynamic-array extraction.
+- A routine can `DIM` a scalar COMMON member; units that dimension it
+  share its elements.
+- The corpus checker applies source fixes to R13 and can exclude
+  non-Temenos routines with `--t24-exclude-local-routines`.
+
+### Changed
+
+- The corpus documentation takes the PB201214 headers from the
+  `jbc-extract` checkout through `just tafc-headers`.
 ## 0.2.1 (2026-11-25)
 
 ### Changed

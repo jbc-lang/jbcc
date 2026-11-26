@@ -87,3 +87,11 @@ routine: (run "tests/routines/caller.b" "tests/routines/get.status.b")
 # Scan a local source corpus and write JSON to stdout.
 corpus directory jobs="8":
     @python3 tools/check_corpus.py "$1" -j "$2"
+
+# Unpack the PB201214 jBC headers (JBC.h, jportB.h, jimiB.h) from a jbc-extract checkout.
+tafc-headers extract="../jbc-extract":
+    #!/usr/bin/env sh
+    set -eu
+    mkdir -p .cache
+    tar -xzf "$1/TAFC_PB201214_LINUX_ELF_AS6_106034.tar.gz" -C .cache PB201214/include
+    echo .cache/PB201214/include

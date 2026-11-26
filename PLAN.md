@@ -3447,6 +3447,34 @@ source fixes and the include stub enabled. Five use in-memory edits and
 six use the stub. The report records linkage diagnostics for 18 units.
 All 18,362 extracted files match the catalog hashes.
 
+### R13 baseline
+
+The first R13 scan, on 2026-11-26, passed strict C99 checking for 19,525
+of 19,537 source units. The R13 catalog also accounts for 5,837 jBC
+includes. The scan used the PB201214 headers from `jbc-extract`,
+byte-mode source decoding, `--defer-unassigned-reads`,
+`--t24-source-fixes` and `--t24-exclude-local-routines`. Without the
+fix and the exclusion it passed 19,524 units.
+
+- `V.PL.B2LIM.NET` is a Raiffeisen Bank Polska routine; its
+  `I_F.PL.*` includes are absent. It is excluded, not rejected.
+- `CLEAR.TOKENS`, `DW.EXPORT.CONF.EXPORT` and `DW.EXPORT.CONFIGURE` stop
+  at `DELETESEQ`. `IN2SEC` stops at `ISALNUM`,
+  `SEAT.SCRIPT.ACTIVITY.TRANSFER` at `IF CHDIR(...) THEN` and
+  `RAISE.PENDING.ENTRIES` at `UNASSIGNED(X<I,J>)`. The reference lexer
+  lists all three keywords.
+- `AM.RECOMMEND.ALERT(.LOAD)` and `DE.O.CC.TEMPLATE(.LOAD)` declare a name
+  in a COMMON include and then `DIM` it. `DM.GENERATE.ERWIN` calls
+  `VALIDATE_PRODUCT_LICENSE` with its `jThreadB.h` include commented
+  out. Both need a reference compiler check.
+
+[R13-CORPUS.md](R13-CORPUS.md) tracks the work.
+
+- [x] Close the R13 gaps. On 2026-11-26 the full scan passed strict C99
+  checking for all 19,536 R13 units, with `V.PL.B2LIM.NET` excluded and
+  5,837 include fragments. The same build passed all 17,336 R10 units
+  and all 15,030 R07 units.
+
 ### R19 pilot
 
 - [x] Select production units from the `201809-R19` catalog. Add indexed

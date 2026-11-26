@@ -580,6 +580,15 @@ const char *jbc_putenv(const char *assignment)
 }
 #endif
 
+#ifdef JBC_CHDIR
+#include <unistd.h>
+
+const char *jbc_chdir(const char *path)
+{
+    return *path && chdir(path) == 0 ? "1" : "0";
+}
+#endif
+
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
 struct jbc_slots {
     struct jbc_slots *next;
@@ -2080,6 +2089,14 @@ const char *jbc_isdigit(const char *text)
     if (!*text) return "0";
     for (; *text; ++text)
         if (!ascii_digit((unsigned char)*text)) return "0";
+    return "1";
+}
+
+const char *jbc_isalnum(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (!ascii_alpha((unsigned char)*text) && !ascii_digit((unsigned char)*text)) return "0";
     return "1";
 }
 
@@ -4390,6 +4407,25 @@ const char *jbc_bitxor(const char *left, const char *right, const char *file, in
     return signed_word_value(lhs ^ rhs);
 }
 
+const char *jbc_bitand(const char *left, const char *right, const char *file, int line, int column)
+{
+    if (!*left || !*right) return "";
+    const char *message = "BITAND requires numeric operands";
+    uint32_t lhs = decimal_word(left, message, file, line, column);
+    uint32_t rhs = decimal_word(right, message, file, line, column);
+    return signed_word_value(lhs & rhs);
+}
+
+/* The guide's example shows BITNOT(6) as the unsigned word 4294967289. */
+const char *jbc_bitnot(const char *value, const char *file, int line, int column)
+{
+    if (!*value) return "";
+    uint32_t bits = ~decimal_word(value, "BITNOT requires a numeric operand", file, line, column);
+    char *out = allocate(10);
+    snprintf(out, 11, "%" PRIu32, bits);
+    return out;
+}
+
 const char *jbc_bitor(const char *left, const char *right, const char *file, int line, int column)
 {
     if (!*left || !*right) return "";
@@ -6040,6 +6076,14 @@ int jbc_osdelete(const char *path)
     return file_result(1);
 }
 
+/* DELETESEQ removes the file named by a directory and an item, or by a path. */
+int jbc_deleteseq(const char *path, const char *name)
+{
+    if (name) path = jbc_concat(jbc_concat(path, "/"), name);
+    if (unlink(path) == 0) return file_result(0);
+    return file_result(file_error(errno));
+}
+
 int jbc_createseq(const char *token, const char *source, int line, int column)
 {
     if (!*token) numeric_error(source, line, column, "CREATE requires an OPENSEQ handle");
@@ -6257,6 +6301,14 @@ const char *jbc_jbasecoredump(const char *suffix, const char *mode, const char *
     return "";
 }
 
+const char *jbc_validate_product_license(const char *product, const char *file, int line,
+                                         int column)
+{
+    (void)product;
+    numeric_error(file, line, column, "VALIDATE_PRODUCT_LICENSE requires a licensing backend");
+    return "";
+}
+
 const char *jbc_crypt(const char *value, const char *key, const char *method, int decrypt,
                       const char *file, int line, int column)
 {
@@ -6292,6 +6344,17 @@ const char *jbc_xml_transform(const char *input, const char *stylesheet, jbc_var
     (void)status;
     numeric_error(file, line, column, reason);
     return "";
+}
+
+int jbc_readxml(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting,
+                const char *reason, const char *file, int line, int column)
+{
+    (void)handle;
+    (void)key;
+    (void)out;
+    (void)setting;
+    numeric_error(file, line, column, reason);
+    return 0;
 }
 
 const char *jbc_indices(const char *handle, const char *index, const char *file, int line, int column)
