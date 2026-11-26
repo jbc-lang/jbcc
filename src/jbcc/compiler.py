@@ -110,6 +110,7 @@ BUILTINS = {
     "ALPHA": (1,),
     "ISALPHA": (1,),
     "ISDIGIT": (1,),
+    "ISALNUM": (1,),
     "ASCII": (1,),
     "EBCDIC": (1,),
     "UTF8": (1,),
