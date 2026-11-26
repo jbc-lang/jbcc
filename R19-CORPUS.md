@@ -61,12 +61,19 @@ an expression, for example `EB.DataAccess.FRead`.
 - [ ] 2. Component calls. Each item cites the `.component` declaration and
   the sources that use the form. Write independent fixtures under
   `tests/corpus/component-calls`.
-  - [ ] Table calls in expression form, including `ReadU` with a retry
-    argument and `ReadHis`. Establish the generated signatures from the
-    table definitions in the catalog.
-  - [ ] Property `clear` accessors, next to the existing `get`/`set`.
-  - [ ] Legacy `table<Name>(id, err)` read accessors: find where they
-    are declared, or the rule that generates them.
+  - [x] Table calls in expression form, including `ReadU` with a retry
+    argument and `ReadHis`. The dump has no definition of the generated
+    operations, so the arities come from all R19 calls: `ReadU` and
+    `ReadUNau` take 3 arguments (2,568 calls), `ReadHis` 2 (258),
+    `DeleteNau` and `DeleteHis` 1 (420).
+  - [x] Property `clear` accessors, next to the existing `get`/`set`.
+    All 5,023 calls take no arguments; all but one target a declared
+    writable property.
+  - [x] Legacy `table<Name>(id, err)` read accessors. Each of the 1,622
+    calls names a `t24:` table of the same component, with two arguments.
+
+  After these three, the full scan passes 38,445 of 39,675 units (96.9%),
+  with no regressions.
   - [ ] Methods and accessors without a matching declaration (336 units).
     For each name, decide whether the declaration is missing from the
     extract, sits in a component the checker doesn't read, or is
