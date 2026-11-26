@@ -192,26 +192,25 @@ def read_domain_classes(db, extract):
     """Map (service, class) to the field lists of matching .domain classes.
 
     T24 generates I_<Service>_<Class> from the class in the .domain model of
-    the component whose name ends in <Service>. The catalog lists the fields
-    in declaration order; associations count as fields."""
+    the component whose name ends in <Service>. A component's .component and
+    .domain files share a folder, normally Definition. The catalog lists the
+    fields in declaration order; associations count as fields."""
     services = {}
-    for module, component, name in db.execute(
-        "SELECT module, component, component_name FROM file_path "
-        "WHERE extract = ? AND kind = 'component' AND component IS NOT NULL",
+    for relative, name in db.execute(
+        "SELECT rel, component_name FROM file_path WHERE extract = ? AND kind = 'component'",
         (extract,),
     ):
         if name:
-            services.setdefault((module, component), set()).add(
-                name.rsplit(".", 1)[-1]
-            )
+            folder = Path(relative).parent
+            services.setdefault(folder, set()).add(name.rsplit(".", 1)[-1])
     fields = {}
-    for module, component, relative, cls, name in db.execute(
-        "SELECT f.module, f.component, f.rel, d.class, d.name FROM domain_field d "
+    for relative, cls, name in db.execute(
+        "SELECT f.rel, d.class, d.name FROM domain_field d "
         "JOIN file_path f ON f.id = d.file_id WHERE f.extract = ? "
         "ORDER BY f.rel, d.class, d.position",
         (extract,),
     ):
-        for service in services.get((module, component), ()):
+        for service in services.get(Path(relative).parent, ()):
             fields.setdefault((service, cls), {}).setdefault(
                 relative, []
             ).append(name)
