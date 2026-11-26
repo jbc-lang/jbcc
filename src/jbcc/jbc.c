@@ -580,6 +580,15 @@ const char *jbc_putenv(const char *assignment)
 }
 #endif
 
+#ifdef JBC_CHDIR
+#include <unistd.h>
+
+const char *jbc_chdir(const char *path)
+{
+    return *path && chdir(path) == 0 ? "1" : "0";
+}
+#endif
+
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
 struct jbc_slots {
     struct jbc_slots *next;

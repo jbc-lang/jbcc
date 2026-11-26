@@ -80,6 +80,7 @@ BUILTINS = {
     "CHECKSUM": (1,),
     "CALLONEXIT": (1,),
     "PUTENV": (1,),
+    "CHDIR": (1,),
     "LN": (1,),
     "EXP": (1,),
     "SQRT": (1,),
@@ -1132,6 +1133,7 @@ class Compiler:
         self.uses_timestamp = False
         self.uses_execute = False
         self.uses_putenv = False
+        self.uses_chdir = False
         self.has_goto = False
         self.sets_precision = False
         self.clear_assignments = None
@@ -1581,6 +1583,9 @@ class Compiler:
             if word == "PUTENV":
                 self.host_only(target)
                 self.uses_putenv = True
+            if word == "CHDIR":
+                self.host_only(target)
+                self.uses_chdir = True
             if word == "SENTENCE":
                 self.needs_arguments = True
                 if not args:
@@ -5582,6 +5587,8 @@ def runtime_features(units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_putenv for unit in units):
         flags.append("#define JBC_PUTENV 1")
+    if any(unit.uses_chdir for unit in units):
+        flags.append("#define JBC_CHDIR 1")
     if any(unit.uses_hush for unit in units):
         flags.append("#define JBC_HUSH 1")
     if any(unit.uses_timestamp for unit in units):

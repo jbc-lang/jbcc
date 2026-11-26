@@ -50,7 +50,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
     `ISLOWER`, `ISPRINT`, `ISPUNCT`, `ISSPACE`, `ISUPPER`, `ISXDIGIT`.
     Not used by the corpora. Decide byte classes first: the guide's
     ISCNTRL example returns 1 for `@FM:CHAR(13):CHAR(10)`.
-  - [ ] `CHDIR` as a condition
+  - [x] `CHDIR` as a condition
   - [ ] `UNASSIGNED` with a dynamic-array argument
 - [ ] 5. Settle `COMMON X` followed by `DIM X(n)` and `DM.GENERATE.ERWIN`
   with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,

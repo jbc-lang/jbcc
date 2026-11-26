@@ -503,6 +503,11 @@ Success returns 1. An empty name, a missing `=`, or a host failure
 returns 0. Subsequent GETENV calls and children launched by EXECUTE or
 PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html).
 
+`CHDIR(path)` changes the process working directory and returns 1, or
+returns 0 and leaves it unchanged. An empty path returns 0. Later
+relative paths, including sequential files, resolve from the new
+directory. [CHDIR](https://jbc-lang.org/pages/chdir.html).
+
 `DATA first, second` queues lines for INPUT in FIFO order. Field marks
 split an expression into separate lines, including empty fields.
 INPUT uses the terminal or stdin when the queue is exhausted. A length

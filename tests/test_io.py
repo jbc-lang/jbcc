@@ -350,6 +350,18 @@ def test_deleteseq_removes_files_and_reports_status(compiler):
     assert not (compiler.work / 'b.txt').exists()
 
 
+def test_chdir_changes_the_working_directory(compiler):
+    (compiler.work / 'sub').mkdir()
+    result = compiler.run_native(ROOT / 'tests/io/chdir.b', cwd=compiler.work)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('chdir-changes-the-working-directory.stdout'),
+        b'',
+    )
+    assert (compiler.work / 'sub/marker').read_text() == 'x'
+    assert (compiler.work / 'top').read_text() == 'y'
+
+
 def test_osread_regular_file_and_error_arms(compiler):
     directory = compiler.work / 'search'
     directory.mkdir()
