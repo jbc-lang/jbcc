@@ -106,9 +106,15 @@ an expression, for example `EB.DataAccess.FRead`.
     `feat/domain-files` adds the 1,139 files and a `domain_field` table
     with 199,751 fields (50,258 of them associations). All 262,693 R19
     files match their catalog hashes.
-  - [ ] Generate the inserts in the corpus checker from the catalogued
+  - [x] Generate the inserts in the corpus checker from the catalogued
     classes, report each generated insert per unit, and add an
-    independent fixture.
+    independent fixture. `--t24-domain-inserts DIR` generates a missing
+    insert from the `.domain` file in the same folder as the service's
+    `.component`. The full scan now generates 17,222 include lookups and
+    passes 34,702 of 39,675 units (87.5%, up from 32,001), with no
+    regressions. Eight units still stop at an include: the two
+    unresolved inserts (6 units) and the ambiguous
+    `I_DAS.POR.CLG.IN.SETTLEMENT.PENDING` (2 units).
   - [ ] Resolve the 2 remaining inserts.
 - [ ] 4. Test framework units (113). Decide whether the `SE_Test*`
   routines and `TF.*` helpers are in scope. If they are, find their
