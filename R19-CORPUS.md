@@ -79,13 +79,27 @@ an expression, for example `EB.DataAccess.FRead`.
     parameters with a multiplicity, parameters without a direction or
     separated by newlines. 1,210 more members are declared and none
     changes. The full scan passes 38,933 units (98.1%).
-  - [ ] Methods and accessors without a matching declaration (336 units).
-    For each name, decide whether the declaration is missing from the
-    extract, sits in a component the checker doesn't read, or is
-    generated.
+  - [x] `ReadUHis` (id, error, retry): all 278 calls. The full scan
+    passes 39,210 of 39,675 units (98.8%), with no regressions. Of the
+    465 rejections, 190 are undeclared members or other calls, 92
+    language or parse issues, 92 argument kinds or index counts, 83 test
+    framework units and 8 includes.
+  - [ ] Methods and accessors without a matching declaration. Some are
+    missing from the export: `PP.StaticDataGUI` declares no `PptLanguage`
+    table, `PP.InwardGenericTransactions` no `PpInDirectDebitInit` and
+    `USREGS.RegD` no `RegDViolationHist`, yet sources read all three.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
-  - [ ] Argument count and kind mismatches (55 units).
+  - [ ] Argument kind and index-count mismatches (92 units). **Needs a
+    decision.**
+    - A scalar passed for a matrix parameter: 38 units call
+      `ST.CompanyCreation.EbReadParameter` with a scalar such as
+      `DIM.R.INSTALL.CONDS = ""` for `DimParamRec string()`. jbcc rejects
+      this, but T24 ships it.
+    - Two indices on matrix-backed properties, as in
+      `BL.Foundation.getBlRAmdNewBrList(1, BL.Foundation.BlListCtr)` and
+      `FX.Contract.getMatLeg(LEG, FLD.NO)`. The `jBC: ->X()` binding
+      doesn't give the number of dimensions, so the reader assumes one.
 - [ ] 3. Domain-generated includes. The extract left out the 1,139
   `.domain` model files: `extract_jbc.py` selects only `*.b`, `*.tut`,
   `I_*`, `*.d` and `*.component`. The original dump
