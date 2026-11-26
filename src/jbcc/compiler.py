@@ -2657,6 +2657,14 @@ class Compiler:
         elif op == 'OSDELETE':
             path = self.expression()
             call = f'jbc_osdelete({path})'
+        elif op == 'DELETESEQ':
+            path = self.expression()
+            name = 'NULL'
+            if self.word == ',':
+                self.advance()
+                path = self.temporary(path)
+                name = self.expression()
+            call = f'jbc_deleteseq({path}, {name})'
         elif op == 'TTYGET':
             target = self.identifier()
             slot = self.variable_slot(target)
@@ -2885,7 +2893,12 @@ class Compiler:
             self.emit(
                 f'if ({status} > 128) numeric_error({self.location(opening)}, "OSREAD failed");'
             )
-        sequential_open = opening.word in ('OPENSEQ', 'OPENDEV', 'OSOPEN')
+        sequential_open = opening.word in (
+            'OPENSEQ',
+            'OPENDEV',
+            'OSOPEN',
+            'DELETESEQ',
+        )
         if sequential_open or opening.word in (
             'READU',
             'READVU',
@@ -4517,6 +4530,7 @@ class Compiler:
                 'OSBWRITE',
                 'OSWRITE',
                 'OSDELETE',
+                'DELETESEQ',
                 'TTYGET',
                 'TTYSET',
             )

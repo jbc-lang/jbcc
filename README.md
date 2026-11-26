@@ -1854,6 +1854,14 @@ variable accepted by the reference grammar. A failed deletion runs
 `ON ERROR` or reports the statement location.
 [OSDELETE](https://jbc-lang.org/pages/osdelete.html).
 
+`DELETESEQ directory, item` or `DELETESEQ path` removes a sequential file,
+joining the directory and item with `/` as OPENSEQ does. It accepts
+`SETTING`, `ON ERROR` and `LOCKED`, and requires THEN or ELSE, as in the
+reference grammar. The POSIX backend uses `unlink` without a
+`JEDIFILEPATH` search. A missing file sets status 128 and takes ELSE;
+other failures run `ON ERROR` when present.
+[DELETESEQ](https://jbc-lang.org/pages/deleteseq.html).
+
 `TIMEOUT F, seconds` accepts an open sequential handle and nonnegative
 decimal seconds. A pending or closed handle and an invalid duration
 report an error at the statement. The regular-file backend completes

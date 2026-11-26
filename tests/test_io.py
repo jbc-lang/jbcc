@@ -329,6 +329,27 @@ def test_osdelete_missing_file_and_diagnostics(compiler):
     )
 
 
+def test_deleteseq_removes_files_and_reports_status(compiler):
+    readonly = compiler.work / 'ro'
+    readonly.mkdir()
+    (readonly / 'c.txt').write_text('three')
+    readonly.chmod(0o555)
+    try:
+        result = compiler.run_native(
+            ROOT / 'tests/io/deleteseq.b', cwd=compiler.work
+        )
+    finally:
+        readonly.chmod(0o755)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('deleteseq-removes-files-and-reports-status.stdout'),
+        b'',
+    )
+    assert (readonly / 'c.txt').read_text() == 'three'
+    assert not (compiler.work / 'a.txt').exists()
+    assert not (compiler.work / 'b.txt').exists()
+
+
 def test_osread_regular_file_and_error_arms(compiler):
     directory = compiler.work / 'search'
     directory.mkdir()

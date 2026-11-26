@@ -41,7 +41,9 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   section in PLAN.md and the R13 API coverage report.
 - [ ] 4. Close the language gaps with small independent snippets that
   name the corpus file that showed each construct:
-  - [ ] `DELETESEQ` statement with ELSE
+  - [x] `DELETESEQ` statement with ELSE (`DW.EXPORT.CONF.EXPORT` then
+    stops at `READXML`)
+  - [ ] `READXML` statement
   - [ ] `ISALNUM` and its sibling functions from the reference lexer
   - [ ] `CHDIR` as a condition
   - [ ] `UNASSIGNED` with a dynamic-array argument

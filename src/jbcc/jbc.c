@@ -6040,6 +6040,14 @@ int jbc_osdelete(const char *path)
     return file_result(1);
 }
 
+/* DELETESEQ removes the file named by a directory and an item, or by a path. */
+int jbc_deleteseq(const char *path, const char *name)
+{
+    if (name) path = jbc_concat(jbc_concat(path, "/"), name);
+    if (unlink(path) == 0) return file_result(0);
+    return file_result(file_error(errno));
+}
+
 int jbc_createseq(const char *token, const char *source, int line, int column)
 {
     if (!*token) numeric_error(source, line, column, "CREATE requires an OPENSEQ handle");
