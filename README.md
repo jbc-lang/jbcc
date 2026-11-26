@@ -2435,13 +2435,20 @@ each call against its target's actual parameter list.
 For indirect calls and exit callbacks it checks the dispatch code using the
 current unit. Native tests exercise lookup across multiple linked units.
 Additional include directories can be supplied with `-I`.
-For a local PB201214 installation, point it at the installation's include
-directory to load `JBC.h`, `jportB.h` and `jimiB.h`.
+Legacy T24 sources include `JBC.h`, `jportB.h` and `jimiB.h` from the
+PB201214 installation. A sibling `jbc-extract` checkout holds that
+installation as a tarball. Unpack its headers once into `.cache/`, which
+git ignores:
+
+```sh
+just tafc-headers    # writes .cache/PB201214/include
+```
+
 The checker accepts the same source encoding option as the compiler.
 For legacy T24 sources with those headers, run
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
   -j 8 --source-encoding bytes > /tmp/jbcc-corpus.json
 ```
 
@@ -2559,7 +2566,7 @@ and test references to the JSON report. The report uses paths from your
 local checkout and corpus.
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201001-R10 -I ~/Downloads/PB201214-linux/include \
+python3 tools/check_corpus.py ../t24-extract/201001-R10 -I .cache/PB201214/include \
   -j 12 --source-encoding bytes --t24-source-fixes --defer-unassigned-reads \
   --quiet-next-warnings --api-catalogue ../temenos-documentation/spec > /tmp/jbcc-api-coverage.json
 python3 tools/api_coverage.py /tmp/jbcc-api-coverage.json > COVERAGE.md
