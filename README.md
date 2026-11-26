@@ -2606,7 +2606,21 @@ Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide
 index. An indexed lookup with multiple matches at the current step
 reports the candidates. The report lists resolved paths and lookup rules
-per unit. The compiler preserves `$PACKAGE` and `$USING` in source order.
+per unit.
+
+R19 sources include inserts generated from `.domain` models, named
+`I_<Service>_<Class>`. The dump keeps only 30 of them. With
+`--t24-domain-inserts DIR`, an indexed lookup that finds nothing else
+generates the insert from the catalogued fields of that class, in the
+component whose name ends in `<Service>`. Each field becomes
+`EQU <Class>.<field> TO <n>`, numbered from 1 in declaration order;
+associations count as fields. The rule reproduces the 20 kept inserts
+whose `.domain` file is present. The checker writes the inserts to `DIR`
+and reports each lookup as `generated`, with the `.domain` file it came
+from. Two components with different layouts for one class make the
+lookup ambiguous.
+
+The compiler preserves `$PACKAGE` and `$USING` in source order.
 The JSON reports their names and locations, including directives read
 before a failed include. With `--t24-component-calls`, the checker reads
 catalogued `.component` declarations for fully qualified methods,
