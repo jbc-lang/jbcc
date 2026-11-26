@@ -46,10 +46,6 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   - [x] `READXML` statement (parsed; reports a missing XML backend when
     reached)
   - [x] `ISALNUM`
-  - [ ] The other reference-lexer class tests: `ISCNTRL`, `ISGRAPH`,
-    `ISLOWER`, `ISPRINT`, `ISPUNCT`, `ISSPACE`, `ISUPPER`, `ISXDIGIT`.
-    Not used by the corpora. Decide byte classes first: the guide's
-    ISCNTRL example returns 1 for `@FM:CHAR(13):CHAR(10)`.
   - [x] `CHDIR` as a condition
   - [x] `UNASSIGNED` with a dynamic-array argument. The local reference
     (`jbccom` 201015.001, Prime) emits `UNASSIGNED_IB(EXTRACTMV(...))`
