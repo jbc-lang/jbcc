@@ -6302,6 +6302,17 @@ const char *jbc_xml_transform(const char *input, const char *stylesheet, jbc_var
     return "";
 }
 
+int jbc_readxml(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting,
+                const char *reason, const char *file, int line, int column)
+{
+    (void)handle;
+    (void)key;
+    (void)out;
+    (void)setting;
+    numeric_error(file, line, column, reason);
+    return 0;
+}
+
 const char *jbc_indices(const char *handle, const char *index, const char *file, int line, int column)
 {
     (void)handle;

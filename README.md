@@ -1486,6 +1486,13 @@ reports a source-located error because XML conversion requires a backend.
 [XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
 [XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
 
+`READXML var FROM [file,] key` and `READXMLU` parse like READ and READU,
+with `SETTING`, `ON ERROR`, `LOCKED` for READXMLU, and THEN or ELSE. The
+guide describes a transform through the file's `DICT @READXML` style
+sheet. A reached statement reports a source-located error because that
+transform requires an XML backend.
+[READXML](https://jbc-lang.org/pages/readxml.html).
+
 `JBASECOREDUMP(suffix, mode)` accepts two expressions. A reached call
 reports a source-located error because application snapshots require a
 backend. [JBASECOREDUMP](https://jbc-lang.org/pages/jbasecoredump.html).

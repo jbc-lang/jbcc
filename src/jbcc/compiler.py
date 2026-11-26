@@ -2864,11 +2864,22 @@ class Compiler:
         self.expect('FROM')
         handle, key = self.file_key()
         setting = self.file_setting()
-        update = opening.word == 'READU'
+        update = opening.word in ('READU', 'READXMLU')
         if update and self.word == 'WAIT':
             self.error("READU WAIT requires a backend with timed locks")
         status = f"read_status_{self.temporaries}"
         self.temporaries += 1
+        if opening.word in ('READXML', 'READXMLU'):
+            # The transform uses the file's DICT @READXML style sheet.
+            reason = c_string(f"{opening.word} requires an XML backend")
+            self.emit(
+                f"int {status} = jbc_readxml({handle}, {key}, &{out}, {setting}, "
+                f"{reason}, {self.location(opening)});"
+            )
+            if target is not None:
+                self.assigned.add(target)
+            self.record_read_arms(opening, status)
+            return
         function = 'jbc_readu' if update else 'jbc_read_record'
         self.emit(
             f"int {status} = {function}({handle}, {key}, &{out}, {setting});"
@@ -2901,6 +2912,7 @@ class Compiler:
         )
         if sequential_open or opening.word in (
             'READU',
+            'READXMLU',
             'READVU',
             'MATREADU',
             'RECORDLOCKU',
@@ -4452,7 +4464,7 @@ class Compiler:
             )
             self.record_read_arms(opening, status, setting)
         elif self.word == 'READ' or (
-            self.word == 'READU'
+            self.word in ('READU', 'READXML', 'READXMLU')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):

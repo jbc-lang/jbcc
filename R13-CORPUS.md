@@ -43,7 +43,8 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   name the corpus file that showed each construct:
   - [x] `DELETESEQ` statement with ELSE (`DW.EXPORT.CONF.EXPORT` then
     stops at `READXML`)
-  - [ ] `READXML` statement
+  - [x] `READXML` statement (parsed; reports a missing XML backend when
+    reached)
   - [ ] `ISALNUM` and its sibling functions from the reference lexer
   - [ ] `CHDIR` as a condition
   - [ ] `UNASSIGNED` with a dynamic-array argument

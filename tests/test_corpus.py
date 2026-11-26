@@ -100,6 +100,31 @@ def test_xml_transforms_require_a_backend_when_reached(
 
 
 @pytest.mark.parametrize(
+    'fixture_name, name',
+    [
+        pytest.param('readxml.b', 'READXML', id='readxml'),
+        pytest.param('readxmlu.b', 'READXMLU', id='readxmlu'),
+    ],
+)
+def test_readxml_requires_a_backend_when_reached(compiler, fixture_name, name):
+    source = (
+        ROOT
+        / 'tests/programs/readxml-requires-a-backend-when-reached'
+        / fixture_name
+    )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        expected_bytes('readxml-requires-a-backend-when-reached.stdout'),
+        expected_text(
+            'readxml-requires-a-backend-when-reached.stderr',
+            source=source,
+            value_2=name,
+        ).encode(),
+    )
+
+
+@pytest.mark.parametrize(
     'case_number, call, marker, message_fixture',
     [
         pytest.param(
