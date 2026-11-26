@@ -876,6 +876,67 @@ def test_corpus_index_resolves_and_reports_component_includes(compiler):
     assert missing['package_directives'][0]['name'] == 'AA.Account'
 
 
+def test_corpus_generates_domain_inserts_from_catalogued_classes(compiler):
+    fixture = ROOT / 'tests/corpus/domain-inserts'
+    catalog = compiler.work / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript((fixture / 'catalog.sql').read_text())
+    generated = compiler.work / 'domain-inserts'
+    command = [
+        sys.executable,
+        ROOT / 'tools/check_corpus.py',
+        fixture / 'sample-r19',
+        '--t24-catalog',
+        catalog,
+        '--t24-indexed-includes',
+        '--t24-domain-inserts',
+        generated,
+        '--source-prefix',
+        'Shop',
+        '-j',
+        '2',
+    ]
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['counts'] == {'translated': 1, 'rejected': 2}
+    assert report['include_lookups'] == {
+        'generated': 1,
+        'resolved': 1,
+        'missing': 1,
+        'ambiguous': 1,
+    }
+    files = report['files']
+    uses = 'Shop/Shop_Orders/Source/Private/Uses.b'
+    domain = 'Shop/Shop_Orders/Definition/OrderDomain.domain'
+    assert [
+        (e['target'], e['status'], e.get('domain'))
+        for e in files[uses]['include_lookups']
+    ] == [
+        ('I_OrderService_Line', 'generated', domain),
+        ('I_OrderService_Header', 'resolved', None),
+    ]
+    assert (generated / 'I_OrderService_Line').read_text().splitlines()[
+        -4:
+    ] == [
+        'EQU Line.sku TO 1',
+        'EQU Line.quantity TO 2',
+        'EQU Line.notes TO 3',
+        'EQU Line.header TO 4',
+    ]
+    assert not (generated / 'I_OrderService_Header').exists()
+    missing = files['Shop/Shop_Orders/Source/Private/Missing.b']
+    assert missing['include_lookups'][0]['status'] == 'missing'
+    ambiguous = files['Shop/Shop_Orders/Source/Private/Ambiguous.b']
+    assert ambiguous['include_lookups'][0]['candidates'] == [
+        'Shop/Shop_Archive/Definition/ArchiveDomain.domain',
+        domain,
+    ]
+    assert 'ambiguous domain class' in ambiguous['diagnostic']
+
+    without = command[:6] + command[8:]
+    report = json.loads(subprocess.check_output(without, text=True))
+    assert report['files'][uses]['include_lookups'][0]['status'] == 'missing'
+
+
 def test_corpus_checks_qualified_component_signatures(compiler):
     fixture = ROOT / 'tests/corpus/component-calls'
     catalog = compiler.work / 'catalog.sqlite'
