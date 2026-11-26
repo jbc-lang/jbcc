@@ -3470,6 +3470,11 @@ fix and the exclusion it passed 19,524 units.
 
 [R13-CORPUS.md](R13-CORPUS.md) tracks the work.
 
+- [x] Close the R13 gaps. On 2026-11-26 the full scan passed strict C99
+  checking for all 19,536 R13 units, with `V.PL.B2LIM.NET` excluded and
+  5,837 include fragments. The same build passed all 17,336 R10 units
+  and all 15,030 R07 units.
+
 ### R19 pilot
 
 - [x] Select production units from the `201809-R19` catalog. Add indexed

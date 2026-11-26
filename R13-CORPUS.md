@@ -67,5 +67,12 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
     member elsewhere keeps a separate value (provisional).
 - [x] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
   excluded rather than rejected (`--t24-exclude-local-routines`).
-- [ ] 7. Re-run R10 and R07 to check for regressions and update counts.
+- [x] 7. Re-run R10 and R07 to check for regressions and update counts.
+  Full scans on 2026-11-26 with 8 workers:
+
+  | Release | Units passing strict C99 | Other | Wall time |
+  |---|---:|---|---:|
+  | R13 | 19,536 of 19,536 | 1 excluded, 5,837 include fragments | 2 min 53 s |
+  | R10 | 17,336 of 17,336 | 5,138 include fragments | 2 min 18 s |
+  | R07 | 15,030 of 15,030 | 3,322 include fragments, 10 C headers | 2 min 0 s |
 - [ ] 8. Extend from the R19 pilot to the full R19 corpus.

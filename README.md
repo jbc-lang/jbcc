@@ -40,7 +40,7 @@ local-routine exclusion.
 | --- | ---: | ---: | ---: |
 | R10 | 22,474 | 17,336 | 2 min 18 s |
 | R07 | 18,362 | 15,030 | 2 min 2 s |
-| R13 | 25,374 | 19,536 | 2 min 42 s |
+| R13 | 25,374 | 19,536 | 2 min 53 s |
 
 The file totals also count headers and include fragments.
 
@@ -2581,9 +2581,10 @@ python3 tools/check_corpus.py ../t24-extract/201307-R13 -I .cache/PB201214/inclu
 `T24.BP/STEST.AZ.PD.DATES.CHK`, as in R10 and R07. The optional
 `--t24-exclude-local-routines` skips `T24.BP/V.PL.B2LIM.NET`, a
 Raiffeisen Bank Polska routine whose includes are not in the dump. The
-JSON reports it with the status `excluded` and a reason. See the
+JSON reports it with the status `excluded` and a reason. With these
+options every other R13 unit passes strict C99 checking. See the
 [R13 baseline](PLAN.md#r13-baseline) and [R13-CORPUS.md](R13-CORPUS.md)
-for the remaining failures.
+for the constructs added for R13.
 
 ### R19 pilot
 
