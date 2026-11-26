@@ -34,14 +34,22 @@ TABLE_FIELDS = re.compile(r"^[ \t]*fields\s*:\s*\{([^{}]*)\}", re.M)
 TABLE_FIELD = re.compile(
     rf"^[ \t]*({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*([0-9]+)[ \t]*$", re.M
 )
+# Operations generated for each t24: table, with the arities observed in
+# every R19 call: reads take (id, error), locking reads add a retry argument,
+# writes take (id, record) and deletes take (id).
 TABLE_METHODS = {
     "Read": ("function", (False, False)),
     "CacheRead": ("function", (False, False)),
     "ReadNau": ("function", (False, False)),
+    "ReadHis": ("function", (False, False)),
+    "ReadU": ("function", (False, False, False)),
+    "ReadUNau": ("function", (False, False, False)),
     "Write": ("subroutine", (False, False)),
     "WriteNau": ("subroutine", (False, False)),
     "WriteHis": ("subroutine", (False, False)),
     "Delete": ("subroutine", (False,)),
+    "DeleteNau": ("subroutine", (False,)),
+    "DeleteHis": ("subroutine", (False,)),
 }
 
 
