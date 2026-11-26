@@ -33,7 +33,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   `~/Downloads`: unpack `PB201214/include` from the tarball to a cache
   and update README.md and SOURCES.md (`~/Downloads/jbc/` becomes
   `../jbc-extract/jbccom`).
-- [ ] 2. Apply the T24 source fixes per release directory, including R13
+- [x] 2. Apply the T24 source fixes per release directory, including R13
   `T24.BP/`, starting with `STEST.AZ.PD.DATES.CHK`. Add a
   `tests/corpus/r13/` fixture and test like the R07 one.
 - [ ] 3. Record the baseline: an "R13 corpus" README section with the
@@ -49,7 +49,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,
   or `bin/JBCCOM` from the tarball in the Linux container). Implement,
   fix in memory or record as expected failures.
-- [ ] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
-  excluded rather than rejected.
+- [x] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
+  excluded rather than rejected (`--t24-exclude-local-routines`).
 - [ ] 7. Re-run R10 and R07 to check for regressions and update counts.
 - [ ] 8. Extend from the R19 pilot to the full R19 corpus.
