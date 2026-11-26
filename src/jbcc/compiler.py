@@ -904,6 +904,7 @@ class CommonBlock:
         self.token = token
         self.shapes = []
         self.matrix_slots = {}
+        self.scalar_slots = {}
         self.initializers = []
 
 
@@ -1110,6 +1111,7 @@ class Compiler:
         self.for_assignments = []
         self.saved_steps = {}
         self.names = {}
+        self.scalar_fields = 0
         self.matrices = {}
         self.pending_matrices = {}
         self.local_arrays = {}
@@ -1190,7 +1192,8 @@ class Compiler:
         if self.uses_matrix(name):
             self.error(f"array '{name}' requires subscripts")
         if name not in self.names:
-            self.names[name] = f"frame->v{len(self.names)}"
+            self.names[name] = f"frame->v{self.scalar_fields}"
+            self.scalar_fields += 1
         return self.names[name]
 
     def assignment_error(self, message, token, *, warn=False):
@@ -4010,6 +4013,9 @@ class Compiler:
         ):
             self.redeclare_matrix(token, matrix, resize=not common)
             return
+        if not common and name in self.common_scalars and self.word == '(':
+            self.dimension_common_scalar(token)
+            return
         if not common and self.formals.get(name):
             bounds = self.dimension_bounds()
             matrix = self.matrices[name]
@@ -4036,6 +4042,7 @@ class Compiler:
                 block.shapes[member] = shape
             if not bounds:
                 self.common_scalars[name] = block_name
+                block.scalar_slots[name] = member
                 self.names[name] = f"frame->{block.field}[{member}]"
                 self.assigned.add(name)
                 return
@@ -4060,6 +4067,29 @@ class Compiler:
         self.matrices[name] = Matrix(field, shape, block_name)
         if pending:
             del self.pending_matrices[name]
+
+    def dimension_common_scalar(self, token):
+        # The local jbccom 201015.001 reference accepts DIM of a scalar
+        # COMMON member and dimensions the member's COMMON slot in place
+        # (DECLARE_DYN_DIM), as T24 R13 AM.RECOMMEND.ALERT does. jbcc keys
+        # the matrix by the block and member, so units that DIM the member
+        # share it. The member's scalar slot is no longer used here.
+        name = token.word
+        block_name = self.common_scalars.pop(name)
+        block = self.commons[block_name]
+        member = block.scalar_slots[name]
+        del self.names[name]
+        bounds = self.dimension_bounds()
+        shape = tuple(n if isinstance(n, int) else None for n in bounds)
+        block.matrix_slots[name] = member
+        field = f"{block.field}_m{member}"
+        key = c_string(f"{block_name}:{member}")
+        call = self.matrix_storage_call("NULL", key, bounds, token)
+        if None in shape:
+            self.emit(f"frame->{field} = {call};")
+        else:
+            block.initializers.append(f"frame.{field} = {call};")
+        self.matrices[name] = Matrix(field, shape, block_name)
 
     def matrix_storage_call(
         self, previous, key, bounds, token, mismatch='NULL'

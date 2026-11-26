@@ -1,0 +1,7 @@
+* A scalar COMMON member that routines DIM, as in T24 R13
+* AM.RECOMMEND.ALERT and AM.RECOMMEND.ALERT.LOAD with LINKED.VALUE.
+COMMON /SHARED/ Count, Linked
+Count = 0
+CALL FILL.LINKED
+CALL SHOW.LINKED
+CRT Count

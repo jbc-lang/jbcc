@@ -1295,6 +1295,14 @@ reports a source-located error if execution would change the bounds. A rank
 change is a compile-time error.
 [jBASE DIM](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DIMENSION.htm).
 
+A DIM in a routine can also dimension a member that its COMMON block lists
+as a scalar, as T24 R13 does in `AM.RECOMMEND.ALERT`. The local jBC
+201015.001 reference dimensions the member's COMMON slot in place. jbcc
+gives the member shared matrix storage keyed by its block and position, so
+every unit that dimensions it sees the same elements. A unit that
+dimensions it with different bounds reports a source-located error. Units
+that use the member as a scalar keep a separate value.
+
 Prime mode emits array accesses with fewer or more subscripts than the
 COMMON declaration supplies. jbcc translates these accesses and reports a
 source-located error if execution reaches one.

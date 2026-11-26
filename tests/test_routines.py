@@ -764,3 +764,26 @@ def test_executable_mode_links_math_with_exit_callbacks(compiler):
         expected_bytes('executable-mode-links-math-with-exit-callbacks.stdout'),
         b'',
     )
+
+
+def test_common_scalar_dimensioned_in_routines(compiler):
+    fixture = ROOT / 'tests/routines/common-scalar-dimensioned'
+    fill = fixture / 'fill.linked.b'
+    run = compiler.run_native(
+        fixture / 'main.b', fill, fixture / 'show.linked.b'
+    )
+    assert (run.returncode, run.stdout, run.stderr) == (
+        0,
+        expected_bytes('common-scalar-dimensioned-in-routines.stdout'),
+        b'',
+    )
+
+    resize = fixture / 'resize.linked.b'
+    run = compiler.run_native(fixture / 'resize.b', fill, resize)
+    assert (run.returncode, run.stdout, run.stderr) == (
+        1,
+        b'',
+        expected_text(
+            'common-scalar-dimensioned-in-routines.stderr', source=resize
+        ).encode(),
+    )

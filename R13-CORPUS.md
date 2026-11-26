@@ -39,7 +39,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
 - [x] 3. Record the baseline: an "R13 corpus" README section with the
   command, an R13 row in the performance table, an "R13 baseline"
   section in PLAN.md and the R13 API coverage report.
-- [ ] 4. Close the language gaps with small independent snippets that
+- [x] 4. Close the language gaps with small independent snippets that
   name the corpus file that showed each construct:
   - [x] `DELETESEQ` statement with ELSE (`DW.EXPORT.CONF.EXPORT` then
     stops at `READXML`)
@@ -55,7 +55,7 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
     (`jbccom` 201015.001, Prime) emits `UNASSIGNED_IB(EXTRACTMV(...))`
     and accepts any expression; jbcc keeps rejecting non-extraction
     expressions such as `ASSIGNED(2)`, per its existing fixtures.
-- [ ] 5. Settle `COMMON X` followed by `DIM X(n)` and `DM.GENERATE.ERWIN`
+- [x] 5. Settle `COMMON X` followed by `DIM X(n)` and `DM.GENERATE.ERWIN`
   with the reference compiler (`../jbc-extract/tools/build-jbccom.sh`,
   or `bin/JBCCOM` from the tarball in the Linux container). Implement,
   fix in memory or record as expected failures.
@@ -64,9 +64,11 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
     as an unassigned variable. jbcc now parses `VALIDATE_PRODUCT_LICENSE`
     (missing licensing backend when reached), `BITAND` and `BITNOT`
     (unsigned result per the guide example, provisional).
-  - [ ] `COMMON ..., X` then `DIM X(9)`: the reference accepts it and emits
+  - [x] `COMMON ..., X` then `DIM X(9)`: the reference accepts it and emits
     `DECLARE_DYN_DIM` on the COMMON slot, so the member becomes a
-    dynamically dimensioned array shared through the block.
+    dynamically dimensioned array shared through the block. jbcc shares
+    matrix storage keyed by block and member; a scalar use of the same
+    member elsewhere keeps a separate value (provisional).
 - [x] 6. Exclude `V.PL.B2LIM.NET` as non-Temenos code and report it as
   excluded rather than rejected (`--t24-exclude-local-routines`).
 - [ ] 7. Re-run R10 and R07 to check for regressions and update counts.
