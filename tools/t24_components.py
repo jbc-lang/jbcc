@@ -174,6 +174,7 @@ def read_component_members(catalogue, root):
             f"no component definitions for extract '{root.name}' in {catalogue}"
         )
     by_component = {}
+    conflicts = {}
     for component, relative in components:
         owner = component.casefold()
         source = (root / relative).read_text(
@@ -187,15 +188,36 @@ def read_component_members(catalogue, root):
             name: member for name, member in declared if names[name] == 1
         }
         if owner in by_component:
-            # Duplicate definitions can be partial exports of the same component.
-            current = {
-                name: member
-                for name, member in by_component[owner].items()
-                if current.get(name) == member
-            }
+            # Duplicate definitions are partial exports of one component, as
+            # OB_AFW/TF.ErrorHandling.component lacks consumeException. Keep
+            # a member declared in any of them; drop one they declare
+            # differently.
+            previous = by_component[owner]
+            clashes = conflicts.setdefault(owner, set())
+            clashes.update(
+                name
+                for name, member in current.items()
+                if name in previous and previous[name] != member
+            )
+            current = {**previous, **current}
+            for name in clashes:
+                current.pop(name, None)
         by_component[owner] = current
-    return {
+    members = {
         f"{owner}.{name}": (*member, owner)
         for owner, declared in by_component.items()
         for name, member in declared.items()
     }
+    # The export leaves out some tables that R19 sources read through a
+    # known component, such as PP.SODEODGUI.PptSodeodjoblist.Read. A call
+    # <component>.<table>.<operation> to an undeclared table falls back to
+    # these entries: the standard operation signatures, with public access.
+    for owner in by_component:
+        for method, (kind, signature) in TABLE_METHODS.items():
+            members[f"{owner}.*.{method.casefold()}"] = (
+                "public",
+                kind,
+                signature,
+                owner,
+            )
+    return members

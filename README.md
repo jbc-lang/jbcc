@@ -1514,6 +1514,15 @@ callee reads the status field, selects a CASE arm, and updates the output.
   value. Tokens from quoted expansions point inside the definition.
   $INSERT and INCLUDE search the including file's directory, followed by
   each `-I DIR` in order. Included tokens retain their source locations.
+  When neither has `JBC.h`, jbcc uses its built-in copy and prints a note
+  on stderr. The built-in `JBC.h` defines only the 26 constants that the
+  guide's examples use, such as `JBASE_CRYPT_ROT13`,
+  `JIOCTL_COMMAND_FILESTATUS` and `USER_PROC_ACCOUNT`, with the values of
+  TAFC PB201214's `JBC.h`; it is not the jBASE header. A real `JBC.h` on
+  the include paths always wins, and `--no-builtin-includes` reports the
+  missing file instead. The playground uses the built-in copy too, while
+  the corpus checker never does, so corpus results reflect the headers
+  given with `-I`.
   [EQUATE](https://jbc-lang.org/pages/equate.html)
 - `#ifdef` and `#ifndef` test whether a case-sensitive symbol has been
   defined by EQUATE or `#define`. A defined value of zero counts as
@@ -2691,9 +2700,12 @@ separated by newlines. Hook components declare `interface` members with no
 body, as in `AA.ActivityHook.checkValidateRoutine`. Every R19 call passes
 the implementing method's name before the declared parameters, so the
 checker expects one more argument than the declaration lists; an
-interface with a result type is a function. It also recognizes untyped scalar properties. Where the catalog has
-multiple definitions for one component, a member must have the same
-parsed declaration in each.
+interface with a result type is a function. It also recognizes untyped
+scalar properties. Where the catalog has multiple definitions for one
+component, they are treated as partial exports: a member declared in any
+of them is kept, and a member they declare differently is dropped. For
+example, `OB_AFW/TF.ErrorHandling.component` lacks `consumeException`,
+which `TF/TF_ErrorHandling` declares.
 
 For `t24:` table declarations, the checker recognizes numbered field
 constants and the call signatures observed in R19 sources. Reads return
@@ -2705,6 +2717,29 @@ has `table<Name>(id, error)`, a read with the table's visibility, as in
 `AC.AccountOpening.tableAccount(ID, ERR)`. Field numbers are
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
+
+The export leaves out some tables that sources read through a known
+component, such as `PP.SODEODGUI.PptSodeodjoblist` and
+`PP.InwardGenericTransactions.PpInDirectDebit`. A standard table operation
+(`Read`, `ReadU`, `Write`, `Delete` and the others above) on an undeclared
+table of a catalogued component is accepted with the standard signature
+and public access, and the unit reports a warning naming the table. An
+unknown component or a nonstandard operation is still rejected, and so is
+an upper-case name: `EB.CONVERSION.LOG.WRITE` is a routine, while
+generated table names are mixed case.
+
+A scalar passed for a matrix parameter is accepted as a placeholder:
+R19 passes one where the caller uses only another result, as in
+`ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC, R.REC, ...)`,
+which reads the dynamic record `R.REC`. The call receives an empty matrix,
+as for `''`, and the scalar keeps its value. A matrix passed for a scalar
+parameter is still rejected.
+
+`--t24-exclude-test-framework` reports the units of R19's test framework
+components, `SE/SE_Test*` (the SEAT harness and its tests, 1,321 units),
+as excluded with the reason "T24 test framework component", as
+`--t24-exclude-local-routines` does for local routines. They are out of
+scope for production translation.
 
 With `--t24-source-fixes`, R19 fixes name each file by its path from the
 extract root. Two `DAS` inserts, `I_DAS.AA.PRODUCT.DESIGNER` and

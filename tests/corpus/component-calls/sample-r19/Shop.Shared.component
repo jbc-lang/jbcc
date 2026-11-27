@@ -1,6 +1,7 @@
 component Shop.Shared
 metamodelVersion 1.6
 public property readwrite Quantity
+public property readwrite Clash
 
 private table Items {
     t24: SHOP.ITEMS

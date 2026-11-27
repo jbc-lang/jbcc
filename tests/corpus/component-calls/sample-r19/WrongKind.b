@@ -1,2 +1,3 @@
 $PACKAGE Shop.Other
-CRT Shop.Prices.Format("label", "scalar")
+DIM Labels(2)
+CRT Shop.Prices.Format(MAT Labels, "scalar")
