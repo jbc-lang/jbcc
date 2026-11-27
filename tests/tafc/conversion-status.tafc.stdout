@@ -1,0 +1,10 @@
+Unknown conversion code.
+oconv bad [] 1
+Unknown conversion code.
+iconv bad [] 1
+D text [abc] 1
+feb 31 [19055] 3
+bad time [49140] 3
+iconv MD2 [] 1
+oconv MD2 [abc] 0
+good [01 JAN 1968] 0

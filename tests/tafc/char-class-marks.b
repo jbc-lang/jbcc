@@ -1,0 +1,5 @@
+* tafc-emulation: prime
+* TAFC-CROSSCHECK.md section 4: character tests on marks and high bytes.
+CRT ISCNTRL(@FM), ISCNTRL(CHAR(127)), ISCNTRL(CHAR(13):CHAR(10)), ISCNTRL(@FM:CHAR(13)), ISCNTRL(''), ISCNTRL(CHAR(9))
+CRT ISPRINT(@FM), ISPRINT(CHAR(200)), ISGRAPH(' '), ISPUNCT('!'), ISXDIGIT('aF0')
+CRT ISALPHA(''), ISDIGIT(''), ISALPHA(CHAR(233))

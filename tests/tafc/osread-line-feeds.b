@@ -1,0 +1,14 @@
+* tafc-emulation: prime
+* TAFC-CROSSCHECK.md section 4: OSREAD maps LF to @FM; WRITESEQ keeps marks.
+OSWRITE 'a':CHAR(10):'b':CHAR(13):CHAR(10):'c':CHAR(10) ON 'x.txt'
+OSREAD R FROM 'x.txt' ELSE CRT 'no x'
+CRT 'osread ':OCONV(R, 'MX')
+OPENSEQ '.', 'y.txt' TO F THEN NULL ELSE CREATE F ELSE STOP
+WRITESEQ 'L1':@FM:'X':@VM:'Y' TO F ELSE NULL
+CLOSESEQ F
+OSOPEN 'y.txt' TO H ELSE STOP
+OSBREAD R FROM H AT 0 LENGTH 100
+CRT 'writeseq ':OCONV(R, 'MX')
+OPENSEQ '.', 'y.txt' TO F ELSE STOP
+READSEQ L FROM F ELSE NULL
+CRT 'readseq ':OCONV(L, 'MX')

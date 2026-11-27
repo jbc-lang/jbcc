@@ -1,0 +1,6 @@
+Invalid or uninitialised variable -- NULL USED ,
+Var Q , Line     3 , Source unassigned-continues.b
+z=p 1
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     6 , Source unassigned-continues.b
+n=1

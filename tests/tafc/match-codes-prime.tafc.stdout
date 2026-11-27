@@ -1,0 +1,35 @@
+"abc" MATCHES "..." = 1
+"" MATCHES "..." = 1
+"abc" MATCHES "a..." = 1
+"abc" MATCHES "...c" = 1
+"abc" MATCHES "a...c" = 1
+"ac" MATCHES "a...c" = 1
+"a.b" MATCHES "'a'...'b'" = 1
+"a..b" MATCHES "a..b" = 1
+"axxb" MATCHES "a..b" = 0
+"axb" MATCHES "a.b" = 0
+"a.b" MATCHES "a.b" = 1
+"abcd" MATCHES "a...." = 0
+"5C" MATCHES "5C" = 1
+"2HQJ4" MATCHES "5C" = 0
+"C" MATCHES "1C" = 0
+"ab12" MATCHES "2a2n" = 1
+"ab12" MATCHES "4x" = 1
+"JOHN" MATCHES "JOHN" = 1
+"john" MATCHES "JOHN" = 0
+"JOHN" MATCHES "J3A" = 1
+"ab" MATCHES "1A...1A" = 1
+"a1b" MATCHES "1A0N1A" = 1
+"a-b" MATCHES "1A'-'1A" = 1
+"x" MATCHES "0X" = 1
+"AB" MATCHES "2A]2N" = 1
+"12" MATCHES "2A]2N" = 1
+"2022/08/31" MATCHES "2-4N'/'2N'/'2N" = 1
+"abc" MATCHES "1-2A" = 0
+"ab cd" MATCHES "... ..." = 1
+"12AB" MATCHES "2N..." = 1
+"x...y" MATCHES "'x...y'" = 1
+"9.99" MATCHES "0N'.'2N" = 1
+".99" MATCHES "0N'.'2N" = 1
+MATCHFIELD [12]
+MATCHFIELD2 [12]

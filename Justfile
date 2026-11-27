@@ -95,3 +95,15 @@ tafc-headers extract="../jbc-extract":
     mkdir -p .cache
     tar -xzf "$1/TAFC_PB201214_LINUX_ELF_AS6_106034.tar.gz" -C .cache PB201214/include
     echo .cache/PB201214/include
+
+# Run every jBC guide code block through jbcc and TAFC and classify the results.
+tafc-guide *args:
+    python3 tools/tafc_crosscheck/crosscheck.py "$@" guide
+
+# Run probe files or directories through jbcc and TAFC side by side (--record saves TAFC stdout).
+tafc-probe +args:
+    python3 tools/tafc_crosscheck/crosscheck.py probe "$@"
+
+# Compare jbcc with the recorded TAFC stdout of the probes in tests/tafc (no Docker).
+tafc-recorded *paths="tests/tafc":
+    python3 tools/tafc_crosscheck/crosscheck.py recorded "$@"
