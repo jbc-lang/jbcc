@@ -5369,10 +5369,47 @@ struct memory_file {
 static struct memory_file *files;
 jbc_variable jbc_default_file;
 
+/* Record keys and values carry a buffer header outside the collected
+   list, so jbc_size knows a length that holds byte 0 (NUL-BYTES.md). */
+static char *record_text(const char *s)
+{
+    size_t length = jbc_size(s);
+    if (length >= SIZE_MAX - sizeof(struct jbc_buffer)) fail("value is too large");
+    struct jbc_buffer *buffer = malloc(sizeof *buffer + length + 1);
+    if (!buffer) fail("out of memory");
+    buffer->next = NULL;
+    buffer->length = SIZE_MAX;
+    memcpy(buffer->text, s, length);
+    return finish_bytes(buffer->text, length);
+}
+
+static void free_record_text(char *text)
+{
+    if (!text) return;
+    struct jbc_buffer *buffer = buffer_of(text);
+    nul_forget(buffer);
+    free(buffer);
+}
+
+/* A copy of a value in a collected buffer. */
+static const char *copy_value(const char *value)
+{
+    size_t length = jbc_size(value);
+    char *out = allocate(length);
+    memcpy(out, value, length);
+    return finish_bytes(out, length);
+}
+
+static int same_bytes(const char *a, const char *b)
+{
+    size_t n = jbc_size(a);
+    return n == jbc_size(b) && !memcmp(a, b, n);
+}
+
 static void free_record(struct memory_record *record)
 {
-    free(record->key);
-    free(record->value);
+    free_record_text(record->key);
+    free_record_text(record->value);
     free(record);
 }
 
@@ -5437,12 +5474,14 @@ static void free_files(void)
     }
 }
 
+#if defined(JBC_SAVED_LISTS) || defined(JBC_REPORT)
 static char *record_copy(const char *s)
 {
     char *copy = malloc(strlen(s) + 1);
     if (!copy) fail("out of memory");
     return strcpy(copy, s);
 }
+#endif
 
 static struct memory_file *find_memory_file(const char *section, const char *name)
 {
@@ -5654,7 +5693,12 @@ static const char *remaining_default_list(void)
 {
     jbc_variable *list = &select_lists[0];
     if (list->remove_offset == SIZE_MAX || !list->value) return "";
-    if (list->array_list) return list->value + list->remove_offset;
+    if (list->array_list) {
+        size_t bytes = jbc_size(list->value) - list->remove_offset;
+        char *keys = allocate(bytes);
+        memcpy(keys, list->value + list->remove_offset, bytes);
+        return finish_bytes(keys, bytes);
+    }
     struct memory_file *f = selected_file(list->value);
     if (!f) return "";
     const char *keys = NULL;
@@ -5676,7 +5720,8 @@ static void write_return_list(void)
     if (!stream) return;
     /* A leading L shows that a jbcc program wrote the list. */
     fputc('L', stream);
-    fputs(remaining_default_list(), stream);
+    const char *keys = remaining_default_list();
+    fwrite(keys, 1, jbc_size(keys), stream);
     fclose(stream);
 }
 
@@ -5727,7 +5772,7 @@ int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_va
         list->remove_offset = r ? r->serial : SIZE_MAX;
         f->last_read = r;
     }
-    assign_value(key, r ? strcpy(allocate(strlen(r->key)), r->key) : "");
+    assign_value(key, r ? copy_value(r->key) : "");
     if (mv) assign_value(mv, r ? "0" : "");
     if (setting) assign_value(setting, "");
     return r != NULL;
@@ -5878,7 +5923,7 @@ void jbc_deletelist(const char *name, const char *file, int line, int column)
 static struct memory_record **record_link(struct memory_file *f, const char *key)
 {
     struct memory_record **link = &f->records;
-    while (*link && strcmp((*link)->key, key) != 0) link = &(*link)->next;
+    while (*link && !same_bytes((*link)->key, key)) link = &(*link)->next;
     return link;
 }
 
@@ -6001,7 +6046,7 @@ int jbc_read_record(const char *handle, const char *key, jbc_variable *out, jbc_
 {
     struct memory_file *f = file_for(handle);
     struct memory_record *r = f ? *record_link(f, key) : NULL;
-    assign_value(out, r ? strcpy(allocate(strlen(r->value)), r->value) : "");
+    assign_value(out, r ? copy_value(r->value) : "");
     if (setting) assign_value(setting, r ? "" : "128");
     if (r) count_userstat(&record_read_count);
     return file_result(r ? 0 : 128);
@@ -6155,13 +6200,13 @@ static int write_record_status(const char *handle, const char *key, const char *
     if (!r) {
         r = calloc(1, sizeof *r);
         if (!r) fail("out of memory");
-        r->key = record_copy(key);
+        r->key = record_text(key);
         if (f->serial == SIZE_MAX - 1) fail("file record counter overflow");
         r->serial = ++f->serial;
         *link = r;
     }
-    char *copy = record_copy(value);
-    free(r->value);
+    char *copy = record_text(value);
+    free_record_text(r->value);
     r->value = copy;
     if (lock && !keep_lock) release_locks(f, key, 0);
     count_userstat(&record_write_count);
@@ -6655,7 +6700,6 @@ static const char *read_whole_file(const char *path)
     size_t length = 0, capacity = 0;
     int ch;
     while ((ch = getc(stream)) != EOF) {
-        if (!ch) break; /* strings cannot hold NUL yet */
         if (length + 1 >= capacity) {
             size_t larger = capacity ? 2 * capacity : 64;
             char *grown = allocate(larger);
@@ -6667,8 +6711,10 @@ static const char *read_whole_file(const char *path)
     }
     fclose(stream);
     if (!bytes) return "";
-    bytes[length] = '\0';
-    return bytes;
+    /* Grown buffers are allocations of their own; copy into one sized buffer. */
+    char *out = allocate(length);
+    memcpy(out, bytes, length);
+    return finish_bytes(out, length);
 }
 
 const char *jbc_collectdata(void)
@@ -6681,7 +6727,7 @@ void jbc_rtndata(const char *value)
     const char *path = getenv(RTNDATA_VARIABLE);
     FILE *stream = path && *path ? fopen(path, "wb") : NULL;
     if (!stream) return;
-    fputs(value, stream);
+    fwrite(value, 1, jbc_size(value), stream);
     fclose(stream);
 }
 
@@ -6695,17 +6741,40 @@ static int command_exit_code(int status)
     return WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
 }
 
-static const char *read_command_output(FILE *stream, const char **result, const char *nul_error)
+/* All of a command's output, byte 0 included, with each LF a field mark. */
+static const char *read_command_output(FILE *stream, const char **result)
 {
     char *bytes = NULL;
-    size_t capacity = 0;
-    ssize_t length = getdelim(&bytes, &capacity, '\0', stream);
-    const char *error = NULL;
-    if (ferror(stream) || (length < 0 && !feof(stream))) error = "cannot read command output";
-    else if (length > 0 && bytes[length - 1] == '\0') error = nul_error;
-    else *result = length > 0 ? jbc_convert(bytes, "\n", "\376") : "";
+    size_t length = 0, capacity = 0;
+    char block[4096];
+    size_t count;
+    while ((count = fread(block, 1, sizeof block, stream)) > 0) {
+        if (count > SIZE_MAX - sizeof(struct jbc_buffer) - 1 - length) {
+            free(bytes);
+            return "command output is too large";
+        }
+        if (length + count > capacity) {
+            size_t grown = 2 * (length + count);
+            char *larger = realloc(bytes, grown);
+            if (!larger) {
+                free(bytes);
+                return "cannot read command output";
+            }
+            bytes = larger;
+            capacity = grown;
+        }
+        memcpy(bytes + length, block, count);
+        length += count;
+    }
+    if (ferror(stream)) {
+        free(bytes);
+        return "cannot read command output";
+    }
+    char *out = allocate(length);
+    for (size_t i = 0; i < length; ++i) out[i] = bytes[i] == '\n' ? (char)254 : bytes[i];
     free(bytes);
-    return error;
+    *result = finish_bytes(out, length);
+    return NULL;
 }
 
 static void redirect_command_fd(int fd, int target)
@@ -6744,7 +6813,7 @@ static char *exchange_file(const char *data, const char *file, int line, int col
     snprintf(path, length + 1, "%s/jbcc-data-XXXXXX", directory);
     int fd = mkstemp(path);
     if (fd == -1) numeric_error(file, line, column, "cannot create EXECUTE data file");
-    size_t size = strlen(data);
+    size_t size = jbc_size(data);
     while (size) {
         ssize_t written = write(fd, data, size);
         if (written <= 0) {
@@ -6818,16 +6887,15 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     const char *captured = "", *messages = "", *error = NULL;
     if (capture) {
         close(output_pipe[1]);
-        error = read_command_output(output, &captured, "CAPTURING cannot store a NUL byte");
+        error = read_command_output(output, &captured);
         fclose(output);
         /* One final newline is dropped, as TAFC PB201214 does
            (tests/tafc/execute-capturing.b). */
-        size_t length = strlen(captured);
+        size_t length = jbc_size(captured);
         if (length && (unsigned char)captured[length - 1] == 254) {
             char *trimmed = allocate(length - 1);
             memcpy(trimmed, captured, length - 1);
-            trimmed[length - 1] = '\0';
-            captured = trimmed;
+            captured = finish_bytes(trimmed, length - 1);
         }
     }
     int status;
@@ -6836,7 +6904,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     if (waited == -1) error = "cannot wait for command";
     if (errors) {
         if (!error && fseek(errors, 0, SEEK_SET)) error = "cannot rewind command error file";
-        if (!error) error = read_command_output(errors, &messages, "RETURNING cannot store a NUL byte");
+        if (!error) error = read_command_output(errors, &messages);
         fclose(errors);
     }
     if (passdata_path) unlink(passdata_path);
@@ -6845,9 +6913,12 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         /* A jbcc child leaves its default list to the caller; another
            command leaves the caller's list as it was. */
         const char *keys = read_whole_file(rtnlist_path);
-        if (*keys == 'L')
-            set_array_list(&select_lists[0], strcpy(allocate(strlen(keys + 1)), keys + 1),
-                           keys[1] != '\0');
+        size_t bytes = jbc_size(keys);
+        if (bytes && *keys == 'L') {
+            char *list = allocate(bytes - 1);
+            memcpy(list, keys + 1, bytes - 1);
+            set_array_list(&select_lists[0], finish_bytes(list, bytes - 1), bytes > 1);
+        }
         /* TAFC PB201214 gives the RTNLIST variable '' (tests/tafc/
            execute-passlist.b). */
         if (return_list && return_list != &select_lists[0]) assign_value(return_list, "");
@@ -6862,7 +6933,7 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     if (capture) assign_value(capture, captured);
     if (returning) {
         const char *value = jbc_system_return_code();
-        if (*messages) value = jbc_concat(value, jbc_concat("\376", messages));
+        if (jbc_size(messages)) value = jbc_concat(value, jbc_concat("\376", messages));
         assign_value(returning, value);
     }
     count_userstat(&command_count);
@@ -8189,9 +8260,8 @@ int jbc_osread(const char *path, jbc_variable *out)
         /* Line feeds become field marks, as TAFC PB201214 reads a file
            (tests/tafc/osread-line-feeds.b); carriage returns stay. */
         for (size_t i = 0; i < length; ++i)
-            value[i] = contents[i] == '\n' ? (char)254 : contents[i] ? contents[i] : (char)128;
-        value[length] = '\0';
-        assign_value(out, value);
+            value[i] = contents[i] == '\n' ? (char)254 : contents[i];
+        assign_value(out, finish_bytes(value, length));
     }
     free(contents);
     return file_result(status);
@@ -8206,12 +8276,13 @@ int jbc_readseq(const char *token, jbc_variable *out)
     FILE *in = sequential_stream(file);
     char record[1024];
     size_t length = 0;
-    int ch, binary = 0;
+    int ch, cut = 0;
+    /* The line ends at byte 0, as TAFC PB201214 reads it (tests/tafc/nul-io.b). */
     while ((ch = fgetc(in)) != EOF && ch != '\n') {
-        if (ch == 0) binary = 1;
-        if (length < sizeof record) record[length++] = (char)ch;
+        if (ch == 0) cut = 1;
+        if (!cut && length < sizeof record) record[length++] = (char)ch;
     }
-    if (ferror(in) || binary) return file_result(32768);
+    if (ferror(in)) return file_result(32768);
     if (ch == EOF && !length) return file_result(128);
     char *value = allocate(length);
     memcpy(value, record, length);
@@ -8247,12 +8318,10 @@ static int read_sequential_block(FILE *in, uintmax_t requested, int os_block, jb
     if (os_block) {
         for (size_t i = 0; i < length; ++i)
             if (!value[i]) value[i] = (char)128;
-    } else {
-        if (length != requested) return 128;
-        if (memchr(value, '\0', length)) return 32768;
+    } else if (length != requested) {
+        return 128;
     }
-    value[length] = '\0';
-    assign_value(out, value);
+    assign_value(out, finish_bytes(value, length));
     return 0;
 }
 
@@ -8308,7 +8377,7 @@ static int writable_sequential(struct sequential_file *file)
 
 static int write_os_bytes(FILE *out, const char *value)
 {
-    size_t remaining = strlen(value);
+    size_t remaining = jbc_size(value);
     while (remaining) {
         unsigned char bytes[4096];
         size_t length = remaining < sizeof bytes ? remaining : sizeof bytes;
@@ -8484,8 +8553,10 @@ static int write_sequential(const char *token, const char *value, int append, in
     if (status) return status;
     FILE *out = sequential_stream(file);
     /* Positioning synchronizes stdio after a buffered read. */
+    size_t length = jbc_size(value);
     if (fseeko(out, 0, append ? SEEK_END : SEEK_CUR) ||
-        fputs(value, out) == EOF || (newline && fputc('\n', out) == EOF) || fflush(out))
+        fwrite(value, 1, length, out) != length || (newline && fputc('\n', out) == EOF) ||
+        fflush(out))
         return file_error(errno);
     if (flush && fsync(fileno(out))) return file_error(errno);
     return 0;
@@ -8498,7 +8569,7 @@ int jbc_writeseq(const char *token, const char *value, int append, int flush)
 
 int jbc_writeblk(const char *token, const char *value, const char *source, int line, int column)
 {
-    if (!*token || !*value)
+    if (!*token || !jbc_size(value))
         numeric_error(source, line, column, "WRITEBLK requires nonempty handle and data");
     return file_result(write_sequential(token, value, 0, 0, 0));
 }

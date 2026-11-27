@@ -76,7 +76,11 @@ Stages 1 to 3 are done (`tests/tafc/nul-core.b`, `nul-arrays.b`). In
 stage 3, `split_array_items` copies the whole sized array, and
 `item_end`, `item_value` and `cursor_value` give an element as a sized
 value only when the array holds byte 0, so other arrays keep the old fast
-path; a 20,000-element LOCATE benchmark runs as fast as before. One change from the
+path; a 20,000-element LOCATE benchmark runs as fast as before.
+
+Stage 4 is done too (`tests/tafc/nul-io.b`). Records and keys of
+in-memory files are copied into buffers with a header outside the
+collected list (`record_text`), so `jbc_size` works on them as well. One change from the
 plan: only a buffer that actually holds byte 0 records its length and
 goes in the pointer set, so the set stays small, and every other buffer
 is an ordinary C string.

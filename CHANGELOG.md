@@ -93,6 +93,9 @@
   2).
 - Dynamic arrays, the search functions and the element-wise functions keep
   byte 0 too (NUL-BYTES.md, stage 3).
+- Files, records, CAPTURING, RETURNING and EXECUTE data keep byte 0 as
+  TAFC does: OSREAD no longer turns it into byte 128, READBLK no longer
+  fails on it, and READSEQ ends a line at it (NUL-BYTES.md, stage 4).
 - EXECUTE shares the default select list with the jbcc program it runs, as
   TAFC does; `PASSLIST` passes a list, and `RTNLIST` no longer stops the
   program.
