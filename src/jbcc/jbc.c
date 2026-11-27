@@ -5692,6 +5692,13 @@ static struct memory_file *selected_file(const char *token)
 #define PASSLIST_VARIABLE "JBCC_PASSLIST"
 #define RTNLIST_VARIABLE "JBCC_RTNLIST"
 
+#ifdef __wasi__
+/* The browser has no EXECUTE, so no list files: linking fopen would also
+   import WASI calls the playground does not grant. */
+static void write_return_list(void) {}
+
+void jbc_init_lists(void) {}
+#else
 static const char *remaining_default_list(void)
 {
     jbc_variable *list = &select_lists[0];
@@ -5746,6 +5753,7 @@ void jbc_init_lists(void)
     if (getenv(RTNLIST_VARIABLE) && atexit(write_return_list_at_exit) != 0)
         fail("cannot register the return list");
 }
+#endif
 
 int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_variable *setting,
                  const char *file, int line, int column)
@@ -6695,6 +6703,18 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 #define PASSDATA_VARIABLE "JBCC_PASSDATA"
 #define RTNDATA_VARIABLE "JBCC_RTNDATA"
 
+#ifdef __wasi__
+/* Without EXECUTE in the browser, nothing passes data in or takes it back. */
+const char *jbc_collectdata(void)
+{
+    return "";
+}
+
+void jbc_rtndata(const char *value)
+{
+    (void)value;
+}
+#else
 static const char *read_whole_file(const char *path)
 {
     FILE *stream = path && *path ? fopen(path, "rb") : NULL;
@@ -6733,6 +6753,7 @@ void jbc_rtndata(const char *value)
     fwrite(value, 1, jbc_size(value), stream);
     fclose(stream);
 }
+#endif
 
 #ifdef JBC_EXECUTE
 #include <fcntl.h>

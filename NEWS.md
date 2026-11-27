@@ -1,8 +1,9 @@
 # News
 
-## 2026-11-27 · Checked against TAFC
+## 2026-11-27 · Checked against TAFC (0.8.1)
 
-[jbcc 0.8.0](https://pypi.org/project/jbcc/0.8.0/) is checked against a
+[jbcc 0.8.1](https://pypi.org/project/jbcc/0.8.1/), a fix to 0.8.0 for the
+playground, is checked against a
 real TAFC PB201214 runtime and follows it: 268 of the guide's examples now
 print what TAFC prints. It adds `--emulation prime|jbase` (prime by
 default, as T24 runs), byte 0 in strings, the MD masks, EXECUTE's
