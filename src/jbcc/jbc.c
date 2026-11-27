@@ -2031,8 +2031,8 @@ static size_t word_wrap_line(const char *start, const char *end, uintmax_t width
     return take;
 }
 
-/* The MCP mask: the guide's only purpose for it is to show field, value and
-   subvalue marks as ^, ] and \. Other bytes are left as they are. */
+static int ascii_alpha(unsigned char c);
+
 /* The MX mask: each byte as two upper-case hex digits, as in
    FMT('ABCDEF', 'MX') = 414243444546 and FMT(@FM, 'MX') = FE. */
 static const char *hex_bytes(const char *text)
@@ -2050,21 +2050,167 @@ static const char *hex_bytes(const char *text)
     return out;
 }
 
-static const char *printable_marks(const char *text)
+static int byte_class(unsigned char c, char kind);
+static const char *change_substrings(const char *text, const char *search, const char *replacement,
+                                     int64_t limit, int64_t first);
+
+/* MCP{c}: the guide's table says MCP turns every non-printable byte into
+   "." (or c), and its note on printing arrays shows field, value and
+   subvalue marks as ^, ] and \. Printable is ISPRINT's ASCII 32 to 126. */
+static const char *printable_marks(const char *text, char replacement)
 {
     size_t n = strlen(text);
     char *out = allocate(n);
-    for (size_t i = 0; i <= n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         unsigned char c = (unsigned char)text[i];
-        out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\' : (char)c;
+        out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\'
+               : byte_class(c, 'P') ? (char)c : replacement;
     }
+    out[n] = '\0';
+    return out;
+}
+
+/* MCA, MCN, MCB and their /-forms keep or remove ASCII letters, digits, or
+   both, as ISALPHA and ISDIGIT classify them. */
+static const char *keep_class(const char *text, char kind, int remove)
+{
+    size_t n = strlen(text), used = 0;
+    char *out = allocate(n);
+    for (size_t i = 0; i < n; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        int in = kind == 'A' ? ascii_alpha(c) : kind == 'N' ? ascii_digit(c)
+               : ascii_alpha(c) || ascii_digit(c);
+        if (in != remove) out[used++] = (char)c;
+    }
+    out[used] = '\0';
+    return out;
+}
+
+/* MCL, MCU and MCT: lower case, upper case, and each word capitalised with
+   the rest of it lower case ("LONG STRING" becomes "Long String"). */
+static const char *convert_case(const char *text, char kind)
+{
+    size_t n = strlen(text);
+    char *out = allocate(n);
+    int in_word = 0;
+    for (size_t i = 0; i < n; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        int upper = kind == 'U' || (kind == 'T' && !in_word);
+        if (upper && c >= 'a' && c <= 'z') c = (unsigned char)(c - 32);
+        else if (!upper && c >= 'A' && c <= 'Z') c = (unsigned char)(c + 32);
+        in_word = ascii_alpha(c);
+        out[i] = (char)c;
+    }
+    out[n] = '\0';
+    return out;
+}
+
+/* The MC conversions of the guide's OCONV table, shared by FMT and OCONV.
+   Returns NULL for a mask that is not one of them. */
+static const char *mc_conversion(const char *text, const char *mask, const char *file,
+                                 int line, int column)
+{
+    if (strncmp(mask, "MC", 2) != 0) return NULL;
+    const char *code = mask + 2;
+    /* MCPN{n} is the guide's hex-escaping variant, not MCP with N. */
+    if (*code == 'P' && (!code[1] || (!code[2] && code[1] != 'N')))
+        return printable_marks(text, code[1] ? code[1] : '.');
+    if (!strcmp(code, "A") || !strcmp(code, "N") || !strcmp(code, "B")) return keep_class(text, *code, 0);
+    if (!strcmp(code, "/A") || !strcmp(code, "/N") || !strcmp(code, "/B")) return keep_class(text, code[1], 1);
+    if (!strcmp(code, "L") || !strcmp(code, "U") || !strcmp(code, "T")) return convert_case(text, *code);
+    if (*code == 'C' && code[1]) {
+        /* MCC;s1;s2, with the character after MCC as the separator. */
+        char separator[2] = {code[1], '\0'};
+        const char *from = code + 2, *middle = strstr(from, separator);
+        if (!middle || middle == from) return NULL;
+        size_t length = (size_t)(middle - from);
+        char *search = allocate(length);
+        memcpy(search, from, length);
+        search[length] = '\0';
+        const char *with = middle + 1;
+        if (strchr(with, code[1])) return NULL;
+        return change_substrings(text, search, with, -1, 1);
+    }
+    if (!strcmp(code, "DX") || !strcmp(code, "XD")) {
+        int from_hex = code[0] == 'X';
+        if (!*text || strspn(text, from_hex ? "0123456789ABCDEFabcdef" : "0123456789") != strlen(text)
+            || strlen(text) > 15)
+            numeric_error(file, line, column, from_hex ? "MCXD requires hexadecimal digits"
+                                                       : "MCDX requires a nonnegative integer");
+        unsigned long long value = strtoull(text, NULL, from_hex ? 16 : 10);
+        char *out = allocate(24);
+        snprintf(out, 25, from_hex ? "%llu" : "%llX", value);
+        return out;
+    }
+    return NULL;
+}
+
+/* FMT pattern masks: L(...) or R(...), or a bare pattern that starts
+   with #. The guide never combines a pattern with a precision, so jbcc
+   leaves that unsupported. In the
+   pattern, # takes one character of the value and #n takes n; anything
+   else is literal. R fills the slots from the value's rightmost characters
+   and L from its leftmost, as in the guide's FMT(1234567890,
+   'R((###) ###-###)') = (234) 567-890 and its UNIQUEKEY example; missing
+   characters become spaces. Returns NULL when the mask is not a pattern. */
+static const char *pattern_format(const char *text, const char *mask)
+{
+    char align = 'L';
+    const char *pattern, *end;
+    if (*mask == '#') {
+        pattern = mask;
+        end = mask + strlen(mask);
+    } else {
+        const char *p = mask;
+        if (*p != 'L' && *p != 'R') return NULL;
+        align = *p++;
+        size_t length = strlen(p);
+        if (*p != '(' || length < 2 || p[length - 1] != ')') return NULL;
+        pattern = p + 1;
+        end = p + length - 1;
+    }
+    size_t slots = 0, literals = 0;
+    for (const char *q = pattern; q < end;) {
+        if (*q++ != '#') { ++literals; continue; }
+        size_t count = 1;
+        if (q < end && ascii_digit((unsigned char)*q)) {
+            count = 0;
+            while (q < end && ascii_digit((unsigned char)*q)) {
+                if (count > (SIZE_MAX - 9) / 10) fail("FMT pattern too large");
+                count = count * 10 + (size_t)(*q++ - '0');
+            }
+        }
+        if (count > SIZE_MAX - slots - literals - 1) fail("FMT pattern too large");
+        slots += count;
+    }
+    size_t length = strlen(text);
+    size_t pad = length < slots ? slots - length : 0;
+    const char *source = text + (align == 'R' && length > slots ? length - slots : 0);
+    char *out = allocate(slots + literals), *write = out;
+    size_t taken = 0;
+    for (const char *q = pattern; q < end;) {
+        if (*q != '#') { *write++ = *q++; continue; }
+        ++q;
+        size_t count = 1;
+        if (q < end && ascii_digit((unsigned char)*q)) {
+            count = 0;
+            while (q < end && ascii_digit((unsigned char)*q)) count = count * 10 + (size_t)(*q++ - '0');
+        }
+        for (size_t i = 0; i < count; ++i, ++taken) {
+            int blank = align == 'R' ? taken < pad : taken >= slots - pad;
+            *write++ = blank ? ' ' : *source++;
+        }
+    }
+    *write = '\0';
     return out;
 }
 
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
-    if (strcmp(mask, "MCP") == 0) return printable_marks(text);
+    const char *converted = mc_conversion(text, mask, file, line, column);
+    if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(text);
+    if ((converted = pattern_format(text, mask))) return converted;
     const char *p = mask;
     int wrap = ascii_digit(*p);
     char fill = ' ';
@@ -2860,7 +3006,8 @@ static const char *convert_output(const char *value, const struct output_convers
 
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
-    if (strcmp(mask, "MCP") == 0) return printable_marks(value);
+    const char *converted = mc_conversion(value, mask, file, line, column);
+    if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);
     struct output_conversion conversion;
     if (!output_mask(mask, &conversion)) {

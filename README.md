@@ -1089,13 +1089,32 @@ turns pairs of hexadecimal digits back into bytes, as in
 character or a `00` pair reports an error. jbcc works on bytes, so a
 character outside ASCII shows as the bytes of the source encoding.
 
-`FMT(value, 'MCP')` and `OCONV(value, 'MCP')` show field, value and
-subvalue marks as `^`, `]` and `\`, so `1:@FM:2:@VM:3` prints as `1^2]3`.
-The guide gives this as the mask's only purpose and does not say what
-happens to other non-printable bytes, so jbcc leaves them unchanged. The
-guide notes that TAFJ does not support the mask.
-[FMT](https://jbc-lang.org/pages/fmt.html),
-[OCONV](https://jbc-lang.org/pages/oconv.html).
+`FMT` and `OCONV` accept the `MC` conversions of the guide's `OCONV`
+table. `MCA`, `MCN` and `MCB` keep only ASCII letters, digits, or both,
+and `MC/A`, `MC/N` and `MC/B` remove them. `MCL` and `MCU` change case,
+and `MCT` capitalises each word and lowers the rest, so `LONG STRING`
+becomes `Long String`. `MCC;s1;s2` replaces every `s1` with `s2`, using
+the character after `MCC` as the separator. `MCDX` writes a nonnegative
+decimal integer in hexadecimal and `MCXD` reads it back, so
+`OCONV('FB', 'MCXD')` returns `251`. `MCP` replaces each non-printable
+byte, anything outside ASCII 32 to 126 as `ISPRINT` classifies it, with
+`.`, or with the character `c` in `MCPc`, but shows field, value and
+subvalue marks as `^`, `]` and `\`. The guide shows both: the text mark
+in `LONG STRIN.G TO BE SP.LIT` and the marks in `1^2]3^4\5`. The guide's
+`MCPN`, `MCNP` and group (`G`) conversions are not supported yet.
+[OCONV](https://jbc-lang.org/pages/oconv.html),
+[FMT](https://jbc-lang.org/pages/fmt.html).
+
+`FMT` also accepts pattern masks: `L(pattern)`, `R(pattern)` or a bare
+pattern starting with `#`. In the pattern, `#` takes one character of the
+value and `#n` takes n; everything else is literal. `R` fills the slots
+from the value's rightmost characters and `L` from its leftmost, and
+missing characters become spaces. So `FMT(1234567890, 'R((###) ###-###)')`
+returns `(234) 567-890` and `FMT('202203241105', '####-##-##_##:##')`
+returns `2022-03-24_11:05`. The guide never combines a pattern with a
+decimal precision, so jbcc rejects `R2(...)`. Numeric masks with
+thousands separators, currency or credit signs (`R2,$#15`) are not
+supported yet.
 
 Width-prefixed `T` masks such as `35T` wrap at spaces when possible.
 They split overlong words, pad each block on the right, and insert
