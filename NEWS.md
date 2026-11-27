@@ -1,5 +1,13 @@
 # News
 
+## 2026-11-27 · Guide functions and the JBC.h cache
+
+[jbcc 0.5.0](https://pypi.org/project/jbcc/0.5.0/) implements 36 functions
+that the guide describes but T24 never calls, such as `SOUNDEX`, `REGEXP`,
+`IFS`, `CHANGETIMESTAMP`, `SADD` and the `BIT*` table, and the in-memory
+cache that `JBC.h` declares. The guide's examples for them run as written,
+including in the playground. It also adds the `MX` and `DG` masks.
+
 ## 2026-11-27 · T24 R19 corpus
 
 [jbcc 0.4.0](https://pypi.org/project/jbcc/0.4.0/) translates the
