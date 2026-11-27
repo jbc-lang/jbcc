@@ -80,7 +80,12 @@ path; a 20,000-element LOCATE benchmark runs as fast as before.
 
 Stage 4 is done too (`tests/tafc/nul-io.b`). Records and keys of
 in-memory files are copied into buffers with a header outside the
-collected list (`record_text`), so `jbc_size` works on them as well. One change from the
+collected list (`record_text`), so `jbc_size` works on them as well.
+
+Stage 5 is not needed: TAFC PB201214 rejects a NUL byte in a string
+literal as a syntax error, as jbcc already does, and jbcc never folds
+`CHAR(0)` into a C literal. What remains is INPUT and KEYIN, which still
+report byte 0 as an error (LANGUAGE-GAPS.md). One change from the
 plan: only a buffer that actually holds byte 0 records its length and
 goes in the pointer set, so the set stays small, and every other buffer
 is an ordinary C string.
