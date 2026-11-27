@@ -677,7 +677,12 @@ class Preprocessor:
                     yield token
                     continue
                 if token.word in stack:
-                    directive_error(token, f"recursive EQUATE '{token.word}'")
+                    # As in the local reference (and the C preprocessor), a
+                    # name inside its own expansion stays a plain name: R19
+                    # writes EQU LC.Contract.LetterOfCredit.TfLcAdviseThurRef
+                    # TO LC.Contract.LetterOfCredit.TfLcAdviseThurRef.
+                    yield token
+                    continue
                 replacement = self.equates[token.word]
                 if token.word in self.direct_definitions:
                     yield from replacement
@@ -3767,6 +3772,14 @@ class Compiler:
                 "using 0 for testing"
             )
         args, kinds = self.call_arguments()
+        if signature is None:
+            # Corpus testing only (--t24-stub-members): accept the arguments
+            # as given and report the member.
+            signature = tuple(bool(kind) for kind in kinds)
+            self.warnings.append(
+                f"{target.path}:{target.line}:{target.column}: warning: "
+                f"component member '{target.word}' is stubbed for testing"
+            )
         # R19 passes a placeholder scalar for a matrix parameter it does not
         # use, as in ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC,
         # R.REC, ...) where the caller reads only the dynamic record. The
@@ -5228,7 +5241,8 @@ class Compiler:
             self.warnings[:] = [
                 w
                 for w in self.warnings
-                if "warning: table '" in w or "using 0 for testing" in w
+                if "warning: table '" in w
+                or "for testing" in w
             ]
         for token in self.pending_matrices.values():
             self.error(f"expected a declaration of '{token.word}'", token)

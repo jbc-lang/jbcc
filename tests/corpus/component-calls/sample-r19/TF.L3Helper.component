@@ -1,0 +1,8 @@
+component TF.L3Helper
+metamodelVersion 1.6
+/* Declared like R19's: 3 parameters, no body (implemented in Java). */
+public method testPublishedMethod : string (
+    IN fullClassName string,
+    IN method string,
+    INOUT parameters string
+)

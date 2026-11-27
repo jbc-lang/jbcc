@@ -1512,6 +1512,9 @@ callee reads the status field, selects a CASE arm, and updates the output.
   or multiple statements. For example, `EQUATE SHOW.IT LIT "CRT 'ready'"`
   defines a statement, and `EQUATE MESSAGE TO 'ready'` defines a string
   value. Tokens from quoted expansions point inside the definition.
+  A name inside its own expansion stays a plain name, as in the local
+  reference and the C preprocessor: after `EQU A.B TO A.B`, `A.B` is the
+  variable (or, in R19, the component constant) `A.B`.
   $INSERT and INCLUDE search the including file's directory, followed by
   each `-I DIR` in order. Included tokens retain their source locations.
   When neither has `JBC.h`, jbcc uses its built-in copy and prints a note
@@ -2667,6 +2670,14 @@ R19 components and generated code:
     declare is accepted, with a `warnings` entry naming the table;
   - a scalar passed for a matrix parameter is a placeholder: the call gets
     an empty matrix, as R19 `EbReadParameter` callers expect.
+- `--t24-stub-members`, for testing only, accepts any arguments for the
+  members listed in `T24_MEMBER_STUBS` in `tools/check_corpus.py`, with a
+  `warnings` entry for each unit that uses one. It lists
+  `TF.L3Helper.testPublishedMethod`, a Java varargs helper declared with 3
+  parameters and called by the SEAT tests with 2 to 8, and the 40
+  `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers. `OB_PMT`
+  holds each mapper as its own routine, but the only definition of the
+  component in the dump declares none of them.
 - `--t24-stub-void-results`, for testing only, lets a method declared
   without a result be used as a value. The call is made and the value is
   `0`, with a `warnings` entry. R19 has about 25 such uses, as in
