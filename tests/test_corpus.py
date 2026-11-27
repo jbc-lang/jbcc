@@ -672,6 +672,26 @@ def test_r19_corpus_applies_source_fixes_by_path():
     assert (root / insert).read_bytes() == original
 
 
+def test_r19_corpus_can_exclude_the_test_framework():
+    root = ROOT / 'tests/corpus/r19/201809-R19'
+    unit = 'SE/SE_TestRetail/Source/Private/TestRetail.checkBalance.b'
+    production = 'AA/AA_ProductFramework/Source/Private/DAS.AA.PRODUCT.LINE.b'
+    command = [sys.executable, ROOT / 'tools/check_corpus.py', root]
+    baseline = json.loads(subprocess.check_output(command, text=True))['files']
+    assert baseline[unit]['status'] == 'rejected'
+
+    report = json.loads(
+        subprocess.check_output(
+            command + ['--t24-exclude-test-framework'], text=True
+        )
+    )['files']
+    assert report[unit] == {
+        'status': 'excluded',
+        'reason': 'T24 test framework component',
+    }
+    assert report[production]['status'] == baseline[production]['status']
+
+
 def test_r13_corpus_can_exclude_local_routines():
     root = ROOT / 'tests/corpus/r13/201307-R13'
     local = 'T24.BP/V.PL.B2LIM.NET'
@@ -983,12 +1003,16 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         '2',
     ]
     report = json.loads(subprocess.check_output(command, text=True))
-    assert report['counts'] == {'translated': 1, 'rejected': 10}
+    assert report['counts'] == {'translated': 1, 'rejected': 12}
     assert report['selection']['component_calls']
     assert report['files']['Main.b']['status'] == 'translated'
+    assert report['files']['Main.b']['warnings'] == [
+        "Main.b:57:10: warning: table 'Shop.Prices.Archive' is not declared "
+        "by its component; using the standard table operations"
+    ]
     failures = {
         'WrongArity.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getCurrent'",
-        'WrongKind.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
+        'WrongKind.b': "3:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
         'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
         'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
         'MissingSharedMember.b': "2:1: unsupported statement 'Shop.Shared.setOnlyHere'",
@@ -997,6 +1021,8 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",
         'InterfaceWithoutMethodName.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.priceCheck'",
         'WrongRank.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getGrid'",
+        'UnknownComponentTable.b': "2:10: unknown variable or unsupported function 'Shop.Missing.Archive.Read'",
+        'UndeclaredTableOperation.b': "2:1: unsupported statement 'Shop.Prices.Archive.Rebuild'",
     }
     for name, diagnostic in failures.items():
         assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'

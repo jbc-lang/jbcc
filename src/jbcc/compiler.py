@@ -597,7 +597,11 @@ class Preprocessor:
         package_directives=None,
         include_depth=None,
         expansion_steps=None,
+        builtin_includes=True,
+        builtin_used=None,
     ):
+        self.builtin_includes = builtin_includes
+        self.builtin_used = set() if builtin_used is None else builtin_used
         self.include_depth = include_depth
         self.expansion_steps = expansion_steps
         self.directories = directories
@@ -835,6 +839,10 @@ class Preprocessor:
                     child = self.include_resolver(
                         path, name, self.directories, opening
                     )
+                if child is None and self.builtin_includes:
+                    child = BUILTIN_INCLUDES.get(name)
+                    if child is not None:
+                        self.builtin_used.add(name)
                 if child is None:
                     directive_error(opening, f"include file '{name}' not found")
                 if (
@@ -1098,6 +1106,8 @@ class Compiler:
         self.next_warning = next_warning
         self.api_call = api_call
         self.component_members = component_members or {}
+        self.undeclared_tables = set()
+        self.warned_tables = set()
         self.package = ""
         self.warnings = []
         self.routine = None
@@ -3689,11 +3699,18 @@ class Compiler:
         return result
 
     def component_call_member(self, word):
-        member = (
-            self.component_members.get(word.casefold())
-            if self.component_members
-            else None
-        )
+        if not self.component_members:
+            return None
+        member = self.component_members.get(word.casefold())
+        if member is None and word.count('.') >= 3:
+            # A standard operation on a table the export does not declare,
+            # with a known component: see read_component_members.
+            component, table, operation = word.casefold().rsplit('.', 2)
+            member = self.component_members.get(
+                f"{component}.*.{operation}"
+            )
+            if member is not None:
+                self.undeclared_tables.add(word.rsplit('.', 1)[0])
         return member if member and member[1] != "constant" else None
 
     def component_constant(self, word):
@@ -3718,6 +3735,14 @@ class Compiler:
 
     def component_call(self, target, *, expression=False):
         access, kind, signature, owner = self.component_call_member(target.word)
+        table = target.word.rsplit('.', 1)[0]
+        if table in self.undeclared_tables and table not in self.warned_tables:
+            self.warned_tables.add(table)
+            self.warnings.append(
+                f"{target.path}:{target.line}:{target.column}: warning: table "
+                f"'{table}' is not declared by its component; "
+                "using the standard table operations"
+            )
         self.check_component_access(target, access, owner)
         is_function = kind == "function"
         if expression and not is_function:
@@ -3725,12 +3750,22 @@ class Compiler:
                 f"component method '{target.word}' has no return value", target
             )
         args, kinds = self.call_arguments()
-        if not compatible_call_kinds(kinds, signature):
+        # R19 passes a placeholder scalar for a matrix parameter it does not
+        # use, as in ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC,
+        # R.REC, ...) where the caller reads only the dynamic record. The
+        # scalar is passed as an empty matrix, like '', and keeps its value.
+        placeholders = tuple(
+            None
+            if actual is False and i < len(signature) and signature[i]
+            else actual
+            for i, actual in enumerate(kinds)
+        )
+        if not compatible_call_kinds(placeholders, signature):
             self.error(
                 f"arguments disagree with component declaration for '{target.word}'",
                 target,
             )
-        for i, (actual, matrix) in enumerate(zip(kinds, signature)):
+        for i, (actual, matrix) in enumerate(zip(placeholders, signature)):
             if actual is None and matrix:
                 args[i] = '((jbc_matrix){0})'
         return self.emit_direct_call(
@@ -5170,7 +5205,9 @@ class Compiler:
         if self.pending_assignment_error and not self.has_goto:
             self.error(*self.pending_assignment_error)
         if self.has_goto:
-            self.warnings.clear()
+            # GOTO makes the deferred-read warnings unreliable; keep the
+            # component warnings, which do not depend on control flow.
+            self.warnings[:] = [w for w in self.warnings if "warning: table '" in w]
         for token in self.pending_matrices.values():
             self.error(f"expected a declaration of '{token.word}'", token)
         for name, target in self.return_targets.items():
@@ -5555,6 +5592,8 @@ def compile_unit(
     component_members=None,
     browser=False,
     include_depth=None,
+    builtin_includes=True,
+    builtin_used=None,
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -5576,6 +5615,8 @@ def compile_unit(
         package_directives=package_directives,
         include_depth=include_depth,
         expansion_steps=250_000 if browser else None,
+        builtin_includes=builtin_includes,
+        builtin_used=builtin_used,
     )
     tokens = list(preprocessor.read(path))
     if preprocessor.package:
@@ -5583,6 +5624,19 @@ def compile_unit(
     unit.parse(tokens)
     unit.package_directives = tuple(preprocessor.package_directives)
     return unit
+
+
+# Headers that jbcc supplies when the include paths have none, so that the
+# guide's examples translate; see src/jbcc/include/JBC.h.
+BUILTIN_INCLUDES = {'JBC.h': Path(__file__).with_name('include') / 'JBC.h'}
+
+
+def builtin_include_note(names):
+    return "".join(
+        f"note: using jbcc's built-in {name} (constants used by the jBC guide's "
+        "examples, not the jBASE header); pass --no-builtin-includes to turn it off\n"
+        for name in sorted(names)
+    )
 
 
 def read_runtime():
@@ -5602,6 +5656,7 @@ def compile_program(
     source_filter=None,
     include_resolver=None,
     include_depth=None,
+    builtin_includes=True,
 ):
     for name, _ in memory_locks:
         if name not in memory_files:
@@ -5609,6 +5664,7 @@ def compile_program(
     units = []
     routines = {}
     programs = []
+    builtin_used = set()
     for i, path in enumerate(paths):
         unit = compile_unit(
             path,
@@ -5620,6 +5676,8 @@ def compile_program(
             source_filter=source_filter,
             include_resolver=include_resolver,
             include_depth=include_depth,
+            builtin_includes=builtin_includes,
+            builtin_used=builtin_used,
         )
         if browser and bool(i) != bool(unit.routine):
             if unit.routine:
@@ -5692,6 +5750,8 @@ def compile_program(
     for unit in units:
         for warning in unit.warnings:
             print(warning, file=sys.stderr)
+    if builtin_used:
+        print(builtin_include_note(builtin_used), end='', file=sys.stderr)
     source = "\n".join(
         [features, runtime]
         + prototypes
@@ -5805,6 +5865,12 @@ def main():
         metavar='DIR',
     )
     cli.add_argument(
+        '--no-builtin-includes',
+        dest='builtin_includes',
+        action='store_false',
+        help="report a missing JBC.h instead of using jbcc's built-in copy",
+    )
+    cli.add_argument(
         '--source-encoding',
         choices=SOURCE_ENCODINGS,
         default='utf-8',
@@ -5848,6 +5914,7 @@ def main():
             args.memory_locks,
             source_encoding=args.source_encoding,
             defer_unassigned_reads=args.defer_unassigned_reads,
+            builtin_includes=args.builtin_includes,
         )
         if args.exe or args.run:
             destination = (

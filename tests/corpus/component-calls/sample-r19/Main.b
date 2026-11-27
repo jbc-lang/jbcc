@@ -49,3 +49,10 @@ CRT Shop.Prices.adjustedPrice("ADJUSTED.PRICE", "item")
 Shop.Prices.setGrid(1, 2, "cell")
 CRT Shop.Prices.getGrid(1, 2), Shop.Prices.getRates(3)
 Shop.Prices.setDynArrayToGrid(Shop.Prices.getDynArrayFromGrid())
+* A placeholder scalar for a matrix parameter, as in R19
+* ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC, R.REC, ...)
+Placeholder = ""
+CRT Shop.Prices.Format("label", Placeholder), Placeholder
+* A table the export does not declare, as in PP.SODEODGUI.PptSodeodjoblist.Read
+Record = Shop.Prices.Archive.Read("item", Error)
+Shop.Prices.Archive.Write("item", Record)

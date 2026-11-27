@@ -116,6 +116,19 @@ RELEASE_SOURCE_FIXES = {
     "201809-R19": (None, R19_SOURCE_FIXES),
 }
 
+# R19's test framework components (SE_TestFramework, SE_TestBankingFramework,
+# SE_TestOtherApplication, SE_TestRetail, SE_TestToolsFramework) hold the
+# SEAT test harness and its tests, which are out of scope for production
+# translation.
+TEST_FRAMEWORK = re.compile(r"^SE/SE_Test[^/]*/")
+TEST_FRAMEWORK_REASON = "T24 test framework component"
+
+
+def excluded_reason(release, relative):
+    local = LOCAL_ROUTINES.get(release, {})
+    return local.get(relative, TEST_FRAMEWORK_REASON)
+
+
 # Files kept in an extract that are not part of the Temenos release.
 LOCAL_ROUTINES = {
     "201307-R13": {
@@ -394,6 +407,7 @@ def check(
     catalog_kind=None,
     stub_r07_la_parameter=False,
     exclude_local_routines=False,
+    exclude_test_framework=False,
     include_index=None,
     component_members=None,
 ):
@@ -431,7 +445,12 @@ def check(
             lookups,
             package_directives,
         )
-    if exclude_local_routines and relative in LOCAL_ROUTINES.get(root.name, {}):
+    if (
+        exclude_local_routines
+        and relative in LOCAL_ROUTINES.get(root.name, {})
+        or exclude_test_framework
+        and TEST_FRAMEWORK.match(relative)
+    ):
         return (
             relative,
             "excluded",
@@ -496,6 +515,9 @@ def check(
             include_resolver=resolver,
             package_directives=package_directives,
             component_members=component_members,
+            # Corpus results reflect the headers given with -I, never
+            # jbcc's built-in JBC.h.
+            builtin_includes=False,
             next_warning=count_next_warning if quiet_next_warnings else None,
             api_call=record_calls(calls) if collect_apis else None,
         )
@@ -701,6 +723,11 @@ def main():
         help="skip known non-Temenos routines kept in an extract and report them as excluded",
     )
     parser.add_argument(
+        "--t24-exclude-test-framework",
+        action="store_true",
+        help="skip R19 test framework components (SE/SE_Test*) and report them as excluded",
+    )
+    parser.add_argument(
         "--quiet-next-warnings",
         action="store_true",
         help="replace individual FOR/NEXT name mismatch warnings with a total on stderr",
@@ -820,6 +847,7 @@ def main():
         collect_apis=coverage is not None,
         stub_r07_la_parameter=options.stub_r07_la_parameter,
         exclude_local_routines=options.t24_exclude_local_routines,
+        exclude_test_framework=options.t24_exclude_test_framework,
     )
     counts = Counter()
     blockers = Counter()
@@ -852,7 +880,7 @@ def main():
                 coverage.add_unit(name, status, calls)
             files[name] = {"status": status}
             if status == "excluded":
-                files[name]["reason"] = LOCAL_ROUTINES[root.name][name]
+                files[name]["reason"] = excluded_reason(root.name, name)
             if fixes:
                 files[name]["source_fixes"] = fixes
             if stubs:
@@ -915,6 +943,8 @@ def main():
             scan_settings["stub_r07_la_parameter"] = True
         if options.t24_exclude_local_routines:
             scan_settings["t24_exclude_local_routines"] = True
+        if options.t24_exclude_test_framework:
+            scan_settings["t24_exclude_test_framework"] = True
         report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 

@@ -84,18 +84,25 @@ an expression, for example `EB.DataAccess.FRead`.
     465 rejections, 190 are undeclared members or other calls, 92
     language or parse issues, 92 argument kinds or index counts, 83 test
     framework units and 8 includes.
-  - [ ] Methods and accessors without a matching declaration. Some are
-    missing from the export: `PP.StaticDataGUI` declares no `PptLanguage`
-    table, `PP.InwardGenericTransactions` no `PpInDirectDebitInit` and
-    `USREGS.RegD` no `RegDViolationHist`, yet sources read all three.
+  - [x] Hook `interface` declarations: every call passes the implementing
+    method's name first (all 32 calls of the 42 declarations).
+  - [x] Tables missing from the export. `PP.StaticDataGUI` declares no
+    `PptLanguage` table, `PP.InwardGenericTransactions` declares one of
+    the ten its sources use, and `USREGS.RegD` no `RegDViolationHist`.
+    `Company` is `PP.COMPANY`, distinct from `PptCompany`, so no naming
+    rule explains them. Decision (2026-11-27): accept the standard table
+    operations on an undeclared table of a catalogued component, with
+    public access and a warning naming the table.
+  - [ ] Other methods and accessors without a matching declaration.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
-  - [ ] Argument kind and index-count mismatches (92 units). **Needs a
-    decision.**
-    - A scalar passed for a matrix parameter: 38 units call
+  - [x] Argument kind and index-count mismatches (92 units).
+    - [x] A scalar passed for a matrix parameter: 39 units call
       `ST.CompanyCreation.EbReadParameter` with a scalar such as
-      `DIM.R.INSTALL.CONDS = ""` for `DimParamRec string()`. jbcc rejects
-      this, but T24 ships it.
+      `DIM.R.INSTALL.CONDS = ""` for `DimParamRec string()`, then read
+      only the dynamic record. Decision (2026-11-27): accept it as a
+      placeholder; the call gets an empty matrix, as for `''`, and the
+      scalar keeps its value.
     - [x] Two indices on matrix-backed properties, as in
       `FX.Contract.getMatLeg(LEG, FLD.NO)`. Resolved from evidence: a
       binding such as `->MAT.LEG(2)` gives the rank. All 116 numbered
@@ -143,9 +150,11 @@ an expression, for example `EB.DataAccess.FRead`.
     unresolved inserts (6 units) and the ambiguous
     `I_DAS.POR.CLG.IN.SETTLEMENT.PENDING` (2 units).
   - [ ] Resolve the 2 remaining inserts.
-- [ ] 4. Test framework units (113). Decide whether the `SE_Test*`
-  routines and `TF.*` helpers are in scope. If they are, find their
-  component declarations.
+- [x] 4. Test framework units. Decision (2026-11-27): out of scope.
+  `--t24-exclude-test-framework` reports the 1,321 units of the
+  `SE/SE_Test*` components as excluded. Two production units that call
+  `TF.ErrorHandling.consumeException` and `TF.Core.DumpCommon` stay in
+  scope as undeclared members.
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).
@@ -170,13 +179,18 @@ an expression, for example `EB.DataAccess.FRead`.
     evidence.**
   - [ ] `ICONV`/`OCONV` with the `DG` mask, which R19 uses. It fails only
     when reached, so translation does not depend on it.
-- [ ] 5a. Guide examples. Ship a small `JBC.h` with jbcc that defines the
-  `EQUATE` constants the jBC guide's examples use (IOCTL commands, cache
-  options, `ENCRYPT` methods, user record positions), written from the
-  guide rather than copied from the jBASE header. 34 guide code blocks
-  include it. Most of them still need files or the jBASE C runtime, so few
-  will run in the playground; the gain is that they translate. Also add
-  the `MCP` conversion mask, which 30 guide blocks use and which is their
+- [ ] 5a. Guide examples.
+  - [x] A built-in `JBC.h` (`src/jbcc/include/JBC.h`) with the 26
+    `EQUATE` constants the jBC guide's examples use: IOCTL commands, cache
+    options, `ENCRYPT` methods, user record positions and logger levels.
+    The guide names them but gives no values, so the values come from
+    TAFC PB201214's `JBC.h`, as jbcc's `ROT13` method number already
+    does. Decision (2026-11-27): use it only when no `JBC.h` is on the
+    include paths, print a note on stderr, and turn it off with
+    `--no-builtin-includes`. The corpus checker never uses it. 34 guide
+    code blocks include it. Most of them still need files or the jBASE C runtime, so few
+  will run in the playground; the gain is that they translate.
+  - [ ] The `MCP` conversion mask, which 30 guide blocks use and which is their
   only failure. After the next jbcc release, rerun `just examples` in
   jbc-language.
 - [ ] 5b. Playground toolchain. Investigate loading Pyodide and YoWASP

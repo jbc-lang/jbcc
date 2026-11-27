@@ -194,8 +194,21 @@ def read_component_members(catalogue, root):
                 if current.get(name) == member
             }
         by_component[owner] = current
-    return {
+    members = {
         f"{owner}.{name}": (*member, owner)
         for owner, declared in by_component.items()
         for name, member in declared.items()
     }
+    # The export leaves out some tables that R19 sources read through a
+    # known component, such as PP.SODEODGUI.PptSodeodjoblist.Read. A call
+    # <component>.<table>.<operation> to an undeclared table falls back to
+    # these entries: the standard operation signatures, with public access.
+    for owner in by_component:
+        for method, (kind, signature) in TABLE_METHODS.items():
+            members[f"{owner}.*.{method.casefold()}"] = (
+                "public",
+                kind,
+                signature,
+                owner,
+            )
+    return members
