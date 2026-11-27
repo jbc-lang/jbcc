@@ -55,9 +55,10 @@ an expression, for example `EB.DataAccess.FRead`.
 
 ## Steps
 
-- [ ] 1. Record the baseline. Replace the README's "R19 pilot" section
+- [x] 1. Record the baseline. Replace the README's "R19 pilot" section
   with the full-corpus command, add an R19 row to the performance table
-  and add an "R19 baseline" section to PLAN.md.
+  and add an "R19 baseline" section to PLAN.md. Done on 2026-11-27:
+  39,669 of 39,675 units, 6 excluded, none rejected, 4 min 59 s.
 - [ ] 2. Component calls. Each item cites the `.component` declaration and
   the sources that use the form. Write independent fixtures under
   `tests/corpus/component-calls`.

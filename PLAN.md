@@ -14,8 +14,9 @@ an argument.
 
 Keep C99 as the target. Focus on compiler build speed, test speed, and
 project cleanup. Use `just test-parallel` for native behavior checks and
-keep R07 and R10 as translation regressions. Leave R19 exploration and
-broader T24 runtime work parked until explicitly resumed.
+keep R07, R10, R13 and R19 as translation regressions. Leave
+package-aware linkage and broader T24 runtime work parked until
+explicitly resumed.
 
 ## Standalone programs
 
@@ -3526,7 +3527,27 @@ from 47 with the ordinary search path. The other 119 first blockers are
   `PaymentFinalisationDomain.domain` declares `TransactionContext`
   and the fields used by the jBC caller. The original Ant build
   scripts refer to generated jBC and `JBCInsert` files.
-- [ ] Establish how the domain models map to generated include
-  declarations, then scan all 39,675 catalogued production units.
+- [x] Establish how the domain models map to generated include
+  declarations, then scan all 39,675 catalogued production units. See
+  the R19 baseline below.
+
+### R19 baseline
+
+On 2026-11-27 the full R19 scan translated 39,669 of the 39,675
+catalogued production units to C that passes strict C99 checking. It
+excluded 6 `OB_PMT` units whose generated inserts have no `.domain` class
+in the dump, and rejected none. It took 4 min 59 s with 8 workers. The
+same build passed all R13, R10 and R07 units.
+
+The scan uses the PB201214 headers and every T24 corpus flag. Indexed
+include lookup resolved 59,706 references and generated 17,225 domain
+inserts. Component calls are checked against the catalogued declarations.
+The checker's warnings record what the scan relied on: 74 undeclared
+tables, 97 undeclared accessors, 155 stubbed member calls, 37
+results of methods without one, 5 cross-package calls and 960
+deferred unassigned reads. Twelve units use source fixes.
+
+[R19-CORPUS.md](R19-CORPUS.md) tracks the work and the decisions behind
+each flag.
 - [ ] Select a small deterministic set of `.tut` tests and identify
   their target routines and required `.d` records.
