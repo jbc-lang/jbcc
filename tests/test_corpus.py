@@ -1003,7 +1003,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         '2',
     ]
     report = json.loads(subprocess.check_output(command, text=True))
-    assert report['counts'] == {'translated': 1, 'rejected': 12}
+    assert report['counts'] == {'translated': 1, 'rejected': 13}
     assert report['selection']['component_calls']
     assert report['files']['Main.b']['status'] == 'translated'
     assert report['files']['Main.b']['warnings'] == [
@@ -1023,6 +1023,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         'WrongRank.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getGrid'",
         'UnknownComponentTable.b': "2:10: unknown variable or unsupported function 'Shop.Missing.Archive.Read'",
         'UndeclaredTableOperation.b': "2:1: unsupported statement 'Shop.Prices.Archive.Rebuild'",
+        'StubbedMember.b': "3:10: arguments disagree with component declaration for 'TF.L3Helper.testPublishedMethod'",
     }
     for name, diagnostic in failures.items():
         assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'
@@ -1054,6 +1055,15 @@ def test_corpus_can_stub_void_results_for_testing(compiler):
         ],
     }
     assert report['files']['WrongArity.b']['status'] == 'rejected'
+
+    stubbed = json.loads(
+        subprocess.check_output(command + ['--t24-stub-members'], text=True)
+    )['files']['StubbedMember.b']
+    assert stubbed['status'] == 'translated'
+    assert stubbed['warnings'] == [
+        "StubbedMember.b:3:10: warning: component member "
+        "'TF.L3Helper.testPublishedMethod' is stubbed for testing"
+    ]
 
 
 def test_corpus_report_can_preserve_source_bytes():

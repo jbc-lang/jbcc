@@ -2,6 +2,7 @@ CREATE TABLE file_path (extract TEXT, rel TEXT, kind TEXT, component_name TEXT);
 INSERT INTO file_path VALUES
   ('sample-r19', 'Shop.Prices.component', 'component', 'Shop.Prices'),
   ('sample-r19', 'Shop.Shared.component', 'component', 'Shop.Shared'),
+  ('sample-r19', 'TF.L3Helper.component', 'component', 'TF.L3Helper'),
   ('sample-r19', 'Definition/Shop.Shared.component', 'component', 'Shop.Shared'),
   ('sample-r19', 'Main.b', 'jbc_source', NULL),
   ('sample-r19', 'WrongArity.b', 'jbc_source', NULL),
@@ -15,4 +16,5 @@ INSERT INTO file_path VALUES
   ('sample-r19', 'InterfaceWithoutMethodName.b', 'jbc_source', NULL),
   ('sample-r19', 'WrongRank.b', 'jbc_source', NULL),
   ('sample-r19', 'UnknownComponentTable.b', 'jbc_source', NULL),
-  ('sample-r19', 'UndeclaredTableOperation.b', 'jbc_source', NULL);
+  ('sample-r19', 'UndeclaredTableOperation.b', 'jbc_source', NULL),
+  ('sample-r19', 'StubbedMember.b', 'jbc_source', NULL);

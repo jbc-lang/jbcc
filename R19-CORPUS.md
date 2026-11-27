@@ -185,6 +185,12 @@ an expression, for example `EB.DataAccess.FRead`.
   Without the exclusion and with `--t24-stub-void-results`, the full scan
   translates 39,552 of all 39,675 R19 units (99.69%), with no
   regressions; 57 production units remain rejected.
+
+  Decisions (2026-11-27): `--t24-stub-members` accepts any arguments for
+  `TF.L3Helper.testPublishedMethod` and the six
+  `PP.InwardGenericTransactions.map...toPORTransaction` methods, in
+  testing. `EQU X TO X` follows the reference: the inner `X` stays a
+  plain name (3 LC units).
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).

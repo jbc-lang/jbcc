@@ -133,6 +133,28 @@ def excluded_reason(release, relative):
     return local.get(relative, TEST_FRAMEWORK_REASON)
 
 
+# Component members stubbed for testing with --t24-stub-members: each
+# accepts any arguments, as scalars or matrices, and every use is reported.
+T24_MEMBER_STUBS = {
+    # A Java varargs helper: declared with 3 parameters, called by the SEAT
+    # tests with 2 to 8 (instance, "getTermRate", currency, ...).
+    "TF.L3Helper.testPublishedMethod": "function",
+    # Called by OB_PMT mapping routines; the only PP.InwardGenericTransactions
+    # definition in the dump does not declare them.
+    **{
+        f"PP.InwardGenericTransactions.map{kind}toPORTransaction": "subroutine"
+        for kind in ("CT", "DD", "DDR", "DDRDRF", "RDDI", "RT")
+    },
+}
+
+
+def stub_component_members(members):
+    for name, kind in T24_MEMBER_STUBS.items():
+        owner = name.rsplit(".", 1)[0].casefold()
+        members[name.casefold()] = ("public", kind, None, owner)
+    return members
+
+
 # Files kept in an extract that are not part of the Temenos release.
 LOCAL_ROUTINES = {
     "201307-R13": {
@@ -729,6 +751,11 @@ def main():
         help="skip known non-Temenos routines kept in an extract and report them as excluded",
     )
     parser.add_argument(
+        "--t24-stub-members",
+        action="store_true",
+        help="for testing, accept any arguments for the component members in T24_MEMBER_STUBS, and report each use",
+    )
+    parser.add_argument(
         "--t24-stub-void-results",
         action="store_true",
         help="for testing, use 0 where a component method without a result is used as a value, and report it",
@@ -812,6 +839,8 @@ def main():
                 component_members = read_component_members(
                     options.t24_catalog, root
                 )
+                if options.t24_stub_members:
+                    stub_component_members(component_members)
         except (sqlite3.Error, OSError, ValueError) as error:
             parser.error(str(error))
     coverage = None
@@ -955,6 +984,8 @@ def main():
             scan_settings["stub_r07_la_parameter"] = True
         if options.t24_stub_void_results:
             scan_settings["t24_stub_void_results"] = True
+        if options.t24_stub_members:
+            scan_settings["t24_stub_members"] = True
         if options.t24_exclude_local_routines:
             scan_settings["t24_exclude_local_routines"] = True
         if options.t24_exclude_test_framework:
