@@ -198,6 +198,9 @@ The second concatenates 3 and prints `23`. Each output ends in a newline.
 
 ## Just recipes
 
+[LANGUAGE-GAPS.md](LANGUAGE-GAPS.md) lists what jbcc does not do yet, or does
+only provisionally.
+
 [RELEASING.md](RELEASING.md) lists the steps of a release, from the
 version bump to the playground, the guide and the organisation page.
 
@@ -1101,7 +1104,9 @@ byte, anything outside ASCII 32 to 126 as `ISPRINT` classifies it, with
 `.`, or with the character `c` in `MCPc`, but shows field, value and
 subvalue marks as `^`, `]` and `\`. The guide shows both: the text mark
 in `LONG STRIN.G TO BE SP.LIT` and the marks in `1^2]3^4\5`. The guide's
-`MCPN`, `MCNP` and group (`G`) conversions are not supported yet.
+`MCPN` and `MCNP` conversions are not supported yet. `G{n}cx` takes `x`
+groups delimited by `c` after skipping `n`, so
+`OCONV('LONG STRING TO BE SPLIT', 'G1 3')` returns `STRING TO BE`.
 [OCONV](https://jbc-lang.org/pages/oconv.html),
 [FMT](https://jbc-lang.org/pages/fmt.html).
 
@@ -1112,9 +1117,20 @@ from the value's rightmost characters and `L` from its leftmost, and
 missing characters become spaces. So `FMT(1234567890, 'R((###) ###-###)')`
 returns `(234) 567-890` and `FMT('202203241105', '####-##-##_##:##')`
 returns `2022-03-24_11:05`. The guide never combines a pattern with a
-decimal precision, so jbcc rejects `R2(...)`. Numeric masks with
-thousands separators, currency or credit signs (`R2,$#15`) are not
-supported yet.
+decimal precision, so jbcc rejects `R2(...)`.
+
+Numeric `FMT` masks follow the guide's table: after `L` or `R` and the
+precision, a scaling digit (`R22` divides by 100), `Z` (zero prints as
+spaces), `,` (thousands), a credit indicator (`C` adds `CR` after a
+negative value, `D` adds `DB` after a positive one, `E` encloses a
+negative value in `<>`, `M` puts the minus sign after it, `N` drops it),
+`$` and `&x`, then the fill `#n`, `%n` or `*n`. So
+`FMT(123456.78, 'R2,$#15')` returns `"    $123,456.78"` and
+`FMT(-123456.78, 'R2,C&*$#15')` returns `"  $123,456.78CR"`. `&x` names the
+fill for empty fields of a format string, so it adds nothing to a number;
+a value wider than the field is not cut. As the guide's table says, `FMT`
+formats `D` and `MT` masks as `OCONV` does (`FMT(16376, 'D4/')` returns
+`10/31/2012`), and `OCONV` accepts `FMT`'s `L`, `R` and width masks.
 
 Width-prefixed `T` masks such as `35T` wrap at spaces when possible.
 They split overlong words, pad each block on the right, and insert

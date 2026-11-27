@@ -1,2 +1,2 @@
-M = "R20"
+M = "R2Q"
 PRINT FMT(42,M)

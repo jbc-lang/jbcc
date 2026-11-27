@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Numeric `FMT` masks: scaling, `Z`, `,`, the credit indicators `C`, `D`,
+  `E`, `M` and `N`, `$` and `&x`, as in `FMT(X, 'R2,C&*$#15')`.
+- The `G` group conversion for `OCONV` and `FMT`.
+- `FMT` accepts `OCONV`'s `D` and `MT` masks, and `OCONV` accepts `FMT`'s
+  format masks, as the guide's tables describe.
+
 ## 0.6.0 (2026-11-27)
 
 ### Added
