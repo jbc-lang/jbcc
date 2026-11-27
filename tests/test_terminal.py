@@ -439,16 +439,6 @@ time_t test_clock(time_t *out)
             'cursor-coordinate-diagnostics_2.stderr',
             id='cursor-3',
         ),
-        pytest.param(
-            'cursor_4.b',
-            'cursor-coordinate-diagnostics_3.stderr',
-            id='cursor-4',
-        ),
-        pytest.param(
-            'cursor_5.b',
-            'cursor-coordinate-diagnostics_3.stderr',
-            id='cursor-5',
-        ),
     ],
 )
 def test_cursor_coordinate_diagnostics(compiler, fixture_name, message_fixture):
@@ -1280,7 +1270,7 @@ def test_snake(compiler, request):
                 process.kill()
     instructions, *board = opening.splitlines()[: height + 3]
     assert instructions == (
-        b'\x1b[2J\x1b[HWASD: w up, a left, s down, d right | q quit'
+        b'\x1b[H\x1b[JWASD: w up, a left, s down, d right | q quit'
     )
     assert board[0] == board[-1] == b'#' * (width + 2)
     assert all(len(row) == width + 2 for row in board)
@@ -1297,7 +1287,7 @@ def test_life(compiler):
         {(3, 2), (4, 3), (2, 4), (3, 4), (4, 4), (19, 15), (20, 15), (21, 15)},
         {(2, 3), (4, 3), (3, 4), (4, 4), (3, 5), (20, 14), (20, 15), (20, 16)},
     )
-    expected = b'\x1b[2J\x1b[H'
+    expected = b'\x1b[H\x1b[J'
     for live in generations:
         expected += b'\x1b[H' + b'\n'.join(
             bytes(

@@ -204,6 +204,8 @@ BUILTINS = {
     "IN": (0,),
     "STATUS": (0,),
     "CHAR": (1,),
+    "TRANS": (4,),
+    "XLATE": (4,),
     "SEQ": (1,),
     "LEN": (1,),
     "BYTELEN": (1,),
@@ -317,8 +319,23 @@ SYSTEM_CONSTANTS = {
     'TM': r'"\373"',
     'SYS.BELL': r'"\007"',
     'SYS_BELL': r'"\007"',
+    # As TAFC PB201214 gives them in a main program (tests/tafc/
+    # at-variables.b): end of file is CHAR(4); jbcc runs no EXECUTE level,
+    # call stack, locale or code page, and keeps DATA in its own queue.
+    'EOF': r'"\004"',
+    'LEVEL': '"0"',
+    'CODEPAGE': '""',
+    'LOCALE': '""',
+    'USER.THREAD': '""',
+    'CALLSTACK': '""',
+    'DATA': '""',
 }
 
+
+# SELECTV and SSELECTV name the variable form and SELECTN and SSELECTN the
+# numbered-list form of SELECT and SSELECT; jbcc's SELECT takes both kinds
+# of list, so they select the same way (guide, SSELECT).
+SELECT_WORDS = {'SELECT', 'SSELECT', 'SELECTV', 'SSELECTV', 'SELECTN', 'SSELECTN'}
 
 LOOP_BOUNDARIES = {'WHILE', 'UNTIL', 'REPEAT', 'NEXT'}
 OUTPUT_END = {";", "\n", "ELSE", "WHILE", "UNTIL", "REPEAT", "NEXT"}
@@ -1424,6 +1441,20 @@ class Compiler:
                 return self.postfix(
                     self.temporary(f"{slot}.value"), locate_source
                 )
+            if self.word in ('DAY', 'MONTH', 'YEAR'):
+                # The day of the month, the month and the two-digit year of
+                # @DATE, as TAFC PB201214 gives them.
+                self.uses_startup_clock = True
+                part = self.word[0]
+                self.advance()
+                value = self.temporary(
+                    f"jbc_startup_date_part('{part}', {self.location(target)})"
+                )
+                return self.postfix(value, locate_source)
+            if self.word == 'UID':
+                self.uses_session = True
+                self.advance()
+                return self.postfix(self.temporary("jbc_uid()"), locate_source)
             if self.word in ('DATE', 'TIME'):
                 self.uses_startup_clock = True
                 function = f"jbc_startup_{self.word.lower()}"
@@ -1800,6 +1831,7 @@ class Compiler:
                 self.host_only(target)
                 self.terminal = True
                 self.uses_session = True
+                self.needs_arguments = True
             if word in (
                 "JBASECOREDUMP",
                 "VALIDATE_PRODUCT_LICENSE",
@@ -1890,6 +1922,8 @@ class Compiler:
                 "CHARS",
                 "STRS",
                 "CHANGETIMESTAMP",
+                "TRANS",
+                "XLATE",
             ):
                 args.append(self.location(target))
             if word in ('ENCRYPT', 'DECRYPT'):
@@ -1897,6 +1931,8 @@ class Compiler:
                     (str(int(word == 'DECRYPT')), self.location(target))
                 )
                 word = 'CRYPT'
+            if word == 'XLATE':
+                word = 'TRANS'
             if word == 'LOWCASE':
                 word = 'DOWNCASE'
             elif word == 'DQUOTE':
@@ -2543,6 +2579,40 @@ class Compiler:
         )
         self.conditional_arms(opening, call)
 
+    def statement_word(self, word):
+        """The current word starts statement word, not an assignment to a
+        variable or matrix of that name."""
+        return (
+            self.word == word
+            and self.current.kind == 'name'
+            and (self.following is None or self.following.word not in ASSIGNMENT_PREFIXES)
+            and not (self.word in self.matrices and self.following.word == '(')
+        )
+
+    def groupstore_statement(self):
+        # GROUPSTORE from IN to USING start, replace{, delimiter} (guide).
+        opening = self.current
+        self.advance()
+        value = self.expression()
+        self.expect('IN')
+        target = self.identifier()
+        slot = self.variable_slot(target)
+        self.expect('USING')
+        start = self.expression()
+        self.expect(',')
+        replace = self.expression()
+        delimiter = '"\\376"'
+        if self.word == ',':
+            self.advance()
+            delimiter = self.expression()
+        self.emit(
+            f"assign_value(&{slot}, jbc_groupstore(jbc_read(&{slot}, "
+            f"{c_string(target.word)}, {self.location(target)}), {value}, {start}, "
+            f"{replace}, {delimiter}, {self.location(opening)}));"
+        )
+        if target.word not in self.matrices:
+            self.assigned.add(target.word)
+
     def locate_statement(self):
         opening = self.current
         self.advance()
@@ -3074,7 +3144,7 @@ class Compiler:
         setting = self.file_setting()
         status = f"readv_status_{self.temporaries}"
         self.temporaries += 1
-        update = int(opening.word == 'READVU')
+        update = {'READVU': 1, 'READVL': 2}.get(opening.word, 0)
         self.emit(
             f"int {status} = jbc_read_field({handle}, {key}, {field}, &{out}, "
             f"{setting}, {update}, {self.location(opening)});"
@@ -3088,7 +3158,7 @@ class Compiler:
         self.advance()
         target = self.matrix_name()
         matrix = self.checked_matrix(target)
-        writing = opening.word == 'MATWRITE'
+        writing = opening.word in ('MATWRITE', 'MATWRITEU')
         if writing:
             if self.word not in ('TO', 'ON'):
                 self.error("expected TO or ON after MATWRITE matrix")
@@ -3107,7 +3177,8 @@ class Compiler:
             )
             self.record_read_arms(opening, status)
             return
-        call = f"jbc_matwrite({args}, {setting}, {c_string(target.word)}, {self.location(opening)})"
+        keep_lock = int(opening.word == 'MATWRITEU')
+        call = f"jbc_matwrite({args}, {setting}, {keep_lock}, {c_string(target.word)}, {self.location(opening)})"
         if self.word == 'ON':
             self.advance()
             self.expect('ERROR')
@@ -3150,7 +3221,9 @@ class Compiler:
         self.expect('FROM')
         handle, key = self.file_key()
         setting = self.file_setting()
-        update = opening.word in ('READU', 'READXMLU')
+        # READL takes a shared lock; within one process it holds the record
+        # as READU does (TAFC PB201214, tests/tafc/shared-locks.b).
+        update = opening.word in ('READU', 'READXMLU', 'READL')
         if update and self.word == 'WAIT':
             self.error("READU WAIT requires a backend with timed locks")
         status = f"read_status_{self.temporaries}"
@@ -3166,7 +3239,11 @@ class Compiler:
                 self.assigned.add(target)
             self.record_read_arms(opening, status)
             return
-        function = 'jbc_readu' if update else 'jbc_read_record'
+        function = (
+            'jbc_readl'
+            if opening.word == 'READL'
+            else 'jbc_readu' if update else 'jbc_read_record'
+        )
         self.emit(
             f"int {status} = {function}({handle}, {key}, &{out}, {setting});"
         )
@@ -3198,8 +3275,10 @@ class Compiler:
         )
         if sequential_open or opening.word in (
             'READU',
+            'READL',
             'READXMLU',
             'READVU',
+            'READVL',
             'MATREADU',
             'RECORDLOCKU',
         ):
@@ -3324,7 +3403,7 @@ class Compiler:
         opening = self.current
         self.advance()
         source = "NULL"
-        sorted_selection = opening.word == 'SSELECT'
+        sorted_selection = opening.word.startswith('SS')
         if self.word not in OUTPUT_END and self.word not in (
             '',
             'TO',
@@ -4678,7 +4757,7 @@ class Compiler:
         elif self.word == 'MATPARSE':
             self.matparse_statement()
         elif (
-            self.word in ('MATREAD', 'MATREADU', 'MATWRITE')
+            self.word in ('MATREAD', 'MATREADU', 'MATWRITE', 'MATWRITEU')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
@@ -4839,11 +4918,11 @@ class Compiler:
         ):
             self.termination_statement(stops)
         elif (
-            self.word in ('DELETE', 'CLEARFILE')
+            self.word in ('DELETE', 'DELETEU', 'CLEARFILE')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
-            if self.word == 'DELETE':
+            if self.word in ('DELETE', 'DELETEU'):
                 self.delete_statement()
             else:
                 self.clearfile_statement()
@@ -4887,13 +4966,13 @@ class Compiler:
             )
             self.record_read_arms(opening, status, setting)
         elif self.word == 'READ' or (
-            self.word in ('READU', 'READXML', 'READXMLU')
+            self.word in ('READU', 'READL', 'READXML', 'READXMLU')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
             self.read_record_statement()
         elif (
-            self.word in ('READV', 'READVU')
+            self.word in ('READV', 'READVU', 'READVL')
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
@@ -4924,11 +5003,11 @@ class Compiler:
             setting = self.file_setting()
             self.emit(f"jbc_selecte({dest}, {setting});")
         elif (
-            self.word in ('SELECT', 'SSELECT', 'READNEXT', 'CLEARSELECT')
+            self.word in SELECT_WORDS | {'READNEXT', 'CLEARSELECT'}
             and self.word not in self.matrices
             and self.following.word not in ASSIGNMENT_PREFIXES
         ):
-            if self.word in ('SELECT', 'SSELECT'):
+            if self.word in SELECT_WORDS:
                 self.select_statement()
             elif self.word == 'CLEARSELECT':
                 self.clearselect_statement()
@@ -5108,6 +5187,105 @@ class Compiler:
                 else self.expression()
             )
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
+        elif self.statement_word('RQM'):
+            # RQM is SLEEP under another name (guide, RQM).
+            opening = self.current
+            self.host_only(opening)
+            self.advance()
+            self.uses_sleep = True
+            duration = (
+                '"1"'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
+            self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
+        elif self.statement_word('OUT'):
+            opening = self.current
+            self.advance()
+            self.emit(f"jbc_out({self.expression()}, {self.location(opening)});")
+        elif self.statement_word('INPUTNULL'):
+            self.advance()
+            self.emit(f"jbc_inputnull({self.expression()});")
+        elif self.statement_word('LOCK'):
+            # One process holds every execution lock it asks for, as TAFC
+            # PB201214 lets a program take the same lock twice.
+            opening = self.current
+            self.advance()
+            lock = self.expression()
+            self.emit(f"(void)({lock});")
+            if self.word in ('THEN', 'ELSE'):
+                self.conditional_arms(opening, "1")
+        elif self.statement_word('UNLOCK'):
+            self.advance()
+            if self.word and self.word not in OUTPUT_END:
+                self.emit(f"(void)({self.expression()});")
+        elif self.statement_word('PROCREAD'):
+            # No jCL program starts a jbcc program, so PROCREAD takes ELSE.
+            opening = self.current
+            self.advance()
+            self.identifier()
+            if self.word in ('THEN', 'ELSE'):
+                self.conditional_arms(opening, "0")
+        elif self.statement_word('PROCWRITE'):
+            self.advance()
+            self.emit(f"(void)({self.expression()});")
+        elif self.statement_word('PAUSE'):
+            opening = self.current
+            self.host_only(opening)
+            self.advance()
+            self.uses_sleep = True
+            timeout = (
+                'NULL'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
+            self.emit(f"jbc_pause({timeout}, {self.location(opening)});")
+        elif self.statement_word('WAKE'):
+            self.advance()
+            self.emit(f"jbc_wake({self.expression()});")
+        elif self.statement_word('IN'):
+            opening = self.current
+            self.host_only(opening, 'IN')
+            self.terminal = True
+            self.advance()
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            timeout = 'NULL'
+            if self.word == 'FOR':
+                self.advance()
+                timeout = self.expression()
+            call = f"jbc_in(&{slot}, {timeout}, {self.location(opening)})"
+            if target.word not in self.matrices:
+                self.assigned.add(target.word)
+            if self.word in ('THEN', 'ELSE'):
+                self.conditional_arms(opening, call)
+            else:
+                self.emit(f"{call};")
+        elif self.statement_word('CHAIN') or self.statement_word('ENTER'):
+            opening = self.current
+            self.host_only(opening)
+            self.uses_execute = True
+            self.advance()
+            if opening.word == 'ENTER' and self.word == '@':
+                # ENTER @name: the program name is in the variable name.
+                self.advance()
+                token = self.current
+                self.advance()
+                command = self.read_variable(token)
+            elif opening.word == 'ENTER' and self.current.kind == 'name' and (
+                self.word not in self.names
+            ):
+                command = c_string(self.word)
+                self.advance()
+            else:
+                command = self.expression()
+            self.emit(f"jbc_chain({command}, {self.location(opening)});")
+        elif self.statement_word('PRINTERR'):
+            opening = self.current
+            self.advance()
+            self.emit(f"jbc_printerr({self.expression()}, {self.location(opening)});")
+        elif self.statement_word('GROUPSTORE'):
+            self.groupstore_statement()
         elif (
             self.word == 'MSLEEP'
             and self.following.word not in ASSIGNMENT_PREFIXES

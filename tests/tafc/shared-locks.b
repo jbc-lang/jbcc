@@ -1,5 +1,6 @@
 * tafc-emulation: prime
 * TAFC-CROSSCHECK.md section 6: READL family, MATWRITEU, DELETEU, SSELECTV.
+* jbcc-options: --memory-file VENDORS
 EXECUTE 'CREATE-FILE VENDORS 1 1' CAPTURING JUNK
 OPEN 'VENDORS' TO F ELSE STOP 201, 'VENDORS'
 WRITE 'ABC':@FM:'x' TO F, '12345'

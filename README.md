@@ -2107,6 +2107,53 @@ enough to implement. JQL*, TRANS, XLATE, TRANSQUERY, TRANSSYNC, SPOOLER,
 SELECTINFO, the XML.* functions and the licence calls need a database,
 spooler or licence backend.
 
+## Statements and values T24 does not use
+
+These come from the guide and behave as TAFC PB201214 runs them; the
+probes in `tests/tafc/` record its output.
+
+- `OUT n` writes one byte, the integer part of n modulo 256, with no
+  newline.
+- `GROUPSTORE value IN target USING start, replace{, delimiter}` inserts
+  value before group start (replace 0) or replaces that group, adding empty
+  groups as needed; the delimiter defaults to `@FM`.
+- `INPUTNULL c` sets the character that `INPUT @` reads as an empty answer;
+  plain INPUT keeps it.
+- `LOCK n` and `UNLOCK {n}`: one process holds every execution lock it
+  asks for, so LOCK takes THEN.
+- `PROCREAD var` takes ELSE, since no jCL program starts a jbcc program, and
+  `PROCWRITE` does nothing. `RQM` is SLEEP.
+- `PAUSE {seconds}` waits, forever without a timeout, unless a `WAKE` for
+  this process came first.
+- `IN var {FOR tenths} THEN | ELSE` reads one byte from standard input,
+  not from the DATA queue, and sets var to its code.
+- `CHAIN command` and `ENTER name` (or `ENTER @variable`) run the command
+  and end the program with its exit status; the `(I` option is dropped, as
+  separately built programs share no COMMON.
+- `PRINTERR id:@FM:argument` prints ` ** Error [ id ] ** ` and the message
+  for 201 and 202, and TAFC's "Error message ... not found" line for others.
+- `READL` and `READVL` read with a shared lock, which `RECORDLOCKED` reports
+  as 1 (2 for READU). `MATWRITEU` keeps the record lock, and `DELETEU`
+  deletes as DELETE does. `SELECTV`, `SSELECTV`, `SELECTN` and `SSELECTN`
+  select as SELECT and SSELECT do.
+- `TRANS(file, key, field, code)` and `XLATE` read a field from an open
+  in-memory file, `"DICT name"` for a dictionary. Field -1 is the whole
+  record and 0 the key, and the result's marks are lowered one level. A
+  missing record gives `''` with code X, the key with C (also for an empty
+  field), and a warning with V. Keys separated by value marks give one result
+  each.
+- `@DAY`, `@MONTH` and `@YEAR` are the day, month and two-digit year of
+  `@DATE`; `@UID` is the process's user id; `@EOF` is `CHAR(4)`; `@LEVEL`
+  is 0; `@DATA`, `@CODEPAGE`, `@LOCALE`, `@USER.THREAD` and `@CALLSTACK` are
+  empty.
+- `SYSTEM(1)` is 0 (no printer), `SYSTEM(2)` and `SYSTEM(3)` the terminal's
+  width and depth (`COLUMNS` and `LINES`, else 80 and 24), `SYSTEM(7)` the
+  terminal type, `SYSTEM(12)` the milliseconds since midnight,
+  `SYSTEM(35)` to `SYSTEM(39)` the C locale's `C`, `0`, `,`, `.` and `$`,
+  `SYSTEM(40)` the program name and `SYSTEM(1017)` `UNIX`.
+
+`EXECUTE` with `PASSDATA`, `COLLECTDATA` and `RTNDATA` is not supported yet.
+
 ## Sequential files
 
 `OPENSEQ path TO F` and `OPENSEQ directory, name TO F` open regular files
@@ -3254,9 +3301,12 @@ lines at either end. A probe runs under its file name, which TAFC's
 warnings and `SYSTEM(40)` show; guide blocks run as `P0001` and so on.
 
 `tests/tafc/` holds probes with the standard output TAFC printed, as
-`NAME.tafc.stdout`. They record the reference behaviour, including
-behaviour jbcc does not match yet, so they are not part of `just test`.
-`just tafc-recorded` lists which of them jbcc matches.
+`NAME.tafc.stdout`. `tests/test_tafc_probes.py` builds each one with jbcc
+as part of `just test` and compares its output with TAFC's; the few
+differences kept on purpose are skipped with their reason. A probe can name
+jbcc options in a comment, such as `* jbcc-options: --memory-file VENDORS`
+for a file TAFC creates with `CREATE-FILE`. `just tafc-recorded` lists the
+same comparison without pytest.
 
 TAFC prints its runtime warnings, such as `Divide by zero !!`, on
 standard output, so they appear in the recorded output. Two TAFC
@@ -3364,7 +3414,14 @@ coordinates toward zero and reports a negative result at the call site.
 The guide’s SCREENCODE table defines `@(-1)` to clear the screen and home
 the cursor, `@(-2)` to home the cursor, `@(-3)` to clear from the cursor to
 the end of the screen, and `@(-4)` to clear to the end of the current line.
-Each returns an ANSI sequence that takes effect when printed.
+Each returns the sequence TAFC PB201214 writes for `TERM=vt100`
+(`tests/tafc/at-minus-codes.b`): `@(-1)` is `ESC[H ESC[J`, `@(-5)`
+`ESC[5m` (blink), `@(-13)` `ESC[7m` (reverse), `@(-15)` `ESC[4m`
+(underline), `@(-6)`, `@(-8)`, `@(-14)` and `@(-16)` end them, `@(-9)` is a
+backspace, `@(-10)` and `@(-19)` move up and right, `@(-17)` and `@(-18)`
+turn the printer on and off, and `@(-20)` is a line feed. Other negative
+codes are empty, as vt100 defines none. `@(n)` moves to column n of the
+current line.
 `SYSTEM(14)` counts unread DATA bytes, including line endings. Native
 jbcc adds the bytes reported by the POSIX input device to the DATA count
 when both sources have pending input. On a terminal, it can count

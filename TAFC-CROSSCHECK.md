@@ -437,37 +437,37 @@ of them translate.
 
 Simple:
 
-- [ ] `OUT n`: writes `CHAR(n MOD 256)` with no newline (`OUT 321` writes
+- [x] `OUT n`: writes `CHAR(n MOD 256)` with no newline (`OUT 321` writes
       `A`, `OUT -1` writes FF). A non-numeric value warns.
-- [ ] `GROUPSTORE from IN to USING start, replace{, delim}`. The guide's
+- [x] `GROUPSTORE from IN to USING start, replace{, delim}`. The guide's
       example reproduces exactly. replace 0 inserts and any nonzero value
       replaces one group with the whole of `from`. A start past the end
       pads with delimiters (`a-b-c--Z`), start 0 means 1, and the
       delimiter defaults to `@FM`.
-- [ ] `RQM` is the same as `SLEEP`.
-- [ ] `INPUTNULL c` affects only `INPUT @`; plain `INPUT` keeps `&` and
+- [x] `RQM` is the same as `SLEEP`.
+- [x] `INPUTNULL c` affects only `INPUT @`; plain `INPUT` keeps `&` and
       `_` as typed. `INPUTNULL ''` restores `_`.
-- [ ] `LOCK n` / `UNLOCK {n}` for a single process: LOCK always takes
+- [x] `LOCK n` / `UNLOCK {n}` for a single process: LOCK always takes
       THEN, and the same process can lock again.
-- [ ] `PROCREAD v`: ELSE outside jCL. `PROCWRITE`: no effect.
-- [ ] `PAUSE {n}` waits up to n seconds. `WAKE port` (also for the own
+- [x] `PROCREAD v`: ELSE outside jCL. `PROCWRITE`: no effect.
+- [x] `PAUSE {n}` waits up to n seconds. `WAKE port` (also for the own
       `@USERNO`) cancels the next PAUSE.
-- [ ] `IN var {FOR ds} THEN/ELSE` reads one raw byte from stdin (`x`
+- [x] `IN var {FOR ds} THEN/ELSE` reads one raw byte from stdin (`x`
       gives 120) and ignores the DATA stack. The timeout is in tenths of
       a second, and EOF without FOR is a fatal STDIN error.
 
 `@` variables:
 
-- [ ] `@DAY` is the day of the month, `@MONTH` the month, and `@YEAR`
+- [x] `@DAY` is the day of the month, `@MONTH` the month, and `@YEAR`
       the **two-digit** year.
-- [ ] `@UID` is the user id, `@LEVEL` is 0, `@DATA` is `''` and `@EOF` is
+- [x] `@UID` is the user id, `@LEVEL` is 0, `@DATA` is `''` and `@EOF` is
       `CHAR(4)`.
-- [ ] `@CODEPAGE`, `@LOCALE`, `@USER.THREAD` and `@CALLSTACK` are `''`
+- [x] `@CODEPAGE`, `@LOCALE`, `@USER.THREAD` and `@CALLSTACK` are `''`
       (`@CALLSTACK` in a main program).
 
 `SYSTEM(n)` (jbcc supports 0, 14, 17, 18, 19, 24 and 1036):
 
-- [ ] Terminal and locale:
+- [x] Terminal and locale:
 
       | Key | TAFC value |
       |---|---|
@@ -479,7 +479,7 @@ Simple:
       | 38 | `.` (decimal separator) |
       | 39 | `$` (currency) |
 
-- [ ] Clock and program:
+- [x] Clock and program:
 
       | Key | TAFC value |
       |---|---|
@@ -497,7 +497,7 @@ Simple:
 
 Terminal codes:
 
-- [ ] `@(-n)` from the vt100 terminfo table:
+- [x] `@(-n)` from the vt100 terminfo table:
 
       | Code | Bytes |
       |---|---|
@@ -516,7 +516,7 @@ Terminal codes:
 
 Files and processes:
 
-- [ ] `TRANS` and `XLATE(file, key, field, code)`:
+- [x] `TRANS` and `XLATE(file, key, field, code)`:
   - X returns `''`.
   - C returns the key for a missing record or an empty field.
   - V prints error 202 and returns `''` with STATUS 0.
@@ -524,23 +524,36 @@ Files and processes:
   - A single field comes back with its marks lowered (VM→SM, SM→TM).
   - A multivalued key returns one result per value.
   - An unknown file prints `201W` and then fails as NOT_FILE_VAR.
-- [ ] `READL` and `READVL` take a shared lock (`RECORDLOCKED` is 1).
+- [x] `READL` and `READVL` take a shared lock (`RECORDLOCKED` is 1).
       `MATWRITEU` keeps the lock. After `DELETEU` the record is gone and
       shows as unlocked.
-- [ ] `SSELECTV f TO var` puts the sorted keys in var. `SSELECTN`
+- [x] `SSELECTV f TO var` puts the sorted keys in var. `SSELECTN`
       crashes TAFC, so follow the guide for it.
-- [ ] `CHAIN 'prog (I'` runs prog without returning and passes COMMON.
+- [x] `CHAIN 'prog (I'` runs prog without returning and passes COMMON.
       The child's `SENTENCE()` includes `(I`. Without `(I`, COMMON starts
       at 0. A `CHAIN` to a command that is not a jBC program returned to
       the caller in TAFC; probe this again before copying it.
-- [ ] `ENTER name` and `ENTER @var` run name from PATH and never return.
+- [x] `ENTER name` and `ENTER @var` run name from PATH and never return.
 - [ ] `EXECUTE … PASSDATA x RTNDATA y` with `COLLECTDATA` and `RTNDATA`
       in a jBC child passes data both ways (the parent got
       `back]world`). This needs jbcc to run jBC children.
-- [ ] `PRINTERR code:@FM:args` prints the jbcmessages text
+- [x] `PRINTERR code:@FM:args` prints the jbcmessages text
       (` ** Error [ 201 ] ** ` then `Unable to open file X`). An unknown
       id prints `!!! Error message X not found !!!`. Start with the
       message ids jbcc already raises.
+
+Done for section 6 (2026-11-27): every item above except PASSDATA,
+COLLECTDATA and RTNDATA, which need jbcc to run separately built jBC
+programs as EXECUTE children, and SYSTEM(41), TAFC's release number, which
+jbcc does not imitate. Notes:
+
+- IN reads standard input, not the DATA queue (TAFC ignores DATA for IN).
+- RECORDLOCKED gives 1 for a READL lock, as the guide's table says.
+- TRANS lowers every mark one level, field marks included, for field -1.
+- CHAIN to a command that is not a jBC program returned in TAFC; jbcc
+  always ends the program, as the guide says.
+- `tests/test_tafc_probes.py` makes the 45 probes part of `just test`;
+  42 match TAFC and 3 are known differences.
 
 ## 7. Not to implement, or needs a backend
 
@@ -583,5 +596,10 @@ Files and processes:
     INDEX, EREPLACE, ISCNTRL, MCP, FIELD positions): 228 same, 78 differ
     (19 volatile), 114 jbcc-rejects, 41 jbcc-fails; cos, tan, ereplace
     and iscntrl moved to same, none moved away. `tests/tafc`: 20 of 39.
+  - After sections 3 to 6: 259 same, 85 differ (21 volatile), 86
+    jbcc-rejects, 31 jbcc-fails; 35 blocks moved to same (CHAIN, ENTER,
+    GROUPSTORE, OUT, LOCK, PROCREAD, PRINTERR, @-variables, COMMON,
+    division by zero and others), none moved away. `tests/tafc`: 42 of 45,
+    and the other 3 are known differences.
   - The earlier scratch run, without start-up retries, had 216 same and
     47 jbcc-fails; the difference was TAFC start-up failures.
