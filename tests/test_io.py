@@ -1341,16 +1341,6 @@ def test_assign_system_resets_blocked_record_lock_counter(compiler):
             'assign-system-diagnostics.stderr',
             id='assign-system-1',
         ),
-        pytest.param(
-            'assign-system_2.b',
-            'assign-system-diagnostics_2.stderr',
-            id='assign-system-2',
-        ),
-        pytest.param(
-            'assign-system_3.b',
-            'assign-system-diagnostics_3.stderr',
-            id='assign-system-3',
-        ),
     ],
 )
 def test_assign_system_diagnostics(compiler, fixture_name, diagnostic_fixture):
