@@ -2627,14 +2627,24 @@ catalogued `.component` declarations for fully qualified methods,
 property accessors and simple literal constants. It checks visibility
 against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
-accessors such as `getDynArrayFromRNew()`.
-It also recognizes untyped scalar properties. Where the catalog has
+accessors such as `getDynArrayFromRNew()`. A writable property also
+has `clear<Name>()`, with no arguments, as R19 sources call it on scalar
+and matrix-backed properties. Method declarations can give the result
+type before or after the parameters, add `implements <interface>`, or be
+`external` service methods, which count as public. Parameters can omit
+the direction, use domain types with a multiplicity such as
+`CustomerDomain:Parent [0..1]`, and be separated by newlines. It also recognizes untyped scalar properties. Where the catalog has
 multiple definitions for one component, a member must have the same
 parsed declaration in each.
 
 For `t24:` table declarations, the checker recognizes numbered field
-constants and the observed `Read`, `CacheRead`, `ReadNau`, `Write`,
-`WriteNau`, `WriteHis` and `Delete` call signatures. Field numbers are
+constants and the call signatures observed in R19 sources. Reads return
+the record: `Read`, `CacheRead`, `ReadNau` and `ReadHis` take the id and
+an error variable, and the locking `ReadU`, `ReadUNau` and `ReadUHis` add a retry
+argument. `Write`, `WriteNau` and `WriteHis` take the id and record, and
+`Delete`, `DeleteNau` and `DeleteHis` take the id. The component also
+has `table<Name>(id, error)`, a read with the table's visibility, as in
+`AC.AccountOpening.tableAccount(ID, ERR)`. Field numbers are
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
 

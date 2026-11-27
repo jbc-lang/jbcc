@@ -61,19 +61,45 @@ an expression, for example `EB.DataAccess.FRead`.
 - [ ] 2. Component calls. Each item cites the `.component` declaration and
   the sources that use the form. Write independent fixtures under
   `tests/corpus/component-calls`.
-  - [ ] Table calls in expression form, including `ReadU` with a retry
-    argument and `ReadHis`. Establish the generated signatures from the
-    table definitions in the catalog.
-  - [ ] Property `clear` accessors, next to the existing `get`/`set`.
-  - [ ] Legacy `table<Name>(id, err)` read accessors: find where they
-    are declared, or the rule that generates them.
-  - [ ] Methods and accessors without a matching declaration (336 units).
-    For each name, decide whether the declaration is missing from the
-    extract, sits in a component the checker doesn't read, or is
-    generated.
+  - [x] Table calls in expression form, including `ReadU` with a retry
+    argument and `ReadHis`. The dump has no definition of the generated
+    operations, so the arities come from all R19 calls: `ReadU` and
+    `ReadUNau` take 3 arguments (2,568 calls), `ReadHis` 2 (258),
+    `DeleteNau` and `DeleteHis` 1 (420).
+  - [x] Property `clear` accessors, next to the existing `get`/`set`.
+    All 5,023 calls take no arguments; all but one target a declared
+    writable property.
+  - [x] Legacy `table<Name>(id, err)` read accessors. Each of the 1,622
+    calls names a `t24:` table of the same component, with two arguments.
+
+  After these three, the full scan passes 38,445 of 39,675 units (96.9%),
+  with no regressions.
+  - [x] Method declaration forms the reader skipped: a result type before
+    the parameters, `implements`, `external` service methods, domain-typed
+    parameters with a multiplicity, parameters without a direction or
+    separated by newlines. 1,210 more members are declared and none
+    changes. The full scan passes 38,933 units (98.1%).
+  - [x] `ReadUHis` (id, error, retry): all 278 calls. The full scan
+    passes 39,210 of 39,675 units (98.8%), with no regressions. Of the
+    465 rejections, 190 are undeclared members or other calls, 92
+    language or parse issues, 92 argument kinds or index counts, 83 test
+    framework units and 8 includes.
+  - [ ] Methods and accessors without a matching declaration. Some are
+    missing from the export: `PP.StaticDataGUI` declares no `PptLanguage`
+    table, `PP.InwardGenericTransactions` no `PpInDirectDebitInit` and
+    `USREGS.RegD` no `RegDViolationHist`, yet sources read all three.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
-  - [ ] Argument count and kind mismatches (55 units).
+  - [ ] Argument kind and index-count mismatches (92 units). **Needs a
+    decision.**
+    - A scalar passed for a matrix parameter: 38 units call
+      `ST.CompanyCreation.EbReadParameter` with a scalar such as
+      `DIM.R.INSTALL.CONDS = ""` for `DimParamRec string()`. jbcc rejects
+      this, but T24 ships it.
+    - Two indices on matrix-backed properties, as in
+      `BL.Foundation.getBlRAmdNewBrList(1, BL.Foundation.BlListCtr)` and
+      `FX.Contract.getMatLeg(LEG, FLD.NO)`. The `jBC: ->X()` binding
+      doesn't give the number of dimensions, so the reader assumes one.
 - [ ] 3. Domain-generated includes. The extract left out the 1,139
   `.domain` model files: `extract_jbc.py` selects only `*.b`, `*.tut`,
   `I_*`, `*.d` and `*.component`. The original dump

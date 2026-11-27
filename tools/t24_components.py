@@ -7,13 +7,22 @@ from contextlib import closing
 
 MEMBER = r"^[ \t]*(public|module|private)[ \t]+"
 NAME = r"[A-Za-z][A-Za-z0-9_]*"
+# R19 writes the result type after the parameters or before them
+# (setException : string (...)), may add "implements <interface>", and
+# declares service methods as "external" without another access keyword.
 METHOD = re.compile(
-    MEMBER + rf"method[ \t]+({NAME})\s*\(((?:[^(){{}}]|\(\))*)\)"
-    r"\s*(?::\s*(string))?\s*\{",
+    rf"^[ \t]*(?P<access>public|module|private|external)[ \t]+method[ \t]+(?P<name>{NAME})"
+    r"(?:[ \t]+implements[ \t]+[\w.]+)?"
+    r"\s*(?::\s*(?P<before>\w+)\s*)?\((?P<parameters>(?:[^(){}]|\(\))*)\)"
+    r"\s*(?::\s*(?P<after>\w+))?\s*\{",
     re.M,
 )
+# A parameter has an optional direction, a name and a type, which may be a
+# domain class (CustomerDomain:Parent) with a multiplicity ([0..1]). A
+# matrix parameter is marked with () after the name or the type.
 PARAMETER = re.compile(
-    r"(?:INOUT|IN|OUT)\s+[A-Za-z][A-Za-z0-9._$%]*\s+string(\(\))?"
+    r"(?:(?:INOUT|IN|OUT)\s+)?[A-Za-z][A-Za-z0-9._$%]*(\(\))?"
+    r"\s+[A-Za-z][\w.]*(?::[\w.]+)?(\(\))?\s*(?:\[[^\]]*\])?"
 )
 PROPERTY = re.compile(
     MEMBER + rf"property[ \t]+(readonly|readwrite|writeonly)[ \t]+({NAME})"
@@ -34,29 +43,46 @@ TABLE_FIELDS = re.compile(r"^[ \t]*fields\s*:\s*\{([^{}]*)\}", re.M)
 TABLE_FIELD = re.compile(
     rf"^[ \t]*({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*([0-9]+)[ \t]*$", re.M
 )
+# Operations generated for each t24: table, with the arities observed in
+# every R19 call: reads take (id, error), locking reads add a retry argument,
+# writes take (id, record) and deletes take (id).
 TABLE_METHODS = {
     "Read": ("function", (False, False)),
     "CacheRead": ("function", (False, False)),
     "ReadNau": ("function", (False, False)),
+    "ReadHis": ("function", (False, False)),
+    "ReadU": ("function", (False, False, False)),
+    "ReadUNau": ("function", (False, False, False)),
+    "ReadUHis": ("function", (False, False, False)),
     "Write": ("subroutine", (False, False)),
     "WriteNau": ("subroutine", (False, False)),
     "WriteHis": ("subroutine", (False, False)),
     "Delete": ("subroutine", (False,)),
+    "DeleteNau": ("subroutine", (False,)),
+    "DeleteHis": ("subroutine", (False,)),
 }
 
 
 def declarations(source):
     source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
-    for access, name, parameters, result in METHOD.findall(source):
-        parts = parameters.split(",") if parameters.strip() else []
-        matches = [PARAMETER.fullmatch(part.strip()) for part in parts]
+    for method in METHOD.finditer(source):
+        # Parameters are separated by commas or, in some definitions, newlines.
+        parts = [
+            p.strip()
+            for p in re.split(r"[,\n]", method["parameters"])
+            if p.strip()
+        ]
+        matches = [PARAMETER.fullmatch(part) for part in parts]
         if all(matches):
+            access = method["access"]
             yield (
-                name,
+                method["name"],
                 (
-                    access,
-                    "function" if result else "subroutine",
-                    tuple(bool(match[1]) for match in matches),
+                    "public" if access == "external" else access,
+                    "function"
+                    if method["before"] or method["after"]
+                    else "subroutine",
+                    tuple(bool(match[1] or match[2]) for match in matches),
                 ),
             )
     for access, mode, name, binding in PROPERTY.findall(source):
@@ -68,6 +94,9 @@ def declarations(source):
                 yield "getDynArrayFrom" + name, (access, "function", ())
         if mode != "readonly":
             yield "set" + name, (access, "subroutine", index + (False,))
+            # R19 sources call clear<Name>() with no arguments on scalar and
+            # matrix-backed properties alike (5,023 calls).
+            yield "clear" + name, (access, "subroutine", ())
             if matrix:
                 yield "setDynArrayTo" + name, (access, "subroutine", (False,))
     for access, name, value in CONSTANT.findall(source):
@@ -86,6 +115,9 @@ def declarations(source):
             continue
         for method, (kind, signature) in TABLE_METHODS.items():
             yield f"{table}.{method}", (access, kind, signature)
+        # The component-level read table<Name>(id, error), as in
+        # AC.AccountOpening.tableAccount: 1,622 R19 calls, all with two arguments.
+        yield f"table{table}", (access, "function", (False, False))
         fields = TABLE_FIELDS.search(body)
         if fields:
             for name, number in TABLE_FIELD.findall(fields[1]):
