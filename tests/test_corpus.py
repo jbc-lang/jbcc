@@ -1197,3 +1197,29 @@ def test_corpus_checks_external_arities_and_reports_the_linkage_conflict(
         'status': 'rejected',
         'diagnostic': 'caller:2:6: recursive call has incompatible signature',
     }
+
+
+def test_testcase_units_translate_and_stop_at_utf(compiler):
+    """A T24 unit test (*.tut, TUT.md step 1) translates: TESTCASE names
+    the program, UTF calls take scalars by reference and whole matrices,
+    and the program stops at its first UTF call until the UTF runtime
+    exists."""
+    source = ROOT / 'tests/programs/testcase/sample.tut'
+    generated = subprocess.run(
+        [CLI, source, '-o', compiler.c], capture_output=True, text=True
+    )
+    assert generated.returncode == 0, generated.stderr
+    c = compiler.c.read_text()
+    assert 'jbc_utf("addParam", 1, (jbc_utf_argument[]){{&' in c
+    assert c.count('jbc_utf("addParam", 1, (jbc_utf_argument[]){{NULL, (jbc_matrix)') == 2
+    run = compiler.run_native(source)
+    assert run.returncode == 1
+    assert b'UTF.setTarget requires the unit-test runtime (TUT.md)' in run.stderr
+
+
+def test_long_string_literals_split_for_c99(compiler):
+    """A literal longer than C99's 4,095-byte limit is joined from pieces."""
+    source = compiler.work / 'long.b'
+    source.write_text("X = '" + 'ab' * 3000 + "'\nCRT LEN(X), X[5999, 2]\n")
+    run = compiler.run_native(source)
+    assert (run.returncode, run.stdout) == (0, b'6000\tab\n'), run.stderr

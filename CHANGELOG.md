@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- T24 unit tests (`*.tut`) translate: `TESTCASE name` heads a program, and
+  `UTF.method(...)` calls take scalars by reference and whole matrices.
+  `tools/check_corpus.py --t24-tests` scans them (TUT.md).
+
+### Changed
+
+- String literals longer than C99's 4,095-byte limit are emitted in
+  pieces joined at run time.
+
 ## 0.8.1 (2026-11-27)
 
 ### Changed
