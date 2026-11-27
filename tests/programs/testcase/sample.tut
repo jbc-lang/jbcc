@@ -1,0 +1,15 @@
+TESTCASE SAMPLE.ROUTINE_1
+* An independent sample in the shape of a T24 unit test (TUT.md).
+    DIM REC(3)
+    MAT REC = ''
+    UTF.setTarget("SAMPLE.ROUTINE")
+    UTF.setDescription('1' : @FM : 'a sample')
+    AMOUNT = 10
+    UTF.addParam(AMOUNT)
+    UTF.addParam(REC)
+    UTF.addParam(MAT REC)
+    STUB = UTF.addStub("OTHER.ROUTINE")
+    UTF.addStubParam(STUB, UTF.any(), UTF.same())
+    UTF.runTest()
+    UTF.assertEquals(AMOUNT, 20)
+END

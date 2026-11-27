@@ -8815,6 +8815,27 @@ const char *jbc_crypt(const char *value, const char *key, const char *method, in
     return value;
 }
 
+/* UTF.method(arguments): the T24 unit-test framework that *.tut tests drive.
+   Its runtime is step 2 of TUT.md; until then a test translates and stops
+   at its first UTF call. */
+/* A UTF argument: a scalar by reference, or a whole matrix (scalar NULL). */
+typedef struct {
+    jbc_variable *scalar;
+    jbc_matrix matrix;
+} jbc_utf_argument;
+
+const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const char *file,
+                    int line, int column)
+{
+    (void)count;
+    (void)args;
+    char message[96];
+    snprintf(message, sizeof message, "UTF.%.40s requires the unit-test runtime (TUT.md)",
+             method);
+    numeric_error(file, line, column, message);
+    return "";
+}
+
 const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
 {
     (void)descriptor;

@@ -525,6 +525,7 @@ def check(
     exclude_local_routines=False,
     exclude_test_framework=False,
     exclude_missing_domains=False,
+    t24_tests=False,
     include_index=None,
     component_members=None,
 ):
@@ -580,7 +581,7 @@ def check(
             lookups,
             package_directives,
         )
-    if catalog_kind not in (None, "jbc_source"):
+    if catalog_kind not in (None, "jbc_test" if t24_tests else "jbc_source"):
         return (
             relative,
             "other catalog file",
@@ -1018,6 +1019,16 @@ def main():
         ),
     )
     components.add_argument(
+        "--t24-tests",
+        action="store_true",
+        help=h(
+            """
+            Scan the catalogued unit tests (*.tut, TESTCASE units for the
+            UTF framework) instead of the production sources (TUT.md).
+            """
+        ),
+    )
+    components.add_argument(
         "--t24-exclude-missing-domains",
         action="store_true",
         help=h(
@@ -1132,7 +1143,7 @@ def main():
         paths = sorted(
             relative
             for relative, kind in file_kinds.items()
-            if kind == "jbc_source"
+            if kind == ("jbc_test" if options.t24_tests else "jbc_source")
             and (
                 not prefixes
                 or any(
@@ -1142,7 +1153,11 @@ def main():
             )
         )
         if not paths:
-            parser.error("no catalogued production sources match the selection")
+            parser.error(
+                "no catalogued "
+                + ("unit tests" if options.t24_tests else "production sources")
+                + " match the selection"
+            )
     else:
         paths = sorted(
             str(p.relative_to(root))
@@ -1164,6 +1179,7 @@ def main():
         exclude_local_routines=options.t24_exclude_local_routines,
         exclude_test_framework=options.t24_exclude_test_framework,
         exclude_missing_domains=options.t24_exclude_missing_domains,
+        t24_tests=options.t24_tests,
     )
     counts = Counter()
     blockers = Counter()
@@ -1272,6 +1288,8 @@ def main():
             scan_settings["t24_exclude_test_framework"] = True
         if options.t24_exclude_missing_domains:
             scan_settings["t24_exclude_missing_domains"] = True
+        if options.t24_tests:
+            scan_settings["t24_tests"] = True
         report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 

@@ -562,9 +562,11 @@ def lex_line(line, n, path, words, parentheses, *, source_line=False):
             # jpp expands equates in CALL @ targets but protects system names.
             if len(words) < 2 or words[-2].word != 'CALL':
                 kind = 'system_name'
-        if word == 'PROGRAM' and (
+        # TESTCASE name heads a T24 unit test (*.tut), a program that drives
+        # the UTF framework (TUT.md); it names the program as PROGRAM does.
+        if (word == 'PROGRAM' and (
             len(words) == statement_start or words[-1].word in ('THEN', 'ELSE')
-        ):
+        )) or (word == 'TESTCASE' and not words):
             name = PROGRAM_NAME.match(line, offset)
             if name:
                 kind = 'program_header'
@@ -996,6 +998,27 @@ class SourceLimitError(Diagnostic):
 
 class SourceEncodingError(UnicodeError):
     pass
+
+
+# ISO C99 compilers need only accept string literals of 4,095 bytes; some
+# T24 tests write longer ones (TUT.md).
+C_LITERAL_LIMIT = 4000
+
+
+def long_string(value, encoding='utf-8'):
+    """A jBC string literal as a C expression: a C string literal, or for a
+    longer one, its pieces joined at run time."""
+    data = value.encode(encoding, errors='surrogateescape')
+    if len(data) <= C_LITERAL_LIMIT:
+        return c_string(value, encoding)
+    pieces = [
+        c_string(data[i:i + C_LITERAL_LIMIT].decode('latin-1'), 'latin-1')
+        for i in range(0, len(data), C_LITERAL_LIMIT)
+    ]
+    joined = pieces[-1]
+    for piece in reversed(pieces[:-1]):
+        joined = f"jbc_concat({piece}, {joined})"
+    return joined
 
 
 def c_string(value, encoding='utf-8'):
@@ -1554,6 +1577,8 @@ class Compiler:
             return self.variable_expression(target, slot, locate_source)
         elif word in self.functions and self.following.word == '(':
             return self.postfix(self.function_call(), locate_source)
+        elif self.is_utf_call(word):
+            return self.postfix(self.utf_call(), locate_source)
         elif self.following.word == '(' and self.component_call_member(word):
             return self.postfix(
                 self.component_call(self.identifier(), expression=True),
@@ -1978,7 +2003,7 @@ class Compiler:
                 + (dot + fraction if fraction else '')
             )
         elif self.current.kind == 'string':
-            value = c_string(word[1:-1], self.encoding)
+            value = long_string(word[1:-1], self.encoding)
         else:
             self.error(
                 "expected a variable, integer, string or parenthesized expression"
@@ -4072,6 +4097,54 @@ class Compiler:
             return
         self.error(message, target)
 
+    def is_utf_call(self, word):
+        """UTF.method(...): a call into the T24 unit-test framework that
+        .tut files drive (TUT.md)."""
+        return (
+            word.startswith('UTF.')
+            and len(word) > 4
+            and self.following.word == '('
+            and not self.uses_matrix(word, '(')
+        )
+
+    def utf_call(self, *, statement=False):
+        """Each argument is passed by reference when it is a variable, as
+        UTF.addParam(X) needs: the test reads X back after UTF.runTest()."""
+        target = self.identifier()
+        args = self.utf_arguments()
+        vector = f"(jbc_utf_argument[]){{{', '.join(args)}}}" if args else "NULL"
+        call = (
+            f"jbc_utf({c_string(target.word[4:])}, {len(args)}, {vector}, "
+            f"{self.location(target)})"
+        )
+        return call if statement else self.temporary(call)
+
+    def utf_arguments(self):
+        """UTF arguments: a scalar by reference, or a whole matrix, written
+        MAT X or, as the tests often do, just X when X is dimensioned."""
+        args = []
+        self.expect('(')
+        while self.word != ')':
+            if self.word == 'MAT' or (
+                self.current.kind == 'name'
+                and self.word in self.matrices
+                and self.following.word in (',', ')')
+            ):
+                if self.word == 'MAT':
+                    self.advance()
+                matrix = self.checked_matrix(self.matrix_name())
+                args.append(f"{{NULL, {matrix.argument()}}}")
+            else:
+                argument, name = self.scalar_argument()
+                if name is not None:
+                    self.assigned.add(name)
+                args.append(f"{{{argument}, {{0}}}}")
+            if self.word != ',':
+                break
+            self.advance()
+        self.expect(')')
+        return args
+
     def component_call(self, target, *, expression=False):
         access, kind, signature, owner = self.component_call_member(target.word)
         table = target.word.rsplit('.', 1)[0]
@@ -5469,6 +5542,8 @@ class Compiler:
             and not self.uses_matrix(self.word, self.following.word)
         ):
             self.function_call()
+        elif self.is_utf_call(self.word):
+            self.emit(f"(void){self.utf_call(statement=True)};")
         elif (
             self.following.word == '('
             and self.component_call_member(self.word)

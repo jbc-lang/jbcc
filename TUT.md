@@ -79,14 +79,46 @@ failure can come from either.
 
 ### 1. Translate the tests
 
-- [ ] Parse `TESTCASE name` units ending in `END`, as a program whose body
-      is the test.
-- [ ] Translate `UTF.*` calls, both as statements and in expressions, to
-      runtime calls, with the argument forms the tests use. That includes
-      `addParam(var)` passing its variable by reference.
-- [ ] Scan all 26,307 tests with `tools/check_corpus.py`, using the R19
+- [x] Parse `TESTCASE name` units ending in `END`, as a program whose body
+      is the test. `TESTCASE` at the start of a unit names the program, as
+      `PROGRAM` does.
+- [x] Translate `UTF.*` calls, both as statements and in expressions, to
+      runtime calls, with the argument forms the tests use. Each call
+      becomes `jbc_utf(method, count, arguments)`. A variable argument
+      is passed by reference, an expression as a value, and a matrix
+      whole, written `MAT X` or just `X`. Matrix support alone let
+      697 more tests translate, mostly ones passing a DIMmed array or
+      `R.NEW`. Until step 2, the runtime stops at the first
+      UTF call.
+- [x] Scan all 26,307 tests with `tools/check_corpus.py`, using the R19
       flags plus a test kind, and record the baseline: how many translate,
-      and the first blockers.
+      and the first blockers. The option is `--t24-tests`, added to the
+      R19 production flags.
+
+#### Step 1 baseline (2026-11-27)
+
+25,875 of the 26,307 tests translate to C that passes strict C99 checking.
+23 are excluded, like the production units, for a domain class missing
+from the dump, and 409 are rejected. The scan takes 3 min 29 s with 8
+workers. On the way, jbcc learned to split string literals longer than
+C99's 4,095-byte limit, which 21 tests use.
+
+The rejections are mostly errors in the test sources that TAFC PB201214
+rejects too:
+
+| First blocker | Tests | Cause |
+|---|---|---|
+| `unexpected '@'`, `expected ')'` | 192 | a missing `:` before a system variable, as in `""@VM:""`; TAFC: syntax error |
+| `expected '('` | 49 | `<>` on a matrix such as `R.NEW<X> = ...`, or MATBUILD into a matrix |
+| `unexpected text after final END` | 24 | a second test body pasted after `END`; TAFC: syntax error |
+| `unexpected '.'` | 14 | a stray `.` at the end of a line |
+| `expected a dimensioned array ...` | 51 | `MAT X` for an X that is not DIMmed |
+| `unsupported statement 'CachePut'`, `'PUTENV'` | 22 | JBC.h cache and PUTENV called as statements without their declarations; worth supporting |
+| others | 57 | typos such as `TF.addStubParam`, and one-off forms |
+
+These tests were presumably run only under TAFJ, which may accept some of
+these forms, or never run. jbcc keeps TAFC's rules. The JBC.h and PUTENV
+statement forms are the only ones to look at later.
 
 ### 2. A UTF runtime and a test runner
 

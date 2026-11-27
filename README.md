@@ -3255,6 +3255,16 @@ in 4 min 59 s with 8 workers. It resolved 59,706 include references and
 generated 17,225 domain inserts. Repeat `--source-prefix` to scan only
 some paths. [R19-CORPUS.md](R19-CORPUS.md) records each step and decision.
 
+Add `--t24-tests` to scan R19's 26,307 unit tests (`*.tut`) instead of the
+production sources. A test is a `TESTCASE name` program that drives T24's
+UTF framework through `UTF.method(...)` calls; jbcc passes each argument
+that is a variable by reference and accepts whole matrices, written
+`MAT X` or just `X`. The UTF runtime itself is still to come, so a built
+test stops at its first UTF call. On 2026-11-27 the scan translated
+25,875 of the tests, excluded 23 and rejected 409, most of them for
+source errors that TAFC PB201214 rejects too. [TUT.md](TUT.md) has the
+details and the plan for running them.
+
 Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide
 index. An indexed lookup with multiple matches at the current step
