@@ -1,2 +1,2 @@
-M = "D4/"
+M = "Q4"
 PRINT FMT(42,M)

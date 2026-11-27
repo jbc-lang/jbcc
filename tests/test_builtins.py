@@ -1302,11 +1302,11 @@ def test_implicit_format_reports_uninitialized_mask_at_read(compiler):
 @pytest.mark.parametrize(
     'case_number, mask',
     [
-        pytest.param(1, 'D4/', id='d4'),
-        pytest.param(2, 'R20', id='r20'),
+        pytest.param(1, 'Q4', id='q4'),
+        pytest.param(2, 'R2Q', id='r2q'),
         pytest.param(3, 'R%', id='r'),
         pytest.param(4, "3'xx'R", id='3-xx-r'),
-        pytest.param(5, 'R2,', id='r2'),
+        pytest.param(5, 'R2,%', id='r2-comma-percent'),
         pytest.param(6, '0T', id='0t'),
     ],
 )

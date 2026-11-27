@@ -2205,12 +2205,143 @@ static const char *pattern_format(const char *text, const char *mask)
     return out;
 }
 
+/* Numeric FMT masks with the parts the guide's table lists after the
+   justification and precision: a scaling digit m, Z, the thousands
+   separator ",", a credit indicator (C, D, E, M or N), "$", "&x" and a
+   fill (#n spaces, %n zeros, *n asterisks). The guide's examples:
+   FMT(123456.78, 'R2,$#15') = "    $123,456.78" and
+   FMT(-123456.78, 'R2,C&*$#15') = "  $123,456.78CR". "&x" names the fill
+   for empty fields of a format string, so it never adds x to a number.
+   Returns NULL for masks the plain FMT code handles. */
+static const char *numeric_format(const char *text, const char *mask)
+{
+    const char *p = mask;
+    if (*p != 'L' && *p != 'R') return NULL;
+    char align = *p++;
+    int precision = -1, scale = -1, zero = 0, thousands = 0, dollar = 0, extended = 0;
+    char credit = 0, fill = ' ';
+    size_t width = 0;
+    if (ascii_digit((unsigned char)*p)) precision = *p++ - '0';
+    if (precision >= 0 && ascii_digit((unsigned char)*p)) { scale = *p++ - '0'; extended = 1; }
+    for (; *p && !strchr("#%*", *p); ++p) {
+        extended = 1;
+        if (*p == 'Z') zero = 1;
+        else if (*p == ',') thousands = 1;
+        else if (*p == '$') dollar = 1;
+        else if (strchr("CDEMN", *p)) { if (credit) return NULL; credit = *p; }
+        else if (*p == '&' && p[1]) ++p;
+        else return NULL;
+    }
+    if (*p) {
+        fill = *p == '%' ? '0' : *p == '*' ? '*' : ' ';
+        ++p;
+        if (!ascii_digit((unsigned char)*p)) return NULL;
+        while (ascii_digit((unsigned char)*p)) {
+            if (width > (SIZE_MAX - 9) / 10) fail("FMT width too large");
+            width = width * 10 + (size_t)(*p++ - '0');
+        }
+        if (*p || !width) return NULL;
+    }
+    if (!extended) return NULL;
+    struct decimal n;
+    if (!parse_decimal(text, &n)) return NULL;
+    if (scale > 0) {
+        /* Descale: move the decimal point m places to the left. */
+        size_t digits = n.digits + n.places, total = digits > (size_t)scale ? digits : (size_t)scale;
+        char *shifted = allocate(total + 3), *w = shifted;
+        if (n.sign < 0) *w++ = '-';
+        size_t pad = total - digits;
+        size_t whole = total - (size_t)scale;
+        for (size_t i = 0; i < total; ++i) {
+            if (i == whole) { if (!whole) *w++ = '0'; *w++ = '.'; }
+            size_t k = i - pad;
+            *w++ = i < pad ? '0' : k < n.digits ? n.whole[k] : n.fraction[k - n.digits];
+        }
+        *w = '\0';
+        text = shifted;
+        parse_decimal(text, &n);
+    }
+    int negative = n.sign < 0;
+    n.sign = 1;
+    const char *number = fmt_decimal(n, precision < 0 ? 0 : (size_t)precision);
+    if (precision < 0 && n.places) number = fmt_decimal(n, n.places);
+    int is_zero = number[strspn(number, "0.")] == '\0';
+    if (is_zero) negative = 0;
+    if (zero && is_zero) number = "";
+    /* Group the whole digits in threes. */
+    size_t len = strlen(number), whole = strcspn(number, ".");
+    size_t commas = thousands && whole > 3 ? (whole - 1) / 3 : 0;
+    char *body = allocate(len + commas + 1), *b = body;
+    for (size_t i = 0; i < len; ++i) {
+        if (i && i < whole && commas && (whole - i) % 3 == 0) *b++ = ',';
+        *b++ = number[i];
+    }
+    *b = '\0';
+    const char *before = negative && !credit ? "-" : "";
+    const char *after = "";
+    switch (credit) {
+    case 'C': after = negative ? "CR" : "  "; break;
+    case 'D': after = negative ? "  " : "DB"; break;
+    case 'M': after = negative ? "-" : " "; break;
+    case 'E': before = negative ? "<" : " "; after = negative ? ">" : " "; break;
+    default: break; /* N: no minus sign at all */
+    }
+    size_t used = strlen(before) + (dollar ? 1 : 0) + strlen(body) + strlen(after);
+    size_t total = used > width ? used : width;
+    char *out = allocate(total), *o = out;
+    size_t padding = total - used;
+    if (align == 'R') { memset(o, fill, padding); o += padding; }
+    o += sprintf(o, "%s%s%s%s", before, dollar ? "$" : "", body, after);
+    if (align == 'L') { memset(o, fill, padding); o += padding; }
+    *o = '\0';
+    return out;
+}
+
+/* G{n}cx: x groups delimited by c after skipping n, as in the guide's
+   OCONV('LONG STRING TO BE SPLIT', 'G1 3') = STRING TO BE. */
+static const char *group_extract(const char *text, const char *mask)
+{
+    const char *p = mask + 1;
+    size_t skip = 0, take = 0;
+    while (ascii_digit((unsigned char)*p)) skip = skip * 10 + (size_t)(*p++ - '0');
+    char delimiter = *p;
+    if (!delimiter || ascii_digit((unsigned char)delimiter)) return NULL;
+    ++p;
+    if (!ascii_digit((unsigned char)*p)) return NULL;
+    while (ascii_digit((unsigned char)*p)) take = take * 10 + (size_t)(*p++ - '0');
+    if (*p || !take) return NULL;
+    const char *start = text;
+    for (size_t i = 0; i < skip; ++i) {
+        start = strchr(start, delimiter);
+        if (!start) return "";
+        ++start;
+    }
+    const char *end = start;
+    for (size_t i = 0; i < take; ++i) {
+        const char *next = strchr(end, delimiter);
+        if (!next) { end += strlen(end); break; }
+        end = i + 1 < take ? next + 1 : next;
+    }
+    size_t length = (size_t)(end - start);
+    char *out = allocate(length);
+    memcpy(out, start, length);
+    out[length] = '\0';
+    return out;
+}
+
+const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column);
+
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
     const char *converted = mc_conversion(text, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(text);
     if ((converted = pattern_format(text, mask))) return converted;
+    if ((converted = numeric_format(text, mask))) return converted;
+    if (*mask == 'G' && (converted = group_extract(text, mask))) return converted;
+    /* The guide's FMT table: D and M masks are dates and times, as OCONV
+       formats them, as in FMT(16376, 'D4/') = 10/31/2012. */
+    if (*mask == 'D' || strncmp(mask, "MT", 2) == 0) return jbc_oconv(text, mask, file, line, column);
     const char *p = mask;
     int wrap = ascii_digit(*p);
     char fill = ' ';
@@ -3009,7 +3140,12 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     const char *converted = mc_conversion(value, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);
+    if (*mask == 'G' && (converted = group_extract(value, mask))) return converted;
     struct output_conversion conversion;
+    /* OCONV also takes FMT's format masks, as in the guide's
+       OCONV(X, 'R2,$#15'). */
+    if (!output_mask(mask, &conversion) && (*mask == 'L' || *mask == 'R' || ascii_digit((unsigned char)*mask)))
+        return jbc_fmt(value, mask, file, line, column);
     if (!output_mask(mask, &conversion)) {
         fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
         jbc_terminate(EXIT_FAILURE);
