@@ -37,6 +37,18 @@ RUNTIME_EVIDENCE = {
         "ASCII letters and digits checked",
         "tests/snippets/character-class-predicates.b",
     ),
+    ("expression", "ISUPPER", 1, None): (
+        "ASCII upper-case letters checked",
+        "tests/snippets/character-class-predicates.b",
+    ),
+    ("expression", "ISLOWER", 1, None): (
+        "ASCII lower-case letters checked",
+        "tests/snippets/character-class-predicates.b",
+    ),
+    ("expression", "ISSPACE", 1, None): (
+        "ASCII white space checked",
+        "tests/snippets/character-class-predicates.b",
+    ),
     ("expression", "CHDIR", 1, None): (
         "Directory change and failure checked",
         "tests/io/chdir.b",

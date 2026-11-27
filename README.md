@@ -364,11 +364,13 @@ divisor reports an error at the call.
 `ALPHA` and `ISALPHA` return 1 when every byte in a nonempty value is an
 ASCII letter. `ISDIGIT` returns 1 for nonempty values made entirely of
 ASCII digits, and `ISALNUM` for values made entirely of ASCII letters and
-digits. Signs, decimal points, spaces and array marks return 0
+digits. `ISUPPER` and `ISLOWER` test for ASCII upper- and lower-case
+letters, and `ISSPACE` for space, tab, line feed, vertical tab, form feed
+and carriage return. Signs, decimal points, spaces and array marks return 0
 from `ISDIGIT`. jbcc provisionally returns 0 for an empty string with
 these character tests. The guide describes Unicode classification
 separately under International Mode.
-[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
+[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [ISUPPER](https://jbc-lang.org/pages/isupper.html), [ISSPACE](https://jbc-lang.org/pages/isspace.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
 
 NUM tests whether an expression has numeric text and returns 1 or 0.
 It follows the guide’s prime-emulation examples. Signed decimals and leading

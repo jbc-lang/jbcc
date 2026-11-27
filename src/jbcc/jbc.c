@@ -2100,6 +2100,35 @@ const char *jbc_isalnum(const char *text)
     return "1";
 }
 
+static int ascii_space(unsigned char c)
+{
+    return c == ' ' || (c >= '\t' && c <= '\r');
+}
+
+const char *jbc_isupper(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (*text < 'A' || *text > 'Z') return "0";
+    return "1";
+}
+
+const char *jbc_islower(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (*text < 'a' || *text > 'z') return "0";
+    return "1";
+}
+
+const char *jbc_isspace(const char *text)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (!ascii_space((unsigned char)*text)) return "0";
+    return "1";
+}
+
 static int pattern_byte(unsigned char c, char kind)
 {
     switch (kind) {

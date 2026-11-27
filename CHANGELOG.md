@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `ISUPPER`, `ISLOWER` and `ISSPACE`.
+
 ## 0.3.0 (2026-11-26)
 
 ### Added
