@@ -191,8 +191,12 @@ bytes in active code, literals or include paths report a source location.
 
 Use `--defer-unassigned-reads` for legacy code that reads a scalar before
 jbcc can establish an assignment. This opt-in turns that compile-time
-diagnostic into a warning. If execution reaches the read, the runtime
-requires an assigned value. Unknown function calls remain compile errors.
+diagnostic into a warning. If execution reaches the read of an unassigned
+variable, the runtime warns, assigns and uses an empty string, and goes on,
+as TAFC PB201214 does (`Invalid or uninitialised variable -- NULL USED`).
+Unknown function calls remain compile errors. Without the option, jbcc
+still rejects a read it can prove unassigned, where TAFC compiles it with
+a warning.
 Compound assignments such as `+=` and `:=` also check the target's old
 value at runtime under this option.
 
@@ -380,8 +384,14 @@ places unless a PRECISION statement says otherwise, as in TAFC PB201214
 
 Results print without trailing fractional zeros and never as `-0`.
 Comparisons and truth tests round numeric operands the same way, so
-`'0.33333' = '0.3333'` is true at PRECISION 4. Division by zero reports
-the operator location. TAFC keeps a numeric literal at the unit's first
+`'0.33333' = '0.3333'` is true at PRECISION 4.
+
+As in TAFC, arithmetic does not stop on bad operands. An empty string, a
+lone sign or a lone point is 0. Any other operand that is not a decimal
+number, such as `'abc'`, `'1E3'` or a dynamic array under prime, warns
+`Non-numeric value -- ZERO USED` at the operator and counts as 0. Division
+by zero, including `DIV` and `/=`, warns at the operator and gives 0.
+jbcc writes these warnings to stderr; TAFC writes them to stdout. TAFC keeps a numeric literal at the unit's first
 PRECISION when a later PRECISION statement lowers it; jbcc rounds it at
 the PRECISION in force (`tests/snippets/precision.b`).
 
@@ -1460,8 +1470,10 @@ MAT operations use the saved bounds, even if Config changes later.
 Re-entering the declaration or binding the same member in another routine
 checks its dimensions and preserves its values. A different shape produces
 a source-located diagnostic. This timing and mismatch policy is provisional
-pending a reference run. The current initialization policy leaves slots unassigned until
-written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
+pending a reference run. Under prime emulation every COMMON scalar and
+matrix element starts at 0 and counts as assigned, as in TAFC PB201214
+(`tests/tafc/common-*.b`); under `--emulation jbase` they start
+unassigned. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 
 `CLEARCOMMON` sets every scalar and matrix element of the unnamed COMMON

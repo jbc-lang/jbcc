@@ -419,12 +419,12 @@ def test_indirect_matrix_call_uses_normal_matrix_diagnostics(
     assert result.returncode == 1
     assert result.stdout == b''
     assert (
-        result.stderr
-        == expected_text(
+        expected_text(
             'indirect-matrix-call-uses-normal-matrix-diagnostics_3.stderr',
             source=source,
             message=message,
         ).encode()
+        in result.stderr
     )
 
 

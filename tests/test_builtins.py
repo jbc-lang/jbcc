@@ -3,7 +3,13 @@ import re
 import subprocess
 
 import pytest
-from compiler_support import CLI, ROOT, expected_bytes, expected_text
+from compiler_support import (
+    CLI,
+    ROOT,
+    assert_unassigned_warning,
+    expected_bytes,
+    expected_text,
+)
 
 
 def test_ins_diagnostics(compiler, subtests):
@@ -93,26 +99,6 @@ def test_del_diagnostics(compiler, subtests):
     assert run.returncode != 0
     assert (
         expected_text('del-diagnostics_4.stderr', source=source).encode()
-        in run.stderr
-    )
-
-
-@pytest.mark.parametrize(
-    'case_number, text, diagnostic_fixture',
-    [
-        pytest.param(2, '"nan"', 'integer-limits_2.stderr', id='nan'),
-    ],
-)
-def test_integer_limits(compiler, case_number, text, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/integer-limits' / f'numbers_{case_number}.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert diagnostic.encode() in run.stderr
-    assert (
-        expected_text(
-            'integer-limits_3.stderr', source=source, value_2=len(text) + 6
-        ).encode()
         in run.stderr
     )
 
@@ -572,7 +558,6 @@ def test_fold_invalid_width(compiler, fixture_name):
 @pytest.mark.parametrize(
     'fixture_name, mask',
     [
-        pytest.param('fmts_1.b', '', id='fmts-1'),
         pytest.param('fmts_2.b', 'R?', id='fmts-2'),
     ],
 )
@@ -1017,14 +1002,13 @@ def test_string_mutations_check_conditionally_assigned_targets(
         [binary, 'missing'], capture_output=True, timeout=5
     )
     column = statement.index('Value') + 1
-    assert (missing.returncode, missing.stdout, missing.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        missing,
         expected_text(
             'string-mutations-check-conditionally-assigned-targets.stderr',
             source=source,
             column=column,
-        ).encode(),
+        ),
     )
 
 
@@ -1086,13 +1070,12 @@ def test_implicit_format_reports_uninitialized_mask_at_read(compiler):
         / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
     )
     run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
+    assert_unassigned_warning(
+        run,
         expected_text(
             'implicit-format-reports-uninitialized-mask-at-read.stderr',
             source=source,
-        ).encode()
-        in run.stderr
+        ),
     )
 
 
@@ -1141,7 +1124,8 @@ def test_index_diagnostics(compiler):
 def test_division_by_zero(compiler):
     source = ROOT / 'tests/programs/division-by-zero.b'
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text('division-by-zero.stderr', source=source).encode()
         in run.stderr
@@ -1178,7 +1162,8 @@ def test_div_requires_nonzero_numeric_operands(
         / fixture_name
     )
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text(
             'div-requires-nonzero-numeric-operands_3.stderr',
@@ -1192,7 +1177,8 @@ def test_div_requires_nonzero_numeric_operands(
 def test_compound_division_by_zero(compiler):
     source = ROOT / 'tests/programs/compound-division-by-zero.b'
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text(
             'compound-division-by-zero.stderr', source=source
@@ -1285,14 +1271,13 @@ def test_remove_checks_conditionally_assigned_source(
         b'',
     )
     miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-    assert (miss.returncode, miss.stdout, miss.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        miss,
         expected_text(
             'remove-checks-conditionally-assigned-source.stderr',
             source=source,
             column=column,
-        ).encode(),
+        ),
     )
 
 
@@ -1372,6 +1357,8 @@ TAFC_OBSERVED = [
     ('infix-reuse-division-reports-invalid-operands/reuse_2.b', True),
     ('infix-reuse-division-reports-invalid-operands/reuse_3.b', True),
     ('integer-limits/numbers_1.b', False),
+    ('integer-limits/numbers_2.b', True),
+    ('fmts-invalid-mask/fmts_1.b', False),
     ('sum-overflow.b', False),
     ('eqs-reuse-array.b', False),
     ('infix-reuse-requires-scalar.b', False),

@@ -51,6 +51,20 @@ VOLATILE_RE = re.compile(
 )
 
 
+# TAFC prints its runtime warnings on stdout, each followed by a location
+# line; jbcc prints its warnings on stderr. The comparison drops TAFC's.
+TAFC_WARNING_RE = re.compile(
+    r'^(Non-numeric value -- ZERO USED ,|Invalid or uninitialised variable'
+    r' -- NULL USED ,|Divide by zero !!)\n'
+    r'(Var(iable)? .*\n|Line +\d+ , Source .*\n)?',
+    re.M,
+)
+
+
+def without_tafc_warnings(text):
+    return TAFC_WARNING_RE.sub('', text + '\n').rstrip('\n')
+
+
 def read(path):
     return path.read_bytes() if path.exists() else None
 
@@ -247,6 +261,7 @@ def execute(groups, work, args):
         run_jbcc(base / 'probes', base / 'jbcc', args.jobs, emulation)
         for name, label, data in entries:
             tafc = side(base / 'tafc', name)
+            tafc['stdout'] = without_tafc_warnings(tafc['stdout'])
             jbcc = side(base / 'jbcc', name)
             source = data.decode('utf-8', 'replace')
             results.append(
@@ -444,7 +459,9 @@ def command_recorded(args):
         run_jbcc(probes, work / 'jbcc', args.jobs)
         failed = 0
         for name, path in sorted(names.items()):
-            expected = normalize(read(path.with_suffix('.tafc.stdout')))
+            expected = without_tafc_warnings(
+                normalize(read(path.with_suffix('.tafc.stdout')))
+            )
             jbcc = side(work / 'jbcc', name)
             if jbcc['compile_status'] == 0 and jbcc['stdout'] == expected:
                 print('same    %s' % path)

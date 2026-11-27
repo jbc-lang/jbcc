@@ -39,6 +39,11 @@
   divisors. REUSE of a dynamic array has no effect instead of an error.
 - BITAND, BITOR, BITXOR and BITNOT return unsigned 32-bit values and count
   empty or nonnumeric operands as 0.
+- Errors that TAFC reports and continues past now warn on stderr and
+  continue: division by zero (0), a nonnumeric arithmetic operand (0) and
+  a runtime read of an unassigned variable (an empty string, which it then
+  holds). An empty conversion mask returns the value unchanged.
+- Under prime, COMMON variables and COMMON matrix elements start at 0.
 - INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
   unchanged for an empty search string; FIELD and GROUP read occurrences
   and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows

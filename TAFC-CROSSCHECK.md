@@ -266,22 +266,41 @@ Done for section 2 (2026-11-27), with the tests re-baselined against TAFC:
 
 ## 3. Errors that continue
 
-- [ ] Division by zero (`/`, `DIV`, and each element of `DIVS`) prints
+- [x] Division by zero (`/`, `DIV`, and each element of `DIVS`) prints
       the warning, gives 0 and continues. TAFC prints the result of `/`
       as `0.0nan` when the divisor is an integer variable, and as
       `0.0inf` when it is the string `'0'`. A decimal divisor, an empty
       one, or one already used in a concatenation gives `0`. This
       formatting quirk is not worth copying: give 0. In `DIVS`, a missing element of
       the second array counts as 0. `MOD(7,0)` and `REM(7,0)` return 7.
-- [ ] Reading an unassigned variable warns, uses `''` and continues.
+- [x] Reading an unassigned variable warns, uses `''` and continues.
       After that read `ASSIGNED()` returns 1. jbcc rejects an undeclared
       variable at compile time; decide whether to keep that rejection.
-- [ ] A non-numeric operand in arithmetic warns, uses 0 and continues.
-- [ ] COMMON variables (named and blank) start at `0` and count as
+- [x] A non-numeric operand in arithmetic warns, uses 0 and continues.
+- [x] COMMON variables (named and blank) start at `0` and count as
       assigned. This replaces the provisional "unassigned" rule in
       LANGUAGE-GAPS.
-- [ ] Decide the warning text and stream. TAFC writes the warnings to
+- [x] Decide the warning text and stream. TAFC writes the warnings to
       stdout; jbcc could use stderr, but tests should match the text.
+
+Done for section 3 (2026-11-27):
+
+- Warnings go to stderr as `file:line:column: warning: ...`, with TAFC's
+  wording (`Non-numeric value -- ZERO USED`, `unassigned variable 'X' --
+  NULL USED`, `division by zero`). The harness drops TAFC's stdout
+  warning lines before comparing.
+- jbcc keeps rejecting a read it can prove unassigned at compile time; it
+  catches typos, and T24 scans already pass `--defer-unassigned-reads`.
+  A read that reaches run time follows TAFC: warn, assign `''`, continue,
+  so `ASSIGNED` is then 1.
+- Numeric text: `''`, `'-'`, `'+'`, `'.'` are 0 without a warning;
+  `'+5'`, `'5.'`, `'.5'` are numbers; `'1E3'` and `'1]2'` warn
+  (`tests/tafc/nonnumeric-operands.b`).
+- COMMON scalars and matrix elements start at 0 under prime
+  (`tests/tafc/common-matrix-initial.b`).
+- Found on the way: an empty FMT, OCONV or ICONV mask returns the value
+  unchanged (ICONV also sets STATUS 1 in TAFC; jbcc's conversion STATUS is
+  section 5).
 
 ## 4. Fixes in implemented functions
 

@@ -636,21 +636,34 @@ static const char *format_decimal(long double result)
 }
 #endif
 
+/* An arithmetic operand as TAFC PB201214 reads it (tests/tafc/
+   nonnumeric-operands.b): prime skips spaces and tabs around a number; an
+   empty string, a lone sign or a lone point is 0; anything else that is
+   not a decimal number warns and is 0, and execution continues. */
+static const char *numeric_operand(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (jbc_emulation_prime) text = trim_blanks(text);
+    if (parse_decimal(text, &n)) return text;
+    if (!*text || ((text[0] == '+' || text[0] == '-' || text[0] == '.') &&
+                   (!text[1] || (text[1] == '.' && text[0] != '.' && !text[2]))))
+        return "0";
+    fprintf(stderr, "%s:%d:%d: warning: Non-numeric value -- ZERO USED\n", file, line, column);
+    return "0";
+}
+
 static const char *arithmetic(char op, const char *left, const char *right,
                               int warn_on_zero_divisor, const char *file, int line, int column)
 {
     struct decimal lhs, rhs;
-    /* Prime skips spaces and tabs around a number. */
-    if (jbc_emulation_prime) {
-        left = trim_blanks(left);
-        right = trim_blanks(right);
-    }
-    if (!parse_decimal(left, &lhs) || !parse_decimal(right, &rhs))
-        numeric_error(file, line, column, "arithmetic requires numeric operands");
+    left = numeric_operand(left, file, line, column);
+    right = numeric_operand(right, file, line, column);
+    parse_decimal(left, &lhs);
+    parse_decimal(right, &rhs);
+    /* A zero divisor warns and gives 0; execution continues, as in TAFC. */
     if (op == '/' && rhs.sign == 0) {
-        if (!warn_on_zero_divisor)
-            numeric_error(file, line, column, "division by zero");
-        fprintf(stderr, "%s:%d:%d: warning: DIVS: division by zero\n", file, line, column);
+        fprintf(stderr, "%s:%d:%d: warning: %sdivision by zero\n", file, line, column,
+                warn_on_zero_divisor ? "DIVS: " : "");
         return "0";
     }
 
@@ -875,6 +888,11 @@ static struct jbc_slots *storage(size_t count, const char *name)
     s->name = name;
     s->next = storages;
     storages = s;
+    /* Named storage is COMMON. Prime starts COMMON scalars and matrix
+       elements at 0 (named_common and unnamed_common = zero in TAFC's
+       Config_EMULATE; tests/tafc/common-*.b); jbase leaves them unassigned. */
+    if (name && jbc_emulation_prime)
+        for (size_t i = 0; i < count; ++i) s->values[i].value = "0";
     return s;
 }
 
@@ -1197,13 +1215,16 @@ const char *jbc_extract(const char *text, const char **indices, int count,
     return array_part(text, strlen(text), index, depth, 0, NULL, 0);
 }
 
-const char *jbc_read(const char *value, const char *name, const char *file, int line, int column)
+const char *jbc_read(jbc_variable *slot, const char *name, const char *file, int line, int column)
 {
-    if (!value) {
-        fprintf(stderr, "%s:%d:%d: unassigned variable '%s'\n", file, line, column, name);
-        jbc_terminate(EXIT_FAILURE);
+    /* An unassigned read warns, assigns '' and continues, as in TAFC
+       PB201214, where ASSIGNED is then 1 (tests/tafc/unassigned-continues.b). */
+    if (!slot->value) {
+        fprintf(stderr, "%s:%d:%d: warning: unassigned variable '%s' -- NULL USED\n", file,
+                line, column, name);
+        assign_value(slot, "");
     }
-    return value;
+    return slot->value;
 }
 
 static const char *delete_component(const char *text, const char **indices, int count,
@@ -1255,7 +1276,7 @@ const char *jbc_delete(const char *text, const char **indices, int count,
 void jbc_del(jbc_variable *slot, const char **indices, int count, const char *name,
              const char *file, int line, int column)
 {
-    const char *text = jbc_read(slot->value, name, file, line, column);
+    const char *text = jbc_read(slot, name, file, line, column);
     const char *result = delete_component(text, indices, count, 0, file, line, column);
     if (result != text) assign_value(slot, result);
 }
@@ -1651,7 +1672,7 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
 const char *jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
                 const char *name, const char *file, int line, int column)
 {
-    const char *text = jbc_read(source->value, name, file, line, column);
+    const char *text = jbc_read(source, name, file, line, column);
     const char *code = "0", *result = "";
     if (source->remove_offset != SIZE_MAX) {
         const char *start = text + source->remove_offset;
@@ -2624,6 +2645,8 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
 
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return text;
     const char *converted = mc_conversion(text, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(text);
@@ -3311,6 +3334,8 @@ static const char *convert_input(const char *value, enum input_conversion conver
 
 const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return value;
     enum input_conversion conversion = input_mask(mask);
     if (conversion == ICONV_UNSUPPORTED) {
         fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
@@ -3456,6 +3481,8 @@ static const char *convert_output(const char *value, const struct output_convers
 
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return value;
     const char *converted = mc_conversion(value, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);

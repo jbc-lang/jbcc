@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -33,3 +34,34 @@ class NativeCompiler:
         return subprocess.run(
             [binary], capture_output=True, timeout=5, env=env, cwd=cwd
         )
+
+
+def unassigned_warning(expected):
+    """The warning a runtime unassigned read gives, from the text of the
+    fatal error it replaced: jbcc warns, uses '' and continues, as TAFC
+    PB201214 does (TAFC-CROSSCHECK.md section 3)."""
+    return re.sub(
+        r": unassigned variable ('[^']*')$",
+        r": warning: unassigned variable \1 -- NULL USED",
+        expected,
+        flags=re.MULTILINE,
+    )
+
+
+def assert_unassigned_warning(run, expected):
+    """The program warned about an unassigned read and went on."""
+    stderr = run.stderr if isinstance(run.stderr, str) else run.stderr.decode()
+    assert run.returncode == 0, stderr
+    assert unassigned_warning(expected) in stderr
+
+
+def assert_run_matches(run, expected):
+    """Compare (returncode, stdout, stderr) with expected, except that an
+    expected fatal unassigned read is now a warning after which the program
+    goes on (see unassigned_warning)."""
+    code, _, stderr = expected
+    text = stderr if isinstance(stderr, str) else stderr.decode()
+    if code == 1 and re.search(r": unassigned variable '[^']*'$", text, re.M):
+        assert_unassigned_warning(run, text)
+    else:
+        assert (run.returncode, run.stdout, run.stderr) == expected

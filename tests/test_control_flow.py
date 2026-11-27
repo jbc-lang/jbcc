@@ -2,7 +2,14 @@ import os
 import subprocess
 
 import pytest
-from compiler_support import CLI, ROOT, expected_bytes, expected_text
+from compiler_support import (
+    CLI,
+    ROOT,
+    assert_run_matches,
+    assert_unassigned_warning,
+    expected_bytes,
+    expected_text,
+)
 
 
 def test_matbuild_diagnostics(compiler, subtests):
@@ -183,12 +190,11 @@ def test_loop_exit_control_flow_diagnostics(compiler, case_number, keyword):
         / f'exit_{case_number}.b'
     )
     run = compiler.run_native(source)
-    assert (run.returncode, run.stdout, run.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        run,
         expected_text(
             'loop-exit-control-flow-diagnostics.stderr', source=source
-        ).encode(),
+        ),
     )
     source = (
         ROOT
@@ -258,7 +264,7 @@ def test_scalar_reads_after_loop_check_earlier_iterations(compiler, subtests):
             run = subprocess.run(
                 [binary, limit], capture_output=True, timeout=5
             )
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 def test_continue_outside_loop(compiler):
@@ -487,13 +493,12 @@ def test_compound_assignment_checks_conditionally_assigned_target(
     hit = subprocess.run([binary, 'hit'], capture_output=True, timeout=5)
     assert (hit.returncode, hit.stdout, hit.stderr) == (0, expected, b'')
     miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-    assert (miss.returncode, miss.stdout, miss.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        miss,
         expected_text(
             'compound-assignment-checks-conditionally-assigned-target.stderr',
             source=source,
-        ).encode(),
+        ),
     )
 
 
@@ -559,15 +564,14 @@ def test_jump_discards_step_when_reentering_a_completed_for(compiler):
 def test_next_after_jump_requires_assigned_counter(compiler):
     source = ROOT / 'tests/programs/next-after-jump-requires-assigned-counter.b'
     result = compiler.run_native(source)
-    assert result.returncode == 1
-    assert result.stdout == expected_bytes(
-        'next-after-jump-requires-assigned-counter.stdout'
+    assert result.stdout.startswith(
+        expected_bytes('next-after-jump-requires-assigned-counter.stdout')
     )
-    assert (
-        result.stderr
-        == expected_text(
+    assert_unassigned_warning(
+        result,
+        expected_text(
             'next-after-jump-requires-assigned-counter.stderr', source=source
-        ).encode()
+        ),
     )
 
 
@@ -630,8 +634,11 @@ def test_deferred_convert_target_fails_only_when_reached(compiler):
     reached = subprocess.run(
         ['program', '1'], executable=binary, capture_output=True
     )
-    assert reached.returncode != 0
-    assert b"unassigned variable 'Display'" in reached.stderr
+    # TAFC warns, uses '' and continues (TAFC-CROSSCHECK.md section 3).
+    assert reached.returncode == 0
+    assert (
+        b"warning: unassigned variable 'Display' -- NULL USED" in reached.stderr
+    )
 
 
 def test_deferred_scalar_read_warns_and_fails_only_when_reached(
@@ -689,7 +696,7 @@ def test_deferred_scalar_read_warns_and_fails_only_when_reached(
                 timeout=5,
                 env=dict(os.environ, JBCC_TEST_DEFERRED_READ=flag),
             )
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 def test_deferred_compound_assignment_checks_previous_value_when_reached(
@@ -758,7 +765,7 @@ def test_deferred_compound_assignment_checks_previous_value_when_reached(
     ):
         with subtests.test(mode=mode):
             run = subprocess.run([binary, mode], capture_output=True, timeout=5)
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 def test_deferred_reads_still_reject_unknown_functions(compiler):
@@ -1267,7 +1274,7 @@ def test_expression_reads_after_conditional_assignment_are_checked_at_runtime(
             run = subprocess.run(
                 [binary, argument], capture_output=True, timeout=5
             )
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 def test_scalar_reads_after_case_are_checked_at_runtime(compiler, subtests):
@@ -1317,7 +1324,7 @@ def test_scalar_reads_after_case_are_checked_at_runtime(compiler, subtests):
             run = subprocess.run(
                 [binary, argument], capture_output=True, timeout=5
             )
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 @pytest.mark.parametrize(
@@ -1422,7 +1429,7 @@ def test_scalar_reads_after_for_are_checked_at_runtime(compiler, subtests):
             run = subprocess.run(
                 [binary, bound], capture_output=True, timeout=5
             )
-            assert (run.returncode, run.stdout, run.stderr) == expected
+            assert_run_matches(run, expected)
 
 
 @pytest.mark.parametrize(
@@ -1462,14 +1469,13 @@ def test_for_reads_check_values_from_earlier_iterations(
     )
     miss = subprocess.run([binary, '2'], capture_output=True, timeout=5)
     column = branch.index('Value :=') + 1
-    assert (miss.returncode, miss.stdout, miss.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        miss,
         expected_text(
             'for-reads-check-values-from-earlier-iterations.stderr',
             source=source,
             column=column,
-        ).encode(),
+        ),
     )
 
 

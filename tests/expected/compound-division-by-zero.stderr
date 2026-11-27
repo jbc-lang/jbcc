@@ -1,1 +1,1 @@
-{source}:2:3: division by zero
+{source}:2:3: warning: division by zero
