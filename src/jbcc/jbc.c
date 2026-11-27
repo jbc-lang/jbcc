@@ -30,6 +30,9 @@ static const char *jbc_command_line = "";
 static int command_argc, next_argument = 1;
 static char **command_argv;
 static const char *jbc_input_prompt = "?";
+/* 1 under prime emulation (the default, as in T24), 0 under jbase. The
+   generated main clears it for --emulation jbase. */
+static int jbc_emulation_prime = 1;
 
 struct input_chunk {
     struct input_chunk *next;
@@ -192,17 +195,56 @@ const char *jbc_num(const char *value)
 /* -1 preserves jbcc's default formatting until a PRECISION statement runs. */
 static int jbc_precision = -1;
 
+/* Round a decimal half away from zero to precision places, as TAFC reads a
+   number at the current precision (TAFC-CROSSCHECK.md, "TAFC's number
+   model"). A carry rewrites the digits into a new buffer. */
 static void limit_places(struct decimal *n, int precision)
 {
     if (precision < 0 || n->places <= (size_t)precision) return;
+    int carry = n->fraction[precision] >= '5';
     n->places = (size_t)precision;
+    if (carry) {
+        size_t length = n->digits + n->places;
+        char *digits = allocate(length + 2);
+        digits[0] = '0';
+        memcpy(digits + 1, n->whole, n->digits);
+        memcpy(digits + 1 + n->digits, n->fraction, n->places);
+        size_t i = length + 1;
+        while (i-- > 0) {
+            if (digits[i] == '9') digits[i] = '0';
+            else { ++digits[i]; break; }
+        }
+        digits[length + 1] = '\0';
+        size_t whole = n->digits + 1;
+        n->whole = digits;
+        n->digits = whole;
+        n->fraction = digits + whole;
+        while (n->digits && *n->whole == '0') {
+            ++n->whole;
+            --n->digits;
+        }
+    }
     while (n->places && n->fraction[n->places - 1] == '0') --n->places;
     if (!n->places && !n->digits) n->sign = 0;
+}
+
+/* Leading and trailing spaces and tabs around a number are skipped. */
+static const char *trim_blanks(const char *text)
+{
+    size_t start = strspn(text, " \t"), end = strlen(text);
+    while (end > start && (text[end - 1] == ' ' || text[end - 1] == '\t')) --end;
+    if (start == 0 && text[end] == '\0') return text;
+    char *out = allocate(end - start);
+    memcpy(out, text + start, end - start);
+    out[end - start] = '\0';
+    return out;
 }
 
 int jbc_truth(const char *value)
 {
     struct decimal n;
+    /* Prime ignores spaces and tabs around a number: ' ' is false. */
+    if (jbc_emulation_prime) value = trim_blanks(value);
     if (!parse_decimal(value, &n)) return *value != '\0';
     limit_places(&n, jbc_precision);
     return n.sign != 0;
@@ -358,44 +400,251 @@ static int multiply_overflows(int64_t a, int64_t b)
     return 0;
 }
 
-enum precision_mode { TRUNCATE_RESULT, ROUND_RESULT };
+/* Exact decimals for arithmetic, as TAFC PB201214 computes
+   (TAFC-CROSSCHECK.md, "TAFC's number model"): an operand is rounded half
+   away from zero to the precision P, + and - are exact, and * and / are
+   exact and then truncated toward zero to P. Integers have no size limit.
+   A value is its decimal digits without leading zeros (none for zero), the
+   number of those digits after the point, and a sign. */
+struct exact {
+    char *digits;
+    size_t length, scale;
+    int negative;
+};
 
-static const char *format_decimal(long double result, enum precision_mode mode)
+static void exact_normalize(struct exact *n)
 {
-    int places = 15;
-    if (jbc_precision >= 0) {
-        /* Find a round-trippable decimal before dropping fractional digits.
-           Formatting directly at the requested width would round 2/3 up. */
-        char scientific[DECIMAL_DIG + 32];
-        for (int digits = LDBL_DIG; digits <= DECIMAL_DIG; ++digits) {
-            snprintf(scientific, sizeof scientific, "%.*Le", digits - 1, result);
-            if (strtold(scientific, NULL) == result || digits == DECIMAL_DIG) {
-                int exponent = atoi(strchr(scientific, 'e') + 1);
-                places = digits - 1 - exponent;
-                if (places < 0) places = 0;
-                if (mode == ROUND_RESULT && places > jbc_precision) places = jbc_precision;
-                break;
-            }
+    size_t lead = 0;
+    while (lead < n->length && n->digits[lead] == '0') ++lead;
+    n->digits += lead;
+    n->length -= lead;
+    while (n->scale && n->length && n->digits[n->length - 1] == '0') {
+        --n->length;
+        --n->scale;
+    }
+    if (!n->length) {
+        n->scale = 0;
+        n->negative = 0;
+    }
+}
+
+/* Parse text and round it half away from zero to places. */
+static int exact_parse(const char *text, size_t places, struct exact *n)
+{
+    struct decimal d;
+    if (!parse_decimal(trim_blanks(text), &d)) return 0;
+    size_t kept = d.places < places ? d.places : places;
+    n->digits = allocate(d.digits + kept + 1);
+    n->digits[0] = '0'; /* room for a carry */
+    memcpy(n->digits + 1, d.whole, d.digits);
+    memcpy(n->digits + 1 + d.digits, d.fraction, kept);
+    n->length = d.digits + kept + 1;
+    n->scale = kept;
+    n->negative = d.sign < 0;
+    if (d.places > places && d.fraction[places] >= '5') {
+        size_t i = n->length;
+        while (i-- > 0) {
+            if (n->digits[i] == '9') n->digits[i] = '0';
+            else { ++n->digits[i]; break; }
         }
     }
-    int length = snprintf(NULL, 0, "%.*Lf", places, result);
-    if (length < 0) fail("decimal formatting failed");
-    char *out = allocate((size_t)length);
-    snprintf(out, (size_t)length + 1, "%.*Lf", places, result);
-    if (places == 0) return strcmp(out, "-0") == 0 ? "0" : out;
-    if (jbc_precision >= 0 && places > jbc_precision) {
-        length -= places - jbc_precision;
-        out[length] = '\0';
-    }
-    while (out[length - 1] == '0') out[--length] = '\0';
-    if (out[length - 1] == '.') out[--length] = '\0';
-    return strcmp(out, "-0") == 0 ? "0" : out;
+    exact_normalize(n);
+    return 1;
 }
+
+static void exact_operand(const char *text, int places, struct exact *n)
+{
+    if (!exact_parse(text, (size_t)places, n)) fail("arithmetic requires numeric operands");
+}
+
+/* Digits of n with zeros appended to reach scale. */
+static char *exact_scaled(struct exact n, size_t scale, size_t *length)
+{
+    size_t extra = scale - n.scale;
+    *length = n.length + extra;
+    char *out = allocate(*length);
+    memcpy(out, n.digits, n.length);
+    memset(out + n.length, '0', extra);
+    out[*length] = '\0';
+    return out;
+}
+
+static int digits_compare(const char *a, size_t na, const char *b, size_t nb)
+{
+    while (na && *a == '0') { ++a; --na; }
+    while (nb && *b == '0') { ++b; --nb; }
+    if (na != nb) return na > nb ? 1 : -1;
+    int cmp = memcmp(a, b, na);
+    return (cmp > 0) - (cmp < 0);
+}
+
+static char *digits_add(const char *a, size_t na, const char *b, size_t nb, size_t *n)
+{
+    size_t size = (na > nb ? na : nb) + 1;
+    char *out = allocate(size);
+    int carry = 0;
+    for (size_t i = 0; i < size; ++i) {
+        int sum = carry + (i < na ? a[na - 1 - i] - '0' : 0) + (i < nb ? b[nb - 1 - i] - '0' : 0);
+        out[size - 1 - i] = (char)('0' + sum % 10);
+        carry = sum / 10;
+    }
+    out[size] = '\0';
+    *n = size;
+    return out;
+}
+
+/* a - b for a >= b. */
+static char *digits_subtract(const char *a, size_t na, const char *b, size_t nb, size_t *n)
+{
+    char *out = allocate(na);
+    int borrow = 0;
+    for (size_t i = 0; i < na; ++i) {
+        int d = (a[na - 1 - i] - '0') - borrow - (i < nb ? b[nb - 1 - i] - '0' : 0);
+        borrow = d < 0;
+        out[na - 1 - i] = (char)('0' + (d < 0 ? d + 10 : d));
+    }
+    out[na] = '\0';
+    *n = na;
+    return out;
+}
+
+static char *digits_multiply(const char *a, size_t na, const char *b, size_t nb, size_t *n)
+{
+    size_t size = na + nb;
+    unsigned *sums = calloc(size ? size : 1, sizeof *sums);
+    if (!sums) fail("out of memory");
+    for (size_t i = 0; i < na; ++i)
+        for (size_t j = 0; j < nb; ++j)
+            sums[i + j + 1] += (unsigned)(a[i] - '0') * (unsigned)(b[j] - '0');
+    char *out = allocate(size);
+    unsigned carry = 0;
+    for (size_t k = size; k-- > 0;) {
+        unsigned v = sums[k] + carry;
+        out[k] = (char)('0' + v % 10);
+        carry = v / 10;
+    }
+    free(sums);
+    out[size] = '\0';
+    *n = size;
+    return out;
+}
+
+/* Truncated quotient of two digit strings, divisor nonzero. */
+static char *digits_divide(const char *a, size_t na, const char *b, size_t nb, size_t *n)
+{
+    char *out = allocate(na ? na : 1);
+    char *rest = allocate(nb + 1);
+    size_t used = 0;
+    for (size_t i = 0; i < na; ++i) {
+        rest[used++] = a[i];
+        int q = 0;
+        while (digits_compare(rest, used, b, nb) >= 0) {
+            size_t length;
+            char *difference = digits_subtract(rest, used, b, nb, &length);
+            memcpy(rest, difference, length);
+            used = length;
+            ++q;
+        }
+        out[i] = (char)('0' + q);
+        /* Keep the remainder short so it never outgrows its buffer. */
+        size_t lead = 0;
+        while (lead + 1 < used && rest[lead] == '0') ++lead;
+        memmove(rest, rest + lead, used - lead);
+        used -= lead;
+    }
+    out[na] = '\0';
+    *n = na;
+    return out;
+}
+
+static struct exact exact_arithmetic(char op, struct exact x, struct exact y, int places)
+{
+    struct exact r = {"", 0, 0, 0};
+    if (op == '+' || op == '-') {
+        if (op == '-') y.negative = !y.negative && y.length;
+        size_t scale = x.scale > y.scale ? x.scale : y.scale, na, nb;
+        char *a = exact_scaled(x, scale, &na), *b = exact_scaled(y, scale, &nb);
+        r.scale = scale;
+        if (x.negative == y.negative) {
+            r.digits = digits_add(a, na, b, nb, &r.length);
+            r.negative = x.negative;
+        } else if (digits_compare(a, na, b, nb) >= 0) {
+            r.digits = digits_subtract(a, na, b, nb, &r.length);
+            r.negative = x.negative;
+        } else {
+            r.digits = digits_subtract(b, nb, a, na, &r.length);
+            r.negative = y.negative;
+        }
+    } else if (op == '*') {
+        r.digits = digits_multiply(x.digits, x.length, y.digits, y.length, &r.length);
+        r.scale = x.scale + y.scale;
+        r.negative = x.negative != y.negative;
+        if (r.scale > (size_t)places) {
+            size_t drop = r.scale - (size_t)places;
+            r.length = drop < r.length ? r.length - drop : 0;
+            r.scale = (size_t)places;
+        }
+    } else {
+        /* x/y truncated to places: (X * 10^(sy+places)) / (Y * 10^sx). */
+        struct exact numerator = x, denominator = y;
+        size_t nn, nd;
+        char *a = exact_scaled(numerator, numerator.scale + y.scale + (size_t)places, &nn);
+        char *b = exact_scaled(denominator, denominator.scale + x.scale, &nd);
+        r.digits = digits_divide(a, nn, b, nd, &r.length);
+        r.scale = (size_t)places;
+        r.negative = x.negative != y.negative;
+    }
+    exact_normalize(&r);
+    return r;
+}
+
+static const char *exact_text(struct exact n)
+{
+    if (!n.length) return "0";
+    size_t whole = n.length > n.scale ? n.length - n.scale : 0;
+    size_t size = (size_t)n.negative + (whole ? whole : 1) + (n.scale ? 1 + n.scale : 0);
+    char *out = allocate(size), *w = out;
+    if (n.negative) *w++ = '-';
+    if (whole) {
+        memcpy(w, n.digits, whole);
+        w += whole;
+    } else {
+        *w++ = '0';
+    }
+    if (n.scale) {
+        *w++ = '.';
+        size_t pad = n.scale - (n.length - whole);
+        memset(w, '0', pad);
+        memcpy(w + pad, n.digits + whole, n.length - whole);
+        w += n.scale;
+    }
+    *w = '\0';
+    return out;
+}
+
+#ifdef JBC_MATH
+/* A math function's double result, rounded half away from zero to the
+   precision, as TAFC's JRunDRoundValue does: EXP(1) is 2.7183. */
+static const char *format_decimal(long double result)
+{
+    int places = jbc_precision < 0 ? 4 : jbc_precision;
+    char text[LDBL_MAX_10_EXP + 64];
+    snprintf(text, sizeof text, "%.*Lf", places + 8 > 40 ? places + 8 : 40, result);
+    struct exact n;
+    if (!exact_parse(text, (size_t)places, &n)) return "0";
+    return exact_text(n);
+}
+#endif
 
 static const char *arithmetic(char op, const char *left, const char *right,
                               int warn_on_zero_divisor, const char *file, int line, int column)
 {
     struct decimal lhs, rhs;
+    /* Prime skips spaces and tabs around a number. */
+    if (jbc_emulation_prime) {
+        left = trim_blanks(left);
+        right = trim_blanks(right);
+    }
     if (!parse_decimal(left, &lhs) || !parse_decimal(right, &rhs))
         numeric_error(file, line, column, "arithmetic requires numeric operands");
     if (op == '/' && rhs.sign == 0) {
@@ -405,21 +654,22 @@ static const char *arithmetic(char op, const char *left, const char *right,
         return "0";
     }
 
-    if (op != '/' && !strchr(left, '.') && !strchr(right, '.')) {
+    if (op != '/' && !strchr(left, '.') && !strchr(right, '.') && lhs.digits < 19 &&
+        rhs.digits < 19) {
         int64_t a = integer(left, file, line, column);
         int64_t b = integer(right, file, line, column);
         int64_t result;
         if (op == '+') {
             if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
-                numeric_error(file, line, column, "integer addition overflow");
+                goto exact;
             result = a + b;
         } else if (op == '-') {
             if ((b > 0 && a < INT64_MIN + b) || (b < 0 && a > INT64_MAX + b))
-                numeric_error(file, line, column, "integer subtraction overflow");
+                goto exact;
             result = a - b;
         } else {
             if (multiply_overflows(a, b))
-                numeric_error(file, line, column, "integer multiplication overflow");
+                goto exact;
             result = a * b;
         }
         char *out = allocate(20);
@@ -427,17 +677,12 @@ static const char *arithmetic(char op, const char *left, const char *right,
         return out;
     }
 
-    long double a = strtold(left, NULL), b = strtold(right, NULL);
-    long double result;
-    switch (op) {
-        case '+': result = a + b; break;
-        case '-': result = a - b; break;
-        case '*': result = a * b; break;
-        default: result = a / b; break;
-    }
-    if (!isfinite(a) || !isfinite(b) || !isfinite(result))
-        numeric_error(file, line, column, "decimal arithmetic out of range");
-    return format_decimal(result, TRUNCATE_RESULT);
+exact:;
+    int places = jbc_precision < 0 ? 4 : jbc_precision;
+    struct exact x, y;
+    exact_operand(left, places, &x);
+    exact_operand(right, places, &y);
+    return exact_text(exact_arithmetic(op, x, y, places));
 }
 
 const char *jbc_arithmetic(char op, const char *left, const char *right,
@@ -1497,6 +1742,19 @@ int jbc_find(int substring, const char *needle, const char *source, const char *
     }
 }
 
+/* LOCATE BY AR/DR. jbase right-justifies every pair. Prime compares two
+   numbers numerically, two non-numbers right-justified, and a number with a
+   non-number byte by byte, so 100 sorts before B and b2 before b10. */
+static int locate_compare_right(const char *item, const char *needle)
+{
+    if (!jbc_emulation_prime) return compare_right(item, needle);
+    struct decimal a, b;
+    int item_number = parse_decimal(item, &a), needle_number = parse_decimal(needle, &b);
+    if (item_number && needle_number) return compare_decimals(a, b, -1);
+    if (!item_number && !needle_number) return compare_right(item, needle);
+    return strcmp(item, needle);
+}
+
 int jbc_locate(const char *needle, const char *source, int mark, const char *start,
                const char *order, jbc_variable *position, const char *file, int line, int column)
 {
@@ -1517,7 +1775,7 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
             if (index >= (uint64_t)first) {
                 int cmp;
                 if (*order && order[1] == 'N') cmp = jbc_compare(item, needle, -1);
-                else if (*order && order[1] == 'R') cmp = compare_right(item, needle);
+                else if (*order && order[1] == 'R') cmp = locate_compare_right(item, needle);
                 else cmp = strcmp(item, needle);
                 found = cmp == 0;
                 if (found || (*order == 'A' && cmp > 0) || (*order == 'D' && cmp < 0)) break;
@@ -1527,8 +1785,38 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
             item = next;
         }
     }
+    /* A start past the end is the position, as TAFC returns it. */
+    if (!found && index < (uint64_t)first) index = (size_t)first;
     assign_value(position, size_value(index));
     return found;
+}
+
+/* LOCATE needle IN source<coordinates>, at run time as TAFC decides it
+   (TAFC-CROSSCHECK.md section 1). Both emulations drop trailing zero
+   coordinates, so <0> is no coordinate and <2,0> is <2>.
+   prime: no coordinate searches fields from start; the last coordinate is
+   the start at the level below the ones before it: <f> searches fields from
+   field f, <f,v> the values of field f from v, <f,v,s> the subvalues of
+   value v from s. A separate start applies only without coordinates.
+   jbase: every coordinate selects: <f> searches the values of field f,
+   <f,v> the subvalues of value v, and a third coordinate is the start. */
+int jbc_locate_at(const char *needle, const char *source, const char **coordinates,
+                  int count, const char *start, const char *order,
+                  jbc_variable *position, const char *file, int line, int column)
+{
+    while (count > 0 && integer(coordinates[count - 1], file, line, column) == 0) --count;
+    if (jbc_emulation_prime && count > 0) {
+        int64_t first = integer(coordinates[count - 1], file, line, column);
+        if (first < 1) numeric_error(file, line, column, "LOCATE positions start at one");
+        start = size_value((uintmax_t)first);
+        --count;
+    } else if (count == 3) {
+        start = coordinates[2];
+        count = 2;
+    }
+    const char *container = count ? jbc_array(source, coordinates, count, NULL) : source;
+    return jbc_locate(needle, container, 254 - count, start, order, position, file, line,
+                      column);
 }
 
 static int ascii_digit(unsigned char c)
@@ -1589,7 +1877,9 @@ const char *jbc_dround(const char *value, const char *precision,
     if (!parse_decimal(value, &n))
         numeric_error(file, line, column, "DROUND requires a numeric value");
 
-    int64_t digits = jbc_precision < 0 ? 4 : jbc_precision;
+    /* Four places without an argument, whatever the PRECISION (TAFC
+       PB201214, tests/snippets/dround.b). */
+    int64_t digits = 4;
     if (precision) {
         struct decimal requested;
         if (!parse_decimal(precision, &requested) || requested.sign < 0 || requested.places)
@@ -2063,7 +2353,8 @@ static const char *printable_marks(const char *text, char replacement)
     char *out = allocate(n);
     for (size_t i = 0; i < n; ++i) {
         unsigned char c = (unsigned char)text[i];
-        out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\'
+        /* TAFC shows byte 255 as _ (tests/tafc/mcp-bytes.b). */
+        out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\' : c == 255 ? '_'
                : byte_class(c, 'P') ? (char)c : replacement;
     }
     out[n] = '\0';
@@ -2462,6 +2753,26 @@ const char *jbc_isspace(const char *text)
     return "1";
 }
 
+/* Extended patterns are prime's: codes A, N and X in either case, n-mX
+   ranges and "..." for any run of bytes. jbase MATCHES has the codes A, N,
+   C and X in upper case only. MATCHFIELD uses extended patterns in both
+   emulations, as TAFC PB201214 does. */
+static int pattern_extended = 1;
+
+static char pattern_code(char c)
+{
+    if (pattern_extended) {
+        char upper = (char)(c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c);
+        return upper && strchr("ANX", upper) ? upper : 0;
+    }
+    return c && strchr("ANCX", c) ? c : 0;
+}
+
+static int pattern_ellipsis(const char *p, const char *end)
+{
+    return pattern_extended && end - p >= 3 && memcmp(p, "...", 3) == 0;
+}
+
 static int pattern_byte(unsigned char c, char kind)
 {
     switch (kind) {
@@ -2492,7 +2803,11 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
         size_t literal_length = 0;
         size_t low = 0, high = 0;
         char kind = 0;
-        if (*p == '\'' || *p == '"') {
+        if (pattern_ellipsis(p, end)) {
+            p += 3;
+            kind = 'X';
+            high = SIZE_MAX;
+        } else if (*p == '\'' || *p == '"') {
             char quote = *p++;
             literal = p;
             const char *close = memchr(p, quote, (size_t)(end - p));
@@ -2502,18 +2817,21 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
         } else if (ascii_digit(*p)) {
             low = read_decimal_count(&p, end);
             high = low ? low : SIZE_MAX;
-            if (end - p >= 2 && *p == '-' && ascii_digit(p[1])) {
+            /* n-mX ranges are prime pattern syntax; jbase reads them as
+               text, so "2-4N" does not match "2022". */
+            if (pattern_extended && end - p >= 2 && *p == '-' && ascii_digit(p[1])) {
                 const char *after = p + 1;
                 size_t upper = read_decimal_count(&after, end);
-                if (after < end && strchr("ANCX", *after)) {
+                if (after < end && pattern_code(*after)) {
                     p = after;
                     high = upper;
                 }
             }
-            if (p < end && strchr("ANCX", *p)) kind = *p++;
+            if (p < end && pattern_code(*p)) kind = pattern_code(*p++);
             else literal_length = (size_t)(p - literal);
         } else {
-            do { ++p; } while (p < end && !ascii_digit(*p) && *p != '\'' && *p != '"');
+            do { ++p; } while (p < end && !ascii_digit(*p) && *p != '\'' && *p != '"' &&
+                               !pattern_ellipsis(p, end));
             literal_length = (size_t)(p - literal);
         }
 
@@ -2552,6 +2870,7 @@ static int match_alternative(const char *text, size_t n, const char *p, const ch
 
 static const char *match_pattern(const char *text, const char *pattern, size_t field)
 {
+    pattern_extended = jbc_emulation_prime || field;
     size_t n = strlen(text);
     char *rows = calloc(n + 1, 2);
     struct match_span *spans = field ? calloc(n + 1, 2 * sizeof *spans) : NULL;
@@ -3485,7 +3804,7 @@ static const char *change_substrings(const char *text, const char *search, const
 }
 
 const char *jbc_change(const char *text, const char *search, const char *replacement,
-                       const char *limit, const char *first, int prefix_empty,
+                       const char *limit, const char *first,
                        const char *message, const char *file, int line, int column)
 {
     struct decimal n;
@@ -3493,7 +3812,8 @@ const char *jbc_change(const char *text, const char *search, const char *replace
         numeric_error(file, line, column, message);
     int64_t count = integer(limit, file, line, column);
     int64_t start = integer(first, file, line, column);
-    if (prefix_empty && !*search) return jbc_concat(replacement, text);
+    /* An empty search string changes nothing (TAFC, tests/tafc/search-edges.b). */
+    if (!*search) return text;
     return change_substrings(text, search, replacement, count, start);
 }
 
@@ -3509,13 +3829,14 @@ const char *jbc_dcount(const char *s, const char *separator)
     return size_value(1 + occurrences(s, separator));
 }
 
+/* A FIELD position or count below 1 means 1 (TAFC, tests/tafc/field-edges.b). */
 static int64_t field_index(const char *s, const char *file, int line, int column)
 {
-    if (!*s || strspn(s, "0123456789") != strlen(s))
-        numeric_error(file, line, column, "FIELD requires positive integer positions and counts");
-    int64_t n = integer(s, file, line, column);
-    if (!n) numeric_error(file, line, column, "FIELD positions and counts start at one");
-    return n;
+    struct decimal n;
+    if (!parse_decimal(s, &n) || n.places)
+        numeric_error(file, line, column, "FIELD requires integer positions and counts");
+    int64_t value = n.sign <= 0 ? 1 : integer(s, file, line, column);
+    return value < 1 ? 1 : value;
 }
 
 /* Each selected range fits inside its input, including separators between
@@ -3610,10 +3931,11 @@ const char *jbc_field_replace(const char *s, const char *separator, const char *
     return out;
 }
 
+/* REUSE of a dynamic array has no effect: its elements pair as usual
+   (TAFC PB201214: ADDS(REUSE(1:@VM:2), 3) is 4]2). */
 const char *jbc_reuse_scalar(const char *value, const char *message, const char *file, int line, int column)
 {
-    if (strpbrk(value, "\376\375\374"))
-        numeric_error(file, line, column, message);
+    (void)message, (void)file, (void)line, (void)column;
     return value;
 }
 
@@ -3637,7 +3959,7 @@ static struct array_cursor array_cursor(const char *text, int reuse, int present
 {
     struct array_cursor cursor = {0};
     cursor.present = present;
-    cursor.reuse = reuse;
+    cursor.reuse = reuse && !strpbrk(text, "\376\375\374");
     read_array_item(&cursor, text);
     return cursor;
 }
@@ -3924,6 +4246,16 @@ const char *jbc_fmts(const char *source, const char *mask, const char *file, int
     return out;
 }
 
+static const char *prime_element(const char *item, const char *file, int line, int column)
+{
+    struct decimal n;
+    const char *value = trim_blanks(item);
+    if (!*value) return "0";
+    if (parse_decimal(value, &n)) return value;
+    fprintf(stderr, "%s:%d:%d: warning: Non-numeric value -- ZERO USED\n", file, line, column);
+    return "0";
+}
+
 static const char *array_arithmetic(char op, int warn_on_zero_divisor, const char *left, const char *right,
                                      int reuse_left, int reuse_right,
                                      const char *file, int line, int column)
@@ -3940,7 +4272,13 @@ static const char *array_arithmetic(char op, int warn_on_zero_divisor, const cha
         const char *a = left_items + (lhs.item - left);
         const char *b = right_items + (rhs.item - right);
         const char *item = "";
-        if (op == '-') {
+        if (jbc_emulation_prime) {
+            /* Prime: a missing or empty element is 0, and a nonnumeric one
+               warns and is 0 (TAFC PB201214, tests/snippets/adds.b). */
+            const char *x = prime_element(lhs.present ? a : "", file, line, column);
+            const char *y = prime_element(rhs.present ? b : "", file, line, column);
+            item = arithmetic(op, x, y, 1, file, line, column);
+        } else if (op == '-') {
             const char *minuend = lhs.present && *a ? a : "0";
             const char *subtrahend = rhs.present && *b ? b : "0";
             item = jbc_arithmetic('-', minuend, subtrahend, file, line, column);
@@ -4009,7 +4347,7 @@ const char *jbc_divide_reuse(const char *left, const char *right, int reuse_left
 
 static const char *array_sign(const char *source, int absolute, const char *file, int line, int column)
 {
-    if (!*source) return "";
+    if (!*source) return jbc_emulation_prime ? "0" : "";
     size_t marks = 0, length = strlen(source);
     char *items = split_array_items(source, &marks);
     /* A decimal can gain a minus sign and a leading zero. */
@@ -4019,7 +4357,8 @@ static const char *array_sign(const char *source, int absolute, const char *file
     char *out = allocate(length + 2 * (marks + 1)), *write = out;
     for (const char *item = items;;) {
         const char *value = "";
-        if (*item && absolute)
+        if (!*item && jbc_emulation_prime) value = "0"; /* prime: empty is 0 */
+        else if (*item && absolute)
             value = absolute_value(item, "ABSS requires numeric elements", file, line, column);
         else if (*item)
             value = negative_value(item, "NEGS", file, line, column);
@@ -4965,7 +5304,9 @@ const char *jbc_index(const char *text, const char *needle, const char *occurren
 {
     int64_t remaining = truncated(occurrence, file, line, column);
     size_t width = strlen(needle);
-    if (!width || remaining < 1) return "0";
+    if (remaining < 1) return "0";
+    /* An empty needle is found at position 1 (TAFC, tests/tafc/search-edges.b). */
+    if (!width) return "1";
     const char *cursor = text;
     while ((cursor = strstr(cursor, needle)) != NULL) {
         if (--remaining == 0) return size_value((size_t)(cursor - text) + 1);
@@ -4994,6 +5335,20 @@ static uint32_t decimal_word(const char *value, const char *message,
     return n.sign < 0 ? (uint32_t)(0u - bits) : bits;
 }
 
+/* The bit functions' operand as TAFC PB201214 takes it (tests/tafc/
+   bit-unsigned.b): the integer part's low 32 bits; an empty or nonnumeric
+   operand is 0, as is a value outside the signed 64-bit range. */
+static uint32_t bit_operand(const char *value)
+{
+    struct decimal n;
+    if (!parse_decimal(value, &n) || n.digits > 19) return 0;
+    uint64_t magnitude = 0;
+    for (size_t i = 0; i < n.digits; ++i)
+        magnitude = UINT64_C(10) * magnitude + (unsigned)(n.whole[i] - '0');
+    if (magnitude > (uint64_t)INT64_MAX + (n.sign < 0)) return 0;
+    return (uint32_t)(n.sign < 0 ? 0u - magnitude : magnitude);
+}
+
 static const char *signed_word_value(uint32_t bits)
 {
     int64_t result = bits <= INT32_MAX ? (int64_t)bits : (int64_t)bits - (INT64_C(1) << 32);
@@ -5002,41 +5357,36 @@ static const char *signed_word_value(uint32_t bits)
     return out;
 }
 
-const char *jbc_bitxor(const char *left, const char *right, const char *file, int line, int column)
+static const char *unsigned_word_value(uint32_t bits)
 {
-    if (!*left || !*right) return "";
-    const char *message = "BITXOR requires numeric operands";
-    uint32_t lhs = decimal_word(left, message, file, line, column);
-    uint32_t rhs = decimal_word(right, message, file, line, column);
-    return signed_word_value(lhs ^ rhs);
-}
-
-const char *jbc_bitand(const char *left, const char *right, const char *file, int line, int column)
-{
-    if (!*left || !*right) return "";
-    const char *message = "BITAND requires numeric operands";
-    uint32_t lhs = decimal_word(left, message, file, line, column);
-    uint32_t rhs = decimal_word(right, message, file, line, column);
-    return signed_word_value(lhs & rhs);
-}
-
-/* The guide's example shows BITNOT(6) as the unsigned word 4294967289. */
-const char *jbc_bitnot(const char *value, const char *file, int line, int column)
-{
-    if (!*value) return "";
-    uint32_t bits = ~decimal_word(value, "BITNOT requires a numeric operand", file, line, column);
     char *out = allocate(10);
     snprintf(out, 11, "%" PRIu32, bits);
     return out;
 }
 
+/* BITAND, BITOR, BITXOR and BITNOT return unsigned 32-bit values. */
+const char *jbc_bitxor(const char *left, const char *right, const char *file, int line, int column)
+{
+    (void)file, (void)line, (void)column;
+    return unsigned_word_value(bit_operand(left) ^ bit_operand(right));
+}
+
+const char *jbc_bitand(const char *left, const char *right, const char *file, int line, int column)
+{
+    (void)file, (void)line, (void)column;
+    return unsigned_word_value(bit_operand(left) & bit_operand(right));
+}
+
+const char *jbc_bitnot(const char *value, const char *file, int line, int column)
+{
+    (void)file, (void)line, (void)column;
+    return unsigned_word_value(~bit_operand(value));
+}
+
 const char *jbc_bitor(const char *left, const char *right, const char *file, int line, int column)
 {
-    if (!*left || !*right) return "";
-    const char *message = "BITOR requires numeric operands";
-    uint32_t lhs = decimal_word(left, message, file, line, column);
-    uint32_t rhs = decimal_word(right, message, file, line, column);
-    return signed_word_value(lhs | rhs);
+    (void)file, (void)line, (void)column;
+    return unsigned_word_value(bit_operand(left) | bit_operand(right));
 }
 
 const char *jbc_dtx(const char *value, const char *file, int line, int column)
@@ -5202,14 +5552,16 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
 /* The reference compiles FSUB to its floating-point routine, unlike "-".
    The guide's example, 2.54 - 5.703358 at PRECISION 7, prints -3.163358,
    so the double result is rounded to the precision. */
+static const char *significant_value(long double value, const char *name, const char *file,
+                                     int line, int column);
+
 const char *jbc_fsub(const char *left, const char *right, const char *file, int line, int column)
 {
     struct decimal n;
     if (!parse_decimal(left, &n) || !parse_decimal(right, &n) || !*left || !*right)
         numeric_error(file, line, column, "FSUB requires numeric operands");
     long double value = (long double)strtod(left, NULL) - (long double)strtod(right, NULL);
-    if (!isfinite(value)) numeric_error(file, line, column, "FSUB result out of range");
-    return format_decimal(value, ROUND_RESULT);
+    return significant_value(value, "FSUB", file, line, column);
 }
 
 const char *jbc_ln(const char *text, const char *file, int line, int column)
@@ -5222,7 +5574,7 @@ const char *jbc_ln(const char *text, const char *file, int line, int column)
     long double value = strtold(text, NULL);
     if (!isfinite(value) || value == 0)
         numeric_error(file, line, column, "LN operand out of range");
-    return format_decimal(logl(value), ROUND_RESULT);
+    return format_decimal(logl(value));
 }
 
 const char *jbc_exp(const char *text, const char *file, int line, int column)
@@ -5236,7 +5588,7 @@ const char *jbc_exp(const char *text, const char *file, int line, int column)
     long double result = expl(value);
     if (!isfinite(result))
         numeric_error(file, line, column, "EXP result out of range");
-    return format_decimal(result, ROUND_RESULT);
+    return format_decimal(result);
 }
 
 const char *jbc_sqrt(const char *text, const char *file, int line, int column)
@@ -5250,7 +5602,7 @@ const char *jbc_sqrt(const char *text, const char *file, int line, int column)
     long double value = strtold(text, NULL);
     if (!isfinite(value) || value == 0)
         numeric_error(file, line, column, "SQRT operand out of range");
-    return format_decimal(sqrtl(value), ROUND_RESULT);
+    return format_decimal(sqrtl(value));
 }
 
 const char *jbc_pwr(const char *left, const char *right, const char *file, int line, int column)
@@ -5274,7 +5626,7 @@ const char *jbc_pwr(const char *left, const char *right, const char *file, int l
        to be represented exactly by the host floating-point type. */
     if (base.sign < 0 && exponent.digits && (exponent.whole[exponent.digits - 1] - '0') % 2)
         result = -result;
-    return format_decimal(result, TRUNCATE_RESULT);
+    return format_decimal(result);
 }
 
 static long double radians(const char *s, const char *file, int line, int column)
@@ -5288,12 +5640,12 @@ static long double radians(const char *s, const char *file, int line, int column
 
 const char *jbc_sin(const char *s, const char *file, int line, int column)
 {
-    return format_decimal(sinl(radians(s, file, line, column)), TRUNCATE_RESULT);
+    return format_decimal(sinl(radians(s, file, line, column)));
 }
 
 const char *jbc_cos(const char *s, const char *file, int line, int column)
 {
-    return format_decimal(cosl(radians(s, file, line, column)), TRUNCATE_RESULT);
+    return format_decimal(cosl(radians(s, file, line, column)));
 }
 #endif
 
@@ -7088,7 +7440,7 @@ static long double angle_operand(const char *s, const char *name, const char *fi
 static const char *degrees_value(long double radians)
 {
     long double degrees = roundl(radians * (180.0L / 3.14159265358979323846L) * 1e12L) / 1e12L;
-    return format_decimal(degrees, TRUNCATE_RESULT);
+    return format_decimal(degrees);
 }
 
 /* TAN takes degrees like SIN and COS; the inverse functions return them. */
@@ -7096,7 +7448,7 @@ const char *jbc_tan(const char *s, const char *file, int line, int column)
 {
     long double value = tanl(radians(s, file, line, column));
     if (!isfinite(value)) numeric_error(file, line, column, "TAN result out of range");
-    return format_decimal(value, TRUNCATE_RESULT);
+    return format_decimal(value);
 }
 
 const char *jbc_asin(const char *s, const char *file, int line, int column)
@@ -7153,13 +7505,14 @@ static const char *significant_value(long double value, const char *name, const 
     return strcmp(out, "-0") == 0 ? "0" : out;
 }
 
-/* FADD follows FSUB, whose guide example rounds to PRECISION. */
+/* FADD, FSUB, FMUL and FDIV return a raw double, which TAFC prints with
+   ten significant digits, not at PRECISION: FSUB(10, 0.00004) is 9.99996
+   at PRECISION 4 (TAFC PB201214, tests/snippets/element-functions.b). */
 const char *jbc_fadd(const char *left, const char *right, const char *file, int line, int column)
 {
     long double value = float_operand(left, "FADD", file, line, column)
                       + float_operand(right, "FADD", file, line, column);
-    if (!isfinite(value)) numeric_error(file, line, column, "FADD result out of range");
-    return format_decimal(value, ROUND_RESULT);
+    return significant_value(value, "FADD", file, line, column);
 }
 
 const char *jbc_fmul(const char *left, const char *right, const char *file, int line, int column)
@@ -7356,7 +7709,9 @@ const char *jbc_bitload(const char *source)
 static int byte_class(unsigned char c, char kind)
 {
     switch (kind) {
-    case 'C': return c < 32 || c == 127 || c >= 248;
+    /* System marks and other bytes above 127 are not control characters
+       (TAFC PB201214, tests/tafc/char-class-marks.b). */
+    case 'C': return c < 32 || c == 127;
     case 'G': return c > 32 && c < 127;
     case 'P': return c >= 32 && c < 127;
     case 'U': return c > 32 && c < 127 && !ascii_alpha(c) && !ascii_digit(c);

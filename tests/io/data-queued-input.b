@@ -12,7 +12,7 @@ INPUT Last
 CRT A:':':B:':':Prefix:':':Suffix:'[':EmptyLine:']:':Last
 DATA 'child-1':@FM:'child-2', ''
 EXECUTE 'cat' CAPTURING Captured RETURNING Result
-CRT CONVERT(Captured, @FM, '|'):':':Result
+CRT CONVERT(@FM, '|', Captured):':':Result
 DATA 'direct'
 PERFORM 'cat'
 DATA STR('x', 100000)

@@ -89,6 +89,16 @@ REUSE_OPERATORS = {
 }
 
 
+# The jBASE emulations jbcc translates for, as JBCEMULATE names them. T24
+# runs under prime, the default. jbcc fixes the emulation when it
+# translates; TAFC reads some of its switches at compile time and some at
+# run time (TAFC-CROSSCHECK.md, "Emulation").
+EMULATIONS = ('prime', 'jbase')
+
+# A unit without a PRECISION statement computes at 4 decimal places.
+DEFAULT_PRECISION = 4
+
+
 BUILTINS = {
     "ENCRYPT": (3,),
     "DECRYPT": (3,),
@@ -1166,7 +1176,12 @@ class Compiler:
         browser=False,
         stub_void_results=False,
         relax_access=False,
+        emulation='prime',
     ):
+        if emulation not in EMULATIONS:
+            raise Diagnostic(f"unknown emulation '{emulation}'")
+        self.emulation = emulation
+        self.prime = emulation == 'prime'
         self.relax_access = relax_access
         self.browser = browser
         self.stub_void_results = stub_void_results
@@ -1237,6 +1252,9 @@ class Compiler:
         self.uses_chdir = False
         self.has_goto = False
         self.sets_precision = False
+        # The first PRECISION in a unit is its default from the start, as
+        # TAFC compiles it into the unit's static data; later ones run.
+        self.default_precision = None
         self.clear_assignments = None
 
         self.depth = 0
@@ -1672,6 +1690,11 @@ class Compiler:
                     )
                 self.record_api_call(target, len(args), form=form)
             args.extend(str(reuse[i]) for i in reuse_positions)
+            if word == 'CONVERT' and self.prime:
+                # Prime emulation reads CONVERT(from, to, text); TAFC fixes
+                # the order at compile time. Arguments are already
+                # evaluated left to right into temporaries.
+                args = [args[2], args[0], args[1]]
             if word in ('DELETE', 'EXTRACT'):
                 indices = args[1:]
                 args = [
@@ -1684,13 +1707,8 @@ class Compiler:
                     args.append('"-1"')
                 if len(args) == 4:
                     args.append('"1"')
-                args.extend(
-                    (
-                        str(int(word == 'EREPLACE')),
-                        c_string(
-                            f"{word} requires integer occurrence arguments"
-                        ),
-                    )
+                args.append(
+                    c_string(f"{word} requires integer occurrence arguments")
                 )
                 word = 'CHANGE'
             if word in ('FIELD', 'FIELDS', 'GROUP') and len(args) == 3:
@@ -2528,42 +2546,93 @@ class Compiler:
     def locate_statement(self):
         opening = self.current
         self.advance()
+        if self.word == '(' and self.locate_function_ahead():
+            self.locate_function(opening)
+            return
         needle = self.expression()
         self.expect('IN')
         source = self.expression(locate_source=True)
-        indices = []
-        start = None
+        coordinates = []
         if self.current.kind == 'array_open':
-            indices = self.index_expressions()
-            if len(indices) == 3:
-                start = indices.pop()
-            args = ', '.join(indices)
-            source = self.temporary(
-                f"jbc_array({source}, (const char *[]){{{args}}}, {len(indices)}, NULL)"
-            )
+            coordinates = self.index_expressions()
+        start = None
         if self.word == ',':
-            if start is not None:
+            if not self.prime and len(coordinates) == 3:
                 self.error(
                     "LOCATE with both a subvalue start and a separate start is unsupported"
                 )
             self.advance()
             start = self.expression()
-        if start is None:
-            start = '"1"'
         order = '""'
         if self.word == 'BY':
             self.advance()
             order = self.expression()
         self.expect('SETTING')
         target = self.identifier()
+        self.locate_call(
+            opening, needle, source, coordinates, start, order, target
+        )
+
+    def locate_function_ahead(self):
+        """True when LOCATE( starts the function form, LOCATE(x, A; pos),
+        rather than a parenthesized needle: a ';' at the top level of the
+        parentheses."""
+        depth = 1
+        for token in self.tokens:
+            if token.word in ('(', '['):
+                depth += 1
+            elif token.word in (')', ']'):
+                depth -= 1
+                if not depth:
+                    return False
+            elif token.word == ';' and depth == 1:
+                return True
+            elif token.word == '\n':
+                return False
+        return False
+
+    def locate_function(self, opening):
+        # LOCATE(needle, array{, field{, value}}; position{; order}). The
+        # coordinates mean the same as in LOCATE needle IN array<...>.
+        self.advance()
+        needle = self.expression()
+        self.expect(',')
+        source = self.expression()
+        coordinates = []
+        while self.word == ',':
+            self.advance()
+            coordinates.append(self.expression())
+        if len(coordinates) > 3:
+            self.error("LOCATE takes at most three coordinates")
+        self.expect(';')
+        target = self.identifier()
+        order = '""'
+        if self.word == ';':
+            self.advance()
+            order = self.expression()
+        self.expect(')')
+        self.locate_call(
+            opening, needle, source, coordinates, None, order, target
+        )
+
+    def locate_call(
+        self, opening, needle, source, coordinates, start, order, target
+    ):
         if target.word in self.matrices:
             slot = self.matrix_slot(target)
         else:
             slot = self.variable(target.word)
             self.assigned.add(target.word)
+        # The runtime reads the coordinates as the emulation does, as TAFC
+        # decides LOCATE at run time (TAFC-CROSSCHECK.md section 1).
+        if coordinates:
+            array = f"(const char *[]){{{', '.join(coordinates)}}}"
+        else:
+            array = 'NULL'
         call = (
-            f"jbc_locate({needle}, {source}, {254 - len(indices)}, {start}, "
-            f"{order}, &{slot}, {self.location(opening)})"
+            f"jbc_locate_at({needle}, {source}, {array}, {len(coordinates)}, "
+            f"{start or chr(34) + '1' + chr(34)}, {order}, &{slot}, "
+            f"{self.location(opening)})"
         )
         self.conditional_arms(opening, call)
 
@@ -4642,9 +4711,19 @@ class Compiler:
             token = self.current
             self.advance()
             self.sets_precision = True
-            self.emit(
-                f"jbc_set_precision({self.expression()}, {self.location(token)});"
-            )
+            if (
+                self.default_precision is None
+                and self.current.kind == 'number'
+                and self.word.isdigit()
+                and self.following is not None
+                and self.following.word in ('\n', ';', '')
+            ):
+                self.default_precision = int(self.word)
+                self.advance()
+            else:
+                self.emit(
+                    f"jbc_set_precision({self.expression()}, {self.location(token)});"
+                )
         elif self.word == 'DEFFUN':
             self.advance()
             function = self.identifier()
@@ -5579,6 +5658,8 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
+            if not self.prime:
+                lines.append("    jbc_emulation_prime = 0;")
             if self.uses_startup_clock:
                 lines.append("    jbc_init_startup_clock();")
             if self.uses_session:
@@ -5594,8 +5675,16 @@ class Compiler:
                 lines.append(
                     f"    jbc_seed_memory_lock({c_string(name)}, {c_string(key)});"
                 )
-        if self.routine and self.sets_precision:
+        # Each unit runs at its own precision: the first PRECISION in it, or
+        # 4. A routine restores its caller's on return (observed TAFC run).
+        if self.routine:
             lines.append("    int saved_precision = jbc_precision;")
+        precision = (
+            DEFAULT_PRECISION
+            if self.default_precision is None
+            else self.default_precision
+        )
+        lines.append(f"    jbc_precision = {precision};")
         seq_scope = self.routine and (
             self.uses_sequential or self.calls or self.has_indirect_call
         )
@@ -5606,7 +5695,7 @@ class Compiler:
         lines.append(f"    body_{u}(&frame, 0);")
         if self.opens_local_files:
             lines.append("    jbc_close_local_files(&frame);")
-        if self.routine and self.sets_precision:
+        if self.routine:
             lines.append("    jbc_precision = saved_precision;")
         if self.is_function:
             lines.append('    *result = frame.result ? frame.result : "";')
@@ -5820,6 +5909,7 @@ def compile_unit(
     builtin_used=None,
     stub_void_results=False,
     relax_access=False,
+    emulation='prime',
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -5834,6 +5924,7 @@ def compile_unit(
         browser=browser,
         stub_void_results=stub_void_results,
         relax_access=relax_access,
+        emulation=emulation,
     )
     preprocessor = Preprocessor(
         directories,
@@ -5885,6 +5976,7 @@ def compile_program(
     include_resolver=None,
     include_depth=None,
     builtin_includes=True,
+    emulation='prime',
 ):
     for name, _ in memory_locks:
         if name not in memory_files:
@@ -5906,6 +5998,7 @@ def compile_program(
             include_depth=include_depth,
             builtin_includes=builtin_includes,
             builtin_used=builtin_used,
+            emulation=emulation,
         )
         if browser and bool(i) != bool(unit.routine):
             if unit.routine:
@@ -6153,6 +6246,19 @@ def main():
             """
         ),
     )
+    inputs.add_argument(
+        '--emulation',
+        choices=EMULATIONS,
+        default='prime',
+        help=option_help(
+            """
+            The jBASE emulation to follow, as JBCEMULATE names it. prime
+            (default) is the emulation T24 runs under; jbase is jBASE's own.
+            It decides, for example, the argument order of the CONVERT
+            function, what LOCATE searches and the MATCH pattern codes.
+            """
+        ),
+    )
     output = cli.add_argument_group('output and build')
     output.add_argument(
         '-o',
@@ -6261,6 +6367,7 @@ def main():
             source_encoding=args.source_encoding,
             defer_unassigned_reads=args.defer_unassigned_reads,
             builtin_includes=args.builtin_includes,
+            emulation=args.emulation,
         )
         if args.exe or args.run:
             destination = (

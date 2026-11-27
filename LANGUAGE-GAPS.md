@@ -38,15 +38,25 @@ These parse and compile, and report the missing backend when reached.
 
 Each is documented in the README as a guess.
 
-- `@TIMEZONE` reads `JBASE_TIMEZONE`, then `TZ`.
 - `@COMPANYNO` starts empty.
 - `UNASSIGNED` of an R19 component call counts its result as assigned.
-- `BITNOT` returns an unsigned result.
 - A COMMON member that a routine `DIM`s shares its elements between units
   that dimension it; a scalar use elsewhere keeps a separate value.
 - `TIMEDIFF` gives each field the sign of the difference.
-- `MCP` turns every byte outside ASCII 32 to 126 into `.`, other than the
-  three system marks; the guide's example shows it only for the text mark.
+
+## Differences from TAFC PB201214 kept on purpose
+
+See TAFC-CROSSCHECK.md for the probes.
+
+- A numeric literal under a later, lower PRECISION: TAFC keeps it at the
+  unit's first PRECISION and rescales it without rounding; jbcc rounds it
+  at the PRECISION in force.
+- FIELD and GROUP with a multi-byte delimiter and a count above one: TAFC's
+  results follow no consistent rule; jbcc matches the whole delimiter.
+- `REUSE` of a power, as in `A * REUSE(2 ^ 3)`, does not broadcast in TAFC;
+  jbcc broadcasts it like any other scalar.
+- TAFC prints the result of a division by zero as `0.0nan` or `0.0inf` for
+  some divisor types; jbcc gives 0.
 
 ## T24 corpora: outside translation
 

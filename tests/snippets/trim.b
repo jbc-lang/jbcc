@@ -5,11 +5,11 @@ PRINT TRIM('000033','0','L'), TRIM(S), TRIM('..A..B..','.')
 PRINT TRIM('  A B  ','','A'), LEN(TRIM('    ')), LEN(TRIM(''))
 Tab = CHAR(9)
 S = Tab : '  A' : Tab : '  B ' : Tab
-PRINT '[' : CONVERT(TRIM(S,'','F'),Tab,'~') : ']'
-PRINT '[' : CONVERT(TRIM(S,'','E'),Tab,'~') : ']'
+PRINT '[' : CONVERT(Tab, '~', TRIM(S,'','F')) : ']'
+PRINT '[' : CONVERT(Tab, '~', TRIM(S,'','E')) : ']'
 Mode = 'D'
-PRINT '[' : CONVERT(TRIM(S,'ignored',Mode),Tab,'~') : ']'
-PRINT '[' : CONVERT(TRIM(S),Tab,'~') : ']'
+PRINT '[' : CONVERT(Tab, '~', TRIM(S,'ignored',Mode)) : ']'
+PRINT '[' : CONVERT(Tab, '~', TRIM(S)) : ']'
 PRINT TRIM('A' : @VM : 'B',@VM,'A')
 S = '  ' : Tab : ' A  B ' : Tab : '  '
 CRT DQUOTE(TRIMF(S))

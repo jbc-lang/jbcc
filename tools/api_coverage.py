@@ -22,11 +22,11 @@ BACKENDS = {
 # not establish that the call executed or that its result was asserted.
 RUNTIME_EVIDENCE = {
     ("expression", "BITOR", 2, None): (
-        "Signed 32-bit output checked",
+        "Unsigned 32-bit output checked against TAFC",
         "tests/snippets/bitor.b",
     ),
     ("expression", "BITAND", 2, None): (
-        "Signed 32-bit output checked",
+        "Unsigned 32-bit output checked against TAFC",
         "tests/snippets/bitand.b",
     ),
     ("expression", "BITNOT", 1, None): (

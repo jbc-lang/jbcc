@@ -1,3 +1,4 @@
+* Expected output: observed TAFC PB201214 run (unsigned 32-bit results).
 * BITAND as in T24 R13 DM.GENERATE.ERWIN; 6 and 12 give 4 in the guide.
 CRT BITAND(6, 12), BITAND('6.9', 12.9), BITAND(-1, 2147483648)
 CRT BITAND(-1.9, 5), BITAND(4294967303, 7), BITAND(5, 1) AND BITAND(5, 2)

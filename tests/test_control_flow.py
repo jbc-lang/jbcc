@@ -284,7 +284,10 @@ def test_stray_end_after_final_end_warns(compiler):
         [CLI, '--exe', source, '-o', binary], capture_output=True, text=True
     )
     assert build.returncode == 0, build.stderr
-    assert f'{source}:6:1: warning: END after the final END ignored' in build.stderr
+    assert (
+        f'{source}:6:1: warning: END after the final END ignored'
+        in build.stderr
+    )
     assert subprocess.check_output([binary]) == b'ran\n'
 
 
@@ -423,14 +426,9 @@ def test_increment_and_decrement_diagnostics(compiler, subtests):
         ROOT
         / 'tests/programs/increment-and-decrement-diagnostics/step-variant-2.b'
     )
+    # Integers do not overflow: TAFC PB201214 computes past the 64-bit limit.
     result = compiler.run_native(source)
-    assert result.returncode != 0
-    assert (
-        expected_text(
-            'increment-and-decrement-diagnostics_6.stderr', source=source
-        ).encode()
-        in result.stderr
-    )
+    assert (result.returncode, result.stderr) == (0, b'')
 
 
 def test_spaced_concatenating_assignment_requires_initial_value(compiler):

@@ -51,13 +51,13 @@ reference 157 APIs and are indexed in JSON.
 | `ANDS` | 2 arguments | [Guide](https://jbc-lang.org/pages/ands.html) | 0 | call translates | [Guide example and nulls checked](tests/snippets/logical-arrays.b) |
 | `ASIN` | 1 argument | — | 0 | call translates | [Degrees returned (provisional) checked](tests/snippets/trigonometry-inverse.b) |
 | `ATAN` | 1 argument | — | 0 | call translates | [Degrees returned (provisional) checked](tests/snippets/trigonometry-inverse.b) |
-| `BITAND` | 2 arguments | [Guide](https://jbc-lang.org/pages/bitand.html) | 1 | call translates | [Signed 32-bit output checked](tests/snippets/bitand.b) |
+| `BITAND` | 2 arguments | [Guide](https://jbc-lang.org/pages/bitand.html) | 1 | call translates | [Unsigned 32-bit output checked against TAFC](tests/snippets/bitand.b) |
 | `BITCHANGE` | 1 argument | [Guide](https://jbc-lang.org/pages/bitchange.html) | 0 | call translates | [Guide example checked](tests/snippets/bit-table.b) |
 | `BITCHECK` | 1 argument | [Guide](https://jbc-lang.org/pages/bitcheck.html) | 0 | call translates | [Table bits checked](tests/snippets/bit-table.b) |
 | `BITLOAD` | 0 arguments | [Guide](https://jbc-lang.org/pages/bitload.html) | 0 | call translates | [Hexadecimal table checked](tests/snippets/bit-table.b) |
 | `BITLOAD` | 1 argument | [Guide](https://jbc-lang.org/pages/bitload.html) | 0 | call translates | [Guide example load checked](tests/snippets/bit-table.b) |
 | `BITNOT` | 1 argument | [Guide](https://jbc-lang.org/pages/bitnot.html) | 1 | call translates | [Unsigned 32-bit output checked](tests/snippets/bitand.b) |
-| `BITOR` | 2 arguments | [Guide](https://jbc-lang.org/pages/bitor.html) | 3 | call translates | [Signed 32-bit output checked](tests/snippets/bitor.b) |
+| `BITOR` | 2 arguments | [Guide](https://jbc-lang.org/pages/bitor.html) | 3 | call translates | [Unsigned 32-bit output checked against TAFC](tests/snippets/bitor.b) |
 | `BITRESET` | 1 argument | [Guide](https://jbc-lang.org/pages/bitreset.html) | 0 | call translates | [Guide example and whole table checked](tests/snippets/bit-table.b) |
 | `BITSET` | 1 argument | [Guide](https://jbc-lang.org/pages/bitset.html) | 0 | call translates | [Guide example and whole table checked](tests/snippets/bit-table.b) |
 | `CHANGETIMESTAMP` | 2 arguments | [Guide](https://jbc-lang.org/pages/changetimestamp.html) | 0 | call translates | [Guide examples checked](tests/snippets/changetimestamp.b) |

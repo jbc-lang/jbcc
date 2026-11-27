@@ -22,8 +22,12 @@ def translate(
     include_resolver: IncludeResolver,
     include_depth: Optional[int] = None,
     source_filter: Optional[SourceFilter] = None,
+    emulation: str = 'prime',
 ) -> str:
-    """Return standalone C for a main program and its linked routines."""
+    """Return standalone C for a main program and its linked routines.
+
+    emulation is 'prime' (the default, as T24 runs) or 'jbase'.
+    """
 
     def resolve(source, name, _directories, token):
         return include_resolver(source, name, token.line, token.column)
@@ -35,5 +39,6 @@ def translate(
         include_resolver=resolve,
         include_depth=include_depth,
         source_filter=source_filter,
+        emulation=emulation,
     )
     return source

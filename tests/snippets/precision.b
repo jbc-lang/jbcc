@@ -16,6 +16,9 @@ PRINT '.2909' EQ '.29'
 PRINT '-.009' EQ '0'
 PRINT 'a.001' EQ 'a.002'
 PRINT 0.29 * 1
+* TAFC prints 999.99: it keeps the literal at the first PRECISION (6) and
+* rescales it without rounding. jbcc rounds operands at the current
+* PRECISION and prints 1000 (TAFC-CROSSCHECK.md, mixed precision).
 PRINT 999.999 / 1
 IF 0 THEN PRECISION 5
 PRINT 1 / 3
