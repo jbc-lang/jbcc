@@ -3555,4 +3555,5 @@ deferred unassigned reads. Twelve units use source fixes.
 [R19-CORPUS.md](R19-CORPUS.md) tracks the work and the decisions behind
 each flag.
 - [ ] Select a small deterministic set of `.tut` tests and identify
-  their target routines and required `.d` records.
+  their target routines and required `.d` records. TUT.md plans this
+  and the rest of the work to run the R19 unit tests.

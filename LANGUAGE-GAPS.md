@@ -74,6 +74,6 @@ All four corpora translate; see R13-CORPUS.md and R19-CORPUS.md.
 - Package-aware linkage: each R19 unit is checked on its own, with
   prototypes for the members it calls.
 - T24 table operations at runtime: their calls are checked, not run.
-- The `.tut` unit tests with their `.d` records.
+- The `.tut` unit tests with their `.d` records (TUT.md).
 - 6 R19 units include generated inserts whose `.domain` class is not in
   the dump (`--t24-exclude-missing-domains`).

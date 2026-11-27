@@ -119,5 +119,5 @@ running T24 code needs T24 itself:
 
 - T24 table operations (`F.READ`, `F.WRITE` and the R19 component calls)
   are checked against their declarations, not run.
-- The `.tut` unit tests need their `.d` records and the routines they
-  test. Running a first set of them is the next planned step (PLAN.md).
+- The `.tut` unit tests need the UTF framework, which is not in the dump,
+  the routines they test, and their records. TUT.md plans the work.
