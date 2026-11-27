@@ -353,11 +353,8 @@ def test_capture_from_pipe(compiler):
     run = subprocess.run(
         [binary], input=b'one\x00two', capture_output=True, timeout=5
     )
-    assert run.returncode != 0
-    assert (
-        expected_text('capture-from-pipe.stderr', source=source).encode()
-        in run.stderr
-    )
+    # Byte 0 is kept, as TAFC keeps it (tests/tafc/nul-io.b).
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'one\x00two', b'')
 
 
 def test_exec_rejects_duplicate_returning_clause(compiler):
@@ -419,14 +416,10 @@ def test_execute_result_diagnostics(compiler):
     source = (
         ROOT / 'tests/programs/execute-result-diagnostics/execute-variant-2.b'
     )
+    # RETURNING keeps byte 0 from stderr: status 0, a field mark, byte 0.
     run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'execute-result-diagnostics_2.stderr', source=source
-        ).encode()
-        in run.stderr
-    )
+    assert (run.returncode, run.stdout) == (0, b'30FE00\n'), run.stderr
+
 
 
 @pytest.mark.parametrize(

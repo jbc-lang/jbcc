@@ -645,7 +645,7 @@ neither unless it has the clause. These follow TAFC PB201214
 (`tests/tafc/execute-passdata.b`); jbcc passes the data through two
 temporary files named in the child's environment.
 
-NUL bytes in either collected stream produce a runtime diagnostic.
+Both collected streams keep byte 0, as TAFC does.
 Alternate shells and field-mark-separated commands remain unsupported.
 TAFC PB201214 runs a command without a shell, splitting it on spaces, so
 `;`, `|` and quotes are plain text there; jbcc keeps the shell.
@@ -1772,8 +1772,10 @@ the MX, MCP, MCPN, MCNP, MCA, MCN and MCB conversions, dynamic array
 extraction and assignment, INSERT, DELETE, REPLACE, REMOVE, LOCATE, SORT,
 FIELD, FIELDS, GROUP, INDEX, COUNT, DCOUNT, CHANGE, EREPLACE, SWAP, CONVERT,
 the element-wise functions such as LENS, COUNTS, CATS, SPLICE, STRS,
-OCONVS and FMTS, and the element comparisons handle it. Input and files
-still stop at the first byte 0, as LANGUAGE-GAPS.md lists.
+OCONVS and FMTS, the element comparisons, OSREAD, OSWRITE, WRITESEQ,
+READBLK, WRITEBLK, file records and keys, CAPTURING, RETURNING, PASSDATA,
+RTNDATA and passed select lists handle it too. INPUT and KEYIN still
+report byte 0 as an error.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197
@@ -2304,7 +2306,8 @@ open OSOPEN or OPENSEQ handle. Offset and count are nonnegative integers.
 The offset is zero-based. jbcc provisionally reads from the current
 position when AT is omitted and leaves the cursor after the bytes read.
 A short read returns the available bytes, and a read at or beyond EOF
-returns an empty value with status 0. NUL bytes become byte 128.
+returns an empty value with status 0. Byte 0 becomes byte 128, as in
+TAFC PB201214.
 `SETTING` and `STATUS()` report the result. Failures take `ON ERROR`
 when present or report the statement location.
 [OSBREAD](https://jbc-lang.org/pages/osbread.html).
@@ -2320,7 +2323,8 @@ A failed write reports the source location when no error arm is present.
 `OSREAD value FROM path` reads a regular file into a scalar or
 record context variable. It strips one final LF, turns every other LF into
 a field mark and keeps carriage returns, as TAFC PB201214 does, so a file
-of lines reads as a dynamic array. It replaces each NUL byte with byte 128. A bare name that is missing
+of lines reads as a dynamic array. It keeps byte 0, as TAFC does
+(`tests/tafc/nul-io.b`). A bare name that is missing
 from the working directory is searched for in the colon-separated
 `JEDIFILEPATH`. The reference grammar accepts `SETTING` and `ON ERROR`
 with a required THEN or ELSE arm. jbcc uses sequential file status codes
@@ -2368,8 +2372,7 @@ handles report a source-located error until device timeouts are supported.
 current position, including line endings and field marks. A complete
 block takes THEN. Following the guide's EOF rule, jbcc provisionally
 takes ELSE with an empty destination on a short read, and the position
-advances past any bytes consumed. Embedded NUL bytes take ELSE with
-status 32768 because jbcc values use NUL-terminated strings.
+advances past any bytes consumed. A block keeps byte 0, as in TAFC.
 
 `WRITEBLK Block TO F` (or `ON F`) writes at the current byte position
 without adding a newline. A missing file must first be created with
@@ -2430,7 +2433,8 @@ That case is provisional pending a reference run. [WEOFSEQ](https://jbc-lang.org
 `READSEQ` consumes a line, strips the newline and takes `ELSE` at EOF.
 For long lines jbcc returns the first 1,024 bytes and advances to the
 following line. That advancement is provisional pending a reference run.
-Embedded NUL bytes produce an I/O error.
+A line ends at byte 0: the rest of it is skipped, as TAFC PB201214 reads
+it (`tests/tafc/nul-io.b`).
 [READSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_READSEQ.htm).
 
 `WRITESEQ` adds a newline at the current position. Its `APPEND` option

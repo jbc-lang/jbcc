@@ -671,5 +671,7 @@ functions at once.
 - [x] Stage 2: CHAR, concatenation, LEN, SEQ, substrings, comparisons,
       output, MX; `char-bytes.b` matches TAFC.
 - [x] Stage 3: dynamic arrays and the search functions.
-- [ ] Stage 4: input, EXECUTE data and files.
+- [x] Stage 4: EXECUTE data and files (`tests/tafc/nul-io.b`); INPUT
+      and KEYIN keep their error, since the harness runs TAFC without
+      input to probe them.
 - [ ] Stage 5: source literals with byte 0.

@@ -1,1 +1,2 @@
 EXECUTE "printf '\000' >&2" SETTING R
+CRT OCONV(R, 'MX')
