@@ -1,7 +1,7 @@
 #if defined(JBC_SEQUENTIAL) && defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #define _DARWIN_C_SOURCE 1
 #endif
-#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_SESSION) || defined(JBC_TIMESTAMP)) && !defined(_POSIX_C_SOURCE)
+#if (defined(JBC_SEQUENTIAL) || defined(JBC_SAVED_LISTS) || defined(JBC_REPORT) || defined(JBC_TERMINAL) || defined(JBC_HUSH) || defined(JBC_SLEEP) || defined(JBC_EXECUTE) || defined(JBC_PUTENV) || defined(JBC_HOST_INFO) || defined(JBC_REGEXP) || defined(JBC_SESSION) || defined(JBC_TIMESTAMP)) && !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 
@@ -6783,3 +6783,866 @@ const char *jbc_ioctl(const char *handle, const char *command, jbc_variable *out
     assign_value(output, path);
     return "1";
 }
+
+/* Catalogue functions that the T24 corpora never call. Their behaviour
+   follows the guide's descriptions and examples; README.md lists the
+   choices that remain provisional. */
+
+#ifdef JBC_MATH
+static long double angle_operand(const char *s, const char *name, const char *file, int line, int column)
+{
+    struct decimal n;
+    long double value = strtold(s, NULL);
+    if (!parse_decimal(s, &n) || !isfinite(value)) {
+        char message[64];
+        snprintf(message, sizeof message, "%s requires a numeric operand", name);
+        numeric_error(file, line, column, message);
+    }
+    return value;
+}
+
+/* Round away the conversion's binary noise so that ASIN(-0.5) is -30. */
+static const char *degrees_value(long double radians)
+{
+    long double degrees = roundl(radians * (180.0L / 3.14159265358979323846L) * 1e12L) / 1e12L;
+    return format_decimal(degrees, TRUNCATE_RESULT);
+}
+
+/* TAN takes degrees like SIN and COS; the inverse functions return them. */
+const char *jbc_tan(const char *s, const char *file, int line, int column)
+{
+    long double value = tanl(radians(s, file, line, column));
+    if (!isfinite(value)) numeric_error(file, line, column, "TAN result out of range");
+    return format_decimal(value, TRUNCATE_RESULT);
+}
+
+const char *jbc_asin(const char *s, const char *file, int line, int column)
+{
+    long double value = angle_operand(s, "ASIN", file, line, column);
+    if (value < -1 || value > 1) numeric_error(file, line, column, "ASIN requires an operand from -1 to 1");
+    return degrees_value(asinl(value));
+}
+
+const char *jbc_acos(const char *s, const char *file, int line, int column)
+{
+    long double value = angle_operand(s, "ACOS", file, line, column);
+    if (value < -1 || value > 1) numeric_error(file, line, column, "ACOS requires an operand from -1 to 1");
+    return degrees_value(acosl(value));
+}
+
+const char *jbc_atan(const char *s, const char *file, int line, int column)
+{
+    return degrees_value(atanl(angle_operand(s, "ATAN", file, line, column)));
+}
+
+static long double float_operand(const char *s, const char *name, const char *file, int line, int column)
+{
+    struct decimal n;
+    long double value = strtold(s, NULL);
+    if (!*s || !parse_decimal(s, &n) || !isfinite(value)) {
+        char message[64];
+        snprintf(message, sizeof message, "%s requires numeric operands", name);
+        numeric_error(file, line, column, message);
+    }
+    return value;
+}
+
+/* The guide's FDIV and FMUL examples, 0.1428571429 and 14.48652932, both
+   show ten significant digits and ignore PRECISION. */
+static const char *significant_value(long double value, const char *name, const char *file, int line, int column)
+{
+    if (!isfinite(value)) {
+        char message[64];
+        snprintf(message, sizeof message, "%s result out of range", name);
+        numeric_error(file, line, column, message);
+    }
+    char scientific[64];
+    snprintf(scientific, sizeof scientific, "%.9Le", value);
+    int places = 9 - atoi(strchr(scientific, 'e') + 1);
+    if (places < 0) places = 0;
+    int length = snprintf(NULL, 0, "%.*Lf", places, value);
+    char *out = allocate((size_t)length);
+    snprintf(out, (size_t)length + 1, "%.*Lf", places, value);
+    if (places) {
+        while (out[length - 1] == '0') out[--length] = '\0';
+        if (out[length - 1] == '.') out[--length] = '\0';
+    }
+    return strcmp(out, "-0") == 0 ? "0" : out;
+}
+
+/* FADD follows FSUB, whose guide example rounds to PRECISION. */
+const char *jbc_fadd(const char *left, const char *right, const char *file, int line, int column)
+{
+    long double value = float_operand(left, "FADD", file, line, column)
+                      + float_operand(right, "FADD", file, line, column);
+    if (!isfinite(value)) numeric_error(file, line, column, "FADD result out of range");
+    return format_decimal(value, ROUND_RESULT);
+}
+
+const char *jbc_fmul(const char *left, const char *right, const char *file, int line, int column)
+{
+    long double value = float_operand(left, "FMUL", file, line, column)
+                      * float_operand(right, "FMUL", file, line, column);
+    return significant_value(value, "FMUL", file, line, column);
+}
+
+const char *jbc_fdiv(const char *left, const char *right, const char *file, int line, int column)
+{
+    long double dividend = float_operand(left, "FDIV", file, line, column);
+    long double divisor = float_operand(right, "FDIV", file, line, column);
+    if (divisor == 0) numeric_error(file, line, column, "FDIV division by zero");
+    return significant_value(dividend / divisor, "FDIV", file, line, column);
+}
+
+const char *jbc_fcmp(const char *left, const char *right, const char *file, int line, int column)
+{
+    long double a = float_operand(left, "FCMP", file, line, column);
+    long double b = float_operand(right, "FCMP", file, line, column);
+    return a < b ? "-1" : a > b ? "1" : "0";
+}
+#endif
+
+/* Exact decimal addition of magnitudes or signed values. */
+static const char *decimal_sum(struct decimal a, struct decimal b, const char *precision,
+                               const char *name, const char *file, int line, int column)
+{
+    char diagnostic[64];
+    snprintf(diagnostic, sizeof diagnostic, "%s precision requires -1 or a nonnegative integer", name);
+    uintmax_t places = string_math_places(precision, UINT_MAX, diagnostic, file, line, column);
+    if (!b.sign) { limit_places(&a, places > INT_MAX ? -1 : (int)places); return fmt_decimal(a, a.places); }
+    if (!a.sign) { limit_places(&b, places > INT_MAX ? -1 : (int)places); return fmt_decimal(b, b.places); }
+    int subtract = a.sign != b.sign;
+    int sign = a.sign;
+    if (subtract) {
+        a.sign = b.sign = 1;
+        if (compare_decimals(a, b, -1) < 0) {
+            struct decimal swap = a;
+            a = b;
+            b = swap;
+            sign = -sign;
+        }
+    }
+    size_t whole = a.digits > b.digits ? a.digits : b.digits;
+    size_t scale = a.places > b.places ? a.places : b.places;
+    if (scale >= SIZE_MAX - whole - 2) numeric_error(file, line, column, "decimal result is too large");
+    char *digits = allocate(whole + scale + 1);
+    int carry = 0;
+    for (size_t i = whole + scale; i > 0; --i) {
+        int x = sum_digit(a, whole, i - 1), y = sum_digit(b, whole, i - 1);
+        int d = x + (subtract ? -y : y) + carry;
+        carry = d < 0 ? -1 : d / 10;
+        digits[i] = (char)('0' + d - 10 * carry);
+    }
+    digits[0] = (char)('0' + carry);
+    struct decimal result = {digits, digits + whole + 1, whole + 1, scale, sign};
+    while (result.digits && *result.whole == '0') { ++result.whole; --result.digits; }
+    while (result.places && result.fraction[result.places - 1] == '0') --result.places;
+    if (!result.digits && !result.places) return "0";
+    size_t kept = places < result.places ? (size_t)places : result.places;
+    char *out = fmt_decimal(result, kept);
+    if (kept) {
+        char *end = out + strlen(out);
+        while (end[-1] == '0') --end;
+        if (end[-1] == '.') --end;
+        *end = '\0';
+    }
+    return out;
+}
+
+const char *jbc_sadd(const char *left, const char *right, const char *precision,
+                     const char *file, int line, int column)
+{
+    struct decimal a, b;
+    int numeric = parse_decimal(left, &a);
+    if (!parse_decimal(right, &b) || !numeric)
+        numeric_error(file, line, column, "SADD requires numeric operands");
+    return decimal_sum(a, b, precision, "SADD", file, line, column);
+}
+
+const char *jbc_ssub(const char *left, const char *right, const char *precision,
+                     const char *file, int line, int column)
+{
+    struct decimal a, b;
+    int numeric = parse_decimal(left, &a);
+    if (!parse_decimal(right, &b) || !numeric)
+        numeric_error(file, line, column, "SSUB requires numeric operands");
+    b.sign = -b.sign;
+    return decimal_sum(a, b, precision, "SSUB", file, line, column);
+}
+
+const char *jbc_scmp(const char *left, const char *right, const char *file, int line, int column)
+{
+    struct decimal a, b;
+    int numeric = parse_decimal(left, &a);
+    if (!parse_decimal(right, &b) || !numeric)
+        numeric_error(file, line, column, "SCMP requires numeric operands");
+    int order = compare_decimals(a, b, -1);
+    return order < 0 ? "-1" : order > 0 ? "1" : "0";
+}
+
+static char ascii_upper(unsigned char c)
+{
+    return (char)(c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c);
+}
+
+/* Each process has a table of 128 flags, numbered from 1. Codes -1 to -3
+   name the break-key and restart switches; jbcc keeps them as flags
+   without a terminal effect. */
+static unsigned char bit_table[128], bit_switches[3];
+
+static unsigned char *bit_flag(const char *number, const char *name, int *all,
+                               const char *file, int line, int column)
+{
+    struct decimal n;
+    char message[80];
+    snprintf(message, sizeof message, "%s requires a bit number from -3 to 128", name);
+    if (!parse_decimal(number, &n)) numeric_error(file, line, column, message);
+    int64_t bit = n.digits > 4 ? 1000 : truncated(number, file, line, column);
+    *all = bit == 0;
+    if (bit == 0) return NULL;
+    if (bit < -3 || bit > 128) numeric_error(file, line, column, message);
+    return bit > 0 ? &bit_table[bit - 1] : &bit_switches[-bit - 1];
+}
+
+static const char *update_bit(const char *number, const char *name, int mode,
+                              const char *file, int line, int column)
+{
+    int all;
+    unsigned char *flag = bit_flag(number, name, &all, file, line, column);
+    if (all) {
+        if (mode == 0 || mode == 1) {
+            memset(bit_table, mode, sizeof bit_table);
+            return mode ? "1" : "0";
+        }
+        numeric_error(file, line, column, "bit number 0 applies only to BITSET and BITRESET");
+    }
+    const char *previous = *flag ? "1" : "0";
+    if (mode == 0 || mode == 1) *flag = (unsigned char)mode;
+    else if (mode == 2) *flag = !*flag;
+    return previous;
+}
+
+const char *jbc_bitset(const char *bit, const char *file, int line, int column)
+{
+    return update_bit(bit, "BITSET", 1, file, line, column);
+}
+
+const char *jbc_bitreset(const char *bit, const char *file, int line, int column)
+{
+    return update_bit(bit, "BITRESET", 0, file, line, column);
+}
+
+const char *jbc_bitchange(const char *bit, const char *file, int line, int column)
+{
+    return update_bit(bit, "BITCHANGE", 2, file, line, column);
+}
+
+const char *jbc_bitcheck(const char *bit, const char *file, int line, int column)
+{
+    return update_bit(bit, "BITCHECK", 3, file, line, column);
+}
+
+/* BITLOAD returns the table as hexadecimal with trailing zero digits
+   removed. Given a nonempty string, it loads the table and returns the
+   previous contents (provisional: the guide names the result VALUE.OLD). */
+const char *jbc_bitload(const char *source)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    char *out = allocate(32);
+    int length = 0;
+    for (int i = 0; i < 32; ++i) {
+        unsigned char *b = bit_table + 4 * i;
+        out[i] = hex[b[0] << 3 | b[1] << 2 | b[2] << 1 | b[3]];
+        if (out[i] != '0') length = i + 1;
+    }
+    out[length] = '\0';
+    if (!source || !*source) return out;
+    memset(bit_table, 0, sizeof bit_table);
+    for (int i = 0; i < 32 && source[i]; ++i) {
+        const char *digit = strchr(hex, ascii_upper((unsigned char)source[i]));
+        if (!digit || !*digit) break;
+        int value = (int)(digit - hex);
+        for (int j = 0; j < 4; ++j) bit_table[4 * i + j] = (unsigned char)(value >> (3 - j) & 1);
+    }
+    return out;
+}
+
+/* Character classes use the C locale's ASCII rules. The guide's ISCNTRL
+   example counts @FM as a control character, so the system delimiters
+   248 to 255 are control characters; other high bytes are in no class. */
+static int byte_class(unsigned char c, char kind)
+{
+    switch (kind) {
+    case 'C': return c < 32 || c == 127 || c >= 248;
+    case 'G': return c > 32 && c < 127;
+    case 'P': return c >= 32 && c < 127;
+    case 'U': return c > 32 && c < 127 && !ascii_alpha(c) && !ascii_digit(c);
+    default: return ascii_digit(c) || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+    }
+}
+
+static const char *all_in_class(const char *text, char kind)
+{
+    if (!*text) return "0";
+    for (; *text; ++text)
+        if (!byte_class((unsigned char)*text, kind)) return "0";
+    return "1";
+}
+
+const char *jbc_iscntrl(const char *text) { return all_in_class(text, 'C'); }
+const char *jbc_isgraph(const char *text) { return all_in_class(text, 'G'); }
+const char *jbc_isprint(const char *text) { return all_in_class(text, 'P'); }
+const char *jbc_ispunct(const char *text) { return all_in_class(text, 'U'); }
+const char *jbc_isxdigit(const char *text) { return all_in_class(text, 'X'); }
+
+/* Pair the elements of two dynamic arrays as ADDS does. The callback sees
+   NULL for an element that has no counterpart. */
+static const char *pair_elements(const char *left, const char *right,
+                                 const char *(*each)(const char *, const char *, const void *),
+                                 const void *context)
+{
+    struct array_cursor lhs = array_cursor(left, 0, 1);
+    struct array_cursor rhs = array_cursor(right, 0, 1);
+    char *left_items = split_array_items(left, NULL);
+    char *right_items = split_array_items(right, NULL);
+    const char *out = "";
+    for (;;) {
+        const char *a = lhs.present ? left_items + (lhs.item - left) : NULL;
+        const char *b = rhs.present ? right_items + (rhs.item - right) : NULL;
+        out = jbc_concat(out, each(a, b, context));
+        unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
+        if (mark == 256) break;
+        out = jbc_concat(out, (const char[]){(char)mark, '\0'});
+        advance_array_item(&lhs, mark);
+        advance_array_item(&rhs, mark);
+    }
+    free(left_items);
+    free(right_items);
+    return out;
+}
+
+/* ANDS: a missing element is false; two nulls give null; a null beside a
+   false value is false. A null beside a true value gives null, as in
+   UniVerse (provisional). */
+static const char *and_pair(const char *a, const char *b, const void *context)
+{
+    (void)context;
+    if (!a || !b) return "0";
+    if (!*a && !*b) return "";
+    if ((*a && !jbc_truth(a)) || (*b && !jbc_truth(b))) return "0";
+    if (!*a || !*b) return "";
+    return "1";
+}
+
+/* ORS: a missing element is false; a null beside a false value or another
+   null gives null, and a null beside a true value gives true. */
+static const char *or_pair(const char *a, const char *b, const void *context)
+{
+    (void)context;
+    if (!a) a = "0";
+    if (!b) b = "0";
+    if ((*a && jbc_truth(a)) || (*b && jbc_truth(b))) return "1";
+    if (!*a || !*b) return "";
+    return "0";
+}
+
+struct source_location {
+    const char *file;
+    int line, column;
+};
+
+/* MODS: X - INT(X / Y) * Y, with 0 for a missing element or a zero
+   divisor and null when either element is null. */
+static const char *mod_pair(const char *a, const char *b, const void *context)
+{
+    const struct source_location *at = context;
+    if (!a || !b) return "0";
+    if (!*a || !*b) return "";
+    struct decimal divisor;
+    if (parse_decimal(b, &divisor) && !divisor.sign) return "0";
+    return jbc_mod(a, b, "MODS requires numeric elements", at->file, at->line, at->column);
+}
+
+const char *jbc_ands(const char *left, const char *right)
+{
+    return pair_elements(left, right, and_pair, NULL);
+}
+
+const char *jbc_ors(const char *left, const char *right)
+{
+    return pair_elements(left, right, or_pair, NULL);
+}
+
+const char *jbc_mods(const char *left, const char *right, const char *file, int line, int column)
+{
+    struct source_location at = {file, line, column};
+    return pair_elements(left, right, mod_pair, &at);
+}
+
+/* IFS selects, for each element of the condition, the element at the same
+   field, value and subvalue position of the true or false array. A null
+   condition is false and a missing element is empty. */
+const char *jbc_ifs(const char *condition, const char *when_true, const char *when_false)
+{
+    char *items = split_array_items(condition, NULL);
+    const char *out = "";
+    int64_t position[3] = {1, 1, 1};
+    const char *field = condition;
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        unsigned char mark = (unsigned char)condition[end - items];
+        /* Address the value or subvalue only when the condition has one. */
+        size_t field_length = strcspn(field, "\376");
+        int depth = memchr(field, 253, field_length) || memchr(field, 252, field_length) ? 2 : 1;
+        const char *value = condition + (item - items);
+        while (value > field && (unsigned char)value[-1] != 253) --value;
+        size_t value_length = strcspn(value, "\376\375");
+        if (memchr(value, 252, value_length)) depth = 3;
+        const char *source = *item && jbc_truth(item) ? when_true : when_false;
+        out = jbc_concat(out, array_part(source, strlen(source), position, depth, 0, NULL, 0));
+        if (!mark) break;
+        out = jbc_concat(out, (const char[]){(char)mark, '\0'});
+        if (mark == 254) {
+            ++position[0]; position[1] = position[2] = 1;
+            field = condition + (end - items) + 1;
+        } else if (mark == 253) {
+            ++position[1]; position[2] = 1;
+        } else {
+            ++position[2];
+        }
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
+static const char *seq_element(const char *item)
+{
+    return *item ? jbc_seq(item) : "";
+}
+
+const char *jbc_seqs(const char *source)
+{
+    return map_elements(source, seq_element);
+}
+
+/* CHARS and STRS keep null elements null. */
+const char *jbc_chars(const char *source, const char *file, int line, int column)
+{
+    char *items = split_array_items(source, NULL);
+    const char *out = "";
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark[2] = {source[end - items], '\0'};
+        if (*item) out = jbc_concat(out, jbc_char(item, file, line, column));
+        out = jbc_concat(out, mark);
+        if (!*mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
+const char *jbc_strs(const char *source, const char *count, const char *file, int line, int column)
+{
+    if (!*count) numeric_error(file, line, column, "STRS requires a numeric repeat count");
+    if (truncated(count, file, line, column) <= 0) return "";
+    char *items = split_array_items(source, NULL);
+    const char *out = "";
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark[2] = {source[end - items], '\0'};
+        out = jbc_concat(out, jbc_str(item, count, file, line, column));
+        out = jbc_concat(out, mark);
+        if (!*mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
+/* SOUNDEX keeps the first letter and codes later consonants, skipping
+   repeats of the same letter. The guide gives one to three digits. */
+const char *jbc_soundex(const char *text)
+{
+    static const char codes[] = "01230120022455012623010202";
+    while (*text && !ascii_alpha((unsigned char)*text)) ++text;
+    if (!*text) return "";
+    char *out = allocate(4);
+    int length = 0;
+    out[length++] = ascii_upper((unsigned char)*text);
+    char previous = ascii_upper((unsigned char)*text);
+    for (++text; *text && length < 4; ++text) {
+        if (!ascii_alpha((unsigned char)*text)) continue;
+        char letter = ascii_upper((unsigned char)*text);
+        if (letter == previous) continue;
+        previous = letter;
+        char code = codes[letter - 'A'];
+        if (code != '0') out[length++] = code;
+    }
+    out[length] = '\0';
+    return out;
+}
+
+#ifdef JBC_REGEXP
+#include <regex.h>
+
+/* REGEXP returns the one-based position of the first match, 0 when there
+   is none and -1 for an invalid POSIX extended expression. */
+const char *jbc_regexp(const char *text, const char *expression)
+{
+    regex_t pattern;
+    if (regcomp(&pattern, expression, REG_EXTENDED)) return "-1";
+    regmatch_t match;
+    int status = regexec(&pattern, text, 1, &match, 0);
+    regfree(&pattern);
+    if (status) return "0";
+    return size_value((uintmax_t)match.rm_so + 1);
+}
+#endif
+
+#ifdef JBC_TIMESTAMP
+static int64_t adjustment_field(const char *changes, int index, const char *file, int line, int column)
+{
+    int64_t position[1] = {index};
+    const char *field = array_part(changes, strlen(changes), position, 1, 0, NULL, 0);
+    if (!*field) return 0;
+    struct decimal n;
+    if (!parse_decimal(field, &n) || n.places)
+        numeric_error(file, line, column, "CHANGETIMESTAMP requires whole adjustments");
+    if (n.digits > 12) numeric_error(file, line, column, "CHANGETIMESTAMP adjustment out of range");
+    return integer(field, file, line, column);
+}
+
+/* Years^Months^Weeks^Days^Hours^Minutes^Seconds^Milliseconds. Years and
+   months move along the UTC calendar, keeping the day of the month where
+   it exists and otherwise using the month's last day (provisional). */
+const char *jbc_changetimestamp(const char *stamp, const char *changes,
+                                const char *file, int line, int column)
+{
+    int64_t ms = milliseconds(stamp, "CHANGETIMESTAMP requires a numeric timestamp", file, line, column);
+    int64_t field[8];
+    for (int i = 0; i < 8; ++i) field[i] = adjustment_field(changes, i + 1, file, line, column);
+    if (field[0] || field[1]) {
+        int64_t day = floor_div(ms, 86400000), clock = ms - day * 86400000;
+        int64_t ordinal = day + UNIX_EPOCH_ORDINAL;
+        int64_t year = 1 + 400 * floor_div(ordinal, 146097);
+        int64_t remaining = ordinal - floor_div(ordinal, 146097) * 146097;
+        while (remaining >= 365 + leap_year((int)year)) remaining -= 365 + leap_year((int)year++);
+        int month = 1;
+        while (remaining >= month_length((int)year, month)) remaining -= month_length((int)year, month++);
+        int64_t months = (year * 12 + month - 1) + field[0] * 12 + field[1];
+        year = floor_div(months, 12);
+        month = (int)(months - year * 12) + 1;
+        if (year < 1 || year > 9999) numeric_error(file, line, column, "CHANGETIMESTAMP result out of range");
+        int64_t date = remaining + 1;
+        if (date > month_length((int)year, month)) date = month_length((int)year, month);
+        int64_t years = year - 1;
+        ordinal = years * 365 + years / 4 - years / 100 + years / 400 + date - 1;
+        for (int m = 1; m < month; ++m) ordinal += month_length((int)year, m);
+        ms = (ordinal - UNIX_EPOCH_ORDINAL) * 86400000 + clock;
+    }
+    static const int64_t unit[] = {0, 0, 604800000, 86400000, 3600000, 60000, 1000, 1};
+    for (int i = 2; i < 8; ++i) ms += field[i] * unit[i];
+    return milliseconds_value(ms);
+}
+#endif
+
+#ifdef JBC_PUTENV
+const char *jbc_delenv(const char *name)
+{
+    if (!*name || strchr(name, '=') || !getenv(name)) return "0";
+    return unsetenv(name) == 0 ? "1" : "0";
+}
+#endif
+
+#ifdef JBC_HOST_INFO
+#include <grp.h>
+#include <pwd.h>
+#include <sys/stat.h>
+
+/* DIR returns size^date^time^D, with the date and time in internal format
+   for the local zone. jbcc returns an empty string for a missing path. */
+const char *jbc_dir(const char *path)
+{
+    struct stat info;
+    if (!*path || stat(path, &info) != 0) return "";
+    time_t stamp = info.st_mtime;
+    struct tm local;
+    if (!localtime_r(&stamp, &local)) return "";
+    int directory = S_ISDIR(info.st_mode);
+    char *out = allocate(64);
+    snprintf(out, 65, "%jd\376%s\376%d\376%s", directory ? (intmax_t)0 : (intmax_t)info.st_size,
+             internal_date(local.tm_year + 1900, local.tm_yday + 1),
+             local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec, directory ? "D" : "");
+    return out;
+}
+
+static int user_id(const char *uid, uid_t *out)
+{
+    struct decimal n;
+    if (!parse_decimal(uid, &n) || n.sign < 0 || n.places || n.digits > 9) return 0;
+    *out = (uid_t)strtoul(uid, NULL, 10);
+    return 1;
+}
+
+const char *jbc_getusername(const char *uid)
+{
+    uid_t id;
+    struct passwd *entry = user_id(uid, &id) ? getpwuid(id) : NULL;
+    return entry ? strcpy(allocate(strlen(entry->pw_name)), entry->pw_name) : "";
+}
+
+/* The guide says Windows returns zero, so the result is the user's
+   primary group number rather than its name. */
+const char *jbc_getusergroup(const char *uid)
+{
+    uid_t id;
+    struct passwd *entry = user_id(uid, &id) ? getpwuid(id) : NULL;
+    return entry ? size_value((uintmax_t)entry->pw_gid) : "";
+}
+#endif
+
+#ifdef JBC_CACHE
+/* The JBC.h in-memory cache: named buckets of items with hit, get and put
+   counters and a size limit. Values outlive the runtime's string
+   collector, so the cache keeps its own copies. */
+struct cache_item {
+    struct cache_item *next;
+    char *key, *value;
+    uint64_t used;
+};
+
+struct cache_bucket {
+    struct cache_bucket *next;
+    char *name;
+    struct cache_item *items;
+    uint64_t size, count, hits, gets, puts, max_size, threshold;
+};
+
+enum { CACHE_DEFAULT_SIZE = 1048576, CACHE_DEFAULT_THRESHOLD = 90 };
+static struct cache_bucket *cache_buckets;
+static uint64_t cache_clock;
+
+static char *cache_copy(const char *text)
+{
+    char *copy = malloc(strlen(text) + 1);
+    if (!copy) fail("out of memory");
+    return strcpy(copy, text);
+}
+
+static struct cache_bucket *cache_bucket(const char *name, int create)
+{
+    struct cache_bucket **link = &cache_buckets;
+    for (; *link; link = &(*link)->next)
+        if (!strcmp((*link)->name, name)) return *link;
+    if (!create) return NULL;
+    struct cache_bucket *bucket = calloc(1, sizeof *bucket);
+    if (!bucket) fail("out of memory");
+    bucket->name = cache_copy(name);
+    bucket->max_size = CACHE_DEFAULT_SIZE;
+    bucket->threshold = CACHE_DEFAULT_THRESHOLD;
+    *link = bucket;
+    return bucket;
+}
+
+static struct cache_item **cache_item(struct cache_bucket *bucket, const char *key)
+{
+    struct cache_item **link = &bucket->items;
+    while (*link && strcmp((*link)->key, key)) link = &(*link)->next;
+    return link;
+}
+
+static void cache_remove(struct cache_bucket *bucket, struct cache_item **link)
+{
+    struct cache_item *item = *link;
+    *link = item->next;
+    bucket->size -= strlen(item->value);
+    --bucket->count;
+    free(item->key);
+    free(item->value);
+    free(item);
+}
+
+static void cache_empty(struct cache_bucket *bucket)
+{
+    while (bucket->items) cache_remove(bucket, &bucket->items);
+    bucket->hits = bucket->gets = bucket->puts = 0;
+}
+
+/* The guide purges "the most outdated data" once the size exceeds
+   CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100. jbcc removes the least
+   recently written or read items until the bucket is back under that
+   limit (provisional). */
+static void cache_purge(struct cache_bucket *bucket)
+{
+    uint64_t limit = bucket->max_size / 100 * bucket->threshold
+                   + bucket->max_size % 100 * bucket->threshold / 100;
+    while (bucket->items && bucket->size > limit) {
+        struct cache_item **oldest = &bucket->items;
+        for (struct cache_item **link = &bucket->items; *link; link = &(*link)->next)
+            if ((*link)->used < (*oldest)->used) oldest = link;
+        cache_remove(bucket, oldest);
+    }
+}
+
+static int cache_number(const char *text, uint64_t *out)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n) || n.sign < 0 || n.digits > 18) return 0;
+    *out = 0;
+    for (size_t i = 0; i < n.digits; ++i) *out = *out * 10 + (uint64_t)(n.whole[i] - '0');
+    return 1;
+}
+
+const char *jbc_cache_put(const char *name, const char *key, const char *value)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 1);
+    struct cache_item **link = cache_item(bucket, key);
+    if (*link) {
+        bucket->size -= strlen((*link)->value);
+        free((*link)->value);
+    } else {
+        *link = calloc(1, sizeof **link);
+        if (!*link) fail("out of memory");
+        (*link)->key = cache_copy(key);
+        ++bucket->count;
+    }
+    (*link)->value = cache_copy(value);
+    (*link)->used = ++cache_clock;
+    bucket->size += strlen(value);
+    ++bucket->puts;
+    cache_purge(bucket);
+    return "";
+}
+
+const char *jbc_cache_get(const char *name, const char *key)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    if (!bucket) return "";
+    ++bucket->gets;
+    struct cache_item *item = *cache_item(bucket, key);
+    if (!item) return "";
+    ++bucket->hits;
+    item->used = ++cache_clock;
+    return strcpy(allocate(strlen(item->value)), item->value);
+}
+
+const char *jbc_cache_exists(const char *name, const char *key)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    return bucket && *cache_item(bucket, key) ? "1" : "0";
+}
+
+const char *jbc_cache_delete(const char *name, const char *key)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    struct cache_item **link = bucket ? cache_item(bucket, key) : NULL;
+    if (link && *link) cache_remove(bucket, link);
+    return "";
+}
+
+const char *jbc_cache_clear(const char *name)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    if (bucket) cache_empty(bucket);
+    return "";
+}
+
+const char *jbc_cache_clear_all(void)
+{
+    while (cache_buckets) {
+        struct cache_bucket *bucket = cache_buckets;
+        cache_buckets = bucket->next;
+        cache_empty(bucket);
+        free(bucket->name);
+        free(bucket);
+    }
+    return "";
+}
+
+const char *jbc_cache_clear_stats(const char *name)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    if (bucket) bucket->hits = bucket->gets = bucket->puts = 0;
+    return "";
+}
+
+static int compare_names(const void *left, const void *right)
+{
+    return strcmp(*(const char *const *)left, *(const char *const *)right);
+}
+
+/* TAFC sorts both lists by name, as the guide notes for TAFJ. */
+static const char *joined_names(const char **names, size_t count, const char *delimiter)
+{
+    qsort(names, count, sizeof *names, compare_names);
+    const char *out = "";
+    for (size_t i = 0; i < count; ++i)
+        out = jbc_concat(i ? jbc_concat(out, delimiter) : out, names[i]);
+    free(names);
+    return out;
+}
+
+const char *jbc_cache_key_list(const char *name, const char *delimiter)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    if (!bucket || !bucket->count) return "";
+    const char **names = malloc(bucket->count * sizeof *names);
+    if (!names) fail("out of memory");
+    size_t count = 0;
+    for (struct cache_item *item = bucket->items; item; item = item->next) names[count++] = item->key;
+    return joined_names(names, count, delimiter);
+}
+
+const char *jbc_cache_bucket_list(const char *delimiter)
+{
+    size_t count = 0;
+    for (struct cache_bucket *bucket = cache_buckets; bucket; bucket = bucket->next) ++count;
+    if (!count) return "";
+    const char **names = malloc(count * sizeof *names);
+    if (!names) fail("out of memory");
+    count = 0;
+    for (struct cache_bucket *bucket = cache_buckets; bucket; bucket = bucket->next) names[count++] = bucket->name;
+    return joined_names(names, count, delimiter);
+}
+
+/* Unknown counters and options read as zero (provisional). */
+const char *jbc_cache_stats(const char *name, const char *counter)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    uint64_t id;
+    if (!bucket || !cache_number(counter, &id)) return "0";
+    switch (id) {
+    case 1: return size_value(bucket->hits);
+    case 2: return size_value(bucket->gets);
+    case 3: return size_value(bucket->puts);
+    case 4: return size_value(bucket->size);
+    case 5: return size_value(bucket->count);
+    default: return "0";
+    }
+}
+
+const char *jbc_cache_get_option(const char *name, const char *option)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 0);
+    uint64_t id;
+    if (!bucket || !cache_number(option, &id)) return "0";
+    if (id == 1) return size_value(bucket->max_size);
+    if (id == 2) return size_value(bucket->threshold);
+    return "0";
+}
+
+/* The guide gives the threshold as a percentage from 1 to 100; jbcc
+   ignores other values and nonnumeric sizes (provisional). */
+const char *jbc_cache_set_option(const char *name, const char *option, const char *value)
+{
+    struct cache_bucket *bucket = cache_bucket(name, 1);
+    uint64_t id, number;
+    if (!cache_number(option, &id) || !cache_number(value, &number)) return "";
+    if (id == 1) bucket->max_size = number;
+    else if (id == 2 && number >= 1 && number <= 100) bucket->threshold = number;
+    cache_purge(bucket);
+    return "";
+}
+#endif

@@ -1544,10 +1544,11 @@ callee reads the status field, selects a CASE arm, and updates the output.
   $INSERT and INCLUDE search the including file's directory, followed by
   each `-I DIR` in order. Included tokens retain their source locations.
   When neither has `JBC.h`, jbcc uses its built-in copy and prints a note
-  on stderr. The built-in `JBC.h` defines only the 26 constants that the
-  guide's examples use, such as `JBASE_CRYPT_ROT13`,
-  `JIOCTL_COMMAND_FILESTATUS` and `USER_PROC_ACCOUNT`, with the values of
-  TAFC PB201214's `JBC.h`; it is not the jBASE header. A real `JBC.h` on
+  on stderr. The built-in `JBC.h` defines only what the guide's examples
+  use: 26 constants, such as `JBASE_CRYPT_ROT13`,
+  `JIOCTL_COMMAND_FILESTATUS` and `USER_PROC_ACCOUNT`, and the `DEFC`
+  declarations of the in-memory cache functions, as in TAFC PB201214's
+  `JBC.h`. It is not the jBASE header. A real `JBC.h` on
   the include paths always wins, and `--no-builtin-includes` reports the
   missing file instead. The playground uses the built-in copy too, while
   the corpus checker never does, so corpus results reflect the headers
@@ -1857,6 +1858,121 @@ per element. In the guide’s example table, jbcc retains the trailing
 marks on the third attribute of `r1` and the leading colon before `W` in
 `r3`, following the element-wise FIELD rule. jbcc accepts multi-byte
 delimiters as in the guide’s `jbase_field` example. [FIELDS](https://jbc-lang.org/pages/fields.html).
+
+### In-memory cache
+
+`JBC.h` declares the cache functions with `DEFC`, and jbcc's runtime
+implements them. A declaration with the header's `VAR` signature lowers to
+that runtime, including in the browser. Other `DEFC` functions still report
+that they need the jBASE C runtime. The built-in `JBC.h` carries the same
+declarations and the `CACHE_*` equates, so the guide's examples run as
+written. The snippet `tests/snippets/cache.b` reproduces each example's
+output.
+
+- `CachePut(bucket, item, value)` creates the bucket if needed and counts a
+  put. `CacheGet(bucket, item)` returns the value or an empty string. It
+  counts a get, plus a hit when the item exists. `CacheExists` returns 1
+  or 0. `CacheDelete`, `CacheKeyList` and `CacheBucketList` leave the
+  statistics unchanged. The two lists are sorted by name, as in TAFC.
+- `CacheStats(bucket, counter)` reads `CACHE_HITS`, `CACHE_GETS`,
+  `CACHE_PUTS`, `CACHE_SIZE` (the sum of value lengths) and
+  `CACHE_NB_ITEMS`. `CacheClearStats` resets the counters. `CacheClear`
+  empties a bucket and resets its counters. `CacheClearAll` removes every
+  bucket.
+- `CacheGetOption` returns zeros for a missing bucket and otherwise
+  `CACHE_MAX_SIZE` (default 1048576) and `CACHE_PURGE_THRESHOLD`
+  (default 90). `CacheSetOption` creates the bucket. When a bucket's
+  size exceeds `CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100`, jbcc
+  removes its least recently written or read items until it fits. The
+  guide only says that "the most outdated data" is purged, so this order
+  is provisional. Unknown counters and options read as 0.
+  The functions return an empty string where the guide shows no result.
+  [CachePut](https://jbc-lang.org/pages/cacheput.html),
+  [CacheStats](https://jbc-lang.org/pages/cachestats.html),
+  [CacheGetOption](https://jbc-lang.org/pages/cachegetoption.html).
+
+### Catalogue functions without T24 calls
+
+The functions below appear in the guide or the reference keyword table,
+but the T24 corpora never call them. Each one follows the guide's
+description and reproduces its examples, which the snippets in
+`tests/snippets/` check. The local TAFC PB201214 runtime stops at its
+licensed-user check, so no reference run confirms these results.
+Choices marked provisional rest on the function's name or a dialect
+convention rather than on the guide.
+
+- `TAN(degrees)` takes degrees like SIN and COS. `ASIN`, `ACOS` and
+  `ATAN` have no guide page and return degrees by the same convention
+  (provisional). Their results are rounded to 12 places, so `ASIN(-0.5)`
+  is -30. [TAN](https://jbc-lang.org/pages/tan.html).
+- `FADD(a, b)` rounds to PRECISION like FSUB. `FMUL` and `FDIV` ignore
+  PRECISION. Their guide examples, 14.48652932 and 0.1428571429, show ten
+  significant digits, which jbcc uses. `FCMP(a, b)` returns -1, 0 or 1
+  for floating-point order (provisional). Null operands and a zero
+  divisor report source-located errors.
+  [FADD](https://jbc-lang.org/pages/fadd.html), [FDIV](https://jbc-lang.org/pages/fdiv.html).
+- `SADD(a, b[, places])` and `SSUB(a, b[, places])` add and subtract
+  decimal strings exactly. The optional third argument mirrors SMUL and
+  SDIV. The guide's SADD examples keep every digit. Its SSUB example
+  prints 14 places, and `SSUB(a, b, 14)` reproduces it. `SCMP(a, b)`
+  returns -1, 0 or 1 for decimal order (provisional).
+  [SADD](https://jbc-lang.org/pages/sadd.html), [SSUB](https://jbc-lang.org/pages/ssub.html).
+- `BITSET`, `BITRESET`, `BITCHANGE` and `BITCHECK` operate on a
+  per-process table of 128 flags. Each returns the bit's previous value.
+  Bit 0 sets or resets the whole table for BITSET and BITRESET, and is an
+  error for the other two. Codes -1 to -3 are kept as separate switches
+  without the guide's break-key or restart effects (provisional).
+  `BITLOAD()` returns the table as uppercase hexadecimal without trailing
+  zero digits. `BITLOAD(hex)` loads the table from the left, stops at the
+  first non-hexadecimal character, clears the remaining bits, and returns
+  the previous table. The guide names that result `VALUE.OLD`
+  (provisional). [BITCHANGE](https://jbc-lang.org/pages/bitchange.html),
+  [BITLOAD](https://jbc-lang.org/pages/bitload.html). BITTEST is reserved
+  in the guide and remains unsupported.
+- `ISCNTRL`, `ISGRAPH`, `ISPRINT`, `ISPUNCT` and `ISXDIGIT` test every
+  byte with C-locale ASCII rules and return 0 for an empty string. The
+  guide's ISCNTRL example counts @FM as a control character, so bytes 248
+  to 255 count as control characters. Other high bytes belong to no class.
+  [ISCNTRL](https://jbc-lang.org/pages/iscntrl.html), [ISPRINT](https://jbc-lang.org/pages/isprint.html).
+- `ANDS`, `ORS` and `MODS` pair elements as ADDS does. The guide's null
+  rules use jbcc's empty string as null. For ANDS, a null beside a true
+  value gives null, as in UniVerse (provisional). `IFS(cond, true, false)`
+  picks the element at the same field, value and subvalue position for
+  each condition element, and reproduces the guide's TAFC output.
+  [ANDS](https://jbc-lang.org/pages/ands.html), [ORS](https://jbc-lang.org/pages/ors.html),
+  [MODS](https://jbc-lang.org/pages/mods.html), [IFS](https://jbc-lang.org/pages/ifs.html).
+- `SEQS`, `CHARS` and `STRS` apply SEQ, CHAR and STR to each element and
+  keep null elements null. STRS returns an empty string for a repeat count
+  below one. `LENSDP` is LENS in the byte runtime.
+  [SEQS](https://jbc-lang.org/pages/seqs.html), [CHARS](https://jbc-lang.org/pages/chars.html),
+  [STRS](https://jbc-lang.org/pages/strs.html).
+- `SOUNDEX(text)` uses the guide's code table. It keeps the first letter,
+  ignores other characters and reads a repeated letter once, so
+  `SOUNDEX('Pfister')` is P123 rather than the census P236.
+  [SOUNDEX](https://jbc-lang.org/pages/soundex.html).
+- `REGEXP(text, expression)` uses POSIX extended expressions. It returns
+  the one-based position of the first match, 0 for no match and -1 for an
+  invalid expression. [REGEXP](https://jbc-lang.org/pages/regexp.html).
+- `CHANGETIMESTAMP(stamp, adjustments)` applies
+  `Years^Months^Weeks^Days^Hours^Minutes^Seconds^Milliseconds`. Years and
+  months move along the UTC calendar. A day missing from the target month
+  becomes that month's last day (provisional), and the other fields add
+  fixed durations. [CHANGETIMESTAMP](https://jbc-lang.org/pages/changetimestamp.html).
+- `DELENV(name)` removes an environment variable and returns 1, or 0 if
+  the variable was absent. `DIR(path)` returns `size^date^time^D` with the
+  local modification date and time in internal format. A directory has
+  size 0, and a missing path returns an empty string (provisional).
+  `GETUSERNAME(uid)` returns the login name.
+  `GETUSERGROUP(uid)` returns the primary group number, since the guide
+  says Windows returns zero. These four functions are unavailable in the
+  browser. [DIR](https://jbc-lang.org/pages/dir.html),
+  [GETUSERGROUP](https://jbc-lang.org/pages/getusergroup.html).
+
+The rest of the catalogue still has no jbcc support. CRC, FFIX, FFLT,
+ERRTEXT, PERROR, CONTROLCHAR and TA have no guide description precise
+enough to implement. JQL*, TRANS, XLATE, TRANSQUERY, TRANSSYNC, SPOOLER,
+SELECTINFO, the XML.* functions and the licence calls need a database,
+spooler or licence backend.
 
 ## Sequential files
 
@@ -3071,7 +3187,8 @@ keystrokes before Enter. Querying the count leaves the bytes available
 for later reads. [CLEARDATA](https://jbc-lang.org/pages/cleardata.html).
 
 Native mode links the math library for programs
-that use SIN, COS, PWR, SQRT, EXP or LN, including infix powers. When compiling their generated C manually, use
+that use SIN, COS, TAN, ASIN, ACOS, ATAN, PWR, SQRT, EXP, LN, FADD,
+FSUB, FMUL, FDIV or FCMP, including infix powers. When compiling their generated C manually, use
 `cc -std=c99 banner.c -lm -o banner`. [SIN](https://jbc-lang.org/pages/sin.html),
 [COS](https://jbc-lang.org/pages/cos.html), [INT](https://jbc-lang.org/pages/int.html).
 

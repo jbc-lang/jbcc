@@ -16,6 +16,29 @@ def test_putenv(compiler):
     assert result.stdout == expected_bytes('putenv.stdout')
 
 
+
+def test_host_information_functions(compiler):
+    """DELENV, DIR, GETUSERNAME and GETUSERGROUP read the host directly."""
+    (compiler.work / 'dir.txt').write_bytes(b'12345')
+    (compiler.work / 'sub').mkdir()
+    stamp = 1700000000  # 2023-11-14 22:13:20 UTC
+    os.utime(compiler.work / 'dir.txt', (stamp, stamp))
+    env = dict(os.environ, TZ='UTC', JBCC_TEST_UID=str(os.getuid()))
+    result = compiler.run_native(
+        ROOT / 'tests/io/host-info.b', cwd=compiler.work, env=env
+    )
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.split(b'\n')
+    assert lines[:3] == [b'110', b'[]00', b'5\xfe20407\xfe80000\xfe']
+    assert lines[3].startswith(b'0\xfe') and lines[3].endswith(b'\xfeD')
+    assert lines[4:] == [
+        b'[]',
+        pwd.getpwuid(os.getuid()).pw_name.encode(),
+        str(pwd.getpwuid(os.getuid()).pw_gid).encode(),
+        b'[]',
+        b'',
+    ]
+
 def test_getenv(compiler):
     env = dict(os.environ, JBCC_TEST_VALUE='two words', JBCC_TEST_EMPTY='')
     env.pop('JBCC_TEST_ABSENT', None)

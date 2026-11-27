@@ -1515,3 +1515,38 @@ def test_matchfield_invalid_field(compiler, fixture_name):
         expected_text('matchfield-invalid-field.stderr', source=source).encode()
         in run.stderr
     )
+
+
+@pytest.mark.parametrize(
+    'fixture_name, location, message',
+    [
+        ('asin-domain.b', '1:5', 'ASIN requires an operand from -1 to 1'),
+        (
+            'bitcheck-zero.b',
+            '1:5',
+            'bit number 0 applies only to BITSET and BITRESET',
+        ),
+        (
+            'bitset-range.b',
+            '2:5',
+            'BITSET requires a bit number from -3 to 128',
+        ),
+        (
+            'changetimestamp-fraction.b',
+            '1:5',
+            'CHANGETIMESTAMP requires whole adjustments',
+        ),
+        ('chars-range.b', '1:5', 'CHAR requires an integer from 0 to 255'),
+        ('fadd-null.b', '1:5', 'FADD requires numeric operands'),
+        ('fdiv-zero.b', '1:5', 'FDIV division by zero'),
+        ('sadd-nonnumeric.b', '1:5', 'SADD requires numeric operands'),
+    ],
+    ids=lambda value: value if str(value).endswith('.b') else '',
+)
+def test_catalogue_function_diagnostics(
+    compiler, fixture_name, location, message
+):
+    source = ROOT / 'tests/programs/catalogue-diagnostics' / fixture_name
+    run = compiler.run_native(source)
+    assert run.returncode != 0
+    assert f'{source}:{location}: {message}\n'.encode() in run.stderr

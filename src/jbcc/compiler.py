@@ -35,6 +35,22 @@ ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
 EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
 C_FUNCTION_TYPES = {'INT', 'FLOAT', 'VAR', 'STRING'}
 XML_TRANSFORMS = {'DYNTOXML', 'DYNTOXMLEXT', 'XMLTODYN', 'XMLTOXML'}
+# JBC.h's in-memory cache. The runtime implements these DEFC functions, so
+# a declaration with this VAR signature lowers to jbcc's cache.
+RUNTIME_C_FUNCTIONS = {
+    'CachePut': ('VAR', 'VAR', 'VAR'),
+    'CacheGet': ('VAR', 'VAR'),
+    'CacheDelete': ('VAR', 'VAR'),
+    'CacheExists': ('VAR', 'VAR'),
+    'CacheClear': ('VAR',),
+    'CacheClearAll': (),
+    'CacheKeyList': ('VAR', 'VAR'),
+    'CacheBucketList': ('VAR',),
+    'CacheStats': ('VAR', 'VAR'),
+    'CacheClearStats': ('VAR',),
+    'CacheSetOption': ('VAR', 'VAR', 'VAR'),
+    'CacheGetOption': ('VAR', 'VAR'),
+}
 EXPRESSION_WRITES = {'GETENV', 'GETCWD', 'IOCTL', 'REMOVE'} | XML_TRANSFORMS
 COMPARISONS = {
     "=": "==",
@@ -208,6 +224,42 @@ BUILTINS = {
     "COUNTS": (2,),
     "DCOUNT": (2,),
     "NOT": (1,),
+    "TAN": (1,),
+    "ASIN": (1,),
+    "ACOS": (1,),
+    "ATAN": (1,),
+    "FADD": (2,),
+    "FMUL": (2,),
+    "FDIV": (2,),
+    "FCMP": (2,),
+    "SADD": (2, 3),
+    "SSUB": (2, 3),
+    "SCMP": (2,),
+    "BITSET": (1,),
+    "BITRESET": (1,),
+    "BITCHANGE": (1,),
+    "BITCHECK": (1,),
+    "BITLOAD": (0, 1),
+    "ISCNTRL": (1,),
+    "ISGRAPH": (1,),
+    "ISPRINT": (1,),
+    "ISPUNCT": (1,),
+    "ISXDIGIT": (1,),
+    "ANDS": (2,),
+    "ORS": (2,),
+    "MODS": (2,),
+    "IFS": (3,),
+    "SEQS": (1,),
+    "CHARS": (1,),
+    "STRS": (2,),
+    "LENSDP": (1,),
+    "SOUNDEX": (1,),
+    "REGEXP": (2,),
+    "CHANGETIMESTAMP": (2,),
+    "DELENV": (1,),
+    "DIR": (1,),
+    "GETUSERNAME": (1,),
+    "GETUSERGROUP": (1,),
 }
 
 
@@ -1179,6 +1231,9 @@ class Compiler:
         self.uses_timestamp = False
         self.uses_execute = False
         self.uses_putenv = False
+        self.uses_regexp = False
+        self.uses_host_info = False
+        self.uses_cache = False
         self.uses_chdir = False
         self.has_goto = False
         self.sets_precision = False
@@ -1642,7 +1697,15 @@ class Compiler:
                 args.append('"1"')
             if word == 'GROUP':
                 word = 'FIELD'
-            if (word, len(args)) in (('DROUND', 1), ('SMUL', 2), ('SDIV', 2)):
+            if (word, len(args)) in (
+                ('DROUND', 1),
+                ('SMUL', 2),
+                ('SDIV', 2),
+                ('SADD', 2),
+                ('SSUB', 2),
+            ):
+                args.append('NULL')
+            if word == 'BITLOAD' and not args:
                 args.append('NULL')
             if word == 'COMPARE' and len(args) == 2:
                 args.append('"L"')
@@ -1662,8 +1725,32 @@ class Compiler:
             if word in ('MOD', 'REM'):
                 args.append(c_string(f"{word} requires numeric operands"))
                 word = 'MOD'
-            if word in ("SIN", "COS", "PWR", "SQRT", "EXP", "LN", "FSUB"):
+            if word in (
+                "SIN",
+                "COS",
+                "TAN",
+                "ASIN",
+                "ACOS",
+                "ATAN",
+                "PWR",
+                "SQRT",
+                "EXP",
+                "LN",
+                "FSUB",
+                "FADD",
+                "FMUL",
+                "FDIV",
+                "FCMP",
+            ):
                 self.uses_math = True
+            if word == "REGEXP":
+                self.uses_regexp = True
+            if word == "DELENV":
+                self.host_only(target)
+                self.uses_putenv = True
+            if word in ("DIR", "GETUSERNAME", "GETUSERGROUP"):
+                self.host_only(target)
+                self.uses_host_info = True
             if word == "CALLONEXIT":
                 self.uses_callonexit = True
             if word == "PUTENV":
@@ -1683,7 +1770,12 @@ class Compiler:
                 word = "KEYIN"
                 args.append(self.location(target))
             if word in (
-                "TIMESTAMP", "MAKETIMESTAMP", "LOCALDATE", "LOCALTIME", "TIMEDIFF"
+                "TIMESTAMP",
+                "MAKETIMESTAMP",
+                "LOCALDATE",
+                "LOCALTIME",
+                "TIMEDIFF",
+                "CHANGETIMESTAMP",
             ):
                 self.uses_timestamp = True
             if word == "SYSTEM":
@@ -1761,6 +1853,25 @@ class Compiler:
                 "SIN",
                 "COS",
                 "SYSTEM",
+                "TAN",
+                "ASIN",
+                "ACOS",
+                "ATAN",
+                "FADD",
+                "FMUL",
+                "FDIV",
+                "FCMP",
+                "SADD",
+                "SSUB",
+                "SCMP",
+                "BITSET",
+                "BITRESET",
+                "BITCHANGE",
+                "BITCHECK",
+                "MODS",
+                "CHARS",
+                "STRS",
+                "CHANGETIMESTAMP",
             ):
                 args.append(self.location(target))
             if word in ('ENCRYPT', 'DECRYPT'):
@@ -1774,6 +1885,8 @@ class Compiler:
                 word = 'QUOTE'
             elif word in ('BYTELEN', 'LENDP'):
                 word = 'LEN'
+            elif word == 'LENSDP':
+                word = 'LENS'
             elif word == 'ISALPHA':
                 word = 'ALPHA'
             elif word == 'COMPARE':
@@ -3864,7 +3977,7 @@ class Compiler:
         return symbol
 
     def c_function_declaration(self):
-        self.host_only(self.current)
+        keyword = self.current
         self.expect('DEFC')
         if self.word in C_FUNCTION_TYPES:
             self.advance()
@@ -3881,12 +3994,16 @@ class Compiler:
                     break
                 self.advance()
         self.expect(')')
+        if RUNTIME_C_FUNCTIONS.get(function.word) != tuple(argument_types):
+            self.host_only(keyword)
         # The reference retains the original declaration when it sees a duplicate.
         self.c_functions.setdefault(function.word, argument_types)
 
     def c_function_call(self):
         target = self.identifier()
         types = self.c_functions[target.word]
+        if RUNTIME_C_FUNCTIONS.get(target.word) == tuple(types):
+            return self.runtime_c_function_call(target, len(types))
         self.expect('(')
         index = 0
         if self.word != ')':
@@ -3916,6 +4033,22 @@ class Compiler:
             f"C function '{target.word}' requires the jBASE C runtime"
         )
         return f"(numeric_error({self.location(target)}, {reason}), (const char *)NULL)"
+
+    def runtime_c_function_call(self, target, count):
+        self.expect('(')
+        args = []
+        while self.word != ')':
+            if args:
+                self.expect(',')
+            args.append(self.expression())
+        self.expect(')')
+        if len(args) != count:
+            many = 'many' if len(args) > count else 'few'
+            self.error(f"too {many} arguments for DEFC '{target.word}'", target)
+        self.record_api_call(target, count, kind='defc')
+        self.uses_cache = True
+        name = re.sub(r'(?<!^)(?=[A-Z])', '_', target.word[5:]).lower()
+        return self.temporary(f"jbc_cache_{name}({', '.join(args)})")
 
     def xml_transform_expression(self):
         opening = self.identifier()
@@ -5728,7 +5861,7 @@ BUILTIN_INCLUDES = {'JBC.h': Path(__file__).with_name('include') / 'JBC.h'}
 
 def builtin_include_note(names):
     return "".join(
-        f"note: using jbcc's built-in {name} (constants used by the jBC guide's "
+        f"note: using jbcc's built-in {name} (definitions used by the jBC guide's "
         "examples, not the jBASE header); pass --no-builtin-includes to turn it off\n"
         for name in sorted(names)
     )
@@ -5866,6 +5999,12 @@ def runtime_features(units):
         flags.append("#define JBC_EXECUTE 1")
     if any(unit.uses_putenv for unit in units):
         flags.append("#define JBC_PUTENV 1")
+    if any(unit.uses_regexp for unit in units):
+        flags.append("#define JBC_REGEXP 1")
+    if any(unit.uses_cache for unit in units):
+        flags.append("#define JBC_CACHE 1")
+    if any(unit.uses_host_info for unit in units):
+        flags.append("#define JBC_HOST_INFO 1")
     if any(unit.uses_chdir for unit in units):
         flags.append("#define JBC_CHDIR 1")
     if any(unit.uses_hush for unit in units):
