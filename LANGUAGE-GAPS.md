@@ -12,7 +12,7 @@ MISSING-BACKENDS.md lists them in full, with how often T24 uses each.
   `READXMLU`.
 - Calendar conversion: `DATELOCALETOGREGORIAN` and
   `DATEGREGORIANTOLOCALE`.
-- `ENCRYPT` and `DECRYPT` methods other than ROT13.
+- `ENCRYPT` and `DECRYPT` methods other than ROT13, XOR11 and BASE64.
 - Licensing, snapshots, the debugger and C functions declared with
   `DEFC`: `VALIDATE_PRODUCT_LICENSE`, `JBASECOREDUMP`, `DEBUG`, and `DEFC`
   calls other than the `JBC.h` cache functions.

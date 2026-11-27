@@ -3223,8 +3223,10 @@ EB.SYSTEM.INFO now passes strict C99 checking with the PB201214 headers.
 The byte-mode scan reports 17,264 of 17,336 candidates passing, including
 all 17,263 previous passes.
 
-- [ ] Implement Base64 for ENCRYPT and DECRYPT, including how the runtime
-  should handle decoded bytes that contain NUL.
+- [x] Implement Base64 for ENCRYPT and DECRYPT, including how the runtime
+  should handle decoded bytes that contain NUL. Done with XOR11 and the
+  Base64 mask, as TAFC PB201214 runs them (`tests/tafc/crypt-base64.b`);
+  decoded byte 0 is kept (NUL-BYTES.md).
 
 - [x] Translate the remaining matrix operations and standalone DEFFUN calls.
 

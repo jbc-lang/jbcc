@@ -609,7 +609,7 @@ def test_cipher_diagnostics(compiler, subtests):
     fixtures = ROOT / 'tests/programs/cipher-diagnostics'
     for case_number, function in enumerate(('ENCRYPT', 'DECRYPT'), 1):
         with subtests.test(function=function):
-            for method in (4, 5):
+            for method in (5,):
                 with subtests.test(method=method):
                     source = fixtures / f'{function.lower()}-{method}.b'
                     result = compiler.run_native(source)

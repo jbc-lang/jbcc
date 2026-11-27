@@ -8705,24 +8705,90 @@ const char *jbc_dategregoriantolocale(const char *date, const char *from, const 
     return "";
 }
 
-const char *jbc_crypt(const char *value, const char *key, const char *method, int decrypt,
-                      const char *file, int line, int column)
+/* Base64 as TAFC PB201214 writes it (tests/tafc/crypt-base64.b): the
+   standard alphabet with = padding and no line breaks. */
+static const char *base64_encode(const char *value)
 {
-    enum { JBASE_CRYPT_ROT13 = 1 };
-    (void)key;
-    if (truncated(method, file, line, column) != JBASE_CRYPT_ROT13)
-        numeric_error(file, line, column, decrypt ? "DECRYPT requires a backend for this method"
-                                                  : "ENCRYPT requires a backend for this method");
-    size_t length = strlen(value);
+    static const char alphabet[] =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t length = jbc_size(value);
+    if (length > (SIZE_MAX - sizeof(struct jbc_buffer) - 1) / 4 * 3 - 2)
+        fail("value is too large");
+    char *out = allocate((length + 2) / 3 * 4), *write = out;
+    const unsigned char *in = (const unsigned char *)value;
+    for (size_t i = 0; i < length; i += 3) {
+        unsigned long bits = (unsigned long)in[i] << 16;
+        if (i + 1 < length) bits |= (unsigned long)in[i + 1] << 8;
+        if (i + 2 < length) bits |= in[i + 2];
+        *write++ = alphabet[bits >> 18 & 63];
+        *write++ = alphabet[bits >> 12 & 63];
+        *write++ = i + 1 < length ? alphabet[bits >> 6 & 63] : '=';
+        *write++ = i + 2 < length ? alphabet[bits & 63] : '=';
+    }
+    return finish_bytes(out, (size_t)(write - out));
+}
+
+/* Decoding skips every byte outside the alphabet, = included, and reads
+   the rest as one stream of 6-bit groups, as TAFC does: 'YQ==YQ==' is
+   61 06 10 and leftover bits are dropped. The result can hold byte 0. */
+static const char *base64_decode(const char *value)
+{
+    size_t length = jbc_size(value), used = 0;
+    char *out = allocate(length / 4 * 3 + 2);
+    unsigned long bits = 0;
+    int count = 0;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)value[i];
+        int digit = c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26
+                  : c >= '0' && c <= '9' ? c - '0' + 52 : c == '+' ? 62 : c == '/' ? 63 : -1;
+        if (digit < 0) continue;
+        bits = (bits << 6 | (unsigned long)digit) & 0xFFFFFF;
+        count += 6;
+        if (count >= 8) {
+            count -= 8;
+            out[used++] = (char)(bits >> count & 255);
+        }
+    }
+    return finish_bytes(out, used);
+}
+
+/* ROT13 rotates ASCII letters. XOR11 XORs byte i (from 0) with the first
+   key byte modulo 11 plus i, modulo 32, as TAFC PB201214 does; it is its
+   own inverse. */
+static const char *crypt_bytes(const char *value, const char *key, int64_t method)
+{
+    size_t length = jbc_size(value);
+    unsigned seed = jbc_size(key) ? (unsigned char)*key % 11u : 0;
     char *out = allocate(length);
     for (size_t i = 0; i < length; ++i) {
         unsigned char byte = (unsigned char)value[i];
-        if (byte >= 'A' && byte <= 'Z') byte = 'A' + (byte - 'A' + 13) % 26;
+        if (method == 2) byte ^= (unsigned char)((seed + i) % 32);
+        else if (byte >= 'A' && byte <= 'Z') byte = 'A' + (byte - 'A' + 13) % 26;
         else if (byte >= 'a' && byte <= 'z') byte = 'a' + (byte - 'a' + 13) % 26;
         out[i] = (char)byte;
     }
-    out[length] = '\0';
-    return out;
+    return finish_bytes(out, length);
+}
+
+/* JBASE_CRYPT_ROT13 (1), XOR11 (2) and BASE64 (4) from PB201214's JBC.h.
+   The BASE64 mask bit (0x40000000) adds Base64 after ENCRYPT's method and
+   removes it before DECRYPT's. */
+const char *jbc_crypt(const char *value, const char *key, const char *method, int decrypt,
+                      const char *file, int line, int column)
+{
+    enum { ROT13 = 1, XOR11 = 2, BASE64 = 4 };
+    const int64_t base64_mask = 0x40000000;
+    int64_t code = truncated(method, file, line, column);
+    int masked = code >= 0 && (code & base64_mask);
+    int64_t algorithm = masked ? code & ~base64_mask : code;
+    if (algorithm != ROT13 && algorithm != XOR11 && algorithm != BASE64)
+        numeric_error(file, line, column, decrypt ? "DECRYPT requires a backend for this method"
+                                                  : "ENCRYPT requires a backend for this method");
+    if (decrypt && masked) value = base64_decode(value);
+    if (algorithm == BASE64) value = decrypt ? base64_decode(value) : base64_encode(value);
+    else value = crypt_bytes(value, key, algorithm);
+    if (!decrypt && masked) value = base64_encode(value);
+    return value;
 }
 
 const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
