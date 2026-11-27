@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The `MX` mask for `FMT`, `OCONV` and `ICONV` (bytes as hexadecimal),
+  and `DG` for `ICONV` and `OCONV` (`YYYYMMDD`).
+
 ## 0.4.0 (2026-11-27)
 
 ### Added

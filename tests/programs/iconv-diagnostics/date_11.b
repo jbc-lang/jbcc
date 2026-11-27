@@ -1,0 +1,1 @@
+PRINT ICONV('41GG', 'MX')
