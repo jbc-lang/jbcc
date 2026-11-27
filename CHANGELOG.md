@@ -4,6 +4,7 @@
 
 ### Added
 
+- `NOTS`, `LENS`, `FSUB` and `GETCWD`.
 - `ISUPPER`, `ISLOWER` and `ISSPACE`.
 - `MSLEEP` and `CLEARCOMMON`.
 - `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)

@@ -65,6 +65,22 @@ RUNTIME_EVIDENCE = {
         "Masks 0 and 1 with signs checked",
         "tests/snippets/timestamps.b",
     ),
+    ("expression", "NOTS", 1, None): (
+        "Element complements and marks checked",
+        "tests/snippets/element-functions.b",
+    ),
+    ("expression", "LENS", 1, None): (
+        "Element lengths and marks checked",
+        "tests/snippets/element-functions.b",
+    ),
+    ("expression", "FSUB", 2, None): (
+        "Rounding to PRECISION checked",
+        "tests/snippets/element-functions.b",
+    ),
+    ("expression", "GETCWD", 1, None): (
+        "Working directory after CHDIR checked",
+        "tests/io/chdir.b",
+    ),
     ("expression", "CHDIR", 1, None): (
         "Directory change and failure checked",
         "tests/io/chdir.b",
