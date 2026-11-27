@@ -674,4 +674,6 @@ functions at once.
 - [x] Stage 4: EXECUTE data and files (`tests/tafc/nul-io.b`); INPUT
       and KEYIN keep their error, since the harness runs TAFC without
       input to probe them.
-- [ ] Stage 5: source literals with byte 0.
+- [x] Stage 5: not needed. TAFC PB201214 rejects a NUL byte in a string
+      literal as a syntax error, as jbcc does; `CHAR(0)` is never folded
+      into a C literal.

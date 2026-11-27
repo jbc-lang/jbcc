@@ -187,7 +187,9 @@ including single-byte jBC delimiters, and accepts legacy punctuation in
 comments. It applies to every source and include in the invocation.
 A UTF-8 decoding diagnostic identifies the failing file and position.
 The lexer skips NUL bytes in comments and inactive source lines. NUL
-bytes in active code, literals or include paths report a source location.
+bytes in active code, literals or include paths report a source location;
+TAFC PB201214 rejects a NUL byte in a literal as a syntax error too. Use
+`CHAR(0)` for byte 0.
 
 Use `--defer-unassigned-reads` for legacy code that reads a scalar before
 jbcc can establish an assignment. This opt-in turns that compile-time
