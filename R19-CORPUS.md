@@ -194,6 +194,29 @@ an expression, for example `EB.DataAccess.FRead`.
   `X` stays a plain name (3 LC units). With both stub flags and no
   exclusion, the full scan translates 39,627 of 39,675 units (99.88%),
   including all 1,321 test framework units; 48 remain rejected.
+
+  Further decisions (2026-11-27): undeclared `get`/`set`/`clear`
+  accessors on a catalogued component are accepted with a warning;
+  byte-identical include candidates resolve to the first; four
+  declarations missing the `()` matrix marker and nine undeclared methods
+  join the member stubs; `--t24-relax-access` reports cross-package access
+  as warnings; `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and
+  `DATEGREGORIANTOLOCALE` report a missing backend when reached;
+  `--defer-unassigned-reads` covers `CONVERT` and `CHANGE` targets; two
+  more source fixes; `@COMPANYNO` is a writable session value that starts
+  empty (provisional).
+
+  With every testing flag (`--t24-stub-void-results`, `--t24-stub-members`,
+  `--t24-relax-access`) and no exclusion, the full scan translates 39,664
+  of 39,675 units (99.97%), with no regressions. The 11 left:
+  - 6 include `I_InwardCreditTransferInitiationDASService_PORCreditTransferInitiation`
+    or `I_InwardCreditTransferInitiationService_BulkDetails`, whose
+    classes no `.domain` file in the dump declares;
+  - 5 reach further undeclared members in the same units:
+    `TF.Core.StartRecordCalls`,
+    `PP.InwardGenericTransactions.PpInReturnWrite`,
+    `PP.InwardCreditTransferInitiationService.mapSingleToPORPartyDebit` and
+    `PP.LocalClearingService.doOutwardMapping` (2 units).
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).

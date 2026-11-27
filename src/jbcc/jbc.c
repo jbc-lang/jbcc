@@ -540,6 +540,7 @@ static jbc_variable select_lists[12];
 static jbc_variable jbc_record_id = {"", 0, 0};
 static jbc_variable jbc_record = {"", 0, 0};
 static jbc_variable jbc_filename = {"", 0, 0};
+static jbc_variable jbc_company_no = {"", 0, 0};
 
 typedef struct {
     jbc_variable *values;
@@ -710,7 +711,8 @@ static void free_storages(void)
 
 static int held_in_storage(const char *value)
 {
-    if (jbc_record_id.value == value || jbc_record.value == value || jbc_filename.value == value) return 1;
+    if (jbc_record_id.value == value || jbc_record.value == value || jbc_filename.value == value
+        || jbc_company_no.value == value) return 1;
     for (size_t i = 0; i < sizeof select_lists / sizeof select_lists[0]; ++i)
         if (select_lists[i].value == value) return 1;
     for (struct jbc_slots *s = storages; s; s = s->next)
@@ -6583,6 +6585,27 @@ const char *jbc_validate_product_license(const char *product, const char *file, 
 {
     (void)product;
     numeric_error(file, line, column, "VALIDATE_PRODUCT_LICENSE requires a licensing backend");
+    return "";
+}
+
+/* DATELOCALETOGREGORIAN and DATEGREGORIANTOLOCALE(date, format, calendar,
+   format, locale) convert between calendars in R19. Neither the guide nor
+   the PB201214 headers define them; they parse and report when reached. */
+const char *jbc_datelocaletogregorian(const char *date, const char *from, const char *calendar,
+                                      const char *to, const char *locale,
+                                      const char *file, int line, int column)
+{
+    (void)date; (void)from; (void)calendar; (void)to; (void)locale;
+    numeric_error(file, line, column, "DATELOCALETOGREGORIAN requires a calendar backend");
+    return "";
+}
+
+const char *jbc_dategregoriantolocale(const char *date, const char *from, const char *calendar,
+                                      const char *to, const char *locale,
+                                      const char *file, int line, int column)
+{
+    (void)date; (void)from; (void)calendar; (void)to; (void)locale;
+    numeric_error(file, line, column, "DATEGREGORIANTOLOCALE requires a calendar backend");
     return "";
 }
 

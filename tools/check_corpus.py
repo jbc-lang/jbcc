@@ -90,6 +90,22 @@ R13_SOURCE_FIXES = {
 # R19 keeps each source in a module tree, so its fixes name the path from
 # the extract root.
 R19_SOURCE_FIXES = {
+    # Two assignments on one line without a separator.
+    "CALEND/CALEND_ReserveAccounts/Source/Private/CALEND.PAY.RESERVE.ACCOUNT.LOAD.b": (
+        re.compile(
+            r"^[ \t]*CalendParameterRecord[ \t]*=[ \t]*''(?P<edit>[ \t]+)(?=ParamError[ \t]*=)",
+            re.M,
+        ),
+        "; ",
+    ),
+    # PRINT ... : '      :     ' FMT(...) lacks the : before the second FMT.
+    "ATMFRM/ATMFRM_Mapping/Source/Private/AT.GEN.ISO.RES.MSG.b": (
+        re.compile(
+            r"^[ \t]*PRINT FMT\(CURR\.HEAD\.ELEMENT, '3\" \"L'\)[ \t]*:[ \t]*'      :     '(?P<edit>[ \t]+)(?=FMT\()",
+            re.M,
+        ),
+        " : ",
+    ),
     # The leading-dot selector seen in R07, R10 and R13, in the SEAT test.
     "SE/SE_TestRetail/Source/Private/STEST.AZ.PD.DATES.CHK.b": T24_SOURCE_FIXES[
         "STEST.AZ.PD.DATES.CHK"
@@ -139,7 +155,34 @@ T24_MEMBER_STUBS = {
     # A Java varargs helper: declared with 3 parameters, called by the SEAT
     # tests with 2 to 8 (instance, "getTermRate", currency, ...).
     "TF.L3Helper.testPublishedMethod": "function",
-    # The OB_PMT mapping routines call 42 mappers, map<message>toPOR<part>;
+    # Declarations that omit the () matrix marker on a parameter every
+    # caller passes with MAT, as in TransferBalance's "MatrAccount string"
+    # for MAT R.MATACCOUNT.
+    **{
+        name: "subroutine"
+        for name in (
+            "AA.ActivityMessaging.FullScheduleDetails",
+            "AU.API.TransferBalance",
+            "GA.Foundation.OfsPublishUpdate",
+            "MI.AverageBalances.BookDatePcEntriesBuild",
+        )
+    },
+    # Methods R19 calls that no component definition in the dump declares.
+    **{
+        name: "subroutine"
+        for name in (
+            "OA.Decision.DecisionDefaultValues",
+            "PP.InwardCreditTransferInitiationService.mapSingleToPORTransaction",
+            "PP.InwardGenericTransactions.PpInCreditTransferWrite",
+            "PP.OutwardInterfaceService.doOutwardInstMapping",
+            "PP.StaticDataGUI.LanguageMapping",
+            "PP.StaticDataGUI.WritePPCompany",
+            "PW.Foundation.ProcessDefCatalogueCheckFields",
+            "TF.Core.DumpCommon",
+            "USREGS.RegD.RegdGenerateDealslip",
+        )
+    },
+    # The OB_PMT mapping routines call 40 mappers, map<message>toPOR<part>;
     # the only PP.InwardGenericTransactions definition in the dump declares
     # none of them. Names as the sources spell them.
     **{
@@ -349,6 +392,13 @@ class IncludeIndex:
             if len(candidates) == 1:
                 return found(self.root / candidates[0], rule)
             names = [candidate.as_posix() for candidate in candidates]
+            # Byte-identical copies, as R19's two I_DAS.POR.CLG.IN.SETTLEMENT
+            # .PENDING, make the choice irrelevant: take the first, report all.
+            contents = {(self.root / c).read_bytes() for c in candidates}
+            if len(contents) == 1:
+                result = found(self.root / candidates[0], rule)
+                entry.update(identical_copies=names)
+                return result
             entry.update(status="ambiguous", rule=rule, candidates=names)
             COMPILER.directive_error(
                 token, f"ambiguous include file '{name}': {', '.join(names)}"
@@ -442,6 +492,7 @@ def check(
     catalog_kind=None,
     stub_r07_la_parameter=False,
     stub_void_results=False,
+    relax_access=False,
     exclude_local_routines=False,
     exclude_test_framework=False,
     include_index=None,
@@ -555,6 +606,7 @@ def check(
             # jbcc's built-in JBC.h.
             builtin_includes=False,
             stub_void_results=stub_void_results,
+            relax_access=relax_access,
             next_warning=count_next_warning if quiet_next_warnings else None,
             api_call=record_calls(calls) if collect_apis else None,
         )
@@ -760,6 +812,11 @@ def main():
         help="skip known non-Temenos routines kept in an extract and report them as excluded",
     )
     parser.add_argument(
+        "--t24-relax-access",
+        action="store_true",
+        help="for testing, report calls to private or module component members from another package as warnings",
+    )
+    parser.add_argument(
         "--t24-stub-members",
         action="store_true",
         help="for testing, accept any arguments for the component members in T24_MEMBER_STUBS, and report each use",
@@ -896,6 +953,7 @@ def main():
         collect_apis=coverage is not None,
         stub_r07_la_parameter=options.stub_r07_la_parameter,
         stub_void_results=options.t24_stub_void_results,
+        relax_access=options.t24_relax_access,
         exclude_local_routines=options.t24_exclude_local_routines,
         exclude_test_framework=options.t24_exclude_test_framework,
     )
@@ -995,6 +1053,8 @@ def main():
             scan_settings["t24_stub_void_results"] = True
         if options.t24_stub_members:
             scan_settings["t24_stub_members"] = True
+        if options.t24_relax_access:
+            scan_settings["t24_relax_access"] = True
         if options.t24_exclude_local_routines:
             scan_settings["t24_exclude_local_routines"] = True
         if options.t24_exclude_test_framework:

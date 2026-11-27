@@ -4,6 +4,15 @@
 
 ### Added
 
+- `@COMPANYNO`, a session value a program can read and assign, as T24 R19
+  uses it; it starts empty (provisional).
+- `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and `DATEGREGORIANTOLOCALE` parse
+  and report a missing backend when reached.
+- `--defer-unassigned-reads` also covers the target of `CONVERT` and
+  `CHANGE`.
+- The R19 corpus checker accepts undeclared property accessors with a
+  warning, resolves byte-identical include copies, stubs more members,
+  applies two more source fixes and adds `--t24-relax-access`.
 - `--t24-stub-members` accepts any arguments for a listed set of R19
   component members in testing. A name inside its own `EQUATE` expansion
   stays a plain name, as in the reference, instead of an error.

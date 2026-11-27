@@ -17,4 +17,5 @@ INSERT INTO file_path VALUES
   ('sample-r19', 'WrongRank.b', 'jbc_source', NULL),
   ('sample-r19', 'UnknownComponentTable.b', 'jbc_source', NULL),
   ('sample-r19', 'UndeclaredTableOperation.b', 'jbc_source', NULL),
-  ('sample-r19', 'StubbedMember.b', 'jbc_source', NULL);
+  ('sample-r19', 'StubbedMember.b', 'jbc_source', NULL),
+  ('sample-r19', 'UnknownComponentAccessor.b', 'jbc_source', NULL);
