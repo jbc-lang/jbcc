@@ -1,3 +1,5 @@
+* STATUS after ICONVS and OCONVS: TAFC PB201214 reports 1 in nearly every
+* case here; jbcc keeps the guide's rules (TAFC-CROSSCHECK.md section 5).
 * Valid elements are formatted, and invalid elements retain original text.
 A = @FM:0:@VM:@SVM:'invalid':@FM:62
 CRT OCONVS(A, 'MTS')

@@ -5,17 +5,9 @@ where it shows up. The README describes what is implemented.
 
 ## Not implemented
 
-- `MCPN` and `MCNP` conversions: the guide's description of the hex
-  escaping is too vague to implement safely; they report an unsupported
-  mask.
-- `STATUS()` after a conversion with an invalid mask: jBASE sets
-  `STATUS()` and goes on, as the guide's STATUS example shows; jbcc stops
-  with an unsupported-mask error.
-- Fractional day counts in date masks: some R19 code passes
-  `(seconds - now)/86400 + 732` to `OCONV(..., "DG")`; jbcc reports an
-  error when reached, where jBASE probably truncates.
-- A pattern mask with a decimal precision, such as `R2(##.##)`: the guide
-  never combines them; jbcc reports an unsupported mask.
+- `STATUS()` after OCONV, ICONVS and OCONVS: TAFC PB201214 reports 1 in
+  most cases, even when every element converts, with no rule found yet;
+  jbcc sets it as the README describes.
 
 ## Needs a backend jbcc does not have
 
@@ -61,6 +53,9 @@ See TAFC-CROSSCHECK.md for the probes.
   truncates negative timestamps toward zero, so `LOCALDATE(-1)` is
   1 January 1970; jbcc gives 31 December 1967 + 731 days as the calendar
   says. Dates past 2038 overflow in TAFC's CHANGETIMESTAMP; jbcc's do not.
+- Year 10000 and up: TAFC prints `OCONV(2933629, 'D')` as `01 JAN 0000`;
+  jbcc reports a range error. `ICONV('2023103', 'DG')` is 32767 in TAFC;
+  jbcc reads YYYYDDD.
 - NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
   NUL bytes read from files), while TAFC's can.
 

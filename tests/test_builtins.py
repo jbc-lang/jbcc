@@ -186,37 +186,6 @@ def test_unique_key_returns_distinct_uuid_strings(compiler):
         )
 
 
-@pytest.mark.parametrize(
-    'case_number, message_fixture',
-    [
-        pytest.param(1, 'iconv-diagnostics.stderr', id='20121231-md2'),
-        pytest.param(2, 'iconv-diagnostics_2.stderr', id='24-00-mt'),
-        pytest.param(3, 'iconv-diagnostics_2.stderr', id='0-00-am-mts'),
-        pytest.param(4, 'iconv-diagnostics_3.stderr', id='2012123-d'),
-        pytest.param(5, 'iconv-diagnostics_3.stderr', id='20121231x-d'),
-        pytest.param(6, 'iconv-diagnostics_4.stderr', id='19000229-d4'),
-        pytest.param(7, 'iconv-diagnostics_4.stderr', id='20120431-d'),
-        pytest.param(8, 'iconv-diagnostics_4.stderr', id='20121301-d'),
-        pytest.param(9, 'iconv-diagnostics_4.stderr', id='00000101-d'),
-        pytest.param(10, 'iconv-diagnostics_6.stderr', id='414-mx'),
-        pytest.param(11, 'iconv-diagnostics_6.stderr', id='41gg-mx'),
-        pytest.param(12, 'iconv-diagnostics_7.stderr', id='4100-mx'),
-        pytest.param(13, 'iconv-diagnostics_3.stderr', id='2023103-dg'),
-    ],
-)
-def test_iconv_diagnostics(compiler, case_number, message_fixture):
-    message = expected_text(message_fixture)
-    source = ROOT / 'tests/programs/iconv-diagnostics' / f'date_{case_number}.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'iconv-diagnostics_5.stderr', source=source, message=message
-        ).encode()
-        in run.stderr
-    )
-
-
 def test_iconvs_empty_mask_diagnostic(compiler):
     source = ROOT / 'tests/programs/iconvs-empty-mask.b'
     result = compiler.run_native(source)
@@ -244,12 +213,6 @@ def test_oconvs_empty_mask_diagnostic(compiler):
 @pytest.mark.parametrize(
     'fixture_name, message_fixture',
     [
-        pytest.param('date_1.b', 'oconv-diagnostics.stderr', id='date-1'),
-        pytest.param('date_2.b', 'oconv-diagnostics_2.stderr', id='date-2'),
-        pytest.param('date_3.b', 'oconv-diagnostics_2.stderr', id='date-3'),
-        pytest.param('date_4.b', 'oconv-diagnostics_2.stderr', id='date-4'),
-        pytest.param('date_5.b', 'oconv-diagnostics_3.stderr', id='date-5'),
-        pytest.param('date_6.b', 'oconv-diagnostics_4.stderr', id='date-6'),
         pytest.param('date_7.b', 'oconv-diagnostics_5.stderr', id='date-7'),
     ],
 )
@@ -1359,6 +1322,28 @@ TAFC_OBSERVED = [
     ('integer-limits/numbers_2.b', True),
     ('fmts-invalid-mask/fmts_1.b', False),
     ('char-byte-range-diagnostics/char_3.b', False),
+    ('iconv-diagnostics/date_1.b', False),
+    ('iconv-diagnostics/date_2.b', False),
+    ('iconv-diagnostics/date_3.b', False),
+    ('iconv-diagnostics/date_4.b', False),
+    ('iconv-diagnostics/date_5.b', False),
+    ('iconv-diagnostics/date_6.b', False),
+    ('iconv-diagnostics/date_7.b', False),
+    ('iconv-diagnostics/date_8.b', False),
+    ('iconv-diagnostics/date_9.b', False),
+    ('iconv-diagnostics/date_10.b', False),
+    # jbcc's own result: TAFC adds a byte after A.
+    ('iconv-diagnostics/date_11.b', False),
+    # jbcc's own result: TAFC keeps the NUL byte.
+    ('iconv-diagnostics/date_12.b', False),
+    # jbcc's own result: TAFC gives 32767.
+    ('iconv-diagnostics/date_13.b', False),
+    ('oconv-diagnostics/date_1.b', False),
+    ('oconv-diagnostics/date_2.b', False),
+    ('oconv-diagnostics/date_3.b', False),
+    ('oconv-diagnostics/date_4.b', False),
+    ('oconv-diagnostics/date_5.b', False),
+    ('oconv-diagnostics/date_6.b', False),
     ('catalogue-diagnostics/chars-range.b', False),
     ('sum-overflow.b', False),
     ('eqs-reuse-array.b', False),

@@ -827,15 +827,29 @@ rest, with weeks for masks 3, 5 and 7. So from 31 January 2020 to
 4 UUIDs generated from `/dev/urandom`.
 [UNIQUEKEY](https://jbc-lang.org/pages/uniquekey.html).
 
-ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`,
-`D4` and `DG`, and `OCONV(date, 'DG')` writes that form, so
+ICONV reads dates as TAFC PB201214 does (`tests/tafc/iconv-dates.b`) with
+any `D` mask (`D`, `D4`, `D/`, `D4/E`, `DG`):
+
+- `YYYYMMDD`, as in `ICONV('20121231', 'D')`, which returns `16437`, the
+  number of days since 31 December 1967; `YYYYDDD`, a day of the year;
+- a day, a month name or its first three letters and a year, in either
+  order and with or without spaces: `31 JAN 2020`, `JAN 31 2020`,
+  `31JAN20`;
+- numbers, month first, or day first with an `E` mask: `01/31/2020`;
+  without a year, the current one.
+
+Two-digit years from 30 are 19xx and below 30 are 20xx (provisional). A
+day past the end of its month rolls forward and sets `STATUS()` to 3
+(`31 FEB 2020` is 2 March); any other value that is not a date returns an
+empty string with `STATUS()` 1. `OCONV(date, 'DG')` writes `YYYYMMDD`, so
 `OCONV(ICONV('20231031', 'DG'), 'DG')` returns `20231031`. T24 R19 uses
-`DG` both ways and slices the output as `[1,4]`, `[5,2]` and `[7,2]`. For example, `ICONV('20121231', 'D')` returns `16437`, the
-number of days since 31 December 1967. The `MT` and `MTS` input masks
-accept `H:MM` and `H:MM:SS` with an optional AM or PM suffix and return
-seconds since midnight. Unsupported masks and input formats produce a
-diagnostic at the call site. An impossible date also produces
-a diagnostic, a provisional choice pending a reference run.
+`DG` both ways and slices the output as `[1,4]`, `[5,2]` and `[7,2]`. The
+`MT` and `MTS` input masks accept `H:MM` and `H:MM:SS` with an optional AM
+or PM suffix and return seconds since midnight; as in TAFC, the parts may
+overflow (`25:00` is 90000) and `12 AM` stays 12. A successful ICONV sets
+`STATUS()` to 0. An unknown mask warns, as TAFC prints
+`Unknown conversion code.`, returns an empty string and sets `STATUS()` to
+1; so does an unknown OCONV mask. An empty mask returns the value.
 [ICONV](https://jbc-lang.org/pages/iconv.html).
 
 `ICONVS(array, mask)` applies the supported scalar conversions to
@@ -847,14 +861,36 @@ masks, and reports an empty mask at the call site. A successful
 conversion sets status 0.
 [ICONVS](https://jbc-lang.org/pages/iconvs.html), [MT conversion](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jql2_CONVERSION.MT.htm).
 
-For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit from 0 through 4 selects the
+For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit selects the
 year width. With a separator (`-`, `/` or `.`), jbcc follows the guide’s
 worked example and observed T24 usage. For example, `OCONV(16454,'D4/')` returns
 `01/17/2013`. Append `E` for day-first order. The guide’s syntax table
 instead describes day-first order for the plain numeric form. Component
 masks include `DD`, `DM`, `DMA`, `DJ`, `DQ`, `DW`, `DWA`, and `DY` with
-optional year width. The runtime accepts Gregorian years 1 through 9999
-and reports unsupported masks at the call site. [DATE](https://jbc-lang.org/pages/date.html),
+optional year width; a width above 4 shows four digits. The runtime
+accepts Gregorian years 1 through 9999. As in TAFC PB201214, a fractional
+day count is truncated toward zero (`OCONV(732.75, 'D')` is 01 JAN 1970),
+and a value that is not a number comes back unchanged with `STATUS()` 1.
+The time masks `MT` and `MTS` let hours pass 23 (`99999` is `27:46:39`),
+show a negative count's magnitude and give `00:00:00` for text; `MTH` uses
+a 12-hour clock (`OCONV(0, 'MTH')` is `12:00AM`).
+
+`MDn`, `MRn` and `MLn` are masked decimal conversions, written as in TAFC
+PB201214 (`tests/tafc/md-masks.b`). `OCONV(1234567, 'MD2')` is `12345.67`:
+the value is divided by 10 to the power n, or by a second digit m in
+`MDnm`, and shown with n decimals, rounding half away from zero
+(`OCONV(1234567, 'MD24')` is `123.46`). A negative value keeps its sign
+even when it rounds to zero. Options follow in any order: `Z` gives an
+empty string for zero, `,` groups thousands, `$` prefixes a dollar sign,
+`-` or `M` puts the minus sign after the number (a space for a positive
+one), `C` appends `CR` for a negative value, `D` appends `DB` for a
+nonnegative one, `E` encloses a negative value in `<>`, `P` skips the
+scaling when the value already has a point, and `T` truncates. Text that
+is not a number comes back unchanged; an empty value gives an empty
+string, or `0.00`-style zero with `MR`. `ICONV(text, 'MD2')` removes
+commas, multiplies by 100 and rounds to a whole number
+(`ICONV('12.345', 'MD2')` is `1235`). `FMT` accepts the same masks.
+[DATE](https://jbc-lang.org/pages/date.html),
 [OCONV](https://jbc-lang.org/pages/oconv.html).
 
 `OCONVS(array, mask)` applies the supported output masks to nonempty
@@ -1146,8 +1182,10 @@ diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 upper-case hexadecimal digits, so `FMT('ABCDEF', 'MX')` returns
 `414243444546` and `FMT(@FM, 'MX')` returns `FE`. `ICONV(hex, 'MX')`
 turns pairs of hexadecimal digits back into bytes, as in
-`ICONV('4020412042', 'MX')`, which returns `@ A B`; an odd count, another
-character or a `00` pair reports an error. jbcc works on bytes, so a
+`ICONV('4020412042', 'MX')`, which returns `@ A B`. As in TAFC, decoding
+stops at the first pair that is not hexadecimal and ignores an odd last
+digit, so `ICONV('414', 'MX')` is `A`; a `00` pair also ends it while
+strings cannot hold NUL. jbcc works on bytes, so a
 character outside ASCII shows as the bytes of the source encoding.
 
 `FMT` and `OCONV` accept the `MC` conversions of the guide's `OCONV`
@@ -1163,7 +1201,10 @@ byte, anything outside ASCII 32 to 126 as `ISPRINT` classifies it, with
 subvalue marks as `^`, `]` and `\`, and byte 255 as `_`, as TAFC
 PB201214 does. The guide shows both: the text mark
 in `LONG STRIN.G TO BE SP.LIT` and the marks in `1^2]3^4\5`. The guide's
-`MCPN` and `MCNP` conversions are not supported yet. `G{n}cx` takes `x`
+`MCPN{x}` writes each byte outside ASCII 32 to 126, marks included, as
+`x` (default `.`) and two upper-case hexadecimal digits, and `MCNP{x}`
+reads them back, as in TAFC PB201214; `x` itself is not escaped, so the
+round trip loses an `x` followed by two hex digits. `G{n}cx` takes `x`
 groups delimited by `c` after skipping `n`, so
 `OCONV('LONG STRING TO BE SPLIT', 'G1 3')` returns `STRING TO BE`.
 [OCONV](https://jbc-lang.org/pages/oconv.html),

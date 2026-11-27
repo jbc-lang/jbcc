@@ -55,7 +55,7 @@ VOLATILE_RE = re.compile(
 # line; jbcc prints its warnings on stderr. The comparison drops TAFC's.
 TAFC_WARNING_RE = re.compile(
     r'^(Non-numeric value -- ZERO USED ,|Invalid or uninitialised variable'
-    r' -- NULL USED ,|Divide by zero !!)\n'
+    r' -- NULL USED ,|Divide by zero !!|Unknown conversion code\.)\n'
     r'(Var(iable)? .*\n|Line +\d+ , Source .*\n)?',
     re.M,
 )
