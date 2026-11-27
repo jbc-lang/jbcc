@@ -1,0 +1,41 @@
+1 [ABC] 0 3
+2 [0.12] 0 0
+3 [abc] 0 0
+4 [01 JAN 1968] 0 3
+5 [abc] 1 1
+Unknown conversion code.
+Unknown conversion code.
+6 [] 1 1
+7 [01:00:00] 0 3
+8 [00:00:00] 1 1
+9 [616263] 0 3
+10 [abc] 0 3
+11 [100ý200] 0 0
+12 [0.01ý0.02] 0 0
+13 [01 JAN 1968ýx] 1 1
+14 [01 JAN 1968ý02 JAN 1968] 0 3
+15 [] 0 0
+16 [100ý200] 0 0
+17 [100ý] 1 1
+18 [19024ý] 1 1
+19 [] 1 1
+20 [] 1 1
+21 [] 1 1
+22 [1200] 0 0
+23 [AB] 0 3
+24 [Abc] 0 3
+25 [1.23] 0 0
+26 [123400] 0 0
+27 [abc] 0 3
+28 [1500ý2250] 0 0
+29 [1.50ý2.25] 0 0
+30 [AþB] 0 3
+Unknown conversion code.
+Unknown conversion code.
+31 [] 1 1
+Unknown conversion code.
+Unknown conversion code.
+32 [] 1 1
+33 [ABC] 0 3
+34 [abc] 0 3
+35 [7] 0 3

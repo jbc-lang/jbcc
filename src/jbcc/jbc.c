@@ -3632,8 +3632,10 @@ static enum input_conversion input_mask(const char *mask)
     if (ascii_digit((unsigned char)*mask)) ++mask;
     if (*mask && *mask != 'E' && !ascii_digit((unsigned char)*mask) && !ascii_alpha((unsigned char)*mask))
         ++mask;
-    if (!strcmp(mask, "E")) return ICONV_DATE_EUROPEAN;
-    return *mask ? ICONV_UNSUPPORTED : ICONV_DATE;
+    /* TAFC PB201214 reads any code that starts with D as a date and
+       ignores options it does not know (tests/tafc/conversion-chains.b). */
+    return *mask == 'E' && (!mask[1] || (unsigned char)mask[1] == 253) ? ICONV_DATE_EUROPEAN
+                                                                     : ICONV_DATE;
 }
 
 static int month_of_name(const char *word, size_t length)
@@ -3800,10 +3802,14 @@ static const char *convert_input(const char *value, enum input_conversion conver
    the mask is not valid (the result is then ''), 3 when a date or time
    rolled over. An unknown mask warns, as TAFC prints "Unknown conversion
    code.", and execution continues. */
-const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
+static const char *iconv_code(const char *value, const char *mask, const char *file, int line,
+                              int column)
 {
     /* An empty mask returns the value unchanged (TAFC PB201214). */
     if (!*mask) return value;
+    /* MC codes convert as in OCONV and leave STATUS() alone (TAFC). */
+    const char *converted = mc_conversion(value, mask, file, line, column);
+    if (converted) return converted;
     struct md_mask md;
     if (md_parse(mask, &md)) {
         int status;
@@ -3820,8 +3826,39 @@ const char *jbc_iconv(const char *value, const char *mask, const char *file, int
     }
     int status;
     const char *result = convert_input(value, conversion, mask, &status);
-    last_file_status = status;
+    /* A time that converts cleanly leaves STATUS() as it was (TAFC). */
+    if (status || conversion != ICONV_TIME) last_file_status = status;
     return result;
+}
+
+/* A date code with no part letter (D, D4, D/, but not DD or DM) takes the
+   value mark after it and the rest of the mask as its own options, as in
+   TAFC PB201214: ICONV(X, 'D':@VM:'D4') is ICONV(X, 'D'). */
+static int whole_date_code(const char *code)
+{
+    return *code == 'D' && !(code[1] && strchr("DMJQWYG", code[1]));
+}
+
+/* Codes separated by value marks apply in turn, left to right, as in TAFC
+   PB201214 (tests/tafc/conversion-chains.b): OCONV(X, 'MCU':@VM:'MCT')
+   is OCONV(OCONV(X, 'MCU'), 'MCT'). */
+static const char *convert_chain(const char *value, const char *mask,
+                                 const char *(*code)(const char *, const char *, const char *,
+                                                     int, int),
+                                 const char *file, int line, int column)
+{
+    if (!strchr(mask, 253)) return code(value, mask, file, line, column);
+    const char *codes = mask;
+    while (codes) {
+        if (whole_date_code(codes)) return code(value, codes, file, line, column);
+        value = code(value, take_field(&codes, 253), file, line, column);
+    }
+    return value;
+}
+
+const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    return convert_chain(value, mask, iconv_code, file, line, column);
 }
 
 static const char *const month_names[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL",
@@ -3880,6 +3917,13 @@ static int output_mask(const char *mask, struct output_conversion *conversion)
             conversion->european = 1;
             ++p;
         }
+        /* A value mark ends the code; TAFC ignores what follows. */
+        if ((unsigned char)*p == 253) return 1;
+    } else if (!conversion->part && (unsigned char)*p == 253 && !p[1]) {
+        /* D followed by a value mark and nothing else: the mark is the
+           separator, as TAFC writes OCONV(0, 'D':@VM:'') as 12]31]1967. */
+        conversion->separator = *p;
+        return 1;
     }
     return !*p;
 }
@@ -3901,8 +3945,11 @@ static const char *convert_output(const char *value, const struct output_convers
             for (size_t i = 0; i < n.digits; ++i) seconds = seconds * 10 + (n.whole[i] - '0');
         else if (parse_decimal(value, &n))
             for (size_t i = 0; i < n.digits && n.digits <= 9; ++i) seconds = seconds * 10 + (n.whole[i] - '0');
-        else if (*value)
+        else {
+            /* '' gives '' and text 00:00:00, both with STATUS() 1. */
             last_file_status = 1;
+            if (!*value) return "";
+        }
         long hours = seconds / 3600;
         const char *suffix = "";
         if (conversion->twelve) {
@@ -3920,7 +3967,7 @@ static const char *convert_output(const char *value, const struct output_convers
     /* A date that is not a number comes back as it is, with STATUS 1, and
        a fractional day count is truncated toward zero, as in TAFC. */
     if (!parse_decimal(value, &n)) {
-        if (*value) last_file_status = 1;
+        last_file_status = 1;
         return value;
     }
     char whole[32];
@@ -3983,7 +4030,79 @@ static const char *convert_output(const char *value, const struct output_convers
     return out;
 }
 
-const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
+/* OCONV L codes as TAFC PB201214 applies them (tests/tafc/
+   conversion-tests.b): L followed by no digit gives the length; Ln gives
+   the value when it has at most n bytes, else ''; Ln,m gives it when it has
+   n to m bytes, else '' with STATUS() 1. */
+static const char *length_test(const char *value, const char *mask, const char *file, int line,
+                               int column)
+{
+    const char *p = mask + 1;
+    size_t length = strlen(value);
+    if (!ascii_digit((unsigned char)*p)) return size_value(length);
+    uintmax_t low = 0, high;
+    while (ascii_digit((unsigned char)*p)) low = low * 10 + (uintmax_t)(*p++ - '0');
+    if (*p != ',') return length <= low ? value : "";
+    ++p;
+    if (!ascii_digit((unsigned char)*p)) {
+        fprintf(stderr, "%s:%d:%d: warning: OCONV mask '%s' -- Missing Parameter 2.\n",
+                file, line, column, mask);
+        last_file_status = 1;
+        return "";
+    }
+    high = 0;
+    while (ascii_digit((unsigned char)*p)) high = high * 10 + (uintmax_t)(*p++ - '0');
+    if (length >= low && length <= high) return value;
+    last_file_status = 1;
+    return "";
+}
+
+/* OCONV R codes are range tests in TAFC PB201214, not FMT masks:
+   Rn,m{;n,m}... with integer bounds gives a number inside any range and
+   otherwise '' with STATUS() 1. Any other R mask prints "Error in Range
+   Test." and gives ''. */
+static const char *range_test(const char *value, const char *mask, const char *file, int line,
+                              int column)
+{
+    struct decimal n;
+    int numeric = *value && parse_decimal(value, &n), inside = 0;
+    const char *p = mask + 1;
+    for (;;) {
+        char *end;
+        long long low, high;
+        if (!(ascii_digit((unsigned char)*p) || (*p == '-' && ascii_digit((unsigned char)p[1]))))
+            goto invalid;
+        low = strtoll(p, &end, 10);
+        if (*end != ',') goto invalid;
+        p = end + 1;
+        if (!(ascii_digit((unsigned char)*p) || (*p == '-' && ascii_digit((unsigned char)p[1]))))
+            goto invalid;
+        high = strtoll(p, &end, 10);
+        if (low > high) goto invalid;
+        if (numeric) {
+            char bound[24];
+            snprintf(bound, sizeof bound, "%lld", low);
+            int above = jbc_compare(value, bound, -1) >= 0;
+            snprintf(bound, sizeof bound, "%lld", high);
+            if (above && jbc_compare(value, bound, -1) <= 0) inside = 1;
+        }
+        p = end;
+        if (!*p) break;
+        if (*p++ != ';') goto invalid;
+    }
+    if (inside) return value;
+    last_file_status = 1;
+    return "";
+
+invalid:
+    fprintf(stderr, "%s:%d:%d: warning: OCONV mask '%s' -- Error in Range Test.\n",
+            file, line, column, mask);
+    last_file_status = 1;
+    return "";
+}
+
+static const char *oconv_code(const char *value, const char *mask, const char *file, int line,
+                              int column)
 {
     /* An empty mask returns the value unchanged (TAFC PB201214). */
     if (!*mask) return value;
@@ -3996,11 +4115,22 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);
     if (*mask == 'G' && (converted = group_extract(value, mask))) return converted;
+    if (*mask == 'L') return length_test(value, mask, file, line, column);
+    if (*mask == 'R') return range_test(value, mask, file, line, column);
     struct output_conversion conversion;
-    /* OCONV also takes FMT's format masks, as in the guide's
-       OCONV(X, 'R2,$#15'). */
-    if (!output_mask(mask, &conversion) && (*mask == 'L' || *mask == 'R' || ascii_digit((unsigned char)*mask)))
+    /* A mask that starts with a digit is an FMT mask, as in OCONV(X, '6R');
+       it sets STATUS() 0. */
+    if (!output_mask(mask, &conversion) && ascii_digit((unsigned char)*mask)) {
+        last_file_status = 0;
         return jbc_fmt(value, mask, file, line, column);
+    }
+    if (*mask == 'D' && !output_mask(mask, &conversion)) {
+        /* A D code with options TAFC cannot read gives the value back,
+           with STATUS() 1 for text, as in OCONV(X, 'DUMMY'). */
+        struct decimal n;
+        if (!*value || !parse_decimal(value, &n)) last_file_status = 1;
+        return value;
+    }
     if (!output_mask(mask, &conversion)) {
         /* TAFC prints "Unknown conversion code.", returns '' and sets
            STATUS 1; execution continues. */
@@ -4013,6 +4143,11 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     const char *result = convert_output(value, &conversion, &error);
     if (!result) numeric_error(file, line, column, error);
     return result;
+}
+
+const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
+{
+    return convert_chain(value, mask, oconv_code, file, line, column);
 }
 
 static char *trim_element(char *out, const char *text, const char *set, char mode)
@@ -4706,101 +4841,27 @@ const char *jbc_counts(const char *source, const char *needle)
     return out;
 }
 
-static const char *convert_input_array(const char *source, enum input_conversion conversion,
-                                       const char *mask, int *flagged, const char *file, int line,
-                                       int column)
+/* ICONVS and OCONVS apply the whole chain of codes to each element, as
+   TAFC PB201214 does (tests/tafc/conversion-chains.b), and keep every
+   element: one that does not convert becomes what ICONV or OCONV gives it.
+   Each element sets STATUS() as ICONV or OCONV would, so the last one
+   decides what is left. */
+static const char *convert_array(const char *source, const char *mask, int input,
+                                 const char *file, int line, int column)
 {
-    if (!*source) return source;
-    size_t marks = 0, length = strlen(source);
-    char *items = split_array_items(source, &marks);
-    /* A time such as 9:00 can grow by one byte when converted to seconds. */
-    const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
-    if (length >= limit || marks >= limit - length)
-        numeric_error(file, line, column, "ICONVS result too large");
-    char *out = allocate(length + marks + 1), *write = out;
-    for (const char *item = items;;) {
-        int status = 0;
-        const char *value = *item ? convert_input(item, conversion, mask, &status) : item;
-        if (status) *flagged = 1;
-        if (status == 1) {
-            free(items);
-            return NULL;
-        }
-        size_t bytes = strlen(value);
-        memcpy(write, value, bytes);
-        write += bytes;
-        const char *end = item + strlen(item);
-        char mark = source[end - items];
-        *write++ = mark;
-        if (!mark) break;
-        item = end + 1;
-    }
-    free(items);
-    return out;
-}
-
-const char *jbc_iconvs(const char *source, const char *mask, const char *file, int line, int column)
-{
-    if (!*mask) numeric_error(file, line, column, "ICONVS requires a conversion mask");
-    const char *codes = mask;
-    int flagged = 0; /* a rolled-over element keeps its value; STATUS is 1 */
-    while (codes) {
-        const char *code = take_field(&codes, 253);
-        enum input_conversion conversion = input_mask(code);
-        if (conversion == ICONV_UNSUPPORTED) {
-            file_result(2);
-            return "";
-        }
-        source = convert_input_array(source, conversion, code, &flagged, file, line, column);
-        if (!source) {
-            file_result(1);
-            return "";
-        }
-    }
-    file_result(flagged);
-    return source;
-}
-
-const char *jbc_oconvs(const char *source, const char *mask, const char *file, int line, int column)
-{
-    if (!*mask) numeric_error(file, line, column, "OCONVS requires a conversion mask");
-
-    size_t count = 1;
-    for (const char *mark = mask; (mark = strchr(mark, 253)); ++mark) ++count;
-    struct output_conversion *conversions = calloc(count, sizeof *conversions);
-    if (!conversions) fail("out of memory");
-    const char *codes = mask;
-    for (size_t i = 0; i < count; ++i) {
-        if (!output_mask(take_field(&codes, 253), &conversions[i])) {
-            free(conversions);
-            file_result(2);
-            return "";
-        }
-    }
-
     char *items = split_array_items(source, NULL);
     const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
     size_t capacity = strlen(source), used = 0;
     char *out = allocate(capacity);
-    int status = 0;
     for (const char *item = items;;) {
-        const char *value = item;
-        for (size_t i = 0; *value && i < count; ++i) {
-            const char *error = NULL;
-            last_file_status = 0;
-            value = convert_output(value, &conversions[i], &error);
-            if (last_file_status == 1) status = 1;
-            if (!value) {
-                value = item;
-                status = 1;
-                break;
-            }
-        }
+        const char *value = convert_chain(item, mask, input ? iconv_code : oconv_code,
+                                          file, line, column);
         const char *end = item + strlen(item);
         char mark = source[end - items];
         size_t bytes = strlen(value), separator = mark != '\0';
         if (bytes > limit - used || separator > limit - used - bytes)
-            numeric_error(file, line, column, "OCONVS result too large");
+            numeric_error(file, line, column, input ? "ICONVS result too large"
+                                                    : "OCONVS result too large");
         size_t required = used + bytes + separator;
         if (required > capacity) {
             capacity = required <= limit / 2 ? 2 * required : required;
@@ -4815,9 +4876,19 @@ const char *jbc_oconvs(const char *source, const char *mask, const char *file, i
         item = end + 1;
     }
     free(items);
-    free(conversions);
-    file_result(status);
     return out;
+}
+
+const char *jbc_iconvs(const char *source, const char *mask, const char *file, int line, int column)
+{
+    if (!*mask) numeric_error(file, line, column, "ICONVS requires a conversion mask");
+    return convert_array(source, mask, 1, file, line, column);
+}
+
+const char *jbc_oconvs(const char *source, const char *mask, const char *file, int line, int column)
+{
+    if (!*mask) numeric_error(file, line, column, "OCONVS requires a conversion mask");
+    return convert_array(source, mask, 0, file, line, column);
 }
 
 const char *jbc_fmts(const char *source, const char *mask, const char *file, int line, int column)

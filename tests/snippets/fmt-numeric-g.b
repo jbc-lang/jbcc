@@ -13,8 +13,9 @@ CRT DQUOTE(FMT(0, 'R2Z#6')), DQUOTE(FMT(123456, 'R22,#10')), DQUOTE(FMT(1234567.
 the_string = 'LONG STRING TO BE SPLIT'
 CRT OCONV(the_string, 'G1 3')
 CRT OCONV(the_string, 'G0 1'), OCONV('a/b/c/d', 'G2/5'), '[':OCONV('a b', 'G5 1'):']', FMT('x.y.z', 'G1.1')
-* FMT takes OCONV's date and time masks, and OCONV takes FMT's format masks,
-* as in the guide's FMT and OCONV examples.
+* FMT takes OCONV's date and time masks, as in the guide's FMT examples.
+* OCONV reads R and L masks as range and length tests, as TAFC PB201214
+* does and the guide notes, so OCONV(X, 'R2,$#15') is ''; FMT formats it.
 X = 16376
 CRT FMT(X, 'D4/'), FMT(X, 'DY'), FMT(X, 'DY2'), FMT(X, 'D2'), FMT(X, 'DQ'), FMT(X, 'DMA'), FMT(X, 'DWA')
-CRT FMT(3661, 'MTS'), DQUOTE(OCONV(123456.78, 'R2,$#15')), OCONV(5, 'R2')
+CRT FMT(3661, 'MTS'), DQUOTE(FMT(123456.78, 'R2,$#15')), OCONV(5, 'R1,9')

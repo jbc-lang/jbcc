@@ -851,19 +851,36 @@ empty string with `STATUS()` 1. `OCONV(date, 'DG')` writes `YYYYMMDD`, so
 `DG` both ways and slices the output as `[1,4]`, `[5,2]` and `[7,2]`. The
 `MT` and `MTS` input masks accept `H:MM` and `H:MM:SS` with an optional AM
 or PM suffix and return seconds since midnight; as in TAFC, the parts may
-overflow (`25:00` is 90000) and `12 AM` stays 12. A successful ICONV sets
-`STATUS()` to 0. An unknown mask warns, as TAFC prints
-`Unknown conversion code.`, returns an empty string and sets `STATUS()` to
-1; so does an unknown OCONV mask. An empty mask returns the value.
+overflow (`25:00` is 90000) and `12 AM` stays 12. An unknown mask warns,
+as TAFC prints `Unknown conversion code.`, returns an empty string and
+sets `STATUS()` to 1; so does an unknown OCONV mask. An empty mask returns
+the value. ICONV also takes the MC codes, as OCONV does.
+
+`STATUS()` after a conversion follows TAFC PB201214
+(`tests/tafc/conversion-*.b`):
+
+- ICONV with a date or MD mask sets 0 on success, 1 for a value it cannot
+  read (including `''`) and 3 for a rolled-over date; a time sets 1 or 3
+  the same way but leaves `STATUS()` alone on success;
+- OCONV with an MD, MR or ML mask, or an FMT mask, sets 0; with a date or
+  time mask it sets 1 for `''` or text and otherwise leaves `STATUS()`
+  alone, as do MC, MX, G and L codes;
+- an unknown mask sets 1.
+
+Codes separated by value marks run left to right, so
+`OCONV('abc', 'MCU':@VM:'MCT')` is `Abc`. A date code without a part
+letter (`D`, `D4`, `D/`, but not `DD`) takes the value mark and the rest of
+the mask as its own options, as TAFC does: `ICONV(X, 'D':@VM:'D4')` is
+`ICONV(X, 'D')`, and `OCONV(0, 'D':@VM:'')` uses the value mark as its
+separator. TAFC reads any code that starts with D as a date: ICONV
+ignores options it does not know, and OCONV gives the value back.
 [ICONV](https://jbc-lang.org/pages/iconv.html).
 
-`ICONVS(array, mask)` applies the supported scalar conversions to
-each nonempty element and preserves field, value, and subvalue marks.
-Value-mark-separated masks run left to right. An empty array yields an
-empty string. An invalid element yields an empty result and `STATUS()`
-of 1. jbcc returns an empty result with status 2 for unsupported
-masks, and reports an empty mask at the call site. A successful
-conversion sets status 0.
+`ICONVS(array, mask)` and `OCONVS(array, mask)` apply the whole mask, chain
+included, to each element and preserve field, value, and subvalue marks.
+Each element sets `STATUS()` as ICONV or OCONV would, so the last element
+decides what is left, as in TAFC. An empty mask is reported at the call
+site.
 [ICONVS](https://jbc-lang.org/pages/iconvs.html), [MT conversion](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jql2_CONVERSION.MT.htm).
 
 For dates, the OCONV mask `D` produces `DD MON YYYY`. A digit selects the
@@ -877,8 +894,21 @@ accepts Gregorian years 1 through 9999. As in TAFC PB201214, a fractional
 day count is truncated toward zero (`OCONV(732.75, 'D')` is 01 JAN 1970),
 and a value that is not a number comes back unchanged with `STATUS()` 1.
 The time masks `MT` and `MTS` let hours pass 23 (`99999` is `27:46:39`),
-show a negative count's magnitude and give `00:00:00` for text; `MTH` uses
-a 12-hour clock (`OCONV(0, 'MTH')` is `12:00AM`).
+show a negative count's magnitude, give `00:00:00` for text and `''` for
+`''`; `MTH` uses a 12-hour clock (`OCONV(0, 'MTH')` is `12:00AM`).
+
+OCONV's L and R codes are tests, as in TAFC PB201214
+(`tests/tafc/conversion-tests.b`), not FMT masks:
+
+- `L` followed by no digit gives the length; `Ln` gives the value when it
+  has at most n bytes and otherwise `''`; `Ln,m` gives it when it has n to
+  m bytes and otherwise `''` with `STATUS()` 1;
+- `Rn,m{;n,m}...` with integer bounds gives a number that lies in any of
+  the ranges and otherwise `''` with `STATUS()` 1. Any other R mask, such
+  as `'R2,$#15'`, warns `Error in Range Test.` and gives `''`, as the
+  guide's FMT chapter shows; FMT formats it.
+
+A mask that starts with a digit, such as `6R`, is still an FMT mask.
 
 `MDn`, `MRn` and `MLn` are masked decimal conversions, written as in TAFC
 PB201214 (`tests/tafc/md-masks.b`). `OCONV(1234567, 'MD2')` is `12345.67`:
@@ -898,13 +928,7 @@ commas, multiplies by 100 and rounds to a whole number
 [DATE](https://jbc-lang.org/pages/date.html),
 [OCONV](https://jbc-lang.org/pages/oconv.html).
 
-`OCONVS(array, mask)` applies the supported output masks to nonempty
-elements, preserving field, value, and subvalue marks. Value-mark-separated
-masks run left to right. If any stage fails for an element, jbcc returns
-that element's original text and sets `STATUS()` to 1 while converting
-the remaining elements. A successful call sets status 0. An unsupported
-mask yields an empty result with status 2, and an empty mask produces a
-diagnostic at the call site.
+`OCONVS(array, mask)` works as ICONVS does, above.
 [OCONVS](https://jbc-lang.org/pages/oconvs.html).
 
 STR repeats its entire first argument, including any embedded array marks.
