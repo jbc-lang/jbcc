@@ -43,6 +43,46 @@ EMULATION_RE = re.compile(rb'^\s*[*!]\s*tafc-emulation:\s*(\w+)', re.M)
 # A probe can pass jbcc options, such as the in-memory files that TAFC
 # creates with CREATE-FILE: "* jbcc-options: --memory-file VENDORS".
 OPTIONS_RE = re.compile(rb'^\s*[*!]\s*jbcc-options:(.*)$', re.M)
+# A probe can carry other programs that it runs with EXECUTE: each line
+# "* tafc-program: NAME" starts NAME.b, which is built first.
+PROGRAM_RE = re.compile(rb'^\*\s*tafc-program:\s*(\w+)\s*$', re.M)
+
+
+def split_programs(data):
+    """The main program and a list of (name, source) companions."""
+    parts = PROGRAM_RE.split(data)
+    return parts[0], [
+        (parts[i].decode(), parts[i + 1].lstrip(b'\n'))
+        for i in range(1, len(parts), 2)
+    ]
+
+
+def build_companions(data, work, emulation, extra):
+    """Build each companion program next to the main one with jbcc."""
+    log = b''
+    for name, source in split_programs(data)[1]:
+        (work / (name + '.b')).write_bytes(source)
+        built = subprocess.run(
+            [
+                sys.executable,
+                str(JBCC),
+                '--emulation',
+                emulation,
+                *extra,
+                '--exe',
+                name + '.b',
+                '-o',
+                name,
+            ],
+            cwd=work,
+            capture_output=True,
+            timeout=300,
+        )
+        log += built.stdout + built.stderr
+        if built.returncode:
+            return log, built.returncode
+    return log, 0
+
 
 # Output of these depends on the clock, the process, random numbers or the
 # directory, so a difference does not show a semantic mismatch.
@@ -148,10 +188,16 @@ def run_jbcc_one(source, output, emulation):
     name = source.stem
     with tempfile.TemporaryDirectory() as work:
         work = Path(work)
-        shutil.copy(source, work / source.name)
+        data = source.read_bytes()
+        (work / source.name).write_bytes(split_programs(data)[0])
         program = work / name
-        options = OPTIONS_RE.search(source.read_bytes())
+        options = OPTIONS_RE.search(data)
         extra = options.group(1).decode().split() if options else []
+        log, status = build_companions(data, work, emulation, extra)
+        if status:
+            (output / (name + '.clog')).write_bytes(log)
+            (output / (name + '.crc')).write_text('%d\n' % status)
+            return
         built = subprocess.run(
             [
                 sys.executable,

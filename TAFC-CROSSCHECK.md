@@ -78,6 +78,11 @@ follows: 216 same output, 84 different output, 114 rejected only by jbcc,
       Docker. A probe runs under its file name, as TAFC's warnings show
       it. These probes are not part of `just test`: move each one, or
       its assertions, into `tests/snippets/` when jbcc matches it.
+- [x] Probe comments: `* tafc-emulation: prime|jbase` selects the
+      emulation, `* jbcc-options: ...` passes jbcc options, and each
+      `* tafc-program: NAME` line starts another program, written to
+      `NAME.b` and built before the main one, for probes that EXECUTE
+      jBC programs.
 
 ## Emulation
 
@@ -550,9 +555,14 @@ Files and processes:
       at 0. A `CHAIN` to a command that is not a jBC program returned to
       the caller in TAFC; probe this again before copying it.
 - [x] `ENTER name` and `ENTER @var` run name from PATH and never return.
-- [ ] `EXECUTE … PASSDATA x RTNDATA y` with `COLLECTDATA` and `RTNDATA`
+- [x] `EXECUTE … PASSDATA x RTNDATA y` with `COLLECTDATA` and `RTNDATA`
       in a jBC child passes data both ways (the parent got
-      `back]world`). This needs jbcc to run jBC children.
+      `back]world`). Done (`tests/tafc/execute-passdata.b`): a probe can
+      now carry the programs it EXECUTEs after `* tafc-program: NAME`
+      lines. COLLECTDATA repeats, the last RTNDATA wins, a child without
+      RTNDATA returns `''` and nested EXECUTEs pass nothing. Found on the
+      way: CAPTURING drops one final newline, and TAFC runs commands
+      without a shell (kept as a difference).
 - [x] `PRINTERR code:@FM:args` prints the jbcmessages text
       (` ** Error [ 201 ] ** ` then `Unable to open file X`). An unknown
       id prints `!!! Error message X not found !!!`. Start with the
@@ -637,6 +647,9 @@ each emulation.
     GROUPSTORE, OUT, LOCK, PROCREAD, PRINTERR, @-variables, COMMON,
     division by zero and others), none moved away. `tests/tafc`: 42 of 45,
     and the other 3 are known differences.
+  - After the emulation rules, conversions and PASSDATA (2026-11-27):
+    265 same, 82 differ (22 volatile), 84 jbcc-rejects, 31 jbcc-fails.
+    `tests/tafc`: 54 of 58, and the other 4 are known differences.
   - The earlier scratch run, without start-up retries, had 216 same and
     47 jbcc-fails; the difference was TAFC start-up failures.
 

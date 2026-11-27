@@ -623,8 +623,9 @@ executable. The native runtime also accepts the explicit `CHAR(255) : 's'`
 shell prefix.
 
 With `CAPTURING variable` alone, the child’s stdout is collected into the
-variable and stderr stays on the caller’s error stream. Each LF, including
-a final LF, becomes one field mark. An empty stream assigns an empty
+variable and stderr stays on the caller’s error stream. One final LF is
+dropped and each other LF becomes a field mark, as in TAFC PB201214
+(`tests/tafc/execute-capturing.b`). An empty stream assigns an empty
 string.
 
 `RETURNING variable` and `SETTING variable` put the child’s exit code in
@@ -634,8 +635,20 @@ each LF with a field mark. With empty stderr the result is just the status.
 A signal exit is recorded as 128 plus the signal number. If both clauses
 target the same variable, the status result is assigned last.
 
+`PASSDATA expression` hands a value to a jbcc program that the command
+runs, which reads it with `COLLECTDATA variable` as often as it likes;
+without a PASSDATA, COLLECTDATA gives an empty string. That program's
+last `RTNDATA expression` comes back in the caller's `RTNDATA variable`,
+which is empty when the program has none, and RTNDATA in a program that
+no EXECUTE with the clause ran is discarded. A nested EXECUTE passes
+neither unless it has the clause. These follow TAFC PB201214
+(`tests/tafc/execute-passdata.b`); jbcc passes the data through two
+temporary files named in the child's environment.
+
 NUL bytes in either collected stream produce a runtime diagnostic.
 Alternate shells and field-mark-separated commands remain unsupported.
+TAFC PB201214 runs a command without a shell, splitting it on spaces, so
+`;`, `|` and quotes are plain text there; jbcc keeps the shell.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
 The command aliases accept `RTNLIST variable` and bare `RTNLIST` for the
@@ -2196,8 +2209,6 @@ probes in `tests/tafc/` record its output.
   1027, 1029, 1039 and 2090 are empty, as in TAFC PB201214.
   `ASSIGN value TO SYSTEM(n)` keeps the value for `SYSTEM(n)` to return,
   as TAFC does (`tests/tafc/system-keys-t24.b`).
-
-`EXECUTE` with `PASSDATA`, `COLLECTDATA` and `RTNDATA` is not supported yet.
 
 ## Sequential files
 

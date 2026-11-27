@@ -84,6 +84,9 @@
 - SADD, SSUB, SMUL and SDIV keep 14 fractional places, with TAFC's
   rounding, and warn and use 0 for a nonnumeric operand instead of
   stopping.
+- `EXECUTE ... PASSDATA expression RTNDATA variable`, with the
+  `COLLECTDATA` and `RTNDATA` statements in the program it runs.
+- CAPTURING drops one final newline, as TAFC does.
 - Conversions follow TAFC: codes separated by value marks run in turn in
   OCONV, ICONV, OCONVS and ICONVS; STATUS() after each mask family is as
   TAFC sets it; ICONVS and OCONVS keep every element; ICONV takes MC

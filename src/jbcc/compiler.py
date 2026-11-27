@@ -2844,7 +2844,7 @@ class Compiler:
         self.host_only(opening)
         self.advance()
         self.uses_execute = True
-        clauses = ('CAPTURING', 'RETURNING', 'SETTING', 'RTNLIST')
+        clauses = ('CAPTURING', 'RETURNING', 'SETTING', 'RTNLIST', 'PASSDATA', 'RTNDATA')
         command = self.expression(format_stops=clauses)
         outputs = {}
         assigned = []
@@ -2853,6 +2853,9 @@ class Compiler:
             if clause in outputs:
                 self.error(f"duplicate {clause} clause")
             self.advance()
+            if clause == 'PASSDATA':
+                outputs[clause] = self.expression(format_stops=clauses)
+                continue
             if clause == 'RTNLIST':
                 if (
                     not self.word
@@ -2872,6 +2875,7 @@ class Compiler:
         self.emit(
             f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
             f"{outputs.get('RETURNING', 'NULL')}, {outputs.get('RTNLIST', 'NULL')}, "
+            f"{outputs.get('PASSDATA', 'NULL')}, {outputs.get('RTNDATA', 'NULL')}, "
             f"{self.location(opening)});"
         )
 
@@ -5280,6 +5284,18 @@ class Compiler:
             else:
                 command = self.expression()
             self.emit(f"jbc_chain({command}, {self.location(opening)});")
+        elif self.statement_word('COLLECTDATA'):
+            # The PASSDATA of the EXECUTE that ran this program, else ''.
+            self.advance()
+            target = self.identifier()
+            slot = self.variable_slot(target)
+            if target.word not in self.matrices:
+                self.assigned.add(target.word)
+            self.emit(f"assign_value(&{slot}, jbc_collectdata());")
+        elif self.statement_word('RTNDATA'):
+            # For the RTNDATA clause of the EXECUTE that ran this program.
+            self.advance()
+            self.emit(f"jbc_rtndata({self.expression()});")
         elif self.statement_word('PRINTERR'):
             opening = self.current
             self.advance()
