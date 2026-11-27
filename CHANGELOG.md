@@ -4,6 +4,8 @@
 
 ### Added
 
+- ENCRYPT and DECRYPT implement JBASE_CRYPT_XOR11 and JBASE_CRYPT_BASE64,
+  and the Base64 mask bit, as TAFC PB201214 runs them.
 - `--emulation prime|jbase` (and `emulation=` in `jbcc.browser.translate`).
   The default is prime, the emulation T24 runs under.
 - The `LOCATE(key, array{, f{, v}}; pos{; order})` function form.

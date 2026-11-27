@@ -534,9 +534,23 @@ PB201214 run (`tests/tafc/bit-unsigned.b`).
 [BITAND](https://jbc-lang.org/pages/bitand.html), [BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html), [BITNOT](https://jbc-lang.org/pages/bitnot.html).
 
 `ENCRYPT(text, key, method)` and `DECRYPT(text, key, method)` implement
-ROT13 (method 1 in PB201214's JBC.h). They rotate ASCII letters, preserve
-other bytes and ignore the key for that method. All other methods,
-including Base64, report a source-located error when called.
+three methods of PB201214's JBC.h, as TAFC PB201214 runs them
+(`tests/tafc/crypt-base64.b`):
+
+- `JBASE_CRYPT_ROT13` (1) rotates ASCII letters and ignores the key;
+- `JBASE_CRYPT_XOR11` (2) XORs byte i, counting from 0, with the key's
+  first byte modulo 11 plus i, modulo 32 (an empty key counts as 0);
+  ENCRYPT and DECRYPT are the same;
+- `JBASE_CRYPT_BASE64` (4) is standard Base64 with `=` padding and no line
+  breaks. Decoding skips every character outside the alphabet, padding
+  included, and reads the rest as one bit stream, so `'aGVs bG8'` is
+  `hello`; the result can hold byte 0.
+
+The `JBASE_CRYPT_BASE64_MASK` bit (`0x40000000`) adds Base64 after
+ENCRYPT's method and removes it before DECRYPT's, so
+`ENCRYPT('hello', 'k', BITOR(2, XTD('40000000')))` is `YGxmZ2M=`. The
+cipher methods (GENERAL, RC2, DES, 3DES, Blowfish and AES) report a
+source-located error when called (MISSING-BACKENDS.md).
 [ENCRYPT](https://jbc-lang.org/pages/encrypt.html), [DECRYPT](https://jbc-lang.org/pages/decrypt.html).
 
 `DTX(number)` returns uppercase hexadecimal digits. `XTD(text)` reads
