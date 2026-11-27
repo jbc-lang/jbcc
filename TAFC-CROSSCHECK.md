@@ -323,7 +323,7 @@ Done for section 3 (2026-11-27):
       For example `a LF b CR LF c` reads as `61 FE 62 0D FE 63`.
       `WRITESEQ` writes marks unchanged plus LF, and `READSEQ` strips the
       LF.
-- [ ] Support embedded NUL: `LEN(CHAR(0):'A')` is 2 and
+- [x] Support embedded NUL: `LEN(CHAR(0):'A')` is 2 and
       `SEQ(CHAR(0))` is 0. The guide's SEEK and CHECKSUM blocks depend on
       it.
 - [x] `CHAR(n)` takes n modulo 256: `CHAR(256)` is `00`, `CHAR(300)` is
@@ -655,6 +655,9 @@ each emulation.
   - After the emulation rules, conversions and PASSDATA (2026-11-27):
     265 same, 82 differ (22 volatile), 84 jbcc-rejects, 31 jbcc-fails.
     `tests/tafc`: 54 of 58, and the other 4 are known differences.
+  - After byte 0 support (2026-11-27): 268 same, 80 differ (21
+    volatile), 84 jbcc-rejects, 30 jbcc-fails. `tests/tafc`: 59 of 62,
+    and the other 3 are known differences.
   - The earlier scratch run, without start-up retries, had 216 same and
     47 jbcc-fails; the difference was TAFC start-up failures.
 
