@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(JBC_SESSION) && !defined(__wasi__)
+#include <sys/utsname.h>
+#endif
 #ifdef __wasi__
 #include <wasi/api.h>
 #endif
@@ -1722,6 +1725,12 @@ enum { JBC_LOCKED = -2 };
 static int last_file_status;
 static size_t blocked_record_locks;
 
+struct assigned_key {
+    struct assigned_key *next;
+    const char *key, *value;
+};
+static struct assigned_key *assigned_keys;
+
 void jbc_assign_system(const char *value, const char *key, const char *file, int line, int column)
 {
     if (!jbc_compare(key, "1036", -1)) {
@@ -1730,10 +1739,28 @@ void jbc_assign_system(const char *value, const char *key, const char *file, int
         blocked_record_locks = 0;
         return;
     }
-    if (!jbc_compare(key, "1039", -1))
-        numeric_error(file, line, column, "ASSIGN TO SYSTEM(1039) requires a journaling backend");
-    numeric_error(file, line, column, jbc_concat("unsupported ASSIGN TO SYSTEM key ", key));
+    /* Other keys keep the value, which SYSTEM() then returns, as TAFC
+       PB201214 does for SYSTEM(2021); T24 assigns 1039 and 2021. */
+    for (struct assigned_key *a = assigned_keys; a; a = a->next)
+        if (!jbc_compare(a->key, key, -1)) {
+            a->value = value;
+            return;
+        }
+    struct assigned_key *a = malloc(sizeof *a);
+    if (!a) fail("out of memory");
+    *a = (struct assigned_key){assigned_keys, key, value};
+    assigned_keys = a;
+    (void)file, (void)line, (void)column;
 }
+
+#if defined(JBC_SESSION) && defined(JBC_TERMINAL) && !defined(__wasi__)
+static const char *assigned_system_key(const char *key)
+{
+    for (struct assigned_key *a = assigned_keys; a; a = a->next)
+        if (!jbc_compare(a->key, key, -1)) return a->value;
+    return NULL;
+}
+#endif
 
 static int file_result(int status)
 {
@@ -6906,6 +6933,32 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
         return slash ? slash + 1 : name;
     }
     if (!jbc_compare(code, "1017", -1)) return "UNIX";
+    const char *assigned = assigned_system_key(code);
+    if (assigned) return assigned;
+    /* Keys T24 reads, with TAFC PB201214's values where jbcc has no
+       counterpart (tests/tafc/system-keys.b): 11 the default select list's
+       count, 1021 the release (T24 tests [1,4] for TAFJ and looks for
+       TEMENOS), 1019 the host, and zeros or empty strings for the
+       transaction (47), port (43), phantom (25), UTF-8 (1025), call stack
+       (1029), after-image (1039) and platform (91 is 0 for UNIX) keys. */
+    if (!jbc_compare(code, "11", -1)) return jbc_selected();
+    if (!jbc_compare(code, "1021", -1))
+        return "201214.0\3760.0\376\376jbcc, compatible with TEMENOS TAFC PB201214";
+    if (!jbc_compare(code, "1019", -1)) {
+#ifdef __wasi__
+        return "";
+#else
+        struct utsname host;
+        if (uname(&host)) return "";
+        return jbc_concat(jbc_concat(host.sysname, " "), jbc_concat(jbc_concat(host.nodename, " "), host.release));
+#endif
+    }
+    static const char *const zeros[] = {"25", "32", "43", "47", "91", "600", "1025", "2003", "2021"};
+    for (size_t i = 0; i < sizeof zeros / sizeof *zeros; ++i)
+        if (!jbc_compare(code, zeros[i], -1)) return "0";
+    if (!jbc_compare(code, "1027", -1) || !jbc_compare(code, "1029", -1) ||
+        !jbc_compare(code, "1039", -1) || !jbc_compare(code, "2090", -1))
+        return "";
     if (jbc_compare(code, "14", -1))
         numeric_error(file, line, column, jbc_concat("unsupported SYSTEM key ", code));
     fflush(stdout);

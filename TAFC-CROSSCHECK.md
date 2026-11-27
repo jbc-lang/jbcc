@@ -491,7 +491,7 @@ Simple:
       | 1017 | `UNIX` |
       | 1027 | PROC directory |
 
-- [ ] Decide each remaining key from the full table (`SYSTEM(1..60)` and
+- [x] Decide each remaining key from the full table (`SYSTEM(1..60)` and
       `SYSTEM(1000..1060)` in one probe). Keep "unsupported" for keys
       that describe licensing or shared memory.
 
@@ -623,3 +623,26 @@ each emulation.
     and the other 3 are known differences.
   - The earlier scratch run, without start-up retries, had 216 same and
     47 jbcc-fails; the difference was TAFC start-up failures.
+
+## 11. Byte 0 in strings (design note)
+
+jbcc values are NUL-terminated C strings, so `CHAR(0)`, `CHAR(256)`, NUL
+bytes from files and MX/MCNP results with 00 cannot be held; TAFC's can.
+Scale (2026-11-27): jbc.c has 9,095 lines, 315 exported functions, about
+300 calls to C string functions and 810 `const char *` uses, and the
+compiler writes every constant as a C string literal. Options:
+
+1. A value type with a length (pointer and size) through the runtime and
+   the generated code. Complete, but it touches every function.
+2. A length kept in the allocation header (`struct jbc_buffer`) and a
+   `jbc_length(value)` that reads it for heap values and falls back to
+   `strlen` for literals and slices. Smaller, but every place that takes a
+   slice or uses a C string function has to be audited.
+3. A reserved internal byte for NUL, translated at input and output.
+   Smallest, but it breaks LEN, SEQ and byte comparisons on that byte.
+
+Recommendation: option 1, on its own branch, after the TAFC probes and the
+guide cross-check are green, so a regression shows at once. T24 code shows
+no NUL bytes in strings, so this is for completeness, not the corpus.
+
+- [ ] Byte 0 in strings, as above.

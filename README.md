@@ -2152,7 +2152,14 @@ probes in `tests/tafc/` record its output.
   width and depth (`COLUMNS` and `LINES`, else 80 and 24), `SYSTEM(7)` the
   terminal type, `SYSTEM(12)` the milliseconds since midnight,
   `SYSTEM(35)` to `SYSTEM(39)` the C locale's `C`, `0`, `,`, `.` and `$`,
-  `SYSTEM(40)` the program name and `SYSTEM(1017)` `UNIX`.
+  `SYSTEM(40)` the program name and `SYSTEM(1017)` `UNIX`. For the keys T24
+  reads, `SYSTEM(11)` is the default select list's count, `SYSTEM(1019)`
+  the host, and `SYSTEM(1021)` a TAFC-style release string that names jbcc
+  and contains `TEMENOS`, so T24's `SYSTEM(1021)[1,4] = 'TAFJ'` test takes
+  the TAFC path; 25, 32, 43, 47, 91, 600, 1025, 2003 and 2021 are 0 and
+  1027, 1029, 1039 and 2090 are empty, as in TAFC PB201214.
+  `ASSIGN value TO SYSTEM(n)` keeps the value for `SYSTEM(n)` to return,
+  as TAFC does (`tests/tafc/system-keys-t24.b`).
 
 `EXECUTE` with `PASSDATA`, `COLLECTDATA` and `RTNDATA` is not supported yet.
 

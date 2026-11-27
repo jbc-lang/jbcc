@@ -71,6 +71,9 @@
   codes up to -20 cover blink, reverse, underline, the printer and cursor
   moves; `@(n)` moves to a column.
 - `tests/test_tafc_probes.py` runs the TAFC probes in `just test`.
+- The SYSTEM keys T24 reads (11, 1019, 1021, and the keys TAFC reports as
+  0 or empty), and `ASSIGN value TO SYSTEM(n)` for any key, which SYSTEM
+  then returns.
 - INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
   unchanged for an empty search string; FIELD and GROUP read occurrences
   and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows
