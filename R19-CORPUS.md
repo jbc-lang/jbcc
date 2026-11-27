@@ -217,6 +217,23 @@ an expression, for example `EB.DataAccess.FRead`.
     `PP.InwardGenericTransactions.PpInReturnWrite`,
     `PP.InwardCreditTransferInitiationService.mapSingleToPORPartyDebit` and
     `PP.LocalClearingService.doOutwardMapping` (2 units).
+
+  Final decisions (2026-11-27): those members and the others the same
+  units call (19 in all) join the member stubs, and
+  `--t24-exclude-missing-domains` excludes units whose generated insert
+  has no `.domain` class. The full scan with every flag:
+
+  ```sh
+  python3 tools/check_corpus.py ../t24-extract/201809-R19 -I .cache/PB201214/include \
+    --t24-catalog ../t24-extract/catalog.sqlite --t24-indexed-includes \
+    --t24-domain-inserts .cache/domain-inserts/201809-R19 --t24-exclude-missing-domains \
+    --t24-component-calls --t24-stub-members --t24-stub-void-results --t24-relax-access \
+    --source-encoding bytes --defer-unassigned-reads --quiet-next-warnings \
+    --t24-source-fixes -j 8 > /tmp/jbcc-r19.json
+  ```
+
+  translates 39,669 of 39,675 units and excludes the 6 without a
+  `.domain` class; none is rejected.
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).
