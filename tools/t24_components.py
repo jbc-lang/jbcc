@@ -9,12 +9,13 @@ MEMBER = r"^[ \t]*(public|module|private)[ \t]+"
 NAME = r"[A-Za-z][A-Za-z0-9_]*"
 # R19 writes the result type after the parameters or before them
 # (setException : string (...)), may add "implements <interface>", and
-# declares service methods as "external" without another access keyword.
+# declares service methods as "external" and Java-facing API members as
+# "published" (EB.EnquiryHook), both public.
 METHOD = re.compile(
-    rf"^[ \t]*(?P<access>public|module|private|external)[ \t]+method[ \t]+(?P<name>{NAME})"
+    rf"^[ \t]*(?P<access>public|module|private|external|published)[ \t]+method[ \t]+(?P<name>{NAME})"
     r"(?:[ \t]+implements[ \t]+[\w.]+)?"
     r"\s*(?::\s*(?P<before>\w+)\s*)?\((?P<parameters>(?:[^(){}]|\(\))*)\)"
-    r"\s*(?::\s*(?P<after>\w+))?\s*\{",
+    r"\s*(?::\s*(?P<after>\w+))?(?:\s*\{|[ \t]*$)",
     re.M,
 )
 # Hook components declare interfaces: no body, and a result type such as
@@ -22,7 +23,7 @@ METHOD = re.compile(
 # parameters. Every R19 call passes the implementing method's name first,
 # then the declared parameters (all 32 calls of the 42 declarations).
 INTERFACE = re.compile(
-    rf"^[ \t]*(?P<access>public|module|private|external)[ \t]+interface[ \t]+(?P<name>{NAME})"
+    rf"^[ \t]*(?P<access>public|module|private|external|published)[ \t]+interface[ \t]+(?P<name>{NAME})"
     r"\s*(?::\s*(?P<result>[^(){}\n]+?)\s*)?\((?P<parameters>(?:[^(){}]|\(\))*)\)",
     re.M,
 )
@@ -93,7 +94,7 @@ def declarations(source):
             yield (
                 method["name"],
                 (
-                    "public" if access == "external" else access,
+                    "public" if access in ("external", "published") else access,
                     "function"
                     if method["before"] or method["after"]
                     else "subroutine",
@@ -112,7 +113,7 @@ def declarations(source):
             yield (
                 interface["name"],
                 (
-                    "public" if access == "external" else access,
+                    "public" if access in ("external", "published") else access,
                     "function" if interface["result"] else "subroutine",
                     (False,)
                     + tuple(bool(match[1] or match[2]) for match in matches),

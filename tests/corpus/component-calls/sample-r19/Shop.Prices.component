@@ -62,3 +62,13 @@ public interface priceCheck (
 public interface adjustedPrice : list<Shop.Prices:Amount> (
     IN item string
 )
+
+/* Published, as in R19 EB.EnquiryHook.setIds: public. */
+published interface pickIds : list<string> (
+    IN filter string
+)
+
+/* No body: implemented in Java, as R19 TF.L3Helper.getInstance. */
+public method lookupClass : string (
+    IN fullClassName string
+)

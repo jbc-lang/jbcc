@@ -4,6 +4,9 @@
 
 ### Added
 
+- The corpus checker reads `published` members and methods without a
+  body, and `--t24-stub-void-results` lets a method without a result be
+  used as a value in testing. The README describes every T24 flag.
 - A built-in `JBC.h` with the constants the guide's examples use, used
   when no `JBC.h` is on the include paths, with a note on stderr.
   `--no-builtin-includes` turns it off.

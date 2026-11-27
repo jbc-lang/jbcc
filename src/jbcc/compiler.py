@@ -1096,8 +1096,10 @@ class Compiler:
         api_call=None,
         component_members=None,
         browser=False,
+        stub_void_results=False,
     ):
         self.browser = browser
+        self.stub_void_results = stub_void_results
         self.path = path
         self.unit = unit
         self.encoding = encoding
@@ -3748,9 +3750,21 @@ class Compiler:
             )
         self.check_component_access(target, access, owner)
         is_function = kind == "function"
+        stub_result = False
         if expression and not is_function:
-            self.error(
-                f"component method '{target.word}' has no return value", target
+            if not self.stub_void_results:
+                self.error(
+                    f"component method '{target.word}' has no return value",
+                    target,
+                )
+            # Corpus testing only: R19 uses a few methods without a result
+            # as values, as in AF = EB.SystemTables.setAf(X). Call the method
+            # and use 0, and report it.
+            stub_result = True
+            self.warnings.append(
+                f"{target.path}:{target.line}:{target.column}: warning: "
+                f"component method '{target.word}' has no return value; "
+                "using 0 for testing"
             )
         args, kinds = self.call_arguments()
         # R19 passes a placeholder scalar for a matrix parameter it does not
@@ -3771,12 +3785,13 @@ class Compiler:
         for i, (actual, matrix) in enumerate(zip(placeholders, signature)):
             if actual is None and matrix:
                 args[i] = '((jbc_matrix){0})'
-        return self.emit_direct_call(
+        result = self.emit_direct_call(
             target._replace(word=target.word.casefold()),
             args,
             signature,
             is_function=is_function,
         )
+        return '"0"' if stub_result else result
 
     def call_symbol(self, name, kinds):
         symbol = routine_symbol(name)
@@ -5210,7 +5225,11 @@ class Compiler:
         if self.has_goto:
             # GOTO makes the deferred-read warnings unreliable; keep the
             # component warnings, which do not depend on control flow.
-            self.warnings[:] = [w for w in self.warnings if "warning: table '" in w]
+            self.warnings[:] = [
+                w
+                for w in self.warnings
+                if "warning: table '" in w or "using 0 for testing" in w
+            ]
         for token in self.pending_matrices.values():
             self.error(f"expected a declaration of '{token.word}'", token)
         for name, target in self.return_targets.items():
@@ -5597,6 +5616,7 @@ def compile_unit(
     include_depth=None,
     builtin_includes=True,
     builtin_used=None,
+    stub_void_results=False,
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -5609,6 +5629,7 @@ def compile_unit(
         api_call=api_call,
         component_members=component_members,
         browser=browser,
+        stub_void_results=stub_void_results,
     )
     preprocessor = Preprocessor(
         directories,
