@@ -3514,8 +3514,11 @@ from 47 with the ordinary search path. The other 119 first blockers are
   R19 `AA.Account` and `AB.Framework` references to the private
   `AA.BundleHierarchy.BundleHierarchy` table. Keep visibility checks on
   table calls. The pilot now has 118 strict C99 passes.
-- [ ] Find an R19 declaration for `EB.Service.setFComo`. The R07 and
-  R10 versions of the caller set the file handle `F.COMO` directly.
+- [x] Find an R19 declaration for `EB.Service.setFComo`. None exists:
+  the job is obsolete since R08 (`CONV.OBSOLETE.INFRA.R08`), and only its
+  load routine calls the setter; see step 6 of R19-CORPUS.md. The R07, R10
+  and R13 versions of the caller set the file handle `F.COMO` directly,
+  and only R07 still has the job's main routine.
   The original R19 `EB.Service.component` is byte-identical to the
   extracted copy and has no such setter. The original export does
   contain `I_EB.CLEAN.ALL.COMOS.COMMON`, which declares `F.COMO`.
