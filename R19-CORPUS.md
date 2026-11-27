@@ -288,8 +288,24 @@ an expression, for example `EB.DataAccess.FRead`.
   `just check-cdn` in CI checks that jsDelivr serves each file byte for
   byte as the lockfile. The trade-offs are a dependency on jsDelivr and
   no runtime integrity check for dynamically imported modules.
-- [ ] 6. Close the pilot's open item: find a declaration for
-  `EB.Service.setFComo`, or record why it is missing.
+- [x] 6. Close the pilot's open item: find a declaration for
+  `EB.Service.setFComo`, or record why it is missing. No component
+  definition declares it, in the extract or the original dump, and no
+  source reads a `getFComo`. Its only caller is
+  `OB_AFW/EB.CLEAN.ALL.COMOS.LOAD`, the load routine of a batch job whose
+  main routine is not in the release. The conversion record
+  `F.CONVERSION.DETAILS` `CONV.OBSOLETE.INFRA.R08` (release 200712, dated
+  2008-02-22) marks the batch `EB.CLEAN.COMOS` and the program
+  `EB.CLEAN.ALL.COMOS` obsolete ("Was used in Desktop EOD"). Only the
+  load and select routines and `I_EB.CLEAN.ALL.COMOS.COMMON`, which
+  declares `COM /EB.CLEAN.COMOS/ F.COMO`, remain: the main routine is in
+  R07 (`GLOBUS.BP/EB.CLEAN.ALL.COMOS`) and absent from R10, R13 and R19.
+  The R07, R10 and R13 load routines assign `F.COMO` directly
+  (`OPEN '&COMO&' TO F.COMO ELSE F.COMO = ''`); the R19 conversion rewrote that as
+  `EB.Service.setFComo`, but no `EB.Service` property was ever generated
+  for the variable of an obsolete job. The undeclared-accessor rule
+  accepts the call with a warning, which is the right outcome for dead
+  code.
 - [x] 7. Re-run R07, R10 and R13 to check for regressions (2026-11-27,
   8 workers, with `--t24-catalog`):
 
