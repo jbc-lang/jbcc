@@ -438,8 +438,13 @@ Done for section 5 (2026-11-27):
   and the corpus uses about 1,460 times (`'MD2'` alone over 500); TAFC's
   ICONV date forms (`tests/tafc/iconv-dates.b`); OCONV times past 24
   hours, negative counts and MTH; MX decoding up to the first bad pair.
-- Open: STATUS after OCONV, ICONVS and OCONVS, which TAFC sets to 1 in
-  most cases without a rule found; chained ICONVS masks; year 10000.
+- Open: year 10000.
+- Done later (`tests/tafc/conversion-*.b`): STATUS after OCONV, ICONVS
+  and OCONVS, and chained masks. The earlier probes read STATUS() in the
+  same CRT as the conversion, which TAFC seems to evaluate first; read
+  after an assignment, each mask family has a fixed rule (README). OCONV's
+  L and R codes are length and range tests: `OCONV(X, 'R2,$#15')` is `''`
+  with "Error in Range Test.", as the guide's FMT chapter says.
 
 ## 6. New statements and functions (guide only, not in the corpus)
 

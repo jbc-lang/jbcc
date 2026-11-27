@@ -84,6 +84,12 @@
 - SADD, SSUB, SMUL and SDIV keep 14 fractional places, with TAFC's
   rounding, and warn and use 0 for a nonnumeric operand instead of
   stopping.
+- Conversions follow TAFC: codes separated by value marks run in turn in
+  OCONV, ICONV, OCONVS and ICONVS; STATUS() after each mask family is as
+  TAFC sets it; ICONVS and OCONVS keep every element; ICONV takes MC
+  codes; and a D code takes the rest of a chain.
+- OCONV's L and R codes are length and range tests, as in TAFC, instead of
+  FMT masks.
 - The SYSTEM keys T24 reads (11, 1019, 1021, and the keys TAFC reports as
   0 or empty), and `ASSIGN value TO SYSTEM(n)` for any key, which SYSTEM
   then returns.

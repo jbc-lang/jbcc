@@ -3,12 +3,6 @@
 What jbcc does not do yet, or does only provisionally. Each item names
 where it shows up. The README describes what is implemented.
 
-## Not implemented
-
-- `STATUS()` after OCONV, ICONVS and OCONVS: TAFC PB201214 reports 1 in
-  most cases, even when every element converts, with no rule found yet;
-  jbcc sets it as the README describes.
-
 ## Needs a backend jbcc does not have
 
 These parse and compile, and report the missing backend when reached.
@@ -58,6 +52,12 @@ See TAFC-CROSSCHECK.md for the probes.
   jbcc reads YYYYDDD.
 - `@TTY` without a terminal: TAFC gives `''` for a plain run; jbcc gives
   `phantom`, which T24 tests for a background job (`tests/tafc/at-tty.b`).
+- A date code that takes the rest of a chain, followed by other codes, as
+  in `OCONV(19024, 'D':@VM:'MCL')`: TAFC gives `1`, reading the codes as
+  date options; jbcc gives the value back.
+- `STATUS()` read in the same statement as a conversion, as in
+  `CRT OCONV(X, 'D'), STATUS()`: TAFC appears to read it before the
+  conversion runs; jbcc reads it after.
 - NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
   NUL bytes read from files), while TAFC's can.
 

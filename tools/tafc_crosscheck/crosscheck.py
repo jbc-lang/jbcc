@@ -58,7 +58,8 @@ VOLATILE_RE = re.compile(
 # line; jbcc prints its warnings on stderr. The comparison drops TAFC's.
 TAFC_WARNING_RE = re.compile(
     r'^(Non-numeric value -- ZERO USED ,|Invalid or uninitialised variable'
-    r' -- NULL USED ,|Divide by zero !!|Unknown conversion code\.)\n'
+    r' -- NULL USED ,|Divide by zero !!|Unknown conversion code\.'
+    r'|Error in Range Test\.|Missing Parameter 2\.)\n'
     r'(Var(iable)? .*\n|Line +\d+ , Source .*\n)?'
     r'|^ \*\* Error \[ 202 \] \*\* *\nRecord .* is not on file\n',
     re.M,
