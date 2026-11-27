@@ -1,5 +1,19 @@
 # News
 
+## 2026-11-27 · Checked against TAFC
+
+[jbcc 0.8.0](https://pypi.org/project/jbcc/0.8.0/) is checked against a
+real TAFC PB201214 runtime and follows it: 268 of the guide's examples now
+print what TAFC prints. It adds `--emulation prime|jbase` (prime by
+default, as T24 runs), byte 0 in strings, the MD masks, EXECUTE's
+PASSDATA and PASSLIST, Base64 in ENCRYPT, and the guide statements T24
+does not use. Arithmetic now follows TAFC's PRECISION 4 decimal model, and
+errors TAFC continues past now warn and continue. The
+[changelog](https://github.com/jbc-lang/jbcc/blob/main/CHANGELOG.md) lists
+every change, and
+[MISSING-BACKENDS.md](https://github.com/jbc-lang/jbcc/blob/main/MISSING-BACKENDS.md)
+what still needs a backend.
+
 ## 2026-11-27 · Numeric FMT masks
 
 [jbcc 0.7.0](https://pypi.org/project/jbcc/0.7.0/) completes the guide's
