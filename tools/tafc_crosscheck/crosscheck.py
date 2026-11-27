@@ -40,6 +40,9 @@ NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9._-]*$')
 # A probe selects its emulation with a comment line near the top, for
 # example "* tafc-emulation: jbase". The default is prime, as in T24.
 EMULATION_RE = re.compile(rb'^\s*[*!]\s*tafc-emulation:\s*(\w+)', re.M)
+# A probe can pass jbcc options, such as the in-memory files that TAFC
+# creates with CREATE-FILE: "* jbcc-options: --memory-file VENDORS".
+OPTIONS_RE = re.compile(rb'^\s*[*!]\s*jbcc-options:(.*)$', re.M)
 
 # Output of these depends on the clock, the process, random numbers or the
 # directory, so a difference does not show a semantic mismatch.
@@ -56,7 +59,8 @@ VOLATILE_RE = re.compile(
 TAFC_WARNING_RE = re.compile(
     r'^(Non-numeric value -- ZERO USED ,|Invalid or uninitialised variable'
     r' -- NULL USED ,|Divide by zero !!|Unknown conversion code\.)\n'
-    r'(Var(iable)? .*\n|Line +\d+ , Source .*\n)?',
+    r'(Var(iable)? .*\n|Line +\d+ , Source .*\n)?'
+    r'|^ \*\* Error \[ 202 \] \*\* *\nRecord .* is not on file\n',
     re.M,
 )
 
@@ -145,12 +149,15 @@ def run_jbcc_one(source, output, emulation):
         work = Path(work)
         shutil.copy(source, work / source.name)
         program = work / name
+        options = OPTIONS_RE.search(source.read_bytes())
+        extra = options.group(1).decode().split() if options else []
         built = subprocess.run(
             [
                 sys.executable,
                 str(JBCC),
                 '--emulation',
                 emulation,
+                *extra,
                 '--exe',
                 source.name,
                 '-o',
@@ -165,12 +172,20 @@ def run_jbcc_one(source, output, emulation):
         if built.returncode or not program.exists():
             return
         try:
+            # The terminal TAFC's container has, for SYSTEM(2, 3, 7) and @().
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k not in ('COLUMNS', 'LINES')
+            }
+            env['TERM'] = 'vt100'
             ran = subprocess.run(
                 [str(program)],
                 cwd=work,
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 timeout=RUN_SECONDS,
+                env=env,
             )
             out, err, status = ran.stdout, ran.stderr, ran.returncode
         except subprocess.TimeoutExpired as expired:

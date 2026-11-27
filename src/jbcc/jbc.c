@@ -30,6 +30,22 @@ static const char *jbc_command_line = "";
 static int command_argc, next_argument = 1;
 static char **command_argv;
 static const char *jbc_input_prompt = "?";
+/* INPUTNULL: the character that INPUT @ reads as an empty answer. */
+static char input_null_char;
+
+void jbc_inputnull(const char *value)
+{
+    input_null_char = *value ? *value : '_';
+}
+
+#ifdef JBC_TERMINAL
+/* INPUT @ with only the INPUTNULL character gives an empty value; plain
+   INPUT keeps it, as TAFC PB201214 does (guide, INPUTNULL). */
+static const char *input_null_value(const char *value, const char *cursor)
+{
+    return cursor && input_null_char && value[0] == input_null_char && !value[1] ? "" : value;
+}
+#endif
 /* 1 under prime emulation (the default, as in T24), 0 under jbase. The
    generated main clears it for --emulation jbase. */
 static int jbc_emulation_prime = 1;
@@ -1595,6 +1611,16 @@ const char *jbc_account_path(const char *file, int line, int column)
     const char *path = working_directory();
     if (!path) numeric_error(file, line, column, "cannot resolve @PATH");
     return path;
+#endif
+}
+
+/* @UID: the user id of the process; 0 where the host has none. */
+const char *jbc_uid(void)
+{
+#if defined(__wasi__) || defined(_WIN32)
+    return "0";
+#else
+    return size_value((uintmax_t)getuid());
 #endif
 }
 
@@ -3508,6 +3534,19 @@ const char *jbc_startup_time(const char *file, int line, int column)
     return time_from_clock(&startup_clock);
 }
 
+/* @DAY, @MONTH and @YEAR: the day of the month, the month and the
+   two-digit year of @DATE (TAFC PB201214 prints 27, 11 and 26 on
+   27 November 2026). */
+const char *jbc_startup_date_part(char part, const char *file, int line, int column)
+{
+    if (!have_startup_clock) numeric_error(file, line, column, "@DATE cannot read startup clock");
+    int value = part == 'D' ? startup_clock.tm_mday : part == 'M' ? startup_clock.tm_mon + 1
+              : (startup_clock.tm_year + 1900) % 100;
+    char *out = allocate(3);
+    snprintf(out, 4, part == 'Y' ? "%02d" : "%d", value);
+    return out;
+}
+
 enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_DATE_EUROPEAN, ICONV_TIME, ICONV_HEX };
 
 /* D masks for ICONV: D, an optional year width, an optional separator and
@@ -4309,6 +4348,51 @@ const char *jbc_col2(void)
     return size_value(field_after);
 }
 
+/* GROUPSTORE value IN target USING start, replace, delimiter: with replace
+   0, value goes in before group start; otherwise it replaces group start.
+   Missing groups are added empty, and a start below 1 means 1. The guide's
+   example and TAFC PB201214 (tests/tafc/groupstore.b) agree. */
+const char *jbc_groupstore(const char *target, const char *value, const char *start,
+                           const char *replace, const char *delimiter,
+                           const char *file, int line, int column)
+{
+    int64_t first = field_index(start, file, line, column);
+    struct decimal n;
+    int replacing = parse_decimal(replace, &n) && n.sign != 0;
+    size_t width = strlen(delimiter);
+    if (!width) return replacing ? value : jbc_concat(value, target);
+    /* Find the start of group first, padding with delimiters if needed. */
+    const char *p = target;
+    int64_t group = 1;
+    while (group < first) {
+        const char *next = strstr(p, delimiter);
+        if (!next) break;
+        p = next + width;
+        ++group;
+    }
+    const char *prefix_end = p, *suffix = p;
+    size_t padding = (size_t)(first - group);
+    if (padding) {
+        prefix_end = target + strlen(target);
+        suffix = prefix_end;
+    } else if (replacing) {
+        const char *next = strstr(p, delimiter);
+        suffix = next ? next : p + strlen(p);
+    }
+    size_t prefix = (size_t)(prefix_end - target), added = strlen(value), rest = strlen(suffix);
+    size_t size = prefix + padding * width + added + (replacing || padding ? 0 : width) + rest;
+    char *out = allocate(size), *w = out;
+    memcpy(w, target, prefix);
+    w += prefix;
+    for (size_t i = 0; i < padding; ++i) { memcpy(w, delimiter, width); w += width; }
+    memcpy(w, value, added);
+    w += added;
+    if (!replacing && !padding) { memcpy(w, delimiter, width); w += width; }
+    memcpy(w, suffix, rest);
+    w[rest] = '\0';
+    return out;
+}
+
 const char *jbc_field(const char *s, const char *separator, const char *start,
                       const char *count, const char *file, int line, int column)
 {
@@ -4925,7 +5009,7 @@ struct memory_record {
 
 struct record_lock {
     struct record_lock *next;
-    int foreign;
+    int foreign, shared; /* shared: taken by READL or READVL */
     char key[];
 };
 
@@ -4994,6 +5078,7 @@ static void add_lock(struct memory_file *f, const char *key, int foreign)
     struct record_lock *lock = malloc(sizeof *lock + strlen(key) + 1);
     if (!lock) fail("out of memory");
     lock->foreign = foreign;
+    lock->shared = 0;
     strcpy(lock->key, key);
     lock->next = f->locks;
     f->locks = lock;
@@ -5095,6 +5180,7 @@ static struct memory_file *file_for(const char *handle)
         if (f->name == handle) return f;
     return NULL;
 }
+
 
 int jbc_close_file(jbc_variable *slot)
 {
@@ -5458,6 +5544,59 @@ int jbc_delete_record(const char *handle, const char *key, jbc_variable *setting
     return file_result(0);
 }
 
+/* TRANS and XLATE (file, key, field, code), as TAFC PB201214 runs them
+   (tests/tafc/trans-xlate.b): field -1 is the whole record and field 0 the
+   key; the result has its marks lowered one level (field marks to value
+   marks, value marks to subvalue marks, subvalue marks to text marks). For a missing record, or an empty field with C,
+   the code decides: X gives '', C the key, V warns and gives ''. A key with
+   value marks gives one result per key. "DICT name" reads the dictionary. */
+const char *jbc_trans(const char *filename, const char *keys, const char *field,
+                      const char *code, const char *file, int line, int column)
+{
+    const char *section = "", *name = filename;
+    if (!strncmp(filename, "DICT ", 5)) {
+        section = "DICT";
+        name = filename + 5;
+    }
+    struct memory_file *f = find_memory_file(section, name);
+    if (!f) numeric_error(file, line, column, jbc_concat("TRANS cannot open file ", filename));
+    struct decimal n;
+    if (!parse_decimal(field, &n) || n.places)
+        numeric_error(file, line, column, "TRANS requires an integer field number");
+    int64_t position = integer(field, file, line, column);
+    char action = *code ? *code : 'X';
+    const char *out = "";
+    char *items = split_array_items(keys, NULL);
+    for (const char *key = items;;) {
+        const char *end = key + strlen(key);
+        struct memory_record *r = *record_link(f, key);
+        const char *value = "";
+        if (r && position == 0) {
+            value = key;
+        } else if (r) {
+            char index[24];
+            snprintf(index, sizeof index, "%" PRId64, position);
+            value = position < 0 ? r->value : jbc_array(r->value, (const char *[]){index}, 1, NULL);
+            char *lowered = strcpy(allocate(strlen(value)), value);
+            for (char *c = lowered; *c; ++c)
+                if ((unsigned char)*c >= 252 && (unsigned char)*c <= 254) --*c;
+            value = lowered;
+        }
+        if ((!r || !*value) && action == 'C') {
+            value = key;
+        } else if (!r && action == 'V') {
+            fprintf(stderr, "%s:%d:%d: warning: record %s is not on file %s\n", file, line, column,
+                    key, filename);
+        }
+        out = jbc_concat(out, value);
+        if (!keys[end - items]) break;
+        out = jbc_concat(out, "\375");
+        key = end + 1;
+    }
+    free(items);
+    return out;
+}
+
 int jbc_read_record(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
 {
     struct memory_file *f = file_for(handle);
@@ -5473,7 +5612,9 @@ const char *jbc_recordlocked(const char *handle, const char *key)
     struct memory_file *f = file_for(handle);
     if (f && f->file_locked) return "2";
     struct record_lock *lock = f ? find_lock(f, key) : NULL;
-    return !lock ? "0" : lock->foreign ? "-2" : "2";
+    /* 1 for this process's READL lock and 2 for its READU lock, as the
+       guide's table and TAFC PB201214 give them (tests/tafc/shared-locks.b). */
+    return !lock ? "0" : lock->foreign ? "-2" : lock->shared ? "1" : "2";
 }
 
 int jbc_release_lock(const char *handle, const char *key)
@@ -5489,7 +5630,8 @@ int jbc_release_lock(const char *handle, const char *key)
     return 0;
 }
 
-static int lock_for_update(struct memory_file *f, const char *key, jbc_variable *setting)
+static int lock_for_update(struct memory_file *f, const char *key, jbc_variable *setting,
+                           int shared)
 {
     if (!f) {
         if (setting) assign_value(setting, "32768");
@@ -5501,22 +5643,39 @@ static int lock_for_update(struct memory_file *f, const char *key, jbc_variable 
         if (setting) assign_value(setting, "-2");
         return JBC_LOCKED;
     }
-    if (!lock) add_lock(f, key, 0);
+    if (!lock) {
+        add_lock(f, key, 0);
+        f->locks->shared = shared;
+    } else if (!shared) {
+        lock->shared = 0;
+    }
     return 0;
 }
 
-int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
+static int read_locked(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting,
+                       int shared)
 {
     struct memory_file *f = file_for(handle);
     if (!f) assign_value(out, "");
-    int status = lock_for_update(f, key, setting);
+    int status = lock_for_update(f, key, setting, shared);
     if (status) return file_result(status);
     return jbc_read_record(handle, key, out, setting);
 }
 
+int jbc_readu(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
+{
+    return read_locked(handle, key, out, setting, 0);
+}
+
+/* READL takes a shared lock, which only another process's READU blocks. */
+int jbc_readl(const char *handle, const char *key, jbc_variable *out, jbc_variable *setting)
+{
+    return read_locked(handle, key, out, setting, 1);
+}
+
 int jbc_recordlocku(const char *handle, const char *key, jbc_variable *setting)
 {
-    int status = lock_for_update(file_for(handle), key, setting);
+    int status = lock_for_update(file_for(handle), key, setting, 0);
     if (!status && setting) assign_value(setting, "");
     return file_result(status);
 }
@@ -5527,7 +5686,7 @@ int jbc_matread(const char *handle, const char *key, jbc_variable *dest, int ran
     last_matrix_load = 0;
     struct memory_file *f = file_for(handle);
     if (update) {
-        int status = lock_for_update(f, key, setting);
+        int status = lock_for_update(f, key, setting, 0);
         if (status) return file_result(status);
     }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
@@ -5560,7 +5719,7 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
     struct memory_file *f = file_for(handle);
     if (update) {
         if (!f) assign_value(out, "");
-        int status = lock_for_update(f, key, setting);
+        int status = lock_for_update(f, key, setting, update == 2); /* 2: READVL */
         if (status) return file_result(status);
     }
     struct memory_record *record = f ? *record_link(f, key) : NULL;
@@ -5631,11 +5790,11 @@ int jbc_write_field(const char *handle, const char *key, const char *field, cons
 }
 
 int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, int rank,
-                 const int *bounds, jbc_variable *setting, const char *name,
+                 const int *bounds, jbc_variable *setting, int keep_lock, const char *name,
                  const char *file, int line, int column)
 {
     const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
-    int status = write_record_status(handle, key, record, 0, 0);
+    int status = write_record_status(handle, key, record, 0, keep_lock);
     if (setting) {
         const char *result = status == 128 ? "128" : "32768";
         assign_value(setting, status ? result : jbc_dcount(record, "\376"));
@@ -6212,6 +6371,24 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
     }
     count_userstat(&command_count);
 }
+
+/* CHAIN and ENTER run a command and do not return: the program ends with
+   the command's exit status (guide, CHAIN and ENTER). The (I option, which
+   passes COMMON to a jBC program, is dropped; separately built jbcc
+   programs share no COMMON. */
+void jbc_chain(const char *command, const char *file, int line, int column)
+{
+    size_t length = strlen(command);
+    char *text = strcpy(allocate(length), command);
+    char *option = strrchr(text, '(');
+    if (option && (option[1] == 'I' || option[1] == 'i') && !option[2]) {
+        while (option > text && option[-1] == ' ') --option;
+        *option = '\0';
+    }
+    jbc_execute(text, NULL, NULL, NULL, file, line, column);
+    fflush(stdout);
+    jbc_terminate(last_command_code > 255 ? 255 : (int)last_command_code);
+}
 #endif
 
 #ifdef JBC_SLEEP
@@ -6256,7 +6433,33 @@ void jbc_msleep(const char *duration, const char *file, int line, int column)
         numeric_error(file, line, column, "MSLEEP duration out of range");
     pause_for(delay, "MSLEEP failed", file, line, column);
 }
+
+/* PAUSE and WAKE within one process: a WAKE for this process cancels the
+   next PAUSE, as the guide describes; otherwise PAUSE waits for its
+   timeout, or forever without one, since no other process can wake it. */
+static int wake_pending;
+
+void jbc_pause(const char *timeout, const char *file, int line, int column)
+{
+    if (wake_pending) {
+        wake_pending = 0;
+        return;
+    }
+    if (timeout) {
+        jbc_sleep(timeout, file, line, column);
+        return;
+    }
+    for (;;) pause_for((struct timespec){3600, 0}, "PAUSE failed", file, line, column);
+}
 #endif
+
+void jbc_wake(const char *port)
+{
+    (void)port;
+#ifdef JBC_SLEEP
+    wake_pending = 1;
+#endif
+}
 
 #ifdef JBC_TERMINAL
 #ifdef __wasi__
@@ -6310,7 +6513,7 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
     if (length) memcpy(value, text, length);
     value[length] = '\0';
     free(text);
-    assign_value(out, value);
+    assign_value(out, input_null_value(value, cursor));
     count_userstat(&input_count);
     return 1;
 }
@@ -6460,6 +6663,58 @@ static int input_available(const char *file, int line, int column)
     return bytes > 0;
 }
 
+/* IN var {FOR tenths}: the code of the next byte read from standard input,
+   not from the DATA queue, as TAFC PB201214 reads it (x is 120). With FOR,
+   it waits that many tenths of a second and returns 0, leaving var as it
+   was, when nothing arrives. Without FOR, end of input is an error. */
+int jbc_in(jbc_variable *out, const char *timeout, const char *file, int line, int column)
+{
+    if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before IN");
+    struct input_mode state = {0};
+    const char *error = NULL;
+    if (isatty(STDIN_FILENO)) {
+        if (tcgetattr(STDIN_FILENO, &input_saved))
+            numeric_error(file, line, column, "cannot read input terminal settings");
+        struct termios mode = input_saved;
+        mode.c_lflag &= ~(ICANON | ECHO | IEXTEN);
+        mode.c_iflag &= ~(ICRNL | INLCR | IGNCR | ISTRIP);
+        mode.c_cc[VMIN] = 1;
+        mode.c_cc[VTIME] = 0;
+        error = set_input_mode(&state, &mode);
+    }
+    int ready = 1;
+    if (!error && timeout) {
+        struct decimal n;
+        if (!parse_decimal(timeout, &n) || n.sign < 0)
+            error = "IN FOR requires a nonnegative number of tenths of a second";
+        else {
+            int64_t tenths = n.digits ? integer(timeout, file, line, column) : 0;
+            struct timespec interval = {(time_t)(tenths / 10), (long)(tenths % 10) * 100000000L};
+            fd_set readable;
+            do {
+                FD_ZERO(&readable);
+                FD_SET(STDIN_FILENO, &readable);
+                ready = pselect(STDIN_FILENO + 1, &readable, NULL, NULL, &interval, NULL);
+            } while (ready < 0 && errno == EINTR);
+            if (ready < 0) error = "cannot wait for input";
+        }
+    }
+    unsigned char c = 0;
+    ssize_t count = 0;
+    if (!error && ready > 0) {
+        do {
+            count = read(STDIN_FILENO, &c, 1);
+        } while (count < 0 && errno == EINTR);
+        if (count < 0) error = "cannot read IN input";
+        else if (!count && !timeout) error = "IN reached the end of input";
+    }
+    error = restore_input_mode(&state, error);
+    if (error) numeric_error(file, line, column, error);
+    if (count <= 0) return 0;
+    assign_value(out, size_value(c));
+    return 1;
+}
+
 const char *jbc_keyin(const char *file, int line, int column)
 {
     if (fflush(stdout)) numeric_error(file, line, column, "cannot flush output before KEYIN");
@@ -6590,7 +6845,7 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
     if (length) memcpy(value, text, length);
     value[length] = '\0';
     free(text);
-    assign_value(out, value);
+    assign_value(out, input_null_value(value, cursor));
     if (!timed_out) count_userstat(&input_count);
     return !timed_out;
 }
@@ -6609,6 +6864,44 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
         return !tcgetattr(STDIN_FILENO, &mode) && (mode.c_lflag & ECHO) ? "1" : "0";
     }
     if (!jbc_compare(code, "1036", -1)) return size_value(blocked_record_locks);
+    /* Keys whose TAFC PB201214 values are fixed or come from the process
+       (tests/tafc/system-keys.b): no printer (1), the terminal's width and
+       depth (2, 3: COLUMNS and LINES, else 80 and 24), its type (7),
+       milliseconds since midnight (12), the C locale's language, decimal
+       places, thousands and decimal separators and currency (35 to 39), the
+       program name (40) and the platform (1017). */
+    if (!jbc_compare(code, "1", -1)) return "0";
+    if (!jbc_compare(code, "2", -1) || !jbc_compare(code, "3", -1)) {
+        const char *size = getenv(!jbc_compare(code, "2", -1) ? "COLUMNS" : "LINES");
+        struct decimal n;
+        if (size && parse_decimal(size, &n) && n.sign > 0 && !n.places) return size;
+        return !jbc_compare(code, "2", -1) ? "80" : "24";
+    }
+    if (!jbc_compare(code, "7", -1)) {
+        const char *term = getenv("TERM");
+        return term ? term : "";
+    }
+    if (!jbc_compare(code, "12", -1)) {
+        struct timespec now;
+        if (clock_gettime(CLOCK_REALTIME, &now)) numeric_error(file, line, column, "SYSTEM(12) cannot read the clock");
+        time_t seconds = now.tv_sec;
+        struct tm local;
+        if (!localtime_r(&seconds, &local)) numeric_error(file, line, column, "SYSTEM(12) cannot read the clock");
+        uintmax_t ms = ((uintmax_t)local.tm_hour * 3600 + (uintmax_t)local.tm_min * 60 + (uintmax_t)local.tm_sec) * 1000
+                     + (uintmax_t)(now.tv_nsec / 1000000);
+        return size_value(ms);
+    }
+    if (!jbc_compare(code, "35", -1)) return "C";
+    if (!jbc_compare(code, "36", -1)) return "0";
+    if (!jbc_compare(code, "37", -1)) return ",";
+    if (!jbc_compare(code, "38", -1)) return ".";
+    if (!jbc_compare(code, "39", -1)) return "$";
+    if (!jbc_compare(code, "40", -1)) {
+        const char *name = command_argc ? command_argv[0] : "";
+        const char *slash = strrchr(name, '/');
+        return slash ? slash + 1 : name;
+    }
+    if (!jbc_compare(code, "1017", -1)) return "UNIX";
     if (jbc_compare(code, "14", -1))
         numeric_error(file, line, column, jbc_concat("unsupported SYSTEM key ", code));
     fflush(stdout);
@@ -6625,12 +6918,21 @@ const char *jbc_system(const char *code, const char *file, int line, int column)
 
 const char *jbc_cursor(const char *col, const char *row, const char *file, int line, int column)
 {
+    /* One-argument codes as TAFC PB201214 writes them for TERM=vt100
+       (tests/tafc/at-minus-codes.b). A code the terminal does not define
+       is an empty string; @(n) moves to column n of the current line. */
     if (!row) {
-        if (jbc_compare(col, "-1", -1) == 0) return "\033[2J\033[H";
-        if (jbc_compare(col, "-2", -1) == 0) return "\033[H";
-        if (jbc_compare(col, "-3", -1) == 0) return "\033[J";
-        if (jbc_compare(col, "-4", -1) == 0) return "\033[K";
-        numeric_error(file, line, column, "unsupported one-argument @ code");
+        static const char *const codes[] = {
+            "", "\033[H\033[J", "\033[H", "\033[J", "\033[K", "\033[5m", "\033[m\017",
+            "", "\033[m\017", "\b", "\033[A", "", "", "\033[7m", "\033[m\017", "\033[4m",
+            "\033[m\017", "\033[5i", "\033[4i", "\033[C", "\n",
+        };
+        int64_t code = truncated(col, file, line, column);
+        if (code < 0) return -code < (int64_t)(sizeof codes / sizeof *codes) ? codes[-code] : "";
+        if (!code) return "\r";
+        char *out = allocate(24);
+        snprintf(out, 25, "\r\033[%" PRId64 "C", code);
+        return out;
     }
     int64_t x = truncated(col, file, line, column);
     int64_t y = truncated(row, file, line, column);
@@ -6960,6 +7262,45 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #define jbc_print_channel JBC_SCREEN
 #define jbc_output(channel, text, file, line, column) ((void)(channel), fputs((text), stdout))
 #endif
+
+/* OUT writes one byte, the integer part of its argument modulo 256, with
+   no newline; a nonnumeric argument warns and writes byte 0, as in TAFC
+   PB201214 (tests/tafc/out-statement.b). */
+/* PRINTERR id:@FM:arguments prints a jBASE error message as TAFC PB201214
+   does: " ** Error [ id ] ** " and the message text with the arguments.
+   jbcc knows the messages its own runtime raises; for others it prints
+   TAFC's "Error message ... not found" line. */
+void jbc_printerr(const char *value, const char *file, int line, int column)
+{
+    (void)file, (void)line, (void)column;
+    const char *fields = value, *id = take_field(&fields, 254);
+    const char *argument = fields ? take_field(&fields, 254) : "";
+    const char *text = NULL;
+    if (!strcmp(id, "201")) text = jbc_concat("Unable to open file ", argument);
+    else if (!strcmp(id, "202")) text = jbc_concat(jbc_concat("Record ", argument), " is not on file");
+    const char *out = text
+        ? jbc_concat(jbc_concat(jbc_concat(" ** Error [ ", id), " ] ** \n"), jbc_concat(text, "\n"))
+        : jbc_concat(jbc_concat("!!! Error message ", id), " not found !!!\n");
+    jbc_output(JBC_SCREEN, out, file, line, column);
+}
+
+void jbc_out(const char *value, const char *file, int line, int column)
+{
+    struct decimal n;
+    unsigned code = 0;
+    if (!parse_decimal(value, &n))
+        fprintf(stderr, "%s:%d:%d: warning: Non-numeric value -- ZERO USED\n", file, line, column);
+    else {
+        for (size_t i = 0; i < n.digits; ++i) code = (code * 10 + (unsigned)(n.whole[i] - '0')) % 256;
+        if (n.sign < 0) code = (256 - code) % 256;
+    }
+    if (code) {
+        char text[2] = {(char)code, '\0'};
+        jbc_output(JBC_SCREEN, text, file, line, column);
+    } else {
+        fputc(0, stdout);
+    }
+}
 
 #ifdef JBC_SEQUENTIAL
 #include <fcntl.h>

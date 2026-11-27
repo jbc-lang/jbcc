@@ -1,5 +1,6 @@
 * tafc-emulation: prime
 * TAFC-CROSSCHECK.md section 6: TRANS and XLATE codes.
+* jbcc-options: --memory-file VENDORS
 EXECUTE 'CREATE-FILE VENDORS 1 1' CAPTURING JUNK
 OPEN 'VENDORS' TO F ELSE STOP 201, 'VENDORS'
 WRITE 'ABC Company':@FM:'x':@VM:'y':@SM:'z':@FM:'' TO F, '12345'

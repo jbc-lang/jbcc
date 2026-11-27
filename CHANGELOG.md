@@ -61,6 +61,16 @@
   mask, lets times pass 24 hours, and supports MTH.
 - MCPN and MCNP; pattern masks with decimal places such as R2(##.##); MX
   decoding stops at the first non-hex pair.
+- The guide statements OUT, GROUPSTORE, INPUTNULL, LOCK, UNLOCK, PROCREAD,
+  PROCWRITE, RQM, PAUSE, WAKE, IN, CHAIN, ENTER, PRINTERR, READL, READVL,
+  MATWRITEU, DELETEU, SELECTV, SSELECTV, SELECTN and SSELECTN, the TRANS
+  and XLATE functions, the @DAY, @MONTH, @YEAR, @UID, @EOF, @LEVEL, @DATA,
+  @CODEPAGE, @LOCALE, @USER.THREAD and @CALLSTACK variables, and SYSTEM keys
+  1, 2, 3, 7, 12, 35 to 40 and 1017, as TAFC PB201214 runs them.
+- `@(-n)` writes TAFC's vt100 sequences: `@(-1)` is `ESC[H ESC[J`, and the
+  codes up to -20 cover blink, reverse, underline, the printer and cursor
+  moves; `@(n)` moves to a column.
+- `tests/test_tafc_probes.py` runs the TAFC probes in `just test`.
 - INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
   unchanged for an empty search string; FIELD and GROUP read occurrences
   and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows
