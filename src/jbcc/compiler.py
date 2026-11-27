@@ -1493,14 +1493,17 @@ class Compiler:
             opening = self.current
             self.advance()
             self.expect('(')
-            if (
-                self.current.kind == 'name'
-                and self.following.word == '<'
+            if self.current.kind == 'name' and (
+                self.following.word == '<'
                 and self.word not in self.matrices
+                or self.following.word == '('
+                and self.component_call_member(self.word)
             ):
                 # The reference applies ASSIGNED_IB to the extracted value,
                 # which is always assigned. jbcc accepts only extractions,
-                # as in T24 R13 RAISE.PENDING.ENTRIES.
+                # as in T24 R13 RAISE.PENDING.ENTRIES, and component calls
+                # such as R19's UNASSIGNED(IN.Config.getBicDetails()), whose
+                # generated accessor the dump does not define (provisional).
                 value = self.expression()
                 self.expect(')')
                 self.record_api_call(opening, 1)

@@ -2424,7 +2424,11 @@ element. Testing a variable leaves it untouched. For example,
 existing value. A dynamic-array extraction such as
 `UNASSIGNED(X<I,J>)` is evaluated, and its result is always assigned. The
 local jBC 201015.001 reference applies the test to any expression this way;
-jbcc accepts extractions and otherwise requires a variable.
+jbcc accepts extractions and R19 component calls, such as
+`UNASSIGNED(IN.Config.getBicDetails())`, and otherwise requires a variable.
+A component call is treated like an extraction, so its result counts as
+assigned. This is provisional, because the dump does not define the
+generated accessor.
 [ASSIGNED](https://jbc-lang.org/pages/assigned.html),
 [UNASSIGNED](https://jbc-lang.org/pages/unassigned.html).
 

@@ -8,6 +8,7 @@
 - `MSLEEP` and `CLEARCOMMON`.
 - `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)
   and `@TIMEZONE`.
+- `ASSIGNED` and `UNASSIGNED` accept an R19 component call.
 
 ## 0.3.0 (2026-11-26)
 
