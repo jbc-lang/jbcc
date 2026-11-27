@@ -1343,7 +1343,7 @@ TAFC_OBSERVED = [
     ('iconv-diagnostics/date_10.b', False),
     # jbcc's own result: TAFC adds a byte after A.
     ('iconv-diagnostics/date_11.b', False),
-    # jbcc's own result: TAFC keeps the NUL byte.
+    # A 00 pair is byte 0, as in TAFC.
     ('iconv-diagnostics/date_12.b', False),
     # jbcc's own result: TAFC gives 32767.
     ('iconv-diagnostics/date_13.b', False),

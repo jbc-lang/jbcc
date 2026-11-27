@@ -1231,8 +1231,8 @@ upper-case hexadecimal digits, so `FMT('ABCDEF', 'MX')` returns
 turns pairs of hexadecimal digits back into bytes, as in
 `ICONV('4020412042', 'MX')`, which returns `@ A B`. As in TAFC, decoding
 stops at the first pair that is not hexadecimal and ignores an odd last
-digit, so `ICONV('414', 'MX')` is `A`; a `00` pair also ends it while
-strings cannot hold NUL. jbcc works on bytes, so a
+digit, so `ICONV('414', 'MX')` is `A`; a `00` pair is byte 0. jbcc works
+on bytes, so a
 character outside ASCII shows as the bytes of the source encoding.
 
 `FMT` and `OCONV` accept the `MC` conversions of the guide's `OCONV`
@@ -1761,14 +1761,21 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 CHAR returns the byte for its argument's integer part modulo 256, as in
 TAFC PB201214: `CHAR(300)` is `,`, `CHAR(-1)` is byte 255 and `CHAR(65.9)`
-is `A`. A code that comes to 0, such as `CHAR(0)` or `CHAR(256)`, reports
-a runtime diagnostic while strings use NUL termination.
+is `A`. A code that comes to 0, such as `CHAR(0)` or `CHAR(256)`, gives
+byte 0.
+
+Strings can hold byte 0, as TAFC's can (NUL-BYTES.md,
+`tests/tafc/nul-core.b`). Concatenation, LEN, SEQ, substrings and their
+assignment, LEFT, RIGHT, comparisons (byte order, then length), CRT and
+PRINT, STR, TRIM, UPCASE and DOWNCASE, QUOTE, CHECKSUM, and the MX, MCP,
+MCPN, MCNP, MCA, MCN and MCB conversions handle it. Other functions still
+stop at the first byte 0, as LANGUAGE-GAPS.md lists.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197
 and an empty string returns 0. jbcc reports an out-of-range result if
-the sum exceeds the native unsigned integer range. The guide's example
-with CHAR(0) requires embedded NUL support.
+the sum exceeds the native unsigned integer range. Byte 0 counts as a
+byte, so the guide's `CHECKSUM(CHAR(0):'!')` is 66, as in TAFC.
 [CHECKSUM](https://jbc-lang.org/pages/checksum.html).
 
 `DYNTOXML(array, xsl[, result])`, `XMLTODYN(xml, xsl[, result])` and

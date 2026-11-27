@@ -61,8 +61,9 @@ See TAFC-CROSSCHECK.md for the probes.
 - EXECUTE without a shell: TAFC runs `echo a; echo b` as `echo` with the
   arguments `a;`, `echo` and `b`, taking `;`, `|` and quotes literally;
   jbcc runs the command with `/bin/sh -c` (`tests/tafc/execute-capturing.b`).
-- NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
-  NUL bytes read from files), while TAFC's can.
+- Byte 0: jbcc strings hold it, but dynamic array operations, the search
+  functions, input, EXECUTE data and files still stop at the first one,
+  where TAFC's do not (NUL-BYTES.md, stages 3 to 5).
 
 ## T24 corpora: outside translation
 

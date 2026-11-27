@@ -72,6 +72,11 @@ static char *allocate_sized(size_t length);         /* sets length */
 
 ## Stages
 
+Stages 1 and 2 are done (`tests/tafc/nul-core.b`). One change from the
+plan: only a buffer that actually holds byte 0 records its length and
+goes in the pointer set, so the set stays small, and every other buffer
+is an ordinary C string.
+
 Each stage is one pull request with TAFC probes (`tests/tafc/nul-*.b`)
 recorded first, and `char-bytes.b` stays a known difference until stage 3.
 
