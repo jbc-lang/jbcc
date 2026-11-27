@@ -17,12 +17,22 @@ METHOD = re.compile(
     r"\s*(?::\s*(?P<after>\w+))?\s*\{",
     re.M,
 )
+# Hook components declare interfaces: no body, and a result type such as
+# list<string> or records.PAYMENTORDER:PaymentOrderRecord before the
+# parameters. Every R19 call passes the implementing method's name first,
+# then the declared parameters (all 32 calls of the 42 declarations).
+INTERFACE = re.compile(
+    rf"^[ \t]*(?P<access>public|module|private|external)[ \t]+interface[ \t]+(?P<name>{NAME})"
+    r"\s*(?::\s*(?P<result>[^(){}\n]+?)\s*)?\((?P<parameters>(?:[^(){}]|\(\))*)\)",
+    re.M,
+)
 # A parameter has an optional direction, a name and a type, which may be a
-# domain class (CustomerDomain:Parent) with a multiplicity ([0..1]). A
+# domain class (CustomerDomain:Parent) with a multiplicity ([0..1]) or a
+# list (list<string>, list<ST.StatementHook:ProductDetail>). A
 # matrix parameter is marked with () after the name or the type.
 PARAMETER = re.compile(
     r"(?:(?:INOUT|IN|OUT)\s+)?[A-Za-z][A-Za-z0-9._$%]*(\(\))?"
-    r"\s+[A-Za-z][\w.]*(?::[\w.]+)?(\(\))?\s*(?:\[[^\]]*\])?"
+    r"\s+(?:list<[\w.:]+>|[A-Za-z][\w.]*(?::[\w.]+)?)(\(\))?\s*(?:\[[^\]]*\])?"
 )
 PROPERTY = re.compile(
     MEMBER + rf"property[ \t]+(readonly|readwrite|writeonly)[ \t]+({NAME})"
@@ -83,6 +93,24 @@ def declarations(source):
                     if method["before"] or method["after"]
                     else "subroutine",
                     tuple(bool(match[1] or match[2]) for match in matches),
+                ),
+            )
+    for interface in INTERFACE.finditer(source):
+        parts = [
+            p.strip()
+            for p in re.split(r"[,\n]", interface["parameters"])
+            if p.strip()
+        ]
+        matches = [PARAMETER.fullmatch(part) for part in parts]
+        if all(matches):
+            access = interface["access"]
+            yield (
+                interface["name"],
+                (
+                    "public" if access == "external" else access,
+                    "function" if interface["result"] else "subroutine",
+                    (False,)
+                    + tuple(bool(match[1] or match[2]) for match in matches),
                 ),
             )
     for access, mode, name, binding in PROPERTY.findall(source):

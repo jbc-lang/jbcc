@@ -983,7 +983,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         '2',
     ]
     report = json.loads(subprocess.check_output(command, text=True))
-    assert report['counts'] == {'translated': 1, 'rejected': 8}
+    assert report['counts'] == {'translated': 1, 'rejected': 9}
     assert report['selection']['component_calls']
     assert report['files']['Main.b']['status'] == 'translated'
     failures = {
@@ -995,6 +995,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         'PrivateTableAccess.b': "2:5: component member 'Shop.Prices.Ledger.Read' has private access",
         'WrongTableArity.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.Prices.Write'",
         'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",
+        'InterfaceWithoutMethodName.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.priceCheck'",
     }
     for name, diagnostic in failures.items():
         assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'

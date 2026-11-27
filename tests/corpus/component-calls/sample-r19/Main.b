@@ -42,3 +42,6 @@ CRT Record<Shop.Shared.Items.Cost> : Shop.Shared.getQuantity()
 * As in R19 IN getBICfromIBAN: IF UNASSIGNED(IN.Config.getBicDetails()) THEN
 IF UNASSIGNED(Shop.Shared.getQuantity()) THEN CRT "unassigned"
 CRT ASSIGNED(Shop.Prices.getItems(1))
+* Interfaces, as in R19 AA.ActivityHook.checkValidateRoutine(methodName, ...)
+Shop.Prices.priceCheck("PRICE.CHECK", "item", "A":@VM:"B")
+CRT Shop.Prices.adjustedPrice("ADJUSTED.PRICE", "item")

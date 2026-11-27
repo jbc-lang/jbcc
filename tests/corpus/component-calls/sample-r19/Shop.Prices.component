@@ -44,3 +44,14 @@ public method Note (IN code string
 {
     jBC: SHOP.NOTE
 }
+
+/* A hook, declared like R19 AA.ActivityHook.checkValidateRoutine: callers
+   pass the implementing method's name before the declared parameters. */
+public interface priceCheck (
+    IN item string,
+    IN codes list<string>
+)
+
+public interface adjustedPrice : list<Shop.Prices:Amount> (
+    IN item string
+)

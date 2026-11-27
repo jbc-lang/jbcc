@@ -2681,7 +2681,12 @@ and matrix-backed properties. Method declarations can give the result
 type before or after the parameters, add `implements <interface>`, or be
 `external` service methods, which count as public. Parameters can omit
 the direction, use domain types with a multiplicity such as
-`CustomerDomain:Parent [0..1]`, and be separated by newlines. It also recognizes untyped scalar properties. Where the catalog has
+`CustomerDomain:Parent [0..1]` or lists such as `list<string>`, and be
+separated by newlines. Hook components declare `interface` members with no
+body, as in `AA.ActivityHook.checkValidateRoutine`. Every R19 call passes
+the implementing method's name before the declared parameters, so the
+checker expects one more argument than the declaration lists; an
+interface with a result type is a function. It also recognizes untyped scalar properties. Where the catalog has
 multiple definitions for one component, a member must have the same
 parsed declaration in each.
 
