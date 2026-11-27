@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The `MC` conversions for `FMT` and `OCONV`: `MCA`, `MC/A`, `MCN`,
+  `MC/N`, `MCB`, `MC/B`, `MCC;s1;s2`, `MCL`, `MCU`, `MCT`, `MCDX`, `MCXD`
+  and `MCP` with a replacement character.
+- `FMT` pattern masks: `L(...)`, `R(...)` and bare `#` patterns.
+
+### Changed
+
+- `MCP` turns non-printable bytes other than the three system marks into
+  `.`, as the guide's `OCONV` table and example show.
+
 ## 0.5.0 (2026-11-27)
 
 ### Added
