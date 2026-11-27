@@ -55,9 +55,10 @@ an expression, for example `EB.DataAccess.FRead`.
 
 ## Steps
 
-- [ ] 1. Record the baseline. Replace the README's "R19 pilot" section
+- [x] 1. Record the baseline. Replace the README's "R19 pilot" section
   with the full-corpus command, add an R19 row to the performance table
-  and add an "R19 baseline" section to PLAN.md.
+  and add an "R19 baseline" section to PLAN.md. Done on 2026-11-27:
+  39,669 of 39,675 units, 6 excluded, none rejected, 4 min 59 s.
 - [ ] 2. Component calls. Each item cites the `.component` declaration and
   the sources that use the form. Write independent fixtures under
   `tests/corpus/component-calls`.
@@ -269,9 +270,12 @@ an expression, for example `EB.DataAccess.FRead`.
     `--no-builtin-includes`. The corpus checker never uses it. 34 guide
     code blocks include it. Most of them still need files or the jBASE C runtime, so few
   will run in the playground; the gain is that they translate.
-  - [ ] The `MCP` conversion mask, which 30 guide blocks use and which is their
-  only failure. After the next jbcc release, rerun `just examples` in
-  jbc-language.
+  - [x] The `MCP` conversion mask, which 30 guide blocks use and which is
+    their only failure: `FMT` and `OCONV` show field, value and subvalue
+    marks as `^`, `]` and `\`. 29 of the 30 blocks now run; the other
+    stops at the `MX` mask.
+  - [ ] After the next jbcc release, rerun `just examples` in
+    jbc-language.
 - [ ] 5b. Playground toolchain. Investigate loading Pyodide and YoWASP
   Clang/LLD from jsDelivr instead of shipping them with the playground
   (jbc-playground `build-static.mjs`). Today the static site carries

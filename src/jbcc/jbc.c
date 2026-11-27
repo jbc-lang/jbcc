@@ -2031,8 +2031,22 @@ static size_t word_wrap_line(const char *start, const char *end, uintmax_t width
     return take;
 }
 
+/* The MCP mask: the guide's only purpose for it is to show field, value and
+   subvalue marks as ^, ] and \. Other bytes are left as they are. */
+static const char *printable_marks(const char *text)
+{
+    size_t n = strlen(text);
+    char *out = allocate(n);
+    for (size_t i = 0; i <= n; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\' : (char)c;
+    }
+    return out;
+}
+
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
+    if (strcmp(mask, "MCP") == 0) return printable_marks(text);
     const char *p = mask;
     int wrap = ascii_digit(*p);
     char fill = ' ';
@@ -2790,6 +2804,7 @@ static const char *convert_output(const char *value, const struct output_convers
 
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
+    if (strcmp(mask, "MCP") == 0) return printable_marks(value);
     struct output_conversion conversion;
     if (!output_mask(mask, &conversion)) {
         fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);

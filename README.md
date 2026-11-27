@@ -33,16 +33,21 @@ On a 10-core Apple M5 Mac with eight workers, the
 [corpus checker](#check-a-local-source-corpus) scanned each extract,
 translated its source units to C, and syntax-checked the output with
 Apple Clang. These runs used the documented corpus compatibility options,
-including in-memory source fixes, the R07 include stub and the R13
-local-routine exclusion.
+including in-memory source fixes, the R07 include stub, the R13
+local-routine exclusion and, for R19, the
+[T24 corpus flags](#t24-corpus-flags).
 
 | T24 release | Files scanned | Source units translated and checked | Wall time |
 | --- | ---: | ---: | ---: |
 | R10 | 22,474 | 17,336 | 2 min 18 s |
 | R07 | 18,362 | 15,030 | 2 min 2 s |
 | R13 | 25,374 | 19,536 | 2 min 53 s |
+| R19 | 39,675 | 39,669 | 4 min 59 s |
 
-The file totals also count headers and include fragments.
+The R07, R10 and R13 file totals also count headers and include
+fragments. The R19 total counts the catalogued production units only;
+its includes are resolved through the catalog, and 6 units are excluded
+because their generated inserts have no `.domain` class.
 
 ## What is jBC?
 
@@ -1070,6 +1075,14 @@ implicit scaling. Ties round away from zero. Fixed fields retain the
 aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
+
+`FMT(value, 'MCP')` and `OCONV(value, 'MCP')` show field, value and
+subvalue marks as `^`, `]` and `\`, so `1:@FM:2:@VM:3` prints as `1^2]3`.
+The guide gives this as the mask's only purpose and does not say what
+happens to other non-printable bytes, so jbcc leaves them unchanged. The
+guide notes that TAFJ does not support the mask.
+[FMT](https://jbc-lang.org/pages/fmt.html),
+[OCONV](https://jbc-lang.org/pages/oconv.html).
 
 Width-prefixed `T` masks such as `35T` wrap at spaces when possible.
 They split overlong words, pad each block on the right, and insert
@@ -2800,21 +2813,28 @@ options every other R13 unit passes strict C99 checking. See the
 [R13 baseline](PLAN.md#r13-baseline) and [R13-CORPUS.md](R13-CORPUS.md)
 for the constructs added for R13.
 
-### R19 pilot
+### R19 corpus
 
-`201809-R19` contains component directories and flat folders. Select
-production sources from the catalog and use byte mode for the source
-encoding. Repeat `--source-prefix` to select specific paths, or omit it
-to select every catalogued production source with indexed lookup.
+`201809-R19` is componentised T24: module trees and flat folders,
+`$PACKAGE` and `$USING`, calls to component members and inserts
+generated from `.domain` models. Select production sources from the
+catalog, resolve includes through it and check component calls. The
+full scan uses every [T24 corpus flag](#t24-corpus-flags):
 
 ```sh
-python3 tools/check_corpus.py ../t24-extract/201809-R19 \
+python3 tools/check_corpus.py ../t24-extract/201809-R19 -I .cache/PB201214/include \
   --t24-catalog ../t24-extract/catalog.sqlite --t24-indexed-includes \
-  --t24-component-calls \
-  --source-prefix AA/AA_Account --source-prefix OB_AFW \
-  --source-prefix PP/PP_PaymentFinalisationService \
-  --source-encoding bytes -j 6 > /tmp/jbcc-r19-pilot.json
+  --t24-domain-inserts .cache/domain-inserts/201809-R19 --t24-exclude-missing-domains \
+  --t24-component-calls --t24-stub-members --t24-stub-void-results --t24-relax-access \
+  --source-encoding bytes --defer-unassigned-reads --quiet-next-warnings \
+  --t24-source-fixes -j 8 > /tmp/jbcc-r19.json
 ```
+
+On 2026-11-27 it translated 39,669 of the 39,675 catalogued production
+units to C that passes strict C99 checking, excluded 6 and rejected none,
+in 4 min 59 s with 8 workers. It resolved 59,706 include references and
+generated 17,225 domain inserts. Repeat `--source-prefix` to scan only
+some paths. [R19-CORPUS.md](R19-CORPUS.md) records each step and decision.
 
 Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide

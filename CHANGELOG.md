@@ -4,6 +4,8 @@
 
 ### Added
 
+- The `MCP` mask for `FMT` and `OCONV` shows field, value and subvalue
+  marks as `^`, `]` and `\`. 29 more guide examples run.
 - `--t24-exclude-missing-domains` excludes units whose generated
   `I_<Service>_<Class>` insert has no `.domain` class in the dump, and
   `T24_MEMBER_STUBS` lists the remaining undeclared R19 members.
