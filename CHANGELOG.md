@@ -71,6 +71,19 @@
   codes up to -20 cover blink, reverse, underline, the printer and cursor
   moves; `@(n)` moves to a column.
 - `tests/test_tafc_probes.py` runs the TAFC probes in `just test`.
+- Under `--emulation jbase`, a division by zero stops the program, as TAFC's
+  debugger does without a terminal.
+- NUM follows TAFC under each emulation: under prime, blanks around a
+  number are skipped and a lone sign or point is not a number.
+- Under `--emulation jbase`, COUNT, COUNTS and DCOUNT count overlapping
+  matches.
+- MATPARSE: one trailing delimiter adds no empty field, SETTING is 0 when
+  fields are left over, `USING ''` splits into bytes, and under jbase the
+  rest is joined to the last element.
+- ABSS and NEGS give 0 for an empty element under jbase too.
+- SADD, SSUB, SMUL and SDIV keep 14 fractional places, with TAFC's
+  rounding, and warn and use 0 for a nonnumeric operand instead of
+  stopping.
 - The SYSTEM keys T24 reads (11, 1019, 1021, and the keys TAFC reports as
   0 or empty), and `ASSIGN value TO SYSTEM(n)` for any key, which SYSTEM
   then returns.

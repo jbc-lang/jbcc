@@ -142,8 +142,16 @@ TAFC gives different results in the two emulations.
       for a quoted literal. Recheck the guide's MATCHES block against
       prime.
 - [x] Document the emulation and the option in the README.
-- [ ] Move the existing prime-based rules (NUM, COUNT, MATPARSE) behind
+- [x] Move the existing prime-based rules (NUM, COUNT, MATPARSE) behind
       the emulation, after probing them under jbase.
+
+  Done (`tests/tafc/emulation-rules-*.b`, `matparse-edges-*.b`). Under
+  jbase NUM takes a lone sign or point and rejects blanks; prime is the
+  reverse. jbase COUNT, COUNTS and DCOUNT count overlapping matches.
+  MATPARSE drops one trailing delimiter, sets SETTING to 0 on overflow and
+  splits on bytes for `USING ''` under both; jbase joins the rest to the
+  last element. ABSS and NEGS give 0 for empty elements under both. TAFC
+  rejects `M(0)` under jbase at compile time; jbcc accepts it.
 
 Found while doing this section:
 
@@ -196,10 +204,12 @@ TAFC uses fixed-point decimal arithmetic. Probes: `10/3`, `COS(1)`,
       first `PRECISION` statement also covers the code before it, even
       inside `IF 0 THEN`. A later one applies from its line onwards, and
       a GOSUB body uses the precision in force where it is written.
-- [ ] `SADD`, `SSUB` and `SMUL` keep 14 fractional places:
+- [x] `SADD`, `SSUB` and `SMUL` keep 14 fractional places:
       `SADD(4.33333333333333333,1.8)` gives `6.13333333333333`, and
-      `SMUL(0.0000000000000475,3.61)` gives `0.00000000000017`. Check
-      against jbcc's current 16 places for SMUL.
+      `SMUL(0.0000000000000475,3.61)` gives `0.00000000000017`. Done:
+      a same-sign sum rounds half away from zero, an opposite-sign sum,
+      SMUL and SDIV truncate (`tests/tafc/string-math*.b`). SCMP crashes
+      TAFC PB201214.
 - [x] Update the README's arithmetic section and the PRECISION, DIV,
       DROUND, EXP, LN, SQRT and PWR paragraphs, and recheck
       `tests/snippets` outputs that relied on 15 places.
@@ -350,8 +360,9 @@ Done for section 3 (2026-11-27):
       the provisional sign item.
 - [x] `CacheStats(bucket, CACHE_SIZE)` gives 2 for two small items; jbcc
       gives 12 (bytes). Probe more sizes to see what it counts.
-- [ ] `@(-1)` is `ESC[H ESC[J` under vt100; jbcc gives `ESC[2J ESC[H`.
-- [ ] `@TTY` is empty without a terminal; jbcc gives `phantom`.
+- [x] `@(-1)` is `ESC[H ESC[J` under vt100; jbcc gives `ESC[2J ESC[H`.
+- [x] `@TTY` is empty without a terminal; jbcc gives `phantom`. Kept on
+      purpose: T24 tests `@TTY = 'phantom'` for a background job.
 - [x] Leave the 32-bit overflow alone: TAFC's 100-year `CHANGETIMESTAMP`
       gives 1990 and 1987 dates, and jbcc's dates are right. Note it in
       the README.
