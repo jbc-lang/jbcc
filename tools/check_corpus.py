@@ -779,98 +779,246 @@ def check_entry(relative, kind, **options):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("directory", type=Path)
-    parser.add_argument(
-        "-I", dest="includes", action="append", type=Path, default=[]
+    h = COMPILER.option_help
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=COMPILER.BlockHelpFormatter,
+        epilog=h(
+            """
+            T24 flags:
+              The T24 extracts carry typos, files missing from the dump,
+              generated code the dump does not define and inconsistent
+              component exports. The T24 flags let a scan use as much of
+              those sources as possible. They affect only this checker,
+              never edit the extract, and report every use in the JSON
+              report. The README section "T24 corpus flags" describes each
+              one and every source fix.
+
+            example (full R19 scan with every testing flag):
+              python3 tools/check_corpus.py ../t24-extract/201809-R19 \\
+                -I .cache/PB201214/include \\
+                --t24-catalog ../t24-extract/catalog.sqlite \\
+                --t24-indexed-includes \\
+                --t24-domain-inserts .cache/domain-inserts/201809-R19 \\
+                --t24-component-calls --t24-stub-members \\
+                --t24-stub-void-results --t24-relax-access \\
+                --source-encoding bytes --defer-unassigned-reads \\
+                --quiet-next-warnings --t24-source-fixes -j 8 > report.json
+            """
+        ),
     )
-    parser.add_argument("-j", type=int, default=1, metavar="JOBS")
     parser.add_argument(
+        "directory",
+        type=Path,
+        help=h(
+            """
+            Corpus root. Every file under it is scanned, or with
+            --t24-catalog the catalogued production sources. The report, in
+            JSON, goes to stdout.
+            """
+        ),
+    )
+    general = parser.add_argument_group("general")
+    general.add_argument(
+        "-I",
+        dest="includes",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="DIR",
+        help=h(
+            """
+            Search DIR for $INSERT and INCLUDE files, after the corpus root.
+            Repeatable. jbcc's built-in JBC.h is never used here, so give the
+            real headers, such as .cache/PB201214/include.
+            """
+        ),
+    )
+    general.add_argument(
+        "-j",
+        type=int,
+        default=1,
+        metavar="JOBS",
+        help="Check JOBS units at a time (default: 1).",
+    )
+    general.add_argument(
         "--source-encoding",
         choices=COMPILER.SOURCE_ENCODINGS,
         default="utf-8",
-        help="decode source as UTF-8 or preserve literal source bytes (default: utf-8)",
+        help=h(
+            """
+            utf-8 (default) decodes sources as UTF-8. bytes keeps every
+            source byte, as the T24 scans need.
+            """
+        ),
     )
-    parser.add_argument(
+    general.add_argument(
         "--defer-unassigned-reads",
         action="store_true",
-        help="report warnings for scalar variable reads checked at runtime",
+        help=h(
+            """
+            Turn a read that jbcc cannot prove is assigned, including a
+            CONVERT or CHANGE target, into a runtime check and a warnings
+            entry instead of a rejection. T24 relies on COMMON and on
+            assignments in other routines.
+            """
+        ),
     )
-    parser.add_argument(
-        "--t24-source-fixes",
-        action="store_true",
-        help="apply the known T24 source fixes in memory and include them in the report",
-    )
-    parser.add_argument(
-        "--stub-r07-la-parameter",
-        action="store_true",
-        help="use a translation-only fallback for missing I_F.LA.PARAMETER and report its use",
-    )
-    parser.add_argument(
-        "--t24-exclude-local-routines",
-        action="store_true",
-        help="skip known non-Temenos routines kept in an extract and report them as excluded",
-    )
-    parser.add_argument(
-        "--t24-relax-access",
-        action="store_true",
-        help="for testing, report calls to private or module component members from another package as warnings",
-    )
-    parser.add_argument(
-        "--t24-stub-members",
-        action="store_true",
-        help="for testing, accept any arguments for the component members in T24_MEMBER_STUBS, and report each use",
-    )
-    parser.add_argument(
-        "--t24-stub-void-results",
-        action="store_true",
-        help="for testing, use 0 where a component method without a result is used as a value, and report it",
-    )
-    parser.add_argument(
-        "--t24-exclude-test-framework",
-        action="store_true",
-        help="skip R19 test framework components (SE/SE_Test*) and report them as excluded",
-    )
-    parser.add_argument(
+    general.add_argument(
         "--quiet-next-warnings",
         action="store_true",
-        help="replace individual FOR/NEXT name mismatch warnings with a total on stderr",
+        help="Print one total on stderr for FOR/NEXT name mismatch warnings.",
     )
-    parser.add_argument(
+    general.add_argument(
         "--api-catalogue",
         type=Path,
         metavar="SPEC_DIR",
-        help="include API coverage using the jbc-language spec directory",
+        help=h(
+            """
+            Add API coverage to the report, using the jbc-language spec
+            directory (see COVERAGE.md).
+            """
+        ),
     )
-    parser.add_argument(
+    sources = parser.add_argument_group("T24 source handling")
+    sources.add_argument(
+        "--t24-source-fixes",
+        action="store_true",
+        help=h(
+            """
+            Apply the known corrections to T24 sources in memory, each bound
+            to one file of one release, and report them as source_fixes.
+            """
+        ),
+    )
+    sources.add_argument(
+        "--stub-r07-la-parameter",
+        action="store_true",
+        help=h(
+            """
+            Supply a translation-only I_F.LA.PARAMETER, which the R07 dump
+            lacks, and report each use as include_stubs.
+            """
+        ),
+    )
+    selection = parser.add_argument_group("T24 selection and exclusion")
+    selection.add_argument(
         "--t24-catalog",
         type=Path,
         metavar="SQLITE",
-        help="classify files using the catalog entries for the corpus directory name",
+        help=h(
+            """
+            Classify files with the t24-extract catalog and scan only the
+            production sources of the release named by the corpus directory.
+            """
+        ),
     )
-    parser.add_argument(
-        "--t24-indexed-includes",
-        action="store_true",
-        help="resolve includes by component and release, and report each lookup",
-    )
-    parser.add_argument(
-        "--t24-domain-inserts",
-        type=Path,
-        metavar="DIR",
-        help="with --t24-indexed-includes, generate missing I_<Service>_<Class> inserts "
-        "from catalogued .domain classes into DIR",
-    )
-    parser.add_argument(
-        "--t24-component-calls",
-        action="store_true",
-        help="check qualified references against catalogued component declarations",
-    )
-    parser.add_argument(
+    selection.add_argument(
         "--source-prefix",
         action="append",
         default=[],
         metavar="RELATIVE_PATH",
-        help="scan catalogued production sources under this path (repeatable)",
+        help=h(
+            """
+            With --t24-catalog, scan only sources under RELATIVE_PATH (whole
+            path segments). Repeatable.
+            """
+        ),
+    )
+    selection.add_argument(
+        "--t24-exclude-local-routines",
+        action="store_true",
+        help=h(
+            """
+            Report routines that are not Temenos code, such as R13's
+            V.PL.B2LIM.NET, as excluded with a reason.
+            """
+        ),
+    )
+    selection.add_argument(
+        "--t24-exclude-test-framework",
+        action="store_true",
+        help=h(
+            """
+            Report R19's test framework components, SE/SE_Test*, as excluded
+            with a reason.
+            """
+        ),
+    )
+    components = parser.add_argument_group("T24 R19 components")
+    components.add_argument(
+        "--t24-indexed-includes",
+        action="store_true",
+        help=h(
+            """
+            Resolve includes through the catalog: the including directory,
+            its component, the include paths, then a release-wide index.
+            Report each lookup; identical copies resolve to the first.
+            """
+        ),
+    )
+    components.add_argument(
+        "--t24-domain-inserts",
+        type=Path,
+        metavar="DIR",
+        help=h(
+            """
+            With --t24-indexed-includes, generate the missing
+            I_<Service>_<Class> inserts from catalogued .domain classes into
+            DIR.
+            """
+        ),
+    )
+    components.add_argument(
+        "--t24-component-calls",
+        action="store_true",
+        help=h(
+            """
+            Check Component.member(...) calls against the catalogued
+            .component declarations: visibility, argument count, scalar and
+            matrix positions. Standard operations on undeclared tables and
+            undeclared get/set/clear accessors are accepted with a warning.
+            """
+        ),
+    )
+    testing = parser.add_argument_group(
+        "T24 testing stubs",
+        h(
+            """
+            These accept code that T24 shipped but the dump cannot explain,
+            so that the rest of each unit is checked. Each use is a warning.
+            """
+        ),
+    )
+    testing.add_argument(
+        "--t24-stub-members",
+        action="store_true",
+        help=h(
+            """
+            Accept any arguments for the members listed in T24_MEMBER_STUBS,
+            such as the varargs TF.L3Helper.testPublishedMethod.
+            """
+        ),
+    )
+    testing.add_argument(
+        "--t24-stub-void-results",
+        action="store_true",
+        help=h(
+            """
+            Where a method without a result is used as a value, as in
+            AF = EB.SystemTables.setAf(X), make the call and use 0.
+            """
+        ),
+    )
+    testing.add_argument(
+        "--t24-relax-access",
+        action="store_true",
+        help=h(
+            """
+            Report a call to a private or module member from another package
+            as a warning instead of an error.
+            """
+        ),
     )
     options = parser.parse_args()
     root = options.directory.resolve()
