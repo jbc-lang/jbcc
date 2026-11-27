@@ -658,25 +658,18 @@ each emulation.
   - The earlier scratch run, without start-up retries, had 216 same and
     47 jbcc-fails; the difference was TAFC start-up failures.
 
-## 11. Byte 0 in strings (design note)
+## 11. Byte 0 in strings
 
-jbcc values are NUL-terminated C strings, so `CHAR(0)`, `CHAR(256)`, NUL
-bytes from files and MX/MCNP results with 00 cannot be held; TAFC's can.
-Scale (2026-11-27): jbc.c has 9,095 lines, 315 exported functions, about
-300 calls to C string functions and 810 `const char *` uses, and the
-compiler writes every constant as a C string literal. Options:
+NUL-BYTES.md has the design: a byte length in the buffer header, known
+only for buffers made by code that knows about NUL bytes, so the runtime
+is converted one function at a time. It replaces the earlier
+recommendation of a new value type, which would change all 318 runtime
+functions at once.
 
-1. A value type with a length (pointer and size) through the runtime and
-   the generated code. Complete, but it touches every function.
-2. A length kept in the allocation header (`struct jbc_buffer`) and a
-   `jbc_length(value)` that reads it for heap values and falls back to
-   `strlen` for literals and slices. Smaller, but every place that takes a
-   slice or uses a C string function has to be audited.
-3. A reserved internal byte for NUL, translated at input and output.
-   Smallest, but it breaks LEN, SEQ and byte comparisons on that byte.
-
-Recommendation: option 1, on its own branch, after the TAFC probes and the
-guide cross-check are green, so a regression shows at once. T24 code shows
-no NUL bytes in strings, so this is for completeness, not the corpus.
-
-- [ ] Byte 0 in strings, as above.
+- [x] Design (NUL-BYTES.md).
+- [ ] Stage 1: foundation (header length, `jbc_size`, pointer set).
+- [ ] Stage 2: CHAR, concatenation, LEN, SEQ, substrings, comparisons,
+      output, MX; `char-bytes.b` matches TAFC.
+- [ ] Stage 3: dynamic arrays and the search functions.
+- [ ] Stage 4: input, EXECUTE data and files.
+- [ ] Stage 5: source literals with byte 0.
