@@ -131,6 +131,10 @@ BUILTINS = {
     "EXTRACT": (2, 3, 4),
     "TIMEDATE": (0,),
     "TIMESTAMP": (0,),
+    "MAKETIMESTAMP": (3,),
+    "LOCALDATE": (2,),
+    "LOCALTIME": (2,),
+    "TIMEDIFF": (3,),
     "UNIQUEKEY": (0,),
     "TIME": (0,),
     "DATE": (0,),
@@ -1388,6 +1392,11 @@ class Compiler:
                 self.needs_arguments = True
                 self.advance()
                 return self.postfix("jbc_command_line", locate_source)
+            if self.word == 'TIMEZONE':
+                self.advance()
+                return self.postfix(
+                    self.temporary("jbc_timezone()"), locate_source
+                )
             if self.word == 'PARASENTENCE':
                 self.uses_session = True
                 self.needs_arguments = True
@@ -1620,7 +1629,9 @@ class Compiler:
                 self.terminal = True
                 word = "KEYIN"
                 args.append(self.location(target))
-            if word == "TIMESTAMP":
+            if word in (
+                "TIMESTAMP", "MAKETIMESTAMP", "LOCALDATE", "LOCALTIME", "TIMEDIFF"
+            ):
                 self.uses_timestamp = True
             if word == "SYSTEM":
                 self.host_only(target)
@@ -1650,6 +1661,10 @@ class Compiler:
                 "EXTRACT",
                 "TIMEDATE",
                 "TIMESTAMP",
+                "MAKETIMESTAMP",
+                "LOCALDATE",
+                "LOCALTIME",
+                "TIMEDIFF",
                 "UNIQUEKEY",
                 "TIME",
                 "DATE",

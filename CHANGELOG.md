@@ -6,6 +6,8 @@
 
 - `ISUPPER`, `ISLOWER` and `ISSPACE`.
 - `MSLEEP` and `CLEARCOMMON`.
+- `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)
+  and `@TIMEZONE`.
 
 ## 0.3.0 (2026-11-26)
 

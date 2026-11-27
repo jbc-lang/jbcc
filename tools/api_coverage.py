@@ -49,6 +49,22 @@ RUNTIME_EVIDENCE = {
         "ASCII white space checked",
         "tests/snippets/character-class-predicates.b",
     ),
+    ("expression", "MAKETIMESTAMP", 3, None): (
+        "UTC and fixed-offset zone values checked",
+        "tests/snippets/timestamps.b",
+    ),
+    ("expression", "LOCALDATE", 2, None): (
+        "UTC and zone dates checked",
+        "tests/snippets/timestamps.b",
+    ),
+    ("expression", "LOCALTIME", 2, None): (
+        "UTC and zone times checked",
+        "tests/snippets/timestamps.b",
+    ),
+    ("expression", "TIMEDIFF", 3, None): (
+        "Masks 0 and 1 with signs checked",
+        "tests/snippets/timestamps.b",
+    ),
     ("expression", "CHDIR", 1, None): (
         "Directory change and failure checked",
         "tests/io/chdir.b",

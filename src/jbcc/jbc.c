@@ -2324,6 +2324,176 @@ const char *jbc_timestamp(const char *file, int line, int column)
 }
 #endif
 
+#ifdef JBC_TIMESTAMP
+/* MAKETIMESTAMP, LOCALDATE, LOCALTIME and TIMEDIFF work in whole
+   milliseconds of UTC time since 1970-01-01, internal date 732. */
+enum { UNIX_EPOCH_ORDINAL = JBC_DATE_EPOCH + 732, UNIX_EPOCH_DATE = 732 };
+
+static int64_t floor_div(int64_t a, int64_t b)
+{
+    int64_t q = a / b;
+    return (a % b && (a < 0) != (b < 0)) ? q - 1 : q;
+}
+
+static int64_t milliseconds(const char *text, const char *what, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(text, &n)) numeric_error(file, line, column, what);
+    if (n.digits > 15) numeric_error(file, line, column, "time value out of range");
+    int64_t value = 0;
+    for (size_t i = 0; i < n.digits; ++i) value = value * 10 + (n.whole[i] - '0');
+    value *= 1000;
+    for (size_t i = 0, place = 100; i < n.places && place; ++i, place /= 10)
+        value += (int64_t)(n.fraction[i] - '0') * (int64_t)place;
+    return n.sign < 0 ? -value : value;
+}
+
+static const char *milliseconds_value(int64_t ms)
+{
+    int64_t whole = ms / 1000, part = ms % 1000;
+    if (part < 0) part = -part;
+    char *out = allocate(32);
+    int n = snprintf(out, 32, "%s%" PRId64, ms < 0 && whole == 0 ? "-" : "", whole);
+    if (part) {
+        n += snprintf(out + n, (size_t)(32 - n), ".%03d", (int)part);
+        while (out[n - 1] == '0') out[--n] = '\0';
+    }
+    return out;
+}
+
+struct zone_scope {
+    int active;
+    char *saved;
+};
+
+/* An empty zone is the process's own; another name is set as TZ for the
+   conversion. WASI has no zone database, so its clock is UTC. */
+static void enter_zone(const char *zone, struct zone_scope *scope, const char *file, int line, int column)
+{
+    scope->active = 0;
+    scope->saved = NULL;
+    if (!*zone) return;
+#ifdef __wasi__
+    if (strcmp(zone, "UTC") && strcmp(zone, "GMT"))
+        numeric_error(file, line, column, "named time zones require a zone database");
+#else
+    const char *old = getenv("TZ");
+    if (old) {
+        scope->saved = malloc(strlen(old) + 1);
+        if (!scope->saved) fail("out of memory");
+        strcpy(scope->saved, old);
+    }
+    if (setenv("TZ", zone, 1) != 0) numeric_error(file, line, column, "cannot set the time zone");
+    scope->active = 1;
+    tzset();
+#endif
+}
+
+static void leave_zone(struct zone_scope *scope)
+{
+#ifndef __wasi__
+    if (!scope->active) return;
+    if (scope->saved) setenv("TZ", scope->saved, 1);
+    else unsetenv("TZ");
+    free(scope->saved);
+    tzset();
+#else
+    (void)scope;
+#endif
+}
+
+/* Seconds that the current zone adds to UTC second t. */
+static int64_t zone_offset(int64_t t, const char *file, int line, int column)
+{
+    time_t stamp = (time_t)t;
+    struct tm local;
+    if ((int64_t)stamp != t || !localtime_r(&stamp, &local))
+        numeric_error(file, line, column, "time value out of range");
+    int64_t years = local.tm_year + 1900 - 1;
+    int64_t days = years * 365 + years / 4 - years / 100 + years / 400 + local.tm_yday - UNIX_EPOCH_ORDINAL;
+    return days * 86400 + local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec - t;
+}
+
+const char *jbc_maketimestamp(const char *date, const char *time, const char *zone,
+                              const char *file, int line, int column)
+{
+    int64_t day = milliseconds(date, "MAKETIMESTAMP requires a numeric internal date", file, line, column);
+    int64_t clock = milliseconds(time, "MAKETIMESTAMP requires a numeric internal time", file, line, column);
+    if (day % 1000) numeric_error(file, line, column, "MAKETIMESTAMP requires a whole internal date");
+    int64_t local = (day / 1000 - UNIX_EPOCH_DATE) * 86400000 + clock;
+    int64_t seconds = floor_div(local, 1000);
+    struct zone_scope scope;
+    enter_zone(zone, &scope, file, line, column);
+    /* Find the UTC second whose local reading is this one; the second pass
+       settles a guess that crossed a daylight saving change. */
+    int64_t utc = seconds - zone_offset(seconds, file, line, column);
+    utc = seconds - zone_offset(utc, file, line, column);
+    leave_zone(&scope);
+    return milliseconds_value(local + (utc - seconds) * 1000);
+}
+
+static int64_t local_seconds(const char *stamp, const char *zone, const char *what,
+                             const char *file, int line, int column)
+{
+    int64_t seconds = floor_div(milliseconds(stamp, what, file, line, column), 1000);
+    struct zone_scope scope;
+    enter_zone(zone, &scope, file, line, column);
+    int64_t local = seconds + zone_offset(seconds, file, line, column);
+    leave_zone(&scope);
+    return local;
+}
+
+const char *jbc_localdate(const char *stamp, const char *zone, const char *file, int line, int column)
+{
+    int64_t local = local_seconds(stamp, zone, "LOCALDATE requires a numeric timestamp", file, line, column);
+    char *out = allocate(24);
+    snprintf(out, 24, "%" PRId64, floor_div(local, 86400) + UNIX_EPOCH_DATE);
+    return out;
+}
+
+const char *jbc_localtime(const char *stamp, const char *zone, const char *file, int line, int column)
+{
+    int64_t local = local_seconds(stamp, zone, "LOCALTIME requires a numeric timestamp", file, line, column);
+    return size_value((uintmax_t)(local - floor_div(local, 86400) * 86400));
+}
+
+/* Masks 0 and 1 split a fixed interval. Masks 2 to 7 count months or
+   years, whose length depends on the calendar position the guide leaves
+   unstated, so they report an error. Each field carries the sign. */
+const char *jbc_timediff(const char *first, const char *second, const char *mask,
+                         const char *file, int line, int column)
+{
+    int64_t a = milliseconds(first, "TIMEDIFF requires numeric timestamps", file, line, column);
+    int64_t b = milliseconds(second, "TIMEDIFF requires numeric timestamps", file, line, column);
+    int64_t m = milliseconds(*mask ? mask : "0", "TIMEDIFF requires a mask from 0 to 7", file, line, column);
+    if (m % 1000 || m < 0 || m > 7000) numeric_error(file, line, column, "TIMEDIFF requires a mask from 0 to 7");
+    if (m > 1000) numeric_error(file, line, column, "TIMEDIFF masks with months or years are unsupported");
+    int64_t diff = a - b, sign = diff < 0 ? -1 : 1, rest = diff * sign;
+    int64_t fields[6], *f = fields;
+    int64_t days = rest / 86400000;
+    if (m == 1000) { *f++ = days / 7; days %= 7; }
+    *f++ = days;
+    *f++ = rest / 3600000 % 24;
+    *f++ = rest / 60000 % 60;
+    *f++ = rest / 1000 % 60;
+    *f++ = rest % 1000;
+    char *out = allocate(6 * 22);
+    size_t n = 0;
+    for (int64_t *p = fields; p < f; ++p)
+        n += (size_t)snprintf(out + n, 6 * 22 - n, "%s%" PRId64, p == fields ? "" : "\376", *p * sign);
+    return out;
+}
+#endif
+
+/* @TIMEZONE: jBASE reads the zone from its environment. jbcc uses
+   JBASE_TIMEZONE, then TZ, else an empty string (provisional). */
+const char *jbc_timezone(void)
+{
+    const char *zone = getenv("JBASE_TIMEZONE");
+    if (!zone || !*zone) zone = getenv("TZ");
+    return zone ? zone : "";
+}
+
 const char *jbc_uniquekey(const char *file, int line, int column)
 {
     unsigned char bytes[16];

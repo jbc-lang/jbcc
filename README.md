@@ -724,6 +724,22 @@ realtime clock. jbcc truncates the fraction to the active `PRECISION`,
 with a default of four fractional places and a maximum of nine.
 [TIMESTAMP](https://jbc-lang.org/pages/timestamp.html).
 
+`MAKETIMESTAMP(date, time, zone)` combines an internal date and time read
+in `zone` into UTC epoch seconds, keeping milliseconds.
+`LOCALDATE(timestamp, zone)` and `LOCALTIME(timestamp, zone)` return the
+internal date and time of a timestamp in `zone`. An empty zone is the
+process's own; another value is an IANA name such as `Asia/Tokyo`, set as
+`TZ` for the conversion. The playground's WASI runtime has no zone
+database and accepts only an empty zone, `UTC` and `GMT`.
+`TIMEDIFF(timestamp1, timestamp2, mask)` subtracts `timestamp2` and returns
+days, hours, minutes, seconds and milliseconds as fields (mask 0), with
+weeks first for mask 1. Each field carries the sign of the difference
+(provisional). Masks 2 to 7 count months or years; the guide does not say
+from which calendar date, so they report an error when reached.
+`@TIMEZONE` returns `JBASE_TIMEZONE`, else `TZ`, else an empty string
+(provisional: the guide says only "as per jBASE Timezone").
+[MAKETIMESTAMP](https://jbc-lang.org/pages/maketimestamp.html), [LOCALDATE](https://jbc-lang.org/pages/localdate.html), [LOCALTIME](https://jbc-lang.org/pages/localtime.html), [TIMEDIFF](https://jbc-lang.org/pages/timediff.html).
+
 `UNIQUEKEY()` returns a 36-character lowercase UUID. jbcc uses version
 4 UUIDs generated from `/dev/urandom`.
 [UNIQUEKEY](https://jbc-lang.org/pages/uniquekey.html).

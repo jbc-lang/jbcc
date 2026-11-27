@@ -24,6 +24,35 @@ def test_getenv(compiler):
     assert result.stdout == expected_bytes('getenv.stdout')
 
 
+def test_timezone_variable(compiler, subtests):
+    source = ROOT / 'tests/io/timezone.b'
+    for env_values, expected in [
+        ({'JBASE_TIMEZONE': 'Asia/Tokyo', 'TZ': 'UTC'}, b'[Asia/Tokyo]\n09:00:00\n'),
+        ({'TZ': 'Asia/Tokyo'}, b'[Asia/Tokyo]\n09:00:00\n'),
+        ({}, b'[]\n'),
+    ]:
+        with subtests.test(env=env_values):
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k not in ('JBASE_TIMEZONE', 'TZ')
+            }
+            env.update(env_values)
+            result = compiler.run_native(source, env=env)
+            assert result.returncode == 0, result.stderr
+            assert result.stdout.startswith(expected)
+
+
+def test_timediff_month_mask_reports_when_reached(compiler):
+    source = ROOT / 'tests/io/timediff-month-mask.b'
+    result = compiler.run_native(source)
+    assert result.returncode != 0
+    assert (
+        b'timediff-month-mask.b:1:5: TIMEDIFF masks with months or years are unsupported'
+        in result.stderr
+    )
+
+
 def test_invocation_sentence(compiler, subtests):
     routine = ROOT / 'tests/routines/get.sentence.b'
     binary = compiler.work / 'invocation'
