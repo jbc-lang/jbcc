@@ -589,11 +589,17 @@ jbcc does not imitate. Notes:
 
 ## 9. Guide fixes (jbc-language)
 
-- [ ] FMT and OCONV `&x` comments: the fill character is x.
-- [ ] TIMEDIFF prose: the result is Timestamp2 − Timestamp1.
-- [ ] LOCALDATE and LOCALTIME 100-year examples: say that TAFC
+- [x] FMT and OCONV `&x` comments: the fill character is x.
+- [x] TIMEDIFF prose: the result is Timestamp2 − Timestamp1.
+- [x] LOCALDATE and LOCALTIME 100-year examples: say that TAFC
       PB201214 overflows them.
-- [ ] CONVERT, LOCATE and MATCH: say which form T24 uses under prime.
+- [x] CONVERT, LOCATE and MATCH: say which form T24 uses under prime.
+
+Done in jbc-lang/jbc-language#34 (2026-11-27), together with the ISCNTRL
+example (a field mark is not a control character) and the OCONV example
+that repeats the FMT `&x` mask. The CONVERT chapter already shows both
+argument orders; the LOCATE chapter now says what `IN A<f>` searches under
+each emulation.
 
 ## 10. Re-run
 
