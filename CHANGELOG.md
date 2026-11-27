@@ -4,6 +4,8 @@
 
 ### Added
 
+- `@COMPANYNO`, a session value a program can read and assign, as T24 R19
+  uses it; it starts empty (provisional).
 - `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and `DATEGREGORIANTOLOCALE` parse
   and report a missing backend when reached.
 - `--defer-unassigned-reads` also covers the target of `CONVERT` and

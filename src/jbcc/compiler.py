@@ -233,6 +233,14 @@ RECORD_VARIABLES = {
 }
 
 
+# Session values that a program can read and assign, shared across routines.
+# T24 R19 sets @COMPANYNO from the company record; neither the guide nor the
+# 2011 reference defines it, so jbcc starts it empty (provisional).
+SESSION_VARIABLES = {
+    'COMPANYNO': 'jbc_company_no',
+}
+
+
 SYSTEM_CONSTANTS = {
     'TRUE': '"1"',
     'FALSE': '"0"',
@@ -1334,8 +1342,10 @@ class Compiler:
                 return self.postfix(
                     self.temporary("jbc_selected()"), locate_source
                 )
-            if self.word in RECORD_VARIABLES:
-                slot = RECORD_VARIABLES[self.word]
+            if self.word in RECORD_VARIABLES or self.word in SESSION_VARIABLES:
+                slot = RECORD_VARIABLES.get(self.word) or SESSION_VARIABLES[
+                    self.word
+                ]
                 self.advance()
                 return self.postfix(
                     self.temporary(f"{slot}.value"), locate_source
@@ -5001,9 +5011,14 @@ class Compiler:
             and not (self.word in self.matrices and self.following.word == '(')
         ):
             self.print_statement()
-        elif self.word == '@' and self.following.word in RECORD_VARIABLES:
+        elif self.word == '@' and (
+            self.following.word in RECORD_VARIABLES
+            or self.following.word in SESSION_VARIABLES
+        ):
             self.advance()
-            slot = RECORD_VARIABLES[self.word]
+            slot = RECORD_VARIABLES.get(self.word) or SESSION_VARIABLES[
+                self.word
+            ]
             self.advance()
             self.expect('=')
             self.emit(f"assign_value(&{slot}, {self.expression()});")

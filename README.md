@@ -2344,6 +2344,15 @@ destination can set it. An ordinary OPEN or READ leaves the name in
 place. The startup value and sharing policy are provisional.
 [ITYPE](https://jbc-lang.org/pages/itype.html).
 
+`@COMPANYNO` is a session value that a program can read and assign with
+`@COMPANYNO = expression`, shared across routines in its own slot. T24 R19
+sets it from the company record (`@COMPANYNO =
+R.COMPANY(EB.COM.LOCAL.CONTENT.POS)` in `EB.QUERY.BUILDER`) and clears it
+when loading a company. Neither the guide nor the 2011 reference compiler
+defines it ("Unknown @ system constant"), so jbcc treats it as a plain
+session value that starts empty and has no other effect; the startup
+value is provisional.
+
 `ITYPE(descriptor)` accepts one expression for a compiled dictionary
 descriptor. In jBASE, evaluation uses the current `@FILENAME`, `@ID`,
 and `@RECORD` context. Reaching an ITYPE call in jbcc reports a
