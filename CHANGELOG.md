@@ -1,48 +1,42 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-11-27)
 
 ### Added
 
+- Translate every catalogued production unit of the componentised T24
+  R19 corpus to strict C99: 39,669 of 39,675, with 6 excluded because
+  their generated inserts have no `.domain` class in the dump.
+- Functions: `ISUPPER`, `ISLOWER`, `ISSPACE`, `NOTS`, `LENS`, `FSUB`,
+  `GETCWD`, `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME` and `TIMEDIFF`
+  (masks 0 and 1).
+- Statements: `MSLEEP` and `CLEARCOMMON`.
+- `@TIMEZONE`, and `@COMPANYNO` as a writable session value that starts
+  empty (provisional).
 - The `MCP` mask for `FMT` and `OCONV` shows field, value and subvalue
-  marks as `^`, `]` and `\`. 29 more guide examples run.
-- `--t24-exclude-missing-domains` excludes units whose generated
-  `I_<Service>_<Class>` insert has no `.domain` class in the dump, and
-  `T24_MEMBER_STUBS` lists the remaining undeclared R19 members.
+  marks as `^`, `]` and `\`.
+- `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and `DATEGREGORIANTOLOCALE`
+  parse and report a missing backend when reached.
+- A built-in `JBC.h` with the constants the guide's examples use, used
+  when no `JBC.h` is on the include paths, with a note on stderr;
+  `--no-builtin-includes` turns it off.
+- `ASSIGNED` and `UNASSIGNED` accept an R19 component call.
+- The corpus checker reads R19 component declarations in full (hook
+  interfaces, `published` members, methods without a body, matrix
+  property rank, duplicate definitions) and adds the T24 testing flags
+  `--t24-stub-members`, `--t24-stub-void-results`, `--t24-relax-access`,
+  `--t24-exclude-test-framework` and `--t24-exclude-missing-domains`.
+  The README section "T24 corpus flags" describes each one.
+
+### Changed
+
 - `jbcc --help` and `tools/check_corpus.py --help` group their options
-  and describe each one in a block, with examples and, for the checker,
-  the rules the T24 flags follow.
-- `@COMPANYNO`, a session value a program can read and assign, as T24 R19
-  uses it; it starts empty (provisional).
-- `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and `DATEGREGORIANTOLOCALE` parse
-  and report a missing backend when reached.
+  and describe each one in a block, with examples.
+- A stray `END` after the final `END` is ignored with a warning, and a
+  name inside its own `EQUATE` expansion stays a plain name, as the
+  reference compiler does.
 - `--defer-unassigned-reads` also covers the target of `CONVERT` and
   `CHANGE`.
-- The R19 corpus checker accepts undeclared property accessors with a
-  warning, resolves byte-identical include copies, stubs more members,
-  applies two more source fixes and adds `--t24-relax-access`.
-- `--t24-stub-members` accepts any arguments for a listed set of R19
-  component members in testing. A name inside its own `EQUATE` expansion
-  stays a plain name, as in the reference, instead of an error.
-- The corpus checker reads `published` members and methods without a
-  body, and `--t24-stub-void-results` lets a method without a result be
-  used as a value in testing. The README describes every T24 flag.
-- A built-in `JBC.h` with the constants the guide's examples use, used
-  when no `JBC.h` is on the include paths, with a note on stderr.
-  `--no-builtin-includes` turns it off.
-- The R19 corpus checker accepts a placeholder scalar for a matrix
-  parameter and standard operations on tables a known component does not
-  declare (with a warning), and `--t24-exclude-test-framework` excludes
-  the `SE/SE_Test*` components. Duplicate component definitions merge
-  as partial exports, dropping only members they declare differently.
-- `NOTS`, `LENS`, `FSUB` and `GETCWD`.
-- The R19 corpus checker reads hook `interface` declarations.
-- `ISUPPER`, `ISLOWER` and `ISSPACE`.
-- `MSLEEP` and `CLEARCOMMON`.
-- `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)
-  and `@TIMEZONE`.
-- `ASSIGNED` and `UNASSIGNED` accept an R19 component call.
-- A stray `END` after the final `END` is ignored with a warning.
 
 ## 0.3.0 (2026-11-26)
 
@@ -63,6 +57,7 @@
 
 - The corpus documentation takes the PB201214 headers from the
   `jbc-extract` checkout through `just tafc-headers`.
+
 ## 0.2.1 (2026-11-25)
 
 ### Changed
