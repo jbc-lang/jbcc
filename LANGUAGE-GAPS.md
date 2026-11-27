@@ -56,6 +56,8 @@ See TAFC-CROSSCHECK.md for the probes.
 - Year 10000 and up: TAFC prints `OCONV(2933629, 'D')` as `01 JAN 0000`;
   jbcc reports a range error. `ICONV('2023103', 'DG')` is 32767 in TAFC;
   jbcc reads YYYYDDD.
+- `@TTY` without a terminal: TAFC gives `''` for a plain run; jbcc gives
+  `phantom`, which T24 tests for a background job (`tests/tafc/at-tty.b`).
 - NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
   NUL bytes read from files), while TAFC's can.
 

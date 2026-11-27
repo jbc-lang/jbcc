@@ -1,4 +1,5 @@
-* The first two products come from the jBASE SMUL guide.
+* The first two products come from the jBASE SMUL guide. The guide prints
+* 0.0000000000001714 for the second; TAFC PB201214 truncates to 14 places.
 CRT SMUL(243603310027840922, 3760)
 CRT SMUL(0.0000000000000475, 3.61)
 * The explicit fractional limit and -1 default follow provisional jbcc rules.

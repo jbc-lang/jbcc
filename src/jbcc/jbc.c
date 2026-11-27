@@ -204,9 +204,17 @@ static int parse_decimal(const char *text, struct decimal *n)
     return 1;
 }
 
+static const char *trim_blanks(const char *text);
+
+/* TAFC PB201214 (tests/tafc/emulation-rules-*.b): the empty string is
+   numeric. Under prime, spaces and tabs around a number are skipped and a
+   lone sign or point is not a number; under jbase a lone sign or point is
+   numeric and blanks are not. */
 const char *jbc_num(const char *value)
 {
-    if (!*value || (!value[1] && strchr(".+-", *value))) return "1";
+    if (!*value) return "1";
+    if (jbc_emulation_prime) value = trim_blanks(value);
+    else if (!value[1] && strchr(".+-", *value)) return "1";
     struct decimal n;
     return parse_decimal(value, &n) ? "1" : "0";
 }
@@ -1647,6 +1655,9 @@ const char *jbc_terminal_name(void)
 #ifdef __wasi__
     return "phantom";
 #else
+    /* A plain TAFC PB201214 run without a terminal gives '' (tests/tafc/
+       at-tty.b), but T24 tests @TTY = 'phantom' for a background job, which
+       is what a jbcc run without a terminal usually is. */
     const char *terminal = ttyname(STDIN_FILENO);
     return terminal ? strcpy(allocate(strlen(terminal)), terminal) : "phantom";
 #endif
@@ -1852,17 +1863,45 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
     size_t first = matrix_position(start, 1, total, "MATPARSE", file, line, column);
     size_t last = matrix_position(end, total, total, "MATPARSE", file, line, column);
     size_t assigned = 0;
-    const char *field = *source ? source : NULL;
+    /* TAFC PB201214 (tests/tafc/emulation-rules-*.b): one trailing delimiter
+       ends the record without an empty field after it, an empty delimiter
+       splits the record into bytes, and SETTING is 0 when fields are left
+       over. The rest goes into element 0 under prime and is joined to the
+       last element under jbase. */
+    size_t length = strlen(source);
+    if (length && *delimiter && source[length - 1] == *delimiter) {
+        char *copy = allocate(length - 1);
+        memcpy(copy, source, length - 1);
+        copy[length - 1] = '\0';
+        source = copy;
+    }
+    const char *field = length ? source : NULL;
     for (size_t i = first; i <= last; ++i) {
         if (field) ++assigned;
-        const char *value = take_field(&field, (unsigned char)*delimiter);
+        const char *value;
+        if (*delimiter || !field) value = take_field(&field, (unsigned char)*delimiter);
+        else {
+            char *byte = allocate(1);
+            byte[0] = *field;
+            byte[1] = '\0';
+            value = byte;
+            field = field[1] ? field + 1 : NULL;
+        }
         assign_value(&dest[matrix_element_offset(i - 1, rank, bounds)], value);
     }
     if (first <= last) {
         /* The unparsed suffix can point inside a temporary collected after this statement. */
-        assign_value(&dest[0], field && *field ? strcpy(allocate(strlen(field)), field) : "");
+        const char *rest = field && *field ? strcpy(allocate(strlen(field)), field) : "";
+        if (field && !jbc_emulation_prime) {
+            jbc_variable *target = &dest[matrix_element_offset(last - 1, rank, bounds)];
+            char mark[2] = {*delimiter ? *delimiter : '\0', '\0'};
+            assign_value(target, jbc_concat(jbc_concat(target->value, mark), rest));
+            rest = "";
+        }
+        assign_value(&dest[0], rest);
     }
-    last_matrix_load = field ? 0 : assigned;
+    if (field) assigned = 0;
+    last_matrix_load = assigned;
     if (setting) assign_value(setting, size_value(assigned));
 }
 
@@ -2142,10 +2181,11 @@ const char *jbc_smul(const char *left, const char *right, const char *precision,
                      const char *file, int line, int column)
 {
     struct decimal a, b;
-    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
-        numeric_error(file, line, column, "SMUL requires numeric operands");
+    parse_decimal(numeric_operand(left, file, line, column), &a);
+    parse_decimal(numeric_operand(right, file, line, column), &b);
 
-    uintmax_t places = string_math_places(precision, 16,
+    /* TAFC PB201214 truncates to 14 places (tests/tafc/string-math.b). */
+    uintmax_t places = string_math_places(precision, 14,
         "SMUL precision requires -1 or a nonnegative integer", file, line, column);
     if (!a.sign || !b.sign) return "0";
 
@@ -2178,6 +2218,7 @@ const char *jbc_smul(const char *left, const char *right, const char *precision,
     }
     if (places < result.places) result.places = (size_t)places;
     while (result.places && result.fraction[result.places - 1] == '0') --result.places;
+    if (!result.digits && !result.places) return "0";
     return fmt_decimal(result, result.places);
 }
 
@@ -2266,8 +2307,8 @@ const char *jbc_sdiv(const char *left, const char *right, const char *precision,
                      const char *file, int line, int column)
 {
     struct decimal a, b;
-    if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
-        numeric_error(file, line, column, "SDIV requires numeric operands");
+    parse_decimal(numeric_operand(left, file, line, column), &a);
+    parse_decimal(numeric_operand(right, file, line, column), &b);
     uintmax_t places = string_math_places(precision, 14,
         "SDIV precision requires -1 or a nonnegative integer", file, line, column);
     if (!b.sign) numeric_error(file, line, column, "SDIV division by zero");
@@ -4316,16 +4357,30 @@ const char *jbc_change(const char *text, const char *search, const char *replace
     return change_substrings(text, search, replacement, count, start);
 }
 
+/* COUNT, COUNTS and DCOUNT: TAFC PB201214 counts nonoverlapping matches
+   under prime and overlapping ones under jbase (tests/tafc/
+   emulation-rules-*.b). */
+static size_t count_matches(const char *s, const char *needle)
+{
+    if (jbc_emulation_prime || !*needle) return occurrences(s, needle);
+    size_t count = 0;
+    while ((s = strstr(s, needle)) != NULL) {
+        ++count;
+        ++s;
+    }
+    return count;
+}
+
 const char *jbc_count(const char *s, const char *separator)
 {
-    return size_value(occurrences(s, separator));
+    return size_value(count_matches(s, separator));
 }
 
 const char *jbc_dcount(const char *s, const char *separator)
 {
     if (!*s) return "0";
     if (!*separator) return jbc_len(s);
-    return size_value(1 + occurrences(s, separator));
+    return size_value(1 + count_matches(s, separator));
 }
 
 /* A FIELD position or count below 1 means 1 (TAFC, tests/tafc/field-edges.b). */
@@ -4642,7 +4697,7 @@ const char *jbc_counts(const char *source, const char *needle)
         const char *end = item + strlen(item);
         char mark = source[end - items];
         size_t available = capacity - (size_t)(write - out) + 1;
-        write += snprintf(write, available, "%zu", occurrences(item, needle));
+        write += snprintf(write, available, "%zu", count_matches(item, needle));
         *write++ = mark;
         if (!mark) break;
         item = end + 1;
@@ -4897,7 +4952,7 @@ const char *jbc_divide_reuse(const char *left, const char *right, int reuse_left
 
 static const char *array_sign(const char *source, int absolute, const char *file, int line, int column)
 {
-    if (!*source) return jbc_emulation_prime ? "0" : "";
+    if (!*source) return "0";
     size_t marks = 0, length = strlen(source);
     char *items = split_array_items(source, &marks);
     /* A decimal can gain a minus sign and a leading zero. */
@@ -4907,7 +4962,7 @@ static const char *array_sign(const char *source, int absolute, const char *file
     char *out = allocate(length + 2 * (marks + 1)), *write = out;
     for (const char *item = items;;) {
         const char *value = "";
-        if (!*item && jbc_emulation_prime) value = "0"; /* prime: empty is 0 */
+        if (!*item) value = "0"; /* TAFC PB201214 under both emulations */
         else if (*item && absolute)
             value = absolute_value(item, "ABSS requires numeric elements", file, line, column);
         else if (*item)
@@ -8396,9 +8451,17 @@ static const char *decimal_sum(struct decimal a, struct decimal b, const char *p
 {
     char diagnostic[64];
     snprintf(diagnostic, sizeof diagnostic, "%s precision requires -1 or a nonnegative integer", name);
-    uintmax_t places = string_math_places(precision, UINT_MAX, diagnostic, file, line, column);
-    if (!b.sign) { limit_places(&a, places > INT_MAX ? -1 : (int)places); return fmt_decimal(a, a.places); }
-    if (!a.sign) { limit_places(&b, places > INT_MAX ? -1 : (int)places); return fmt_decimal(b, b.places); }
+    /* TAFC PB201214 keeps 14 places (tests/tafc/string-math.b): a sum of
+       operands with the same sign rounds half away from zero, and one with
+       opposite signs truncates toward zero. */
+    uintmax_t places = string_math_places(precision, 14, diagnostic, file, line, column);
+    if (!a.sign || !b.sign) {
+        struct decimal n = a.sign ? a : b;
+        limit_places(&n, places > INT_MAX ? -1 : (int)places);
+        while (n.places && n.fraction[n.places - 1] == '0') --n.places;
+        if (!n.digits && !n.places) return "0";
+        return fmt_decimal(n, n.places);
+    }
     int subtract = a.sign != b.sign;
     int sign = a.sign;
     if (subtract) {
@@ -8424,26 +8487,20 @@ static const char *decimal_sum(struct decimal a, struct decimal b, const char *p
     digits[0] = (char)('0' + carry);
     struct decimal result = {digits, digits + whole + 1, whole + 1, scale, sign};
     while (result.digits && *result.whole == '0') { ++result.whole; --result.digits; }
+    if (subtract && places < result.places) result.places = (size_t)places;
+    else limit_places(&result, places > INT_MAX ? -1 : (int)places);
     while (result.places && result.fraction[result.places - 1] == '0') --result.places;
+    while (result.digits && *result.whole == '0') { ++result.whole; --result.digits; }
     if (!result.digits && !result.places) return "0";
-    size_t kept = places < result.places ? (size_t)places : result.places;
-    char *out = fmt_decimal(result, kept);
-    if (kept) {
-        char *end = out + strlen(out);
-        while (end[-1] == '0') --end;
-        if (end[-1] == '.') --end;
-        *end = '\0';
-    }
-    return out;
+    return fmt_decimal(result, result.places);
 }
 
 const char *jbc_sadd(const char *left, const char *right, const char *precision,
                      const char *file, int line, int column)
 {
     struct decimal a, b;
-    int numeric = parse_decimal(left, &a);
-    if (!parse_decimal(right, &b) || !numeric)
-        numeric_error(file, line, column, "SADD requires numeric operands");
+    parse_decimal(numeric_operand(left, file, line, column), &a);
+    parse_decimal(numeric_operand(right, file, line, column), &b);
     return decimal_sum(a, b, precision, "SADD", file, line, column);
 }
 
@@ -8451,9 +8508,8 @@ const char *jbc_ssub(const char *left, const char *right, const char *precision,
                      const char *file, int line, int column)
 {
     struct decimal a, b;
-    int numeric = parse_decimal(left, &a);
-    if (!parse_decimal(right, &b) || !numeric)
-        numeric_error(file, line, column, "SSUB requires numeric operands");
+    parse_decimal(numeric_operand(left, file, line, column), &a);
+    parse_decimal(numeric_operand(right, file, line, column), &b);
     b.sign = -b.sign;
     return decimal_sum(a, b, precision, "SSUB", file, line, column);
 }

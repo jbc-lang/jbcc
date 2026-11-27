@@ -567,8 +567,6 @@ def test_dround_diagnostics(compiler, fixture_name, diagnostic_fixture):
 @pytest.mark.parametrize(
     'fixture_name, diagnostic_fixture',
     [
-        pytest.param('smul_1.b', 'smul-diagnostics.stderr', id='smul-1'),
-        pytest.param('smul_2.b', 'smul-diagnostics.stderr', id='smul-2'),
         pytest.param('smul_3.b', 'smul-diagnostics_2.stderr', id='smul-3'),
         pytest.param('smul_4.b', 'smul-diagnostics_2.stderr', id='smul-4'),
     ],
@@ -589,8 +587,7 @@ def test_smul_diagnostics(compiler, fixture_name, diagnostic_fixture):
 @pytest.mark.parametrize(
     'fixture_name, diagnostic_fixture',
     [
-        pytest.param('sdiv_1.b', 'sdiv-diagnostics.stderr', id='sdiv-1'),
-        pytest.param('sdiv_2.b', 'sdiv-diagnostics.stderr', id='sdiv-2'),
+        pytest.param('sdiv_2.b', 'sdiv-diagnostics_2.stderr', id='sdiv-2'),
         pytest.param('sdiv_3.b', 'sdiv-diagnostics_2.stderr', id='sdiv-3'),
         pytest.param('sdiv_4.b', 'sdiv-diagnostics_3.stderr', id='sdiv-4'),
         pytest.param('sdiv_5.b', 'sdiv-diagnostics_3.stderr', id='sdiv-5'),
@@ -607,6 +604,19 @@ def test_sdiv_diagnostics(compiler, fixture_name, diagnostic_fixture):
         ).encode()
         in run.stderr
     )
+
+
+def test_string_math_nonnumeric_operands_warn(compiler):
+    """TAFC PB201214 reads a nonnumeric SADD, SSUB, SMUL or SDIV operand as
+    0 and goes on (tests/tafc/string-math.b)."""
+    source = compiler.work / 'string-math-nonnumeric.b'
+    source.write_text(
+        "CRT SADD('x', 1):' ':SSUB(2, 'y'):' ':SMUL('text', 2):' ':SDIV('', 2)\n"
+    )
+    run = compiler.run_native(source)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout == b'1 2 0 0\n'
+    assert run.stderr.count(b'warning: Non-numeric value -- ZERO USED') == 3
 
 
 def test_divs_substitutes_zero_for_zero_divisors(compiler):
@@ -1283,7 +1293,6 @@ def test_matchfield_invalid_field(compiler, fixture_name):
         ),
         ('fadd-null.b', '1:5', 'FADD requires numeric operands'),
         ('fdiv-zero.b', '1:5', 'FDIV division by zero'),
-        ('sadd-nonnumeric.b', '1:5', 'SADD requires numeric operands'),
     ],
     ids=lambda value: value if str(value).endswith('.b') else '',
 )

@@ -412,9 +412,10 @@ decimal rounding with midpoint ties away from zero.
 
 `SMUL(left, right[, places])` multiplies decimal strings exactly before
 limiting the output scale, so products can exceed the native integer range.
-It ignores the active PRECISION. jbcc provisionally truncates toward zero
-and removes trailing fractional zeros. The default is 16 fractional
-places, which reproduces the guide's fractional example. The reference
+It ignores the active PRECISION, truncates toward zero to 14 fractional
+places and removes trailing fractional zeros, as TAFC PB201214 does
+(`tests/tafc/string-math*.b`); the guide prints 16 places for its
+fractional example. The reference
 grammar accepts a third argument. jbcc treats it as a nonnegative
 fractional limit and accepts `-1` for the default.
 [jBASE SMUL](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_SMUL.htm).
@@ -440,11 +441,13 @@ these character tests. The guide describes Unicode classification
 separately under International Mode.
 [ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [ISUPPER](https://jbc-lang.org/pages/isupper.html), [ISSPACE](https://jbc-lang.org/pages/isspace.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
 
-NUM tests whether an expression has numeric text and returns 1 or 0.
-It follows the guide’s prime-emulation examples. Signed decimals and leading
-zeros are accepted, as are the empty string and the single characters
-`.`, `+`, and `-`. Spaces, thousands separators, and exponent notation
-return 0. [NUM](https://jbc-lang.org/pages/num.html).
+NUM tests whether an expression has numeric text and returns 1 or 0, as
+TAFC PB201214 does (`tests/tafc/emulation-rules-*.b`). Signed decimals,
+leading zeros and the empty string are numeric; thousands separators,
+exponent notation and inner spaces are not. Under prime, spaces and tabs
+around a number are skipped (`NUM(' 12')` is 1) and a lone `.`, `+` or `-`
+is not a number. Under `--emulation jbase` a lone `.`, `+` or `-` is
+numeric and any space is not. [NUM](https://jbc-lang.org/pages/num.html).
 
 `NUMS(array)` applies that test to each element, preserving field, value
 and subvalue marks. Empty strings are numeric under the same rules.
@@ -546,8 +549,8 @@ preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
 `ABSS(array)` applies ABS to each element and preserves array marks.
-Under prime emulation an empty element, or an empty argument, gives 0, as
-in TAFC PB201214; under `--emulation jbase` it stays empty. A nonnumeric
+An empty element, or an empty argument, gives 0, as in TAFC PB201214
+under both emulations. A nonnumeric
 element produces a diagnostic at the ABSS call.
 [ABSS](https://jbc-lang.org/pages/abss.html).
 
@@ -558,9 +561,8 @@ to stderr at the call site and returns zero, allowing execution to continue.
 [NEGS and NEG](https://jbc-lang.org/pages/negs.html).
 
 `NEGS(array)` applies the same conversion and PRECISION to each element
-and preserves field, value, and subvalue marks. Under prime emulation an
-empty element gives 0, as in TAFC PB201214; under `--emulation jbase` it
-stays empty, following the jBASE reference prose. A nonnumeric element
+and preserves field, value, and subvalue marks. An empty element gives 0,
+as in TAFC PB201214 under both emulations. A nonnumeric element
 becomes zero and produces a warning at the call site.
 [jBASE NEGS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_NEGS.htm).
 
@@ -741,8 +743,9 @@ are empty.
 
 `@TTY` returns the POSIX device name for the terminal on standard
 input, such as `/dev/pts/2`. If standard input has no terminal device
-name, jbcc provisionally returns `phantom`, following the check used
-by T24's PRO.
+name, jbcc returns `phantom`, which T24 tests for a background job. A
+plain TAFC PB201214 run without a terminal gives an empty string
+(`tests/tafc/at-tty.b`).
 [jBASE system variables](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_%40.htm).
 
 `@TERM.TYPE`, `@TERM_TYPE`, and `@TERMTYPE` expose the terminal type
@@ -1455,11 +1458,14 @@ comma before the delimiter when both endpoints are present. [MATBUILD](https://j
 in the same element order as MATBUILD. An optional range follows the matrix
 name. For example, `MATPARSE A, 2, 4 FROM S USING "|"` fills positions 2
 through 4. Element zero receives any unsplit remainder, including its
-internal delimiters. SETTING is optional and counts input fields placed in
-the selected one-based slots, including empty fields between or after
-delimiters. jbcc clears unused slots inside the range and treats empty
-input as zero fields. An empty delimiter treats nonempty input as one
-field. These edge cases are provisional pending a reference run.
+internal delimiters. SETTING is optional and counts the fields placed,
+including empty fields between delimiters; one trailing delimiter ends the
+record without adding an empty field. When fields are left over, SETTING
+is 0, and under `--emulation jbase` the rest is joined to the last
+element instead of element zero. jbcc clears unused slots inside the
+range and treats empty input as zero fields. An empty delimiter splits
+the record into bytes. These follow TAFC PB201214
+(`tests/tafc/matparse-edges-*.b`).
 [MATPARSE](https://jbc-lang.org/pages/matparse.html).
 
 `INMAT(A)` reports the bounds of dimensioned array `A`, using one value
@@ -1469,8 +1475,8 @@ with a matrix passed by reference.
 
 `INMAT()` returns the element count from the most recent MATREAD, MATREADU,
 or MATPARSE in the process. It returns zero initially and when the input
-exceeds the available slots. For a ranged MATPARSE, jbcc uses the selected
-range to determine overflow. A failed or locked MATREAD also sets the
+exceeds the available slots. For a ranged MATPARSE, the selected range
+determines overflow. A failed or locked MATREAD also sets the
 count to zero in jbcc. SETTING continues to report the count specified by the individual
 statement. [INMAT](https://jbc-lang.org/pages/inmat.html).
 
@@ -1839,7 +1845,9 @@ one-based occurrence and optional field count. The expression
 `"a/b/c/d"["/",2,2]` returns `b/c`. An occurrence or count below one
 means one, as in TAFC PB201214, so `FIELD(S, ':', 0)` is the first field.
 FIELD, COUNT and DCOUNT support multi-byte delimiters. COUNT counts
-nonoverlapping occurrences as documented for TAFC R19. DCOUNT returns zero
+nonoverlapping occurrences under prime and overlapping ones under
+`--emulation jbase`, as TAFC PB201214 does (`COUNT('aaaa', 'aa')` is 2
+and 3); DCOUNT and COUNTS follow COUNT. DCOUNT returns zero
 for an empty record. For an empty delimiter, COUNT and DCOUNT return the
 byte length and FIELD returns the whole input, as TAFC does. With a
 multi-byte delimiter and a count above one, TAFC's results follow no
@@ -1848,7 +1856,7 @@ the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
-`COUNTS(array, substring)` counts nonoverlapping matches in each element
+`COUNTS(array, substring)` counts matches, as COUNT does, in each element
 and preserves field, value and subvalue marks. A match cannot cross a mark.
 An empty substring returns each element's byte length. Ordinary empty
 elements return zero. The guide describes a distinct null value, which
@@ -2047,10 +2055,14 @@ convention rather than on the guide.
   divisor report source-located errors.
   [FADD](https://jbc-lang.org/pages/fadd.html), [FDIV](https://jbc-lang.org/pages/fdiv.html).
 - `SADD(a, b[, places])` and `SSUB(a, b[, places])` add and subtract
-  decimal strings exactly. The optional third argument mirrors SMUL and
-  SDIV. The guide's SADD examples keep every digit. Its SSUB example
-  prints 14 places, and `SSUB(a, b, 14)` reproduces it. `SCMP(a, b)`
-  returns -1, 0 or 1 for decimal order (provisional).
+  decimal strings exactly, then keep 14 fractional places as TAFC PB201214
+  does: a sum of operands with the same sign rounds half away from zero,
+  and one with opposite signs truncates toward zero
+  (`tests/tafc/string-math-rounding.b`). The optional third argument
+  changes the limit. A nonnumeric operand of SADD, SSUB, SMUL or SDIV
+  warns `Non-numeric value -- ZERO USED` and counts as 0. `SCMP(a, b)`
+  returns -1, 0 or 1 for decimal order (provisional; it crashes TAFC
+  PB201214).
   [SADD](https://jbc-lang.org/pages/sadd.html), [SSUB](https://jbc-lang.org/pages/ssub.html).
 - `BITSET`, `BITRESET`, `BITCHANGE` and `BITCHECK` operate on a
   per-process table of 128 flags. Each returns the bit's previous value.

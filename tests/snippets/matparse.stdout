@@ -1,8 +1,8 @@
-5	1	0
-keep/one/two/three/keep	3	four||six
+4	1	0
+keep/one/two/three/keep	0	four||six
 keep/3/four//six	0
 a	b	c	0	3
-X	2/Y	1
+X	2/Y	0
 0	0	0	0
-a|b	1
-a|b	0
+a	3
+a	0
