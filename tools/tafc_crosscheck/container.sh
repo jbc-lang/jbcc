@@ -66,6 +66,13 @@ run_one() {
         }
         { print > (out ? out : main) }
     ' "$source"
+    # "* tafc-stdin-hex: 610A" gives the program those bytes on stdin.
+    hex=$(sed -n 's/^\*[ \t]*tafc-stdin-hex:[ \t]*\([0-9A-Fa-f]*\).*/\1/p' "$source" | head -n 1)
+    if [ -n "$hex" ]; then
+        printf "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >stdin.bin
+    else
+        cp /dev/null stdin.bin
+    fi
     # Each program gets its own directory for jBASE files and OS files.
     export JEDIFILEPATH=$work
     set +e
@@ -85,7 +92,7 @@ run_one() {
         # Concurrent jBASE start-ups sometimes fail to create the licensing
         # semaphore or attach shared memory; run such a program again.
         for attempt in 1 2 3 4 5; do
-            timeout "${RUN_SECONDS:-10}" "./$name" </dev/null >"/output/$name.out" 2>"/output/$name.err"
+            timeout "${RUN_SECONDS:-10}" "./$name" <stdin.bin >"/output/$name.out" 2>"/output/$name.err"
             status=$?
             grep -q 'while initiating jBASE' "/output/$name.err" || break
             sleep "$attempt"

@@ -46,9 +46,12 @@ void jbc_inputnull(const char *value)
 #ifdef JBC_TERMINAL
 /* INPUT @ with only the INPUTNULL character gives an empty value; plain
    INPUT keeps it, as TAFC PB201214 does (guide, INPUTNULL). */
+size_t jbc_size(const char *value);
+
 static const char *input_null_value(const char *value, const char *cursor)
 {
-    return cursor && input_null_char && value[0] == input_null_char && !value[1] ? "" : value;
+    return cursor && input_null_char && value[0] == input_null_char && jbc_size(value) == 1 ? ""
+                                                                                    : value;
 }
 #endif
 /* 1 under prime emulation (the default, as in T24), 0 under jbase. The
@@ -210,7 +213,7 @@ void jbc_cleardata(void)
 
 void jbc_data(const char *text)
 {
-    size_t length = strlen(text);
+    size_t length = jbc_size(text);
     if (length >= SIZE_MAX - sizeof(struct input_chunk)) fail("DATA input is too large");
     struct input_chunk *chunk = malloc(sizeof *chunk + length + 1);
     if (!chunk) fail("out of memory");
@@ -7065,7 +7068,6 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
         int c = stream_input_byte();
         if (c == EOF || c == '\n') break;
         if (discard_excess && length == (uint64_t)limit) continue;
-        if (c == 0) { free(text); numeric_error(file, line, column, "INPUT cannot store a NUL byte"); }
         if (length == capacity) {
             if (capacity > SIZE_MAX / 2) { free(text); numeric_error(file, line, column, "input line too long"); }
             capacity = capacity ? 2 * capacity : 128;
@@ -7078,7 +7080,7 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
     if (ferror(stdin)) { free(text); numeric_error(file, line, column, "cannot read input"); }
     char *value = allocate(length);
     if (length) memcpy(value, text, length);
-    value[length] = '\0';
+    finish_bytes(value, length);
     free(text);
     assign_value(out, input_null_value(value, cursor));
     count_userstat(&input_count);
@@ -7307,11 +7309,10 @@ const char *jbc_keyin(const char *file, int line, int column)
     error = restore_input_mode(&state, error);
     if (error) numeric_error(file, line, column, error);
     if (!count) return "";
-    if (!c) numeric_error(file, line, column, "KEYIN cannot store a NUL byte");
+    /* Byte 0 is a key like any other, as in TAFC (tests/tafc/nul-input.b). */
     char *value = allocate(1);
     value[0] = (char)c;
-    value[1] = '\0';
-    return value;
+    return finish_bytes(value, 1);
 }
 
 int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int suppress_newline, int discard_excess,
@@ -7353,8 +7354,11 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
             error = set_input_mode(&state, &mode);
         }
     }
+    /* TAFC PB201214 shows the prompt only when standard input is a terminal
+       (tests/tafc/nul-input.b). */
+    int prompt = isatty(STDIN_FILENO);
     if (!error && ((cursor && fputs(cursor, stdout) == EOF) ||
-                   fputs(jbc_input_prompt, stdout) == EOF || fflush(stdout)))
+                   (prompt && fputs(jbc_input_prompt, stdout) == EOF) || fflush(stdout)))
         error = "cannot write input prompt";
     while (!error && (discard_excess || !limit_text || length < (uint64_t)limit)) {
         if (!input_data && timeout_text) {
@@ -7387,7 +7391,6 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
             if (echo_chars && write(echo_fd, "\a", 1) != 1) error = "cannot ring INPUT bell";
             continue;
         }
-        if (c == 0) { error = "INPUT cannot store a NUL byte"; break; }
         if (length == capacity) {
             if (capacity > SIZE_MAX / 2) { error = "input line too long"; break; }
             capacity = capacity ? 2 * capacity : 128;
@@ -7410,7 +7413,7 @@ int jbc_input(jbc_variable *out, const char *cursor, const char *limit_text, int
     }
     char *value = allocate(length);
     if (length) memcpy(value, text, length);
-    value[length] = '\0';
+    finish_bytes(value, length);
     free(text);
     assign_value(out, input_null_value(value, cursor));
     if (!timed_out) count_userstat(&input_count);

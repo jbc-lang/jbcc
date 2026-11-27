@@ -43,6 +43,16 @@ EMULATION_RE = re.compile(rb'^\s*[*!]\s*tafc-emulation:\s*(\w+)', re.M)
 # A probe can pass jbcc options, such as the in-memory files that TAFC
 # creates with CREATE-FILE: "* jbcc-options: --memory-file VENDORS".
 OPTIONS_RE = re.compile(rb'^\s*[*!]\s*jbcc-options:(.*)$', re.M)
+# A probe can give its standard input as hex: "* tafc-stdin-hex: 610A".
+STDIN_RE = re.compile(rb'^\*\s*tafc-stdin-hex:\s*([0-9A-Fa-f]*)\s*$', re.M)
+
+
+def stdin_of(data):
+    """The bytes a probe reads on standard input, or None for /dev/null."""
+    match = STDIN_RE.search(data)
+    return bytes.fromhex(match.group(1).decode()) if match else None
+
+
 # A probe can carry other programs that it runs with EXECUTE: each line
 # "* tafc-program: NAME" starts NAME.b, which is built first.
 PROGRAM_RE = re.compile(rb'^\*\s*tafc-program:\s*(\w+)\s*$', re.M)
@@ -226,10 +236,12 @@ def run_jbcc_one(source, output, emulation):
                 if k not in ('COLUMNS', 'LINES')
             }
             env['TERM'] = 'vt100'
+            given = stdin_of(data)
             ran = subprocess.run(
                 [str(program)],
                 cwd=work,
-                stdin=subprocess.DEVNULL,
+                input=given,
+                stdin=subprocess.DEVNULL if given is None else None,
                 capture_output=True,
                 timeout=RUN_SECONDS,
                 env=env,
