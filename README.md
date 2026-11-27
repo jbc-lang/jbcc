@@ -242,6 +242,8 @@ emulation decides:
 - the argument order of the CONVERT function;
 - what `LOCATE x IN array<...>` searches, and the order of `BY 'AR'`;
 - the MATCH and MATCHES pattern codes.
+- whether a division by zero warns and continues (prime) or stops the
+  program, as TAFC's debugger does without a terminal (jbase).
 
 These rules come from TAFC PB201214 runs under both emulations; the
 probes are in `tests/tafc/` ([TAFC-CROSSCHECK.md](TAFC-CROSSCHECK.md),
