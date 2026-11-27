@@ -87,6 +87,10 @@
 - `EXECUTE ... PASSDATA expression RTNDATA variable`, with the
   `COLLECTDATA` and `RTNDATA` statements in the program it runs.
 - CAPTURING drops one final newline, as TAFC does.
+- Strings can hold byte 0: `CHAR(0)` and `CHAR(256)` no longer stop the
+  program, and concatenation, LEN, substrings, comparisons, output and the
+  MX and MCP conversions keep it, as in TAFC (NUL-BYTES.md, stages 1 and
+  2).
 - EXECUTE shares the default select list with the jbcc program it runs, as
   TAFC does; `PASSLIST` passes a list, and `RTNLIST` no longer stops the
   program.

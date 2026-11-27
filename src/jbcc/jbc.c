@@ -11,6 +11,7 @@
 #include <limits.h>
 #include <math.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 
 struct jbc_buffer {
     struct jbc_buffer *next;
+    size_t length; /* SIZE_MAX unless the text holds byte 0 (NUL-BYTES.md) */
     char text[];
 };
 
@@ -84,8 +86,105 @@ static char *allocate(size_t length)
     if (!buffer)
         fail("out of memory");
     buffer->next = buffers;
+    buffer->length = SIZE_MAX;
     buffers = buffer;
     return buffer->text;
+}
+
+/* Buffers whose text holds byte 0, found by text address in an open
+   addressing table (NUL-BYTES.md). Every other value is a C string. */
+#define NUL_TOMBSTONE ((const char *)&nul_table)
+static const char **nul_table;
+static size_t nul_capacity, nul_count, nul_used;
+
+static struct jbc_buffer *buffer_of(const char *text)
+{
+    return (struct jbc_buffer *)(void *)(text - offsetof(struct jbc_buffer, text));
+}
+
+static size_t nul_slot(const char *text)
+{
+    size_t h = (size_t)(uintptr_t)text;
+    h ^= h >> 15;
+    h *= (size_t)2654435761u;
+    h ^= h >> 13;
+    return h & (nul_capacity - 1);
+}
+
+static int nul_find(const char *text, size_t *found)
+{
+    if (!nul_count) return 0;
+    for (size_t i = nul_slot(text);; i = (i + 1) & (nul_capacity - 1)) {
+        if (!nul_table[i]) return 0;
+        if (nul_table[i] == text) {
+            *found = i;
+            return 1;
+        }
+    }
+}
+
+static void nul_insert(const char *text)
+{
+    if (2 * (nul_used + 1) > nul_capacity) {
+        const char **old = nul_table;
+        size_t old_capacity = nul_capacity;
+        nul_capacity = nul_capacity ? 2 * nul_capacity : 64;
+        while (2 * (nul_count + 1) > nul_capacity) nul_capacity *= 2;
+        nul_table = calloc(nul_capacity, sizeof *nul_table);
+        if (!nul_table) fail("out of memory");
+        nul_used = 0;
+        for (size_t i = 0; i < old_capacity; ++i) {
+            if (!old[i] || old[i] == NUL_TOMBSTONE) continue;
+            size_t j = nul_slot(old[i]);
+            while (nul_table[j]) j = (j + 1) & (nul_capacity - 1);
+            nul_table[j] = old[i];
+            ++nul_used;
+        }
+        free(old);
+    }
+    size_t i = nul_slot(text);
+    while (nul_table[i] && nul_table[i] != NUL_TOMBSTONE) i = (i + 1) & (nul_capacity - 1);
+    if (!nul_table[i]) ++nul_used;
+    nul_table[i] = text;
+    ++nul_count;
+}
+
+static void nul_forget(struct jbc_buffer *buffer)
+{
+    size_t i;
+    if (buffer->length != SIZE_MAX && nul_find(buffer->text, &i)) {
+        nul_table[i] = NUL_TOMBSTONE;
+        --nul_count;
+    }
+}
+
+/* The byte length of a value, which may hold byte 0. */
+size_t jbc_size(const char *value)
+{
+    size_t i;
+    if (nul_find(value, &i)) return buffer_of(value)->length;
+    return strlen(value);
+}
+
+/* End a buffer filled with length bytes; one that holds byte 0 records its
+   length. Returns the text. */
+static char *finish_bytes(char *text, size_t length)
+{
+    text[length] = '\0';
+    if (memchr(text, '\0', length)) {
+        buffer_of(text)->length = length;
+        nul_insert(text);
+    }
+    return text;
+}
+
+/* Byte order with length as the tie-break, as TAFC compares strings. */
+static int compare_bytes(const char *left, const char *right)
+{
+    size_t a = jbc_size(left), b = jbc_size(right);
+    int order = memcmp(left, right, a < b ? a : b);
+    if (order) return order;
+    return a < b ? -1 : a > b;
 }
 
 static void free_storages(void);
@@ -139,6 +238,9 @@ void jbc_finish(void)
 #endif
     jbc_cleardata();
     free_storages();
+    free(nul_table);
+    nul_table = NULL;
+    nul_capacity = nul_count = nul_used = 0;
     while (buffers) {
         struct jbc_buffer *next = buffers->next;
 #ifdef JBC_SEQUENTIAL
@@ -172,13 +274,13 @@ void jbc_init_arguments(int argc, char **argv)
 
 const char *jbc_concat(const char *left, const char *right)
 {
-    size_t a = strlen(left), b = strlen(right);
+    size_t a = jbc_size(left), b = jbc_size(right);
     if (b > SIZE_MAX - a)
         fail("value is too large");
     char *out = allocate(a + b);
     memcpy(out, left, a);
-    memcpy(out + a, right, b + 1);
-    return out;
+    memcpy(out + a, right, b);
+    return finish_bytes(out, a + b);
 }
 
 /* Compare decimal text directly so significant digits survive on every target. */
@@ -300,7 +402,7 @@ int jbc_compare(const char *left, const char *right, int precision)
 {
     struct decimal a, b;
     if (!parse_decimal(left, &a) || !parse_decimal(right, &b))
-        return strcmp(left, right);
+        return compare_bytes(left, right);
     return compare_decimals(a, b, precision);
 }
 
@@ -1298,6 +1400,7 @@ void jbc_collect(struct jbc_buffer *mark, const char ***live)
 #ifdef JBC_SEQUENTIAL
             release_sequential(buffer->text);
 #endif
+            nul_forget(buffer);
             free(buffer);
         }
     }
@@ -2591,7 +2694,7 @@ static int ascii_alpha(unsigned char c);
 static const char *hex_bytes(const char *text)
 {
     static const char digits[] = "0123456789ABCDEF";
-    size_t n = strlen(text);
+    size_t n = jbc_size(text);
     if (n > (SIZE_MAX - 1) / 2) fail("value is too large");
     char *out = allocate(2 * n);
     for (size_t i = 0; i < n; ++i) {
@@ -2612,7 +2715,7 @@ static const char *change_substrings(const char *text, const char *search, const
    subvalue marks as ^, ] and \. Printable is ISPRINT's ASCII 32 to 126. */
 static const char *printable_marks(const char *text, char replacement)
 {
-    size_t n = strlen(text);
+    size_t n = jbc_size(text);
     char *out = allocate(n);
     for (size_t i = 0; i < n; ++i) {
         unsigned char c = (unsigned char)text[i];
@@ -2620,8 +2723,7 @@ static const char *printable_marks(const char *text, char replacement)
         out[i] = c == 254 ? '^' : c == 253 ? ']' : c == 252 ? '\\' : c == 255 ? '_'
                : byte_class(c, 'P') ? (char)c : replacement;
     }
-    out[n] = '\0';
-    return out;
+    return finish_bytes(out, n);
 }
 
 /* MCPN{x}: each byte outside ASCII 32 to 126, marks included, becomes x
@@ -2630,7 +2732,7 @@ static const char *printable_marks(const char *text, char replacement)
    PB201214 (tests/tafc/mcpn-mcnp.b). */
 static const char *escape_unprintable(const char *text, char escape)
 {
-    size_t n = strlen(text), size = 0;
+    size_t n = jbc_size(text), size = 0;
     for (size_t i = 0; i < n; ++i) size += byte_class((unsigned char)text[i], 'P') ? 1 : 3;
     char *out = allocate(size), *w = out;
     for (size_t i = 0; i < n; ++i) {
@@ -2650,25 +2752,24 @@ static int hex_value(char c)
 
 static const char *unescape_unprintable(const char *text, char escape)
 {
-    char *out = allocate(strlen(text)), *w = out;
-    for (const char *p = text; *p; ++p) {
-        int high = *p == escape ? hex_value(p[1]) : -1;
+    size_t n = jbc_size(text);
+    char *out = allocate(n), *w = out;
+    for (const char *p = text, *end = text + n; p < end; ++p) {
+        int high = *p == escape && p + 1 < end ? hex_value(p[1]) : -1;
         if (high < 0) { *w++ = *p; continue; }
-        int low = hex_value(p[2]);
+        int low = p + 2 < end ? hex_value(p[2]) : -1;
         int byte = low < 0 ? high : high * 16 + low;
-        if (!byte) { *w++ = *p; continue; } /* strings cannot hold NUL yet */
         *w++ = (char)byte;
         p += low < 0 ? 1 : 2;
     }
-    *w = '\0';
-    return out;
+    return finish_bytes(out, (size_t)(w - out));
 }
 
 /* MCA, MCN, MCB and their /-forms keep or remove ASCII letters, digits, or
    both, as ISALPHA and ISDIGIT classify them. */
 static const char *keep_class(const char *text, char kind, int remove)
 {
-    size_t n = strlen(text), used = 0;
+    size_t n = jbc_size(text), used = 0;
     char *out = allocate(n);
     for (size_t i = 0; i < n; ++i) {
         unsigned char c = (unsigned char)text[i];
@@ -2676,8 +2777,7 @@ static const char *keep_class(const char *text, char kind, int remove)
                : ascii_alpha(c) || ascii_digit(c);
         if (in != remove) out[used++] = (char)c;
     }
-    out[used] = '\0';
-    return out;
+    return finish_bytes(out, used);
 }
 
 /* MCL, MCU and MCT: lower case, upper case, and each word capitalised with
@@ -3772,19 +3872,18 @@ invalid:
 /* MX: pairs of hex digits to bytes, as in ICONV('4020412042', 'MX'). */
 /* MX: hex digit pairs to bytes, up to the first pair that is not hex; an
    odd last digit is ignored, as TAFC PB201214 reads ICONV('414', 'MX') as
-   "A". A 00 pair ends the result too, since strings cannot hold NUL yet. */
+   "A". A 00 pair is byte 0. */
 static const char *input_hex(const char *value, const char **error)
 {
     size_t n = strlen(value), used = 0;
     char *out = allocate(n / 2);
     for (size_t i = 0; i + 1 < n; i += 2) {
         int high = hex_value(value[i]), low = hex_value(value[i + 1]);
-        if (high < 0 || low < 0 || !(high | low)) break;
+        if (high < 0 || low < 0) break;
         out[used++] = (char)(high * 16 + low);
     }
-    out[used] = '\0';
     if (!used && n) *error = "ICONV MX found no hexadecimal pair";
-    return used || !n ? out : NULL;
+    return used || !n ? finish_bytes(out, used) : NULL;
 }
 
 static const char *convert_input(const char *value, enum input_conversion conversion,
@@ -4154,18 +4253,28 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     return convert_chain(value, mask, oconv_code, file, line, column);
 }
 
-static char *trim_element(char *out, const char *text, const char *set, char mode)
+/* Bytes from p before end that are (inside) or are not in set; byte 0 is
+   never in it. */
+static size_t span_bytes(const char *p, const char *end, const char *set, int inside)
+{
+    size_t n = 0;
+    while (p + n < end && (p[n] && strchr(set, p[n])) == inside) ++n;
+    return n;
+}
+
+static char *trim_element(char *out, const char *text, const char *end, const char *set,
+                          char mode)
 {
     char *write = out;
-    while (*text) {
-        size_t run = strspn(text, set);
+    while (text < end) {
+        size_t run = span_bytes(text, end, set, 1);
         if (!run) {
-            run = strcspn(text, set);
+            run = span_bytes(text, end, set, 0);
             memmove(write, text, run);
             write += run;
         } else {
             int leading = write == out && strchr("LBFRD", mode);
-            int trailing = !text[run] && strchr("TBERD", mode);
+            int trailing = text + run == end && strchr("TBERD", mode);
             if (!leading && !trailing && mode != 'A') {
                 size_t keep = (mode == 'R' || mode == 'D') ? 1 : run;
                 memmove(write, text, keep);
@@ -4186,9 +4295,9 @@ const char *jbc_trim(const char *text, const char *character, const char *mode,
     if (strchr("FED", *mode)) set = " \t";
     else if (set[1]) numeric_error(file, line, column, "TRIM requires a single trim byte");
 
-    char *out = allocate(strlen(text));
-    *trim_element(out, text, set, *mode) = '\0';
-    return out;
+    size_t length = jbc_size(text);
+    char *out = allocate(length);
+    return finish_bytes(out, (size_t)(trim_element(out, text, text + length, set, *mode) - out));
 }
 
 const char *jbc_trim_array(const char *source, char mode)
@@ -4200,7 +4309,7 @@ const char *jbc_trim_array(const char *source, char mode)
         char *end = item + strcspn(item, "\376\375\374");
         char mark = *end;
         *end = '\0';
-        write = trim_element(write, item, set, mode);
+        write = trim_element(write, item, item + strlen(item), set, mode);
         *write++ = mark;
         if (!mark) return out;
         item = end + 1;
@@ -4331,14 +4440,13 @@ const char *jbc_convert(const char *text, const char *from, const char *to)
 
 static const char *enclose(const char *text, char quote)
 {
-    size_t length = strlen(text);
+    size_t length = jbc_size(text);
     if (length > SIZE_MAX - 2) fail("quoted value is too large");
     char *out = allocate(length + 2);
     out[0] = quote;
     memcpy(out + 1, text, length);
     out[length + 1] = quote;
-    out[length + 2] = '\0';
-    return out;
+    return finish_bytes(out, length + 2);
 }
 
 const char *jbc_quote(const char *text)
@@ -4353,14 +4461,13 @@ const char *jbc_squote(const char *text)
 
 static const char *shift_bytes(const char *text, int first, int last, int step)
 {
-    size_t length = strlen(text);
+    size_t length = jbc_size(text);
     char *out = allocate(length);
     for (size_t i = 0; i < length; ++i) {
         unsigned char byte = (unsigned char)text[i];
         out[i] = (byte >= first && byte <= last) ? (char)(byte + step) : text[i];
     }
-    out[length] = '\0';
-    return out;
+    return finish_bytes(out, length);
 }
 
 const char *jbc_upcase(const char *text)
@@ -4385,15 +4492,16 @@ const char *jbc_lower(const char *text)
 
 const char *jbc_len(const char *s)
 {
-    return size_value(strlen(s));
+    return size_value(jbc_size(s));
 }
 
 const char *jbc_checksum(const char *text, const char *file, int line, int column)
 {
     const unsigned char *byte = (const unsigned char *)text;
+    const unsigned char *end = byte + jbc_size(text);
     uintmax_t sum = 0;
-    for (uintmax_t position = 1; *byte; ++position, ++byte) {
-        if (position > (UINTMAX_MAX - sum) / *byte)
+    for (uintmax_t position = 1; byte < end; ++position, ++byte) {
+        if (*byte && position > (UINTMAX_MAX - sum) / *byte)
             numeric_error(file, line, column, "CHECKSUM result out of range");
         sum += position * *byte;
     }
@@ -6032,12 +6140,9 @@ const char *jbc_char(const char *value, const char *file, int line, int column)
     for (size_t i = 0; i < n.digits; ++i)
         code = (code * 10 + (unsigned int)(n.whole[i] - '0')) % 256;
     if (n.sign < 0) code = (256 - code) % 256;
-    if (code == 0)
-        numeric_error(file, line, column, "CHAR(0) requires strings with embedded NUL support");
     char *out = allocate(1);
     ((unsigned char *)out)[0] = (unsigned char)code;
-    out[1] = '\0';
-    return out;
+    return finish_bytes(out, 1);
 }
 
 const char *jbc_seq(const char *value)
@@ -6228,17 +6333,16 @@ const char *jbc_xtd(const char *value)
 const char *jbc_str(const char *text, const char *count, const char *file, int line, int column)
 {
     int64_t repetitions = truncated(count, file, line, column);
-    if (repetitions <= 0 || !*text) return "";
+    size_t width = jbc_size(text);
+    if (repetitions <= 0 || !width) return "";
     if (repetitions == 1) return text;
-    size_t width = strlen(text);
     if ((uint64_t)repetitions > (SIZE_MAX - sizeof(struct jbc_buffer) - 1) / width)
         numeric_error(file, line, column, "STR result too large");
     size_t bytes = width * (size_t)repetitions;
     char *out = allocate(bytes);
     for (size_t offset = 0; offset < bytes; offset += width)
         memcpy(out + offset, text, width);
-    out[bytes] = '\0';
-    return out;
+    return finish_bytes(out, bytes);
 }
 
 static size_t space_count(const char *value, const char *file, int line, int column,
@@ -6329,7 +6433,7 @@ const char *jbc_substring(const char *text, const char *start, const char *lengt
     int64_t first = start ? truncated(start, file, line, column) : 0;
     int64_t count = truncated(length, file, line, column);
     if (!start && !replacement && count <= 0) return "";
-    size_t n = strlen(text);
+    size_t n = jbc_size(text);
     size_t offset, take;
     if (start) {
         take = substring_range(n, first, count, &offset);
@@ -6340,16 +6444,15 @@ const char *jbc_substring(const char *text, const char *start, const char *lengt
     if (!replacement) {
         char *out = allocate(take);
         memcpy(out, text + offset, take);
-        out[take] = '\0';
-        return out;
+        return finish_bytes(out, take);
     }
-    size_t added = strlen(replacement);
+    size_t added = jbc_size(replacement);
     if (added > SIZE_MAX - (n - take)) fail("substring result too large");
     char *out = allocate(n - take + added);
     memcpy(out, text, offset);
     memcpy(out + offset, replacement, added);
-    memcpy(out + offset + added, text + offset + take, n - offset - take + 1);
-    return out;
+    memcpy(out + offset + added, text + offset + take, n - offset - take);
+    return finish_bytes(out, n - take + added);
 }
 
 const char *jbc_left(const char *text, const char *length, const char *file, int line, int column)
@@ -7592,10 +7695,11 @@ void jbc_footing(const char *unit, const char *footing, const char *file, int li
 void jbc_output(int channel, const char *text, const char *file, int line, int column)
 {
     struct report *r = open_report(channel, file, line, column);
+    size_t length = jbc_size(text);
     if (channel == JBC_SCREEN && jbc_print_channel != JBC_SCREEN) {
-        fputs(text, r->out);
+        fwrite(text, 1, length, r->out);
     } else {
-        while (*text) {
+        for (const char *end = text + length; text < end;) {
             if ((r->heading.text || r->footing.text) && r->lines >= report_body_limit(r))
                 report_break(r, next_report_page(r));
             report_char(r, (unsigned char)*text++);
@@ -7606,7 +7710,7 @@ void jbc_output(int channel, const char *text, const char *file, int line, int c
 #else
 #define JBC_SCREEN (-1)
 #define jbc_print_channel JBC_SCREEN
-#define jbc_output(channel, text, file, line, column) ((void)(channel), fputs((text), stdout))
+#define jbc_output(channel, text, file, line, column) ((void)(channel), (void)fwrite((text), 1, jbc_size(text), stdout))
 #endif
 
 /* OUT writes one byte, the integer part of its argument modulo 256, with

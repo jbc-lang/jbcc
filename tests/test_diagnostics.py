@@ -980,32 +980,6 @@ def test_seq_wrong_argument_count(compiler):
     )
 
 
-@pytest.mark.parametrize(
-    'fixture_name, message_fixture',
-    [
-        pytest.param(
-            'char_1.b', 'char-byte-range-diagnostics.stderr', id='char-1'
-        ),
-        # CHAR(256) is byte 0, as in TAFC PB201214, which needs NUL support.
-        pytest.param(
-            'char_2.b', 'char-byte-range-diagnostics.stderr', id='char-2'
-        ),
-    ],
-)
-def test_char_byte_range_diagnostics(compiler, fixture_name, message_fixture):
-    message = expected_text(message_fixture)
-    source = ROOT / 'tests/programs/char-byte-range-diagnostics' / fixture_name
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert message.encode() in run.stderr
-    assert (
-        expected_text(
-            'char-byte-range-diagnostics_3.stderr', source=source
-        ).encode()
-        in run.stderr
-    )
-
-
 def test_checksum_argument_diagnostics(compiler, subtests):
     for fixture_name in (
         'checksum_1.b',
@@ -1033,10 +1007,5 @@ def test_checksum_argument_diagnostics(compiler, subtests):
         / 'tests/programs/checksum-argument-diagnostics/checksum-variant-2.b'
     )
     run = compiler.run_native(source)
-    assert (run.returncode, run.stdout, run.stderr) == (
-        1,
-        b'',
-        expected_text(
-            'checksum-argument-diagnostics_2.stderr', source=source
-        ).encode(),
-    )
+    # Byte 0 counts as a byte, as in TAFC (tests/tafc/nul-core.b).
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'66\n', b'')

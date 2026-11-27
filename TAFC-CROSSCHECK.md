@@ -667,8 +667,8 @@ recommendation of a new value type, which would change all 318 runtime
 functions at once.
 
 - [x] Design (NUL-BYTES.md).
-- [ ] Stage 1: foundation (header length, `jbc_size`, pointer set).
-- [ ] Stage 2: CHAR, concatenation, LEN, SEQ, substrings, comparisons,
+- [x] Stage 1: foundation (header length, `jbc_size`, pointer set).
+- [x] Stage 2: CHAR, concatenation, LEN, SEQ, substrings, comparisons,
       output, MX; `char-bytes.b` matches TAFC.
 - [ ] Stage 3: dynamic arrays and the search functions.
 - [ ] Stage 4: input, EXECUTE data and files.

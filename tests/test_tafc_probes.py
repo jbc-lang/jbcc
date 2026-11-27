@@ -25,7 +25,6 @@ PROBES = sorted((ROOT / 'tests/tafc').glob('*.b'))
 # Differences kept on purpose; LANGUAGE-GAPS.md gives the reasons.
 KNOWN_DIFFERENCES = {
     'at-tty.b': "jbcc keeps 'phantom', which T24 tests for",
-    'char-bytes.b': 'strings cannot hold NUL bytes yet',
     'comparison-chains.b': 'jbcc keeps spaced comparison chains',
     'unassigned-continues.b': 'jbcc rejects provably unassigned reads',
 }
