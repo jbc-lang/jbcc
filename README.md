@@ -769,8 +769,10 @@ from which calendar date, so they report an error when reached.
 4 UUIDs generated from `/dev/urandom`.
 [UNIQUEKEY](https://jbc-lang.org/pages/uniquekey.html).
 
-ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`
-and `D4`. For example, `ICONV('20121231', 'D')` returns `16437`, the
+ICONV accepts compact Gregorian dates in `YYYYMMDD` form with masks `D`,
+`D4` and `DG`, and `OCONV(date, 'DG')` writes that form, so
+`OCONV(ICONV('20231031', 'DG'), 'DG')` returns `20231031`. T24 R19 uses
+`DG` both ways and slices the output as `[1,4]`, `[5,2]` and `[7,2]`. For example, `ICONV('20121231', 'D')` returns `16437`, the
 number of days since 31 December 1967. The `MT` and `MTS` input masks
 accept `H:MM` and `H:MM:SS` with an optional AM or PM suffix and return
 seconds since midnight. Unsupported masks and input formats produce a
@@ -1078,6 +1080,14 @@ implicit scaling. Ties round away from zero. Fixed fields retain the
 aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
+
+`FMT(value, 'MX')` and `OCONV(value, 'MX')` write each byte as two
+upper-case hexadecimal digits, so `FMT('ABCDEF', 'MX')` returns
+`414243444546` and `FMT(@FM, 'MX')` returns `FE`. `ICONV(hex, 'MX')`
+turns pairs of hexadecimal digits back into bytes, as in
+`ICONV('4020412042', 'MX')`, which returns `@ A B`; an odd count, another
+character or a `00` pair reports an error. jbcc works on bytes, so a
+character outside ASCII shows as the bytes of the source encoding.
 
 `FMT(value, 'MCP')` and `OCONV(value, 'MCP')` show field, value and
 subvalue marks as `^`, `]` and `\`, so `1:@FM:2:@VM:3` prints as `1^2]3`.

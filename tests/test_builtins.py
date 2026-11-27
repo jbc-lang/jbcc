@@ -230,6 +230,10 @@ def test_unique_key_returns_distinct_uuid_strings(compiler):
         pytest.param(7, 'iconv-diagnostics_4.stderr', id='20120431-d'),
         pytest.param(8, 'iconv-diagnostics_4.stderr', id='20121301-d'),
         pytest.param(9, 'iconv-diagnostics_4.stderr', id='00000101-d'),
+        pytest.param(10, 'iconv-diagnostics_6.stderr', id='414-mx'),
+        pytest.param(11, 'iconv-diagnostics_6.stderr', id='41gg-mx'),
+        pytest.param(12, 'iconv-diagnostics_7.stderr', id='4100-mx'),
+        pytest.param(13, 'iconv-diagnostics_3.stderr', id='2023103-dg'),
     ],
 )
 def test_iconv_diagnostics(compiler, case_number, message_fixture):

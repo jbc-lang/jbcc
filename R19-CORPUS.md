@@ -59,7 +59,7 @@ an expression, for example `EB.DataAccess.FRead`.
   with the full-corpus command, add an R19 row to the performance table
   and add an "R19 baseline" section to PLAN.md. Done on 2026-11-27:
   39,669 of 39,675 units, 6 excluded, none rejected, 4 min 59 s.
-- [ ] 2. Component calls. Each item cites the `.component` declaration and
+- [x] 2. Component calls. Each item cites the `.component` declaration and
   the sources that use the form. Write independent fixtures under
   `tests/corpus/component-calls`.
   - [x] Table calls in expression form, including `ReadU` with a retry
@@ -114,9 +114,13 @@ an expression, for example `EB.DataAccess.FRead`.
     public, and methods without a body, which Java implements, are
     declared (70 members, including `TF.L3Helper`). Neither changes an
     existing declaration.
-  - [ ] Other methods and accessors without a matching declaration.
-  - [ ] Methods used inside expressions, and methods declared without a
-    return value but used as one.
+  - [x] Other methods and accessors without a matching declaration.
+    Undeclared `get`/`set`/`clear` accessors on a catalogued component are
+    accepted with a warning, and the methods no definition declares are
+    listed in `T24_MEMBER_STUBS` (`--t24-stub-members`).
+  - [x] Methods used inside expressions, and methods declared without a
+    return value but used as one. The first are declared functions; the
+    second use `--t24-stub-void-results` in testing.
   - [x] Argument kind and index-count mismatches (92 units).
     - [x] A scalar passed for a matrix parameter: 39 units call
       `ST.CompanyCreation.EbReadParameter` with a scalar such as
@@ -129,7 +133,7 @@ an expression, for example `EB.DataAccess.FRead`.
       binding such as `->MAT.LEG(2)` gives the rank. All 116 numbered
       bindings match the rank in their insert, and all 904 calls pass that
       many indices.
-- [ ] 3. Domain-generated includes. The extract left out the 1,139
+- [x] 3. Domain-generated includes. The extract left out the 1,139
   `.domain` model files: `extract_jbc.py` selects only `*.b`, `*.tut`,
   `I_*`, `*.d` and `*.component`. The original dump
   (`~/Downloads/201809`) has all of them. It also keeps 30 generated
@@ -170,7 +174,10 @@ an expression, for example `EB.DataAccess.FRead`.
     regressions. Eight units still stop at an include: the two
     unresolved inserts (6 units) and the ambiguous
     `I_DAS.POR.CLG.IN.SETTLEMENT.PENDING` (2 units).
-  - [ ] Resolve the 2 remaining inserts.
+  - [x] Resolve the 2 remaining inserts. No catalogued `.domain` declares
+    `PORCreditTransferInitiation` or `BulkDetails`, so they cannot be
+    generated; `--t24-exclude-missing-domains` excludes the 6 units that
+    include them.
 - [x] 4. Test framework units. Decision (2026-11-27): out of scope.
   `--t24-exclude-test-framework` reports the 1,321 units of the
   `SE/SE_Test*` components as excluded. Two production units that call
@@ -235,7 +242,7 @@ an expression, for example `EB.DataAccess.FRead`.
 
   translates 39,669 of 39,675 units and excludes the 6 without a
   `.domain` class; none is rejected.
-- [ ] 5. Remaining language gaps. Triage each against the guide, then
+- [x] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).
   - [x] `MSLEEP` (13 uses).
@@ -254,12 +261,16 @@ an expression, for example `EB.DataAccess.FRead`.
 
   After these, the full scan passes 39,299 of 39,675 units (99.05%), with
   no regressions.
-  - [ ] Assignment to `@COMPANYNO` (2 units). Neither the guide nor the
-    2011 reference knows it ("Unknown @ system constant"). **Needs
-    evidence.**
-  - [ ] `ICONV`/`OCONV` with the `DG` mask, which R19 uses. It fails only
-    when reached, so translation does not depend on it.
-- [ ] 5a. Guide examples.
+  - [x] Assignment to `@COMPANYNO` (3 units). Neither the guide nor the
+    2011 reference knows it ("Unknown @ system constant"). Decision
+    (2026-11-27): a writable session value that starts empty
+    (provisional).
+  - [x] `ICONV`/`OCONV` with the `DG` mask, which R19 uses: `YYYYMMDD`
+    both ways, as `SEAT.LOAD.TPS.MSG` slices it. Some callers pass a
+    fractional day count (`(seconds - now)/86400 + 732`), which jbcc's
+    date masks still report as an error when reached. The `MX` mask
+    (bytes as hexadecimal) came with it, for the guide's examples.
+- [x] 5a. Guide examples.
   - [x] A built-in `JBC.h` (`src/jbcc/include/JBC.h`) with the 26
     `EQUATE` constants the jBC guide's examples use: IOCTL commands, cache
     options, `ENCRYPT` methods, user record positions and logger levels.

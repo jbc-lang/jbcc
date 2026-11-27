@@ -2033,6 +2033,23 @@ static size_t word_wrap_line(const char *start, const char *end, uintmax_t width
 
 /* The MCP mask: the guide's only purpose for it is to show field, value and
    subvalue marks as ^, ] and \. Other bytes are left as they are. */
+/* The MX mask: each byte as two upper-case hex digits, as in
+   FMT('ABCDEF', 'MX') = 414243444546 and FMT(@FM, 'MX') = FE. */
+static const char *hex_bytes(const char *text)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    size_t n = strlen(text);
+    if (n > (SIZE_MAX - 1) / 2) fail("value is too large");
+    char *out = allocate(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        out[2 * i] = digits[c >> 4];
+        out[2 * i + 1] = digits[c & 15];
+    }
+    out[2 * n] = '\0';
+    return out;
+}
+
 static const char *printable_marks(const char *text)
 {
     size_t n = strlen(text);
@@ -2047,6 +2064,7 @@ static const char *printable_marks(const char *text)
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
     if (strcmp(mask, "MCP") == 0) return printable_marks(text);
+    if (strcmp(mask, "MX") == 0) return hex_bytes(text);
     const char *p = mask;
     int wrap = ascii_digit(*p);
     char fill = ' ';
@@ -2605,11 +2623,13 @@ const char *jbc_startup_time(const char *file, int line, int column)
     return time_from_clock(&startup_clock);
 }
 
-enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_TIME };
+enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_TIME, ICONV_HEX };
 
 static enum input_conversion input_mask(const char *mask)
 {
-    if (!strcmp(mask, "D") || !strcmp(mask, "D4")) return ICONV_DATE;
+    /* DG reads YYYYMMDD, as in the guide's ICONV('20231031', 'DG'). */
+    if (!strcmp(mask, "D") || !strcmp(mask, "D4") || !strcmp(mask, "DG")) return ICONV_DATE;
+    if (!strcmp(mask, "MX")) return ICONV_HEX;
     if (!strcmp(mask, "MT") || !strcmp(mask, "MTS")) return ICONV_TIME;
     return ICONV_UNSUPPORTED;
 }
@@ -2661,9 +2681,35 @@ invalid:
     return NULL;
 }
 
+/* MX: pairs of hex digits to bytes, as in ICONV('4020412042', 'MX'). */
+static const char *input_hex(const char *value, const char **error)
+{
+    size_t n = strlen(value);
+    if (n % 2 || strspn(value, "0123456789ABCDEFabcdef") != n) {
+        *error = "ICONV MX requires pairs of hexadecimal digits";
+        return NULL;
+    }
+    char *out = allocate(n / 2);
+    for (size_t i = 0; i < n / 2; ++i) {
+        unsigned value_byte = 0;
+        for (int k = 0; k < 2; ++k) {
+            char c = value[2 * i + k];
+            value_byte = value_byte * 16 + (unsigned)(c <= '9' ? c - '0' : (c | 0x20) - 'a' + 10);
+        }
+        if (!value_byte) {
+            *error = "ICONV MX cannot produce a NUL byte";
+            return NULL;
+        }
+        out[i] = (char)value_byte;
+    }
+    out[n / 2] = '\0';
+    return out;
+}
+
 static const char *convert_input(const char *value, enum input_conversion conversion,
                                  const char **error)
 {
+    if (conversion == ICONV_HEX) return input_hex(value, error);
     return conversion == ICONV_TIME ? input_time(value, error) : input_date(value, error);
 }
 
@@ -2711,6 +2757,11 @@ static int output_mask(const char *mask, struct output_conversion *conversion)
     }
 
     if (*mask != 'D') return 0;
+    /* DG writes YYYYMMDD, which T24 R19 slices as [1,4], [5,2] and [7,2]. */
+    if (!strcmp(mask, "DG")) {
+        conversion->part = 'G';
+        return 1;
+    }
     const char *p = mask + 1;
     if (*p && strchr("DMJQWY", *p)) conversion->part = *p++;
     if ((!conversion->part || conversion->part == 'Y') && *p >= '0' && *p <= '4')
@@ -2789,6 +2840,11 @@ static const char *convert_output(const char *value, const struct output_convers
         case 'Q': return size_value(month / 3 + 1);
         case 'W': return name ? weekdays[weekday] : size_value(weekday + 1);
     }
+    if (part == 'G') {
+        char *out = allocate(8);
+        snprintf(out, 9, "%04d%02d%02d", year, month + 1, day);
+        return out;
+    }
     char full_year[5];
     snprintf(full_year, sizeof full_year, "%04d", year);
     const char *suffix = full_year + 4 - width;
@@ -2805,6 +2861,7 @@ static const char *convert_output(const char *value, const struct output_convers
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
     if (strcmp(mask, "MCP") == 0) return printable_marks(value);
+    if (strcmp(mask, "MX") == 0) return hex_bytes(value);
     struct output_conversion conversion;
     if (!output_mask(mask, &conversion)) {
         fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
