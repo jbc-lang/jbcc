@@ -198,6 +198,9 @@ The second concatenates 3 and prints `23`. Each output ends in a newline.
 
 ## Just recipes
 
+[RELEASING.md](RELEASING.md) lists the steps of a release, from the
+version bump to the playground, the guide and the organisation page.
+
 Run `just` to list the optional shortcuts. Build recipes accept the output
 path first, followed by one or more source files.
 
