@@ -2674,9 +2674,10 @@ R19 components and generated code:
   members listed in `T24_MEMBER_STUBS` in `tools/check_corpus.py`, with a
   `warnings` entry for each unit that uses one. It lists
   `TF.L3Helper.testPublishedMethod`, a Java varargs helper declared with 3
-  parameters and called by the SEAT tests with 2 to 8, and the six
-  `PP.InwardGenericTransactions.map...toPORTransaction` methods that
-  `OB_PMT` routines call but no definition in the dump declares.
+  parameters and called by the SEAT tests with 2 to 8, and the 40
+  `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers. `OB_PMT`
+  holds each mapper as its own routine, but the only definition of the
+  component in the dump declares none of them.
 - `--t24-stub-void-results`, for testing only, lets a method declared
   without a result be used as a value. The call is made and the value is
   `0`, with a `warnings` entry. R19 has about 25 such uses, as in

@@ -4,7 +4,7 @@
 
 ### Added
 
-- `--t24-stub-members` accepts any arguments for a short list of R19
+- `--t24-stub-members` accepts any arguments for a listed set of R19
   component members in testing. A name inside its own `EQUATE` expansion
   stays a plain name, as in the reference, instead of an error.
 - The corpus checker reads `published` members and methods without a

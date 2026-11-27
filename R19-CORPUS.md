@@ -187,10 +187,13 @@ an expression, for example `EB.DataAccess.FRead`.
   regressions; 57 production units remain rejected.
 
   Decisions (2026-11-27): `--t24-stub-members` accepts any arguments for
-  `TF.L3Helper.testPublishedMethod` and the six
-  `PP.InwardGenericTransactions.map...toPORTransaction` methods, in
-  testing. `EQU X TO X` follows the reference: the inner `X` stays a
-  plain name (3 LC units).
+  `TF.L3Helper.testPublishedMethod` and the 40
+  `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers, in
+  testing; `OB_PMT` holds each mapper as a routine, but no component
+  definition declares them. `EQU X TO X` follows the reference: the inner
+  `X` stays a plain name (3 LC units). With both stub flags and no
+  exclusion, the full scan translates 39,627 of 39,675 units (99.88%),
+  including all 1,321 test framework units; 48 remain rejected.
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).

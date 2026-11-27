@@ -139,11 +139,20 @@ T24_MEMBER_STUBS = {
     # A Java varargs helper: declared with 3 parameters, called by the SEAT
     # tests with 2 to 8 (instance, "getTermRate", currency, ...).
     "TF.L3Helper.testPublishedMethod": "function",
-    # Called by OB_PMT mapping routines; the only PP.InwardGenericTransactions
-    # definition in the dump does not declare them.
+    # The OB_PMT mapping routines call 42 mappers, map<message>toPOR<part>;
+    # the only PP.InwardGenericTransactions definition in the dump declares
+    # none of them. Names as the sources spell them.
     **{
-        f"PP.InwardGenericTransactions.map{kind}toPORTransaction": "subroutine"
-        for kind in ("CT", "DD", "DDR", "DDRDRF", "RDDI", "RT")
+        f"PP.InwardGenericTransactions.map{message}toPOR{part}": "subroutine"
+        for message, parts in {
+            "CT": "AdditionalInf PartyCredit PartyDebit RemInfStruct",
+            "DD": "AdditionalInf DebitAuthInfo PartyCredit PartyDebit RemInfStruct",
+            "DDR": "AdditionalInfo DebitAuthInf PartyCredit PartyDebit RemInfStruct",
+            "DDRDRF": "AdditionalInfo DebitAuthInf PartyCredit PartyDebit RemInfStruct",
+            "RDDI": "AdditionalInf DebitAuthInfo PartyCredit PartyDebit RemInfStruct",
+            "RT": "AdditionalInf PartyCredit PartyDebit RemInfStruct",
+        }.items()
+        for part in ("Transaction", "Information", *parts.split())
     },
 }
 
