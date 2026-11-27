@@ -816,7 +816,11 @@ static const char *arithmetic(char op, const char *left, const char *right,
     right = numeric_operand(right, file, line, column);
     parse_decimal(left, &lhs);
     parse_decimal(right, &rhs);
-    /* A zero divisor warns and gives 0; execution continues, as in TAFC. */
+    /* A zero divisor warns and gives 0, and execution continues, as TAFC
+       does under prime; under jbase TAFC enters its debugger, which ends a
+       program that has no terminal, so jbcc stops there. */
+    if (op == '/' && rhs.sign == 0 && !jbc_emulation_prime)
+        numeric_error(file, line, column, "division by zero");
     if (op == '/' && rhs.sign == 0) {
         fprintf(stderr, "%s:%d:%d: warning: %sdivision by zero\n", file, line, column,
                 warn_on_zero_divisor ? "DIVS: " : "");

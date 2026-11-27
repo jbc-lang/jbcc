@@ -563,23 +563,43 @@ jbcc does not imitate. Notes:
 - Not in PB201214: `BITTEST` (the guide calls it "reserved"; TAFC parses
   it as an undimensioned array), a `BITSET` statement, `@HEADER.BREAK`,
   `@FOOTER.BREAK` and `@TERMTYPE` ("Unknown @ system constant").
-- [ ] Make jbcc reject these the same way, or report them as unsupported
-      with the reason.
+- [x] Make jbcc reject these the same way, or report them as unsupported
+      with the reason. Already the case: BITTEST is an unknown function, a
+      BITSET statement and `@HEADER.BREAK`/`@FOOTER.BREAK` are unsupported,
+      and the backend-bound statements name the missing backend. jbcc keeps
+      `@TERMTYPE` (the guide documents it; it reads `TERM`).
 
 ## 8. Investigate later
 
-- [ ] Playground: decide whether the jbc-playground needs a UI control
+- [x] Playground: decide whether the jbc-playground needs a UI control
       for the emulation mode (prime or jbase), or whether prime alone is
       enough. It depends on how many guide examples differ between the
       two; `EMU=jbase` runs of the guide show that list.
 
+  Finding (2026-11-27): of the 382 guide blocks TAFC ran under both
+  emulations, 35 give different output once clock-dependent blocks and
+  TAFC's warning text are set aside. Most come from error handling: under
+  jbase a division by zero or a runtime error enters TAFC's debugger and
+  ends the program, where prime warns and continues. The others are the
+  switches section 1 covers (CONVERT order, LOCATE, MATCH, COUNT) and
+  command output. The guide is written for prime, as T24 runs, so the
+  playground needs no emulation control now; jbcc's `--emulation jbase` and
+  `translate(..., emulation='jbase')` are there if one is wanted later.
+  Done with it: under jbase, jbcc now stops on a division by zero.
+
 ## 9. Guide fixes (jbc-language)
 
-- [ ] FMT and OCONV `&x` comments: the fill character is x.
-- [ ] TIMEDIFF prose: the result is Timestamp2 − Timestamp1.
-- [ ] LOCALDATE and LOCALTIME 100-year examples: say that TAFC
+- [x] FMT and OCONV `&x` comments: the fill character is x.
+- [x] TIMEDIFF prose: the result is Timestamp2 − Timestamp1.
+- [x] LOCALDATE and LOCALTIME 100-year examples: say that TAFC
       PB201214 overflows them.
-- [ ] CONVERT, LOCATE and MATCH: say which form T24 uses under prime.
+- [x] CONVERT, LOCATE and MATCH: say which form T24 uses under prime.
+
+Done in jbc-lang/jbc-language#34 (2026-11-27), together with the ISCNTRL
+example (a field mark is not a control character) and the OCONV example
+that repeats the FMT `&x` mask. The CONVERT chapter already shows both
+argument orders; the LOCATE chapter now says what `IN A<f>` searches under
+each emulation.
 
 ## 10. Re-run
 
