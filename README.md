@@ -2675,7 +2675,12 @@ catalogued `.component` declarations for fully qualified methods,
 property accessors and simple literal constants. It checks visibility
 against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
-accessors such as `getDynArrayFromRNew()`. A writable property also
+accessors such as `getDynArrayFromRNew()`. A property bound to a COMMON
+matrix as `->R.NEW()` takes one index; a binding with a number, such as
+`->MAT.LEG(2)`, gives the matrix rank, and its accessors take that many
+indices, as in `FX.Contract.getMatLeg(LEG, FLD.NO)`. In all 116 numbered
+R19 bindings the number is the rank the insert declares, and all 904
+calls pass that many indices. A writable property also
 has `clear<Name>()`, with no arguments, as R19 sources call it on scalar
 and matrix-backed properties. Method declarations can give the result
 type before or after the parameters, add `implements <interface>`, or be

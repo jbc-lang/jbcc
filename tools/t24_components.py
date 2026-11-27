@@ -39,7 +39,12 @@ PROPERTY = re.compile(
     r"(?:\s*:\s*string\s*\{([^{}]*)\}|[ \t]*$)",
     re.M,
 )
-MATRIX_PROPERTY = re.compile(r"\bjBC:[^\n]*->\s*[\w.$%]+\(\)[ \t]*$", re.M)
+# A matrix-backed property binds a COMMON matrix: ->R.NEW() or, with its
+# rank, ->MAT.LEG(2). In all 116 numbered R19 bindings the number is the
+# rank of the matrix in its insert, and every call passes that many indices.
+MATRIX_PROPERTY = re.compile(
+    r"\bjBC:[^\n]*->\s*[\w.$%]+\((?P<rank>[0-9]*)\)[ \t]*$", re.M
+)
 CONSTANT = re.compile(
     MEMBER + rf"constant[ \t]+({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*(.*)$",
     re.M,
@@ -114,8 +119,8 @@ def declarations(source):
                 ),
             )
     for access, mode, name, binding in PROPERTY.findall(source):
-        matrix = bool(MATRIX_PROPERTY.search(binding))
-        index = (False,) if matrix else ()
+        matrix = MATRIX_PROPERTY.search(binding)
+        index = (False,) * int(matrix["rank"] or 1) if matrix else ()
         if mode != "writeonly":
             yield "get" + name, (access, "function", index)
             if matrix:

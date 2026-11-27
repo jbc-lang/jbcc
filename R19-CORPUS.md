@@ -96,10 +96,11 @@ an expression, for example `EB.DataAccess.FRead`.
       `ST.CompanyCreation.EbReadParameter` with a scalar such as
       `DIM.R.INSTALL.CONDS = ""` for `DimParamRec string()`. jbcc rejects
       this, but T24 ships it.
-    - Two indices on matrix-backed properties, as in
-      `BL.Foundation.getBlRAmdNewBrList(1, BL.Foundation.BlListCtr)` and
-      `FX.Contract.getMatLeg(LEG, FLD.NO)`. The `jBC: ->X()` binding
-      doesn't give the number of dimensions, so the reader assumes one.
+    - [x] Two indices on matrix-backed properties, as in
+      `FX.Contract.getMatLeg(LEG, FLD.NO)`. Resolved from evidence: a
+      binding such as `->MAT.LEG(2)` gives the rank. All 116 numbered
+      bindings match the rank in their insert, and all 904 calls pass that
+      many indices.
 - [ ] 3. Domain-generated includes. The extract left out the 1,139
   `.domain` model files: `extract_jbc.py` selects only `*.b`, `*.tut`,
   `I_*`, `*.d` and `*.component`. The original dump

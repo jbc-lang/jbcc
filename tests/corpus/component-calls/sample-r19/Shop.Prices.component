@@ -7,6 +7,13 @@ public property readwrite Current : string {
 public property readwrite Items : string {
     jBC: I_PRICES ->Items()
 }
+/* Rank in the binding, as in R19 FX.Contract MatLeg ->MAT.LEG(2). */
+public property readwrite Grid : string {
+    jBC: I_PRICES ->GRID(2)
+}
+public property readwrite Rates : string {
+    jBC: I_PRICES ->RATES(1)
+}
 public constant Separator(SHOP$SEP) = -
 public method Format (
     IN Input.Label string,
