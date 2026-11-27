@@ -1015,7 +1015,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         'WrongKind.b': "3:5: arguments disagree with component declaration for 'Shop.Prices.Format'",
         'PrivateAccess.b': "2:1: component member 'Shop.Prices.Reset' has private access",
         'ModuleAccess.b': "2:1: component member 'Shop.Prices.Clear' has module access",
-        'MissingSharedMember.b': "2:1: unsupported statement 'Shop.Shared.setOnlyHere'",
+        'MissingSharedMember.b': "3:1: unsupported statement 'Shop.Shared.setClash'",
         'PrivateTableAccess.b': "2:5: component member 'Shop.Prices.Ledger.Read' has private access",
         'WrongTableArity.b': "2:1: arguments disagree with component declaration for 'Shop.Prices.Prices.Write'",
         'VoidExpression.b': "2:5: component method 'Shop.Prices.setCurrent' has no return value",

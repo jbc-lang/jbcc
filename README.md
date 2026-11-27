@@ -2700,24 +2700,12 @@ separated by newlines. Hook components declare `interface` members with no
 body, as in `AA.ActivityHook.checkValidateRoutine`. Every R19 call passes
 the implementing method's name before the declared parameters, so the
 checker expects one more argument than the declaration lists; an
-interface with a result type is a function.
-
-A scalar passed for a matrix parameter is accepted as a placeholder:
-R19 passes one where the caller uses only another result, as in
-`ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC, R.REC, ...)`,
-which reads the dynamic record `R.REC`. The call receives an empty matrix,
-as for `''`, and the scalar keeps its value. A matrix passed for a scalar
-parameter is still rejected.
-
-The export leaves out some tables that sources read through a known
-component, such as `PP.SODEODGUI.PptSodeodjoblist` and
-`PP.InwardGenericTransactions.PpInDirectDebit`. A standard table operation
-(`Read`, `ReadU`, `Write`, `Delete` and the others above) on an undeclared
-table of a catalogued component is accepted with the standard signature
-and public access, and the unit reports a warning naming the table. An
-unknown component or a nonstandard operation is still rejected. It also recognizes untyped scalar properties. Where the catalog has
-multiple definitions for one component, a member must have the same
-parsed declaration in each.
+interface with a result type is a function. It also recognizes untyped
+scalar properties. Where the catalog has multiple definitions for one
+component, they are treated as partial exports: a member declared in any
+of them is kept, and a member they declare differently is dropped. For
+example, `OB_AFW/TF.ErrorHandling.component` lacks `consumeException`,
+which `TF/TF_ErrorHandling` declares.
 
 For `t24:` table declarations, the checker recognizes numbered field
 constants and the call signatures observed in R19 sources. Reads return
@@ -2729,6 +2717,23 @@ has `table<Name>(id, error)`, a read with the table's visibility, as in
 `AC.AccountOpening.tableAccount(ID, ERR)`. Field numbers are
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
+
+The export leaves out some tables that sources read through a known
+component, such as `PP.SODEODGUI.PptSodeodjoblist` and
+`PP.InwardGenericTransactions.PpInDirectDebit`. A standard table operation
+(`Read`, `ReadU`, `Write`, `Delete` and the others above) on an undeclared
+table of a catalogued component is accepted with the standard signature
+and public access, and the unit reports a warning naming the table. An
+unknown component or a nonstandard operation is still rejected, and so is
+an upper-case name: `EB.CONVERSION.LOG.WRITE` is a routine, while
+generated table names are mixed case.
+
+A scalar passed for a matrix parameter is accepted as a placeholder:
+R19 passes one where the caller uses only another result, as in
+`ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC, R.REC, ...)`,
+which reads the dynamic record `R.REC`. The call receives an empty matrix,
+as for `''`, and the scalar keeps its value. A matrix passed for a scalar
+parameter is still rejected.
 
 `--t24-exclude-test-framework` reports the units of R19's test framework
 components, `SE/SE_Test*` (the SEAT harness and its tests, 1,321 units),

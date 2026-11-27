@@ -10,7 +10,8 @@
 - The R19 corpus checker accepts a placeholder scalar for a matrix
   parameter and standard operations on tables a known component does not
   declare (with a warning), and `--t24-exclude-test-framework` excludes
-  the `SE/SE_Test*` components.
+  the `SE/SE_Test*` components. Duplicate component definitions merge
+  as partial exports, dropping only members they declare differently.
 - `NOTS`, `LENS`, `FSUB` and `GETCWD`.
 - The R19 corpus checker reads hook `interface` declarations.
 - `ISUPPER`, `ISLOWER` and `ISSPACE`.

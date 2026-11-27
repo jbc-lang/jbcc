@@ -93,6 +93,11 @@ an expression, for example `EB.DataAccess.FRead`.
     rule explains them. Decision (2026-11-27): accept the standard table
     operations on an undeclared table of a catalogued component, with
     public access and a warning naming the table.
+  - [x] Duplicate component definitions. `TF.ErrorHandling` has two, and
+    the `OB_AFW` copy lacks `consumeException`, which 35 production units
+    call. Decision (2026-11-27): keep a member declared in any definition
+    and drop only one they declare differently. Across R19 this adds that
+    one member and changes nothing else.
   - [ ] Other methods and accessors without a matching declaration.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.

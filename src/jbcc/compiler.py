@@ -3704,11 +3704,14 @@ class Compiler:
         member = self.component_members.get(word.casefold())
         if member is None and word.count('.') >= 3:
             # A standard operation on a table the export does not declare,
-            # with a known component: see read_component_members.
-            component, table, operation = word.casefold().rsplit('.', 2)
-            member = self.component_members.get(
-                f"{component}.*.{operation}"
-            )
+            # with a known component: see read_component_members. Generated
+            # names are mixed case (PptSodeodjoblist.Read); an upper-case
+            # routine name such as EB.CONVERSION.LOG.WRITE never matches.
+            component, table, operation = word.rsplit('.', 2)
+            if table != table.upper() and operation != operation.upper():
+                member = self.component_members.get(
+                    f"{component.casefold()}.*.{operation.casefold()}"
+                )
             if member is not None:
                 self.undeclared_tables.add(word.rsplit('.', 1)[0])
         return member if member and member[1] != "constant" else None
