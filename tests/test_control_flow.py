@@ -277,6 +277,28 @@ def test_continue_outside_loop(compiler):
     )
 
 
+def test_stray_end_after_final_end_warns(compiler):
+    source = ROOT / 'tests/programs/stray-end-after-final-end.b'
+    binary = compiler.work / 'program'
+    build = subprocess.run(
+        [CLI, '--exe', source, '-o', binary], capture_output=True, text=True
+    )
+    assert build.returncode == 0, build.stderr
+    assert f'{source}:6:1: warning: END after the final END ignored' in build.stderr
+    assert subprocess.check_output([binary]) == b'ran\n'
+
+
+def test_text_after_final_end_is_an_error(compiler):
+    source = ROOT / 'tests/programs/text-after-final-end.b'
+    build = subprocess.run(
+        [CLI, source, '-o', compiler.work / 'program.c'],
+        capture_output=True,
+        text=True,
+    )
+    assert build.returncode != 0
+    assert f'{source}:3:1: unexpected text after final END' in build.stderr
+
+
 def test_loop_control_does_not_use_the_gosub_callers_loop(compiler):
     # The 201015.001 reference emits no jump for either statement here.
     source = ROOT / 'tests/programs/gosub-loop-control.b'

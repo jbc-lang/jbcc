@@ -115,6 +115,9 @@ BUILTINS = {
     "ISALPHA": (1,),
     "ISDIGIT": (1,),
     "ISALNUM": (1,),
+    "ISUPPER": (1,),
+    "ISLOWER": (1,),
+    "ISSPACE": (1,),
     "ASCII": (1,),
     "EBCDIC": (1,),
     "UTF8": (1,),
@@ -128,6 +131,10 @@ BUILTINS = {
     "EXTRACT": (2, 3, 4),
     "TIMEDATE": (0,),
     "TIMESTAMP": (0,),
+    "MAKETIMESTAMP": (3,),
+    "LOCALDATE": (2,),
+    "LOCALTIME": (2,),
+    "TIMEDIFF": (3,),
     "UNIQUEKEY": (0,),
     "TIME": (0,),
     "DATE": (0,),
@@ -1385,6 +1392,11 @@ class Compiler:
                 self.needs_arguments = True
                 self.advance()
                 return self.postfix("jbc_command_line", locate_source)
+            if self.word == 'TIMEZONE':
+                self.advance()
+                return self.postfix(
+                    self.temporary("jbc_timezone()"), locate_source
+                )
             if self.word == 'PARASENTENCE':
                 self.uses_session = True
                 self.needs_arguments = True
@@ -1481,14 +1493,17 @@ class Compiler:
             opening = self.current
             self.advance()
             self.expect('(')
-            if (
-                self.current.kind == 'name'
-                and self.following.word == '<'
+            if self.current.kind == 'name' and (
+                self.following.word == '<'
                 and self.word not in self.matrices
+                or self.following.word == '('
+                and self.component_call_member(self.word)
             ):
                 # The reference applies ASSIGNED_IB to the extracted value,
                 # which is always assigned. jbcc accepts only extractions,
-                # as in T24 R13 RAISE.PENDING.ENTRIES.
+                # as in T24 R13 RAISE.PENDING.ENTRIES, and component calls
+                # such as R19's UNASSIGNED(IN.Config.getBicDetails()), whose
+                # generated accessor the dump does not define (provisional).
                 value = self.expression()
                 self.expect(')')
                 self.record_api_call(opening, 1)
@@ -1617,7 +1632,9 @@ class Compiler:
                 self.terminal = True
                 word = "KEYIN"
                 args.append(self.location(target))
-            if word == "TIMESTAMP":
+            if word in (
+                "TIMESTAMP", "MAKETIMESTAMP", "LOCALDATE", "LOCALTIME", "TIMEDIFF"
+            ):
                 self.uses_timestamp = True
             if word == "SYSTEM":
                 self.host_only(target)
@@ -1647,6 +1664,10 @@ class Compiler:
                 "EXTRACT",
                 "TIMEDATE",
                 "TIMESTAMP",
+                "MAKETIMESTAMP",
+                "LOCALDATE",
+                "LOCALTIME",
+                "TIMEDIFF",
                 "UNIQUEKEY",
                 "TIME",
                 "DATE",
@@ -4667,6 +4688,13 @@ class Compiler:
             self.advance()
             self.emit("jbc_cleardata();")
         elif (
+            self.word == 'CLEARCOMMON'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
+            self.advance()
+            self.emit("jbc_clearcommon();")
+        elif (
             self.word == 'CLEAR'
             and self.following.word not in ASSIGNMENT_PREFIXES
             and not (self.word in self.matrices and self.following.word == '(')
@@ -4735,6 +4763,21 @@ class Compiler:
                 else self.expression()
             )
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
+        elif (
+            self.word == 'MSLEEP'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
+            opening = self.current
+            self.host_only(opening)
+            self.advance()
+            self.uses_sleep = True
+            duration = (
+                '"1"'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
+            self.emit(f"jbc_msleep({duration}, {self.location(opening)});")
         elif (
             self.word == 'RANDOMIZE'
             and self.following.word not in ASSIGNMENT_PREFIXES
@@ -5092,6 +5135,18 @@ class Compiler:
             self.advance()
             while self.word in (';', '\n'):
                 self.advance()
+            # The reference warns about a stray END after the final END
+            # ("END is misplaced", warning 47) and compiles the unit, as
+            # in T24 R19 CRS.CHECK.SKIP.ACCOUNT. Other text is an error.
+            while self.word == 'END':
+                token = self.current
+                print(
+                    f"{token.path}:{token.line}:{token.column}: warning: END after the final END ignored",
+                    file=sys.stderr,
+                )
+                self.advance()
+                while self.word in (';', '\n'):
+                    self.advance()
             if self.word:
                 self.error("unexpected text after final END")
         if self.pending_assignment_error and not self.has_goto:

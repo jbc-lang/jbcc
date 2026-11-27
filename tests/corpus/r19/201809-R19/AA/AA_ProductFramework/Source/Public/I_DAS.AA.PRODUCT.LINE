@@ -1,0 +1,4 @@
+* Query numbers, written like R19 DAS inserts: a comma ends each EQU but
+* the last, and the next line repeats EQU.
+    EQU DAS.AA.PRODUCT.LINE$BATCH.PRIORITY TO 1,
+    EQU DAS.AA.PRODUCT.LINE$SORTED TO 2

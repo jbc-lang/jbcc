@@ -257,7 +257,9 @@ follow a named or numeric label directly, as in `setup:* read inputs` or
 `100: REM retry`.
 
 `END:` can label a statement, including inside a block. A bare `END` closes
-a block or terminates the source unit. A single `.` at the start of a
+a block or terminates the source unit. A stray `END` after the final one
+is ignored with a warning, as the local reference compiler does (warning
+47, "END is misplaced"), while other text there is an error. A single `.` at the start of a
 physical line can stand alone or label a statement on that line, with an
 optional colon. A digit-only label at the start of a source line can also
 omit the colon, including before a comment or statement. Separate the digits
@@ -364,11 +366,13 @@ divisor reports an error at the call.
 `ALPHA` and `ISALPHA` return 1 when every byte in a nonempty value is an
 ASCII letter. `ISDIGIT` returns 1 for nonempty values made entirely of
 ASCII digits, and `ISALNUM` for values made entirely of ASCII letters and
-digits. Signs, decimal points, spaces and array marks return 0
+digits. `ISUPPER` and `ISLOWER` test for ASCII upper- and lower-case
+letters, and `ISSPACE` for space, tab, line feed, vertical tab, form feed
+and carriage return. Signs, decimal points, spaces and array marks return 0
 from `ISDIGIT`. jbcc provisionally returns 0 for an empty string with
 these character tests. The guide describes Unicode classification
 separately under International Mode.
-[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
+[ALPHA](https://jbc-lang.org/pages/alpha.html), [ISALPHA](https://jbc-lang.org/pages/isalpha.html), [ISALNUM](https://jbc-lang.org/pages/isalnum.html), [ISUPPER](https://jbc-lang.org/pages/isupper.html), [ISSPACE](https://jbc-lang.org/pages/isspace.html), [jBASE ISDIGIT](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_ISDIGIT.htm).
 
 NUM tests whether an expression has numeric text and returns 1 or 0.
 It follows the guide’s prime-emulation examples. Signed decimals and leading
@@ -698,6 +702,10 @@ nanoseconds and resumes an interrupted wait for the remaining duration.
 Clock-time strings such as `"08:30"` currently produce a diagnostic.
 [SLEEP](https://jbc-lang.org/pages/sleep.html).
 
+`MSLEEP` pauses for one millisecond, and `MSLEEP expression` for a
+nonnegative whole number of milliseconds, as in `MSLEEP 100`. A fraction
+is truncated. [MSLEEP](https://jbc-lang.org/pages/msleep.html).
+
 TIME() returns the local clock time in seconds past midnight. The OCONV
 mask `MT` prints hours and minutes on a 24-hour clock, and `MTS` adds
 seconds. For example, `OCONV(1,'MTS')` returns `00:00:01`. Both masks
@@ -717,6 +725,22 @@ with English month abbreviations. [TIMEDATE](https://jbc-lang.org/pages/timedate
 realtime clock. jbcc truncates the fraction to the active `PRECISION`,
 with a default of four fractional places and a maximum of nine.
 [TIMESTAMP](https://jbc-lang.org/pages/timestamp.html).
+
+`MAKETIMESTAMP(date, time, zone)` combines an internal date and time read
+in `zone` into UTC epoch seconds, keeping milliseconds.
+`LOCALDATE(timestamp, zone)` and `LOCALTIME(timestamp, zone)` return the
+internal date and time of a timestamp in `zone`. An empty zone is the
+process's own; another value is an IANA name such as `Asia/Tokyo`, set as
+`TZ` for the conversion. The playground's WASI runtime has no zone
+database and accepts only an empty zone, `UTC` and `GMT`.
+`TIMEDIFF(timestamp1, timestamp2, mask)` subtracts `timestamp2` and returns
+days, hours, minutes, seconds and milliseconds as fields (mask 0), with
+weeks first for mask 1. Each field carries the sign of the difference
+(provisional). Masks 2 to 7 count months or years; the guide does not say
+from which calendar date, so they report an error when reached.
+`@TIMEZONE` returns `JBASE_TIMEZONE`, else `TZ`, else an empty string
+(provisional: the guide says only "as per jBASE Timezone").
+[MAKETIMESTAMP](https://jbc-lang.org/pages/maketimestamp.html), [LOCALDATE](https://jbc-lang.org/pages/localdate.html), [LOCALTIME](https://jbc-lang.org/pages/localtime.html), [TIMEDIFF](https://jbc-lang.org/pages/timediff.html).
 
 `UNIQUEKEY()` returns a 36-character lowercase UUID. jbcc uses version
 4 UUIDs generated from `/dev/urandom`.
@@ -1319,6 +1343,11 @@ a source-located diagnostic. This timing and mismatch policy is provisional
 pending a reference run. The current initialization policy leaves slots unassigned until
 written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
+
+`CLEARCOMMON` sets every scalar and matrix element of the unnamed COMMON
+to 0 and leaves named blocks unchanged, as the guide's jBASE example
+shows. The guide notes that TAFJ also clears named blocks.
+[CLEARCOMMON](https://jbc-lang.org/pages/clearcommon.html).
 
 ## Compile a T24-style routine
 
@@ -2397,7 +2426,11 @@ element. Testing a variable leaves it untouched. For example,
 existing value. A dynamic-array extraction such as
 `UNASSIGNED(X<I,J>)` is evaluated, and its result is always assigned. The
 local jBC 201015.001 reference applies the test to any expression this way;
-jbcc accepts extractions and otherwise requires a variable.
+jbcc accepts extractions and R19 component calls, such as
+`UNASSIGNED(IN.Config.getBicDetails())`, and otherwise requires a variable.
+A component call is treated like an extraction, so its result counts as
+assigned. This is provisional, because the dump does not define the
+generated accessor.
 [ASSIGNED](https://jbc-lang.org/pages/assigned.html),
 [UNASSIGNED](https://jbc-lang.org/pages/unassigned.html).
 
@@ -2647,6 +2680,12 @@ has `table<Name>(id, error)`, a read with the table's visibility, as in
 `AC.AccountOpening.tableAccount(ID, ERR)`. Field numbers are
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
+
+With `--t24-source-fixes`, R19 fixes name each file by its path from the
+extract root. Two `DAS` inserts, `I_DAS.AA.PRODUCT.DESIGNER` and
+`I_DAS.AA.PRODUCT.LINE`, end an `EQU` with a comma and repeat `EQU` on the
+next line; the local reference preprocessor reports a syntax error there,
+so the checker drops the comma.
 
 The pilot checks C syntax one unit at a time, using external prototypes
 for qualified calls. Package-aware linkage and table runtime behavior

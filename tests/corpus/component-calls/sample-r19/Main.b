@@ -39,3 +39,6 @@ Shop.Prices.Prices.DeleteHis("archived")
 CRT Shop.Prices.Ledger.ReadNau("item", Error)
 Shop.Shared.setQuantity(1)
 CRT Record<Shop.Shared.Items.Cost> : Shop.Shared.getQuantity()
+* As in R19 IN getBICfromIBAN: IF UNASSIGNED(IN.Config.getBicDetails()) THEN
+IF UNASSIGNED(Shop.Shared.getQuantity()) THEN CRT "unassigned"
+CRT ASSIGNED(Shop.Prices.getItems(1))
