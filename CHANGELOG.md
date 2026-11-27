@@ -1,11 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-11-27)
 
 ### Added
 
+- The in-memory cache from `JBC.h`: `CachePut`, `CacheGet`, `CacheExists`,
+  `CacheDelete`, `CacheClear`, `CacheClearAll`, `CacheKeyList`,
+  `CacheBucketList`, `CacheStats`, `CacheClearStats`, `CacheSetOption` and
+  `CacheGetOption`. A `DEFC` with the header's signature runs jbcc's
+  runtime cache, also in the browser, and the built-in `JBC.h` declares
+  them.
+- Functions from the guide that the T24 corpora never call: `TAN`, `ASIN`,
+  `ACOS`, `ATAN`, `FADD`, `FMUL`, `FDIV`, `FCMP`, `SADD`, `SSUB`, `SCMP`,
+  `BITSET`, `BITRESET`, `BITCHANGE`, `BITCHECK`, `BITLOAD`, `ISCNTRL`,
+  `ISGRAPH`, `ISPRINT`, `ISPUNCT`, `ISXDIGIT`, `ANDS`, `ORS`, `MODS`,
+  `IFS`, `SEQS`, `CHARS`, `STRS`, `LENSDP`, `SOUNDEX`, `REGEXP` and
+  `CHANGETIMESTAMP`, plus `DELENV`, `DIR`, `GETUSERNAME` and
+  `GETUSERGROUP` outside the browser.
 - The `MX` mask for `FMT`, `OCONV` and `ICONV` (bytes as hexadecimal),
   and `DG` for `ICONV` and `OCONV` (`YYYYMMDD`).
+
+### Changed
+
+- The built-in `JBC.h` note on stderr says "definitions" instead of
+  "constants", since the header now declares functions.
 
 ## 0.4.0 (2026-11-27)
 
