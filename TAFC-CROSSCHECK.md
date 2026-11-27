@@ -563,6 +563,11 @@ Files and processes:
       RTNDATA returns `''` and nested EXECUTEs pass nothing. Found on the
       way: CAPTURING drops one final newline, and TAFC runs commands
       without a shell (kept as a difference).
+- [x] `PASSLIST` and `RTNLIST` (`tests/tafc/execute-passlist.b`): TAFC
+      shares the default select list with an EXECUTEd jBC program both
+      ways, `PASSLIST L` gives the child L, and `RTNLIST variable` gets
+      `''` even when the child leaves a list. jbcc does the same through
+      two more files.
 - [x] `PRINTERR code:@FM:args` prints the jbcmessages text
       (` ** Error [ 201 ] ** ` then `Unable to open file X`). An unknown
       id prints `!!! Error message X not found !!!`. Start with the

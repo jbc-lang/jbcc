@@ -651,11 +651,16 @@ TAFC PB201214 runs a command without a shell, splitting it on spaces, so
 `;`, `|` and quotes are plain text there; jbcc keeps the shell.
 [EXECUTE](https://jbc-lang.org/pages/execute.html).
 
-The command aliases accept `RTNLIST variable` and bare `RTNLIST` for the
-default select list, in any order with the other supported clauses. The
-reference grammar also accepts a constant operand. At runtime, a request
-for a select list requires a jBC command backend. The native shell runner
-reports the source location and exits before launching the command.
+The default select list is shared with a jbcc program that EXECUTE runs,
+as TAFC PB201214 shares it (`tests/tafc/execute-passlist.b`): the child
+starts with what is left of the caller's default list, and the caller
+continues with what is left of the child's, so a list the child SELECTs
+reaches the caller. `PASSLIST expression` gives the child that list
+instead; `PASSLIST` alone passes the default list. `RTNLIST` alone changes
+nothing, and `RTNLIST variable` assigns an empty string, as TAFC does. A
+command that is not a jbcc program leaves the caller's list as it was.
+jbcc passes the lists through two temporary files named in the child's
+environment.
 
 `@SYSTEM.RETURN.CODE` and `SYSTEM(17)` read the exit status of the
 most recent native EXECUTE or PERFORM, including commands run by a
