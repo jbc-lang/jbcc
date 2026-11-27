@@ -1,3 +1,5 @@
+* STATUS after ICONVS and OCONVS: TAFC PB201214 reports 1 in nearly every
+* case here; jbcc keeps the guide's rules (TAFC-CROSSCHECK.md section 5).
 * MT and MTS convert times to values measured in seconds since midnight.
 CRT ICONV('00:01:02', 'MTS')
 CRT ICONV('1:00 PM', 'MT')

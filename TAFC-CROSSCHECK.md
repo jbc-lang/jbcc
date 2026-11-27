@@ -378,11 +378,11 @@ Done for section 4 (2026-11-27):
 
 ## 5. Settled LANGUAGE-GAPS items
 
-- [ ] `MCPN{x}`: each byte outside 32 to 126 becomes x followed by two
+- [x] `MCPN{x}`: each byte outside 32 to 126 becomes x followed by two
       hex digits, with `.` as the default x (`a.FEb.01.C8_`). x itself is
       not escaped, so the conversion is lossy. `MCNP{x}` reverses it, and
       a short trailing `x4` gives `CHAR(4)`.
-- [ ] Invalid conversion mask: print `Unknown conversion code.`, return
+- [x] Invalid conversion mask: print `Unknown conversion code.`, return
       `''` and set STATUS to 1, for OCONV and ICONV.
   - `OCONV('abc','D')` returns `abc` with STATUS 1.
   - `ICONV('31 FEB 2020','D')` rolls over to 2 March 2020 (19055) with
@@ -390,7 +390,7 @@ Done for section 4 (2026-11-27):
   - `ICONV('12:99','MT')` gives 49140 with STATUS 3.
   - `ICONV('abc','MD2')` gives `''` with STATUS 1.
   - `OCONV('abc','MD2')` gives `abc` with STATUS 0.
-- [ ] `TIMEDIFF` masks 2 to 7: count months from the earlier timestamp
+- [x] `TIMEDIFF` masks 2 to 7: count months from the earlier timestamp
       and clamp to the end of the month (31 Jan + 1 month is 29 Feb
       2020). From 31 Jan 2020 00:00 to 1 Mar 2021 01:00 the masks give:
 
@@ -405,19 +405,30 @@ Done for section 4 (2026-11-27):
 
       From 31 Jan 2020 02:00 to 2 Mar 2020 00:00, mask 2 gives
       `1^1^22^…`.
-- [ ] Fractional day counts in `D` and `DG` truncate toward zero:
+- [x] Fractional day counts in `D` and `DG` truncate toward zero:
       732.75 is 01 JAN 1970, -0.5 is day 0, and -732.75 is day -732.
-- [ ] A pattern mask with decimals formats the number first and then
+- [x] A pattern mask with decimals formats the number first and then
       fills the `#` positions from the right:
   - `R2(##.##)` on 12.345 gives `2..35`.
   - `R2(#####)` gives `12.35`.
   - `R2(###-###)` on 1234.5 gives `234-.50`.
   - `L2(##.###)` gives `12..35`.
-- [ ] Move to "confirmed":
+- [x] Move to "confirmed":
   - `@TIMEZONE` reads `JBASE_TIMEZONE`, then `TZ`.
   - `MOD(-7,3)` is -1 and `MOD(7,-3)` is 1.
   - CONVERT uses the first mapping for a repeated source byte.
-- [ ] Update LANGUAGE-GAPS.md and the README paragraphs for each item.
+- [x] Update LANGUAGE-GAPS.md and the README paragraphs for each item.
+
+Done for section 5 (2026-11-27):
+
+- MCPN/MCNP, invalid masks with STATUS 1, fractional days, pattern masks
+  with decimals and TIMEDIFF masks 2-7 (done in section 4).
+- Found on the way and done: MD, MR and ML conversions, which jbcc lacked
+  and the corpus uses about 1,460 times (`'MD2'` alone over 500); TAFC's
+  ICONV date forms (`tests/tafc/iconv-dates.b`); OCONV times past 24
+  hours, negative counts and MTH; MX decoding up to the first bad pair.
+- Open: STATUS after OCONV, ICONVS and OCONVS, which TAFC sets to 1 in
+  most cases without a rule found; chained ICONVS masks; year 10000.
 
 ## 6. New statements and functions (guide only, not in the corpus)
 

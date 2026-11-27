@@ -51,6 +51,16 @@
   (calendar months and years).
 - CacheStats CACHE_SIZE counts items, the purge limit counts items, and
   CacheClear removes the bucket.
+- The masked decimal conversions MD, MR and ML for OCONV, ICONV and FMT,
+  with the Z, comma, $, minus, C, D, E, P and T options.
+- ICONV reads dates as TAFC does (month names, US and European numeric
+  forms, YYYYDDD), rolls over impossible days with STATUS 3 and returns ''
+  with STATUS 1 for other bad input; times may overflow. An unknown OCONV
+  or ICONV mask warns and returns '' with STATUS 1 instead of stopping.
+- OCONV truncates fractional day counts, returns text unchanged for a date
+  mask, lets times pass 24 hours, and supports MTH.
+- MCPN and MCNP; pattern masks with decimal places such as R2(##.##); MX
+  decoding stops at the first non-hex pair.
 - INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
   unchanged for an empty search string; FIELD and GROUP read occurrences
   and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows

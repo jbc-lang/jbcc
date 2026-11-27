@@ -652,6 +652,146 @@ static const char *numeric_operand(const char *text, const char *file, int line,
     return "0";
 }
 
+/* Masked decimal conversions MDn, MRn and MLn as TAFC PB201214 applies
+   them (tests/tafc/md-masks.b): M, D, R or L, n decimal places, an optional
+   scaling digit m (default n), then any of Z (zero gives ''), "," (thousands
+   separator), "$" (prefix), "-" or M (trailing minus), C (CR), D (DB),
+   E (<negative>), P (no scaling when the value has a point) and T
+   (truncate instead of rounding half away from zero). OCONV divides by
+   10^m; ICONV multiplies and rounds to a whole number. */
+struct md_mask {
+    char justify, sign;
+    int places, scale, zero, thousands, dollar, keep_point, truncate;
+};
+
+static int md_parse(const char *mask, struct md_mask *md)
+{
+    if (mask[0] != 'M' || !mask[1] || !strchr("DRL", mask[1]) || mask[2] < '0' || mask[2] > '9')
+        return 0;
+    memset(md, 0, sizeof *md);
+    md->justify = mask[1];
+    const char *p = mask + 2;
+    md->places = *p++ - '0';
+    md->scale = *p >= '0' && *p <= '9' ? *p++ - '0' : md->places;
+    for (; *p; ++p) {
+        if (*p == 'Z') md->zero = 1;
+        else if (*p == ',') md->thousands = 1;
+        else if (*p == '$') md->dollar = 1;
+        else if (*p == 'P') md->keep_point = 1;
+        else if (*p == 'T') md->truncate = 1;
+        else if (strchr("-MCDE", *p) && !md->sign) md->sign = *p == 'M' ? '-' : *p;
+        else return 0;
+    }
+    return 1;
+}
+
+/* n rounded half away from zero (or truncated) to places. */
+static struct exact exact_round(struct exact n, size_t places, int truncate)
+{
+    if (n.scale <= places) return n;
+    size_t drop = n.scale - places;
+    int up = 0;
+    if (!truncate && drop <= n.length) up = n.digits[n.length - drop] >= '5';
+    struct exact r = n;
+    r.length = n.length > drop ? n.length - drop : 0;
+    r.scale = places;
+    r.digits = allocate(r.length + 1);
+    r.digits[0] = '0';
+    memcpy(r.digits + 1, n.digits, r.length);
+    ++r.length;
+    if (up) {
+        size_t i = r.length;
+        while (i-- > 0) {
+            if (r.digits[i] == '9') r.digits[i] = '0';
+            else { ++r.digits[i]; break; }
+        }
+    }
+    int negative = n.negative;
+    exact_normalize(&r);
+    r.negative = negative && r.length;
+    return r;
+}
+
+/* The digits of n with exactly places decimals and optional grouping. */
+static const char *fixed_digits(struct exact n, size_t places, int thousands)
+{
+    size_t frac = n.scale, whole = n.length > frac ? n.length - frac : 0;
+    size_t size = (whole ? whole : 1) + (whole / 3) + 1 + places + 1;
+    char *out = allocate(size), *w = out;
+    if (!whole) *w++ = '0';
+    for (size_t i = 0; i < whole; ++i) {
+        if (thousands && i && (whole - i) % 3 == 0) *w++ = ',';
+        *w++ = n.digits[i];
+    }
+    if (places) {
+        *w++ = '.';
+        size_t present = n.length - whole;
+        for (size_t i = 0; i < places; ++i) {
+            size_t lead = frac - present;
+            *w++ = i < lead ? '0' : i - lead < present ? n.digits[whole + i - lead] : '0';
+        }
+    }
+    *w = '\0';
+    return out;
+}
+
+static const char *md_output(const char *value, const struct md_mask *md)
+{
+    if (!*value && md->justify != 'R') return "";
+    const char *text = *value ? value : "0";
+    struct decimal check;
+    if (!parse_decimal(text, &check)) return value;
+    struct exact n;
+    exact_parse(text, check.places, &n);
+    int negative = check.sign < 0;
+    if (!(md->keep_point && strchr(text, '.'))) n.scale += (size_t)md->scale;
+    n = exact_round(n, (size_t)md->places, md->truncate);
+    if (md->zero && !n.length) return "";
+    const char *digits = fixed_digits(n, (size_t)md->places, md->thousands);
+    const char *before = "", *after = "";
+    switch (md->sign) {
+    case '-': after = negative ? "-" : " "; break;
+    case 'C': after = negative ? "CR" : "  "; break;
+    case 'D': after = negative ? "  " : "DB"; break;
+    case 'E': before = negative ? "<" : " "; after = negative ? ">" : " "; break;
+    default: before = negative ? "-" : ""; break;
+    }
+    size_t size = 1 + strlen(before) + strlen(digits) + strlen(after);
+    char *out = allocate(size);
+    snprintf(out, size + 1, "%s%s%s%s", md->dollar ? "$" : "", before, digits, after);
+    return out;
+}
+
+static const char *md_input(const char *value, const struct md_mask *md, int *status)
+{
+    size_t length = strlen(value);
+    char *plain = allocate(length), *w = plain;
+    for (const char *p = value; *p; ++p)
+        if (*p != ',') *w++ = *p;
+    *w = '\0';
+    struct decimal check;
+    if (!*plain || !parse_decimal(plain, &check)) {
+        *status = 1;
+        return "";
+    }
+    struct exact n;
+    exact_parse(plain, check.places, &n);
+    size_t shift = (size_t)md->scale;
+    if (n.scale >= shift) {
+        n.scale -= shift;
+    } else if (n.length) {
+        size_t extra = shift - n.scale;
+        char *digits = allocate(n.length + extra);
+        memcpy(digits, n.digits, n.length);
+        memset(digits + n.length, '0', extra);
+        n.digits = digits;
+        n.length += extra;
+        n.scale = 0;
+    }
+    *status = 0;
+    return exact_text(exact_round(n, 0, 0));
+}
+
 static const char *arithmetic(char op, const char *left, const char *right,
                               int warn_on_zero_divisor, const char *file, int line, int column)
 {
@@ -2382,6 +2522,46 @@ static const char *printable_marks(const char *text, char replacement)
     return out;
 }
 
+/* MCPN{x}: each byte outside ASCII 32 to 126, marks included, becomes x
+   (default ".") and two upper-case hex digits; x itself is not escaped.
+   MCNP{x} turns x and one or two hex digits back into the byte. As in TAFC
+   PB201214 (tests/tafc/mcpn-mcnp.b). */
+static const char *escape_unprintable(const char *text, char escape)
+{
+    size_t n = strlen(text), size = 0;
+    for (size_t i = 0; i < n; ++i) size += byte_class((unsigned char)text[i], 'P') ? 1 : 3;
+    char *out = allocate(size), *w = out;
+    for (size_t i = 0; i < n; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        if (byte_class(c, 'P')) *w++ = (char)c;
+        else w += sprintf(w, "%c%02X", escape, c);
+    }
+    *w = '\0';
+    return out;
+}
+
+static int hex_value(char c)
+{
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10
+         : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+}
+
+static const char *unescape_unprintable(const char *text, char escape)
+{
+    char *out = allocate(strlen(text)), *w = out;
+    for (const char *p = text; *p; ++p) {
+        int high = *p == escape ? hex_value(p[1]) : -1;
+        if (high < 0) { *w++ = *p; continue; }
+        int low = hex_value(p[2]);
+        int byte = low < 0 ? high : high * 16 + low;
+        if (!byte) { *w++ = *p; continue; } /* strings cannot hold NUL yet */
+        *w++ = (char)byte;
+        p += low < 0 ? 1 : 2;
+    }
+    *w = '\0';
+    return out;
+}
+
 /* MCA, MCN, MCB and their /-forms keep or remove ASCII letters, digits, or
    both, as ISALPHA and ISDIGIT classify them. */
 static const char *keep_class(const char *text, char kind, int remove)
@@ -2424,7 +2604,10 @@ static const char *mc_conversion(const char *text, const char *mask, const char 
 {
     if (strncmp(mask, "MC", 2) != 0) return NULL;
     const char *code = mask + 2;
-    /* MCPN{n} is the guide's hex-escaping variant, not MCP with N. */
+    if (code[0] == 'P' && code[1] == 'N' && (!code[2] || !code[3]))
+        return escape_unprintable(text, code[2] ? code[2] : '.');
+    if (code[0] == 'N' && code[1] == 'P' && (!code[2] || !code[3]))
+        return unescape_unprintable(text, code[2] ? code[2] : '.');
     if (*code == 'P' && (!code[1] || (!code[2] && code[1] != 'N')))
         return printable_marks(text, code[1] ? code[1] : '.');
     if (!strcmp(code, "A") || !strcmp(code, "N") || !strcmp(code, "B")) return keep_class(text, *code, 0);
@@ -2458,8 +2641,10 @@ static const char *mc_conversion(const char *text, const char *mask, const char 
 }
 
 /* FMT pattern masks: L(...) or R(...), or a bare pattern that starts
-   with #. The guide never combines a pattern with a precision, so jbcc
-   leaves that unsupported. In the
+   with #. A precision digit before the pattern, as in R2(##.##), first
+   formats a number to that many places (rounding half away from zero), so
+   12.345 becomes 12.35 and fills the slots as 2..35, as TAFC PB201214 does
+   (tests/tafc/pattern-mask-decimals.b). In the
    pattern, # takes one character of the value and #n takes n; anything
    else is literal. R fills the slots from the value's rightmost characters
    and L from its leftmost, as in the guide's FMT(1234567890,
@@ -2476,6 +2661,15 @@ static const char *pattern_format(const char *text, const char *mask)
         const char *p = mask;
         if (*p != 'L' && *p != 'R') return NULL;
         align = *p++;
+        if (ascii_digit((unsigned char)*p) && p[1] == '(') {
+            size_t places = (size_t)(*p++ - '0');
+            struct decimal check;
+            struct exact n;
+            if (parse_decimal(text, &check) && exact_parse(text, places, &n)) {
+                const char *digits = fixed_digits(n, places, 0);
+                text = n.negative ? jbc_concat("-", digits) : digits;
+            }
+        }
         size_t length = strlen(p);
         if (*p != '(' || length < 2 || p[length - 1] != ')') return NULL;
         pattern = p + 1;
@@ -2650,6 +2844,8 @@ const char *jbc_fmt(const char *text, const char *mask, const char *file, int li
 {
     /* An empty mask returns the value unchanged (TAFC PB201214). */
     if (!*mask) return text;
+    struct md_mask md;
+    if (md_parse(mask, &md)) return md_output(text, &md);
     const char *converted = mc_conversion(text, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(text);
@@ -3312,108 +3508,208 @@ const char *jbc_startup_time(const char *file, int line, int column)
     return time_from_clock(&startup_clock);
 }
 
-enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_TIME, ICONV_HEX };
+enum input_conversion { ICONV_UNSUPPORTED, ICONV_DATE, ICONV_DATE_EUROPEAN, ICONV_TIME, ICONV_HEX };
 
+/* D masks for ICONV: D, an optional year width, an optional separator and
+   an optional E for day before month, as in D4/E; DG reads YYYYMMDD too. */
 static enum input_conversion input_mask(const char *mask)
 {
-    /* DG reads YYYYMMDD, as in the guide's ICONV('20231031', 'DG'). */
-    if (!strcmp(mask, "D") || !strcmp(mask, "D4") || !strcmp(mask, "DG")) return ICONV_DATE;
     if (!strcmp(mask, "MX")) return ICONV_HEX;
     if (!strcmp(mask, "MT") || !strcmp(mask, "MTS")) return ICONV_TIME;
-    return ICONV_UNSUPPORTED;
+    if (*mask++ != 'D') return ICONV_UNSUPPORTED;
+    if (!strcmp(mask, "G")) return ICONV_DATE;
+    if (ascii_digit((unsigned char)*mask)) ++mask;
+    if (*mask && *mask != 'E' && !ascii_digit((unsigned char)*mask) && !ascii_alpha((unsigned char)*mask))
+        ++mask;
+    if (!strcmp(mask, "E")) return ICONV_DATE_EUROPEAN;
+    return *mask ? ICONV_UNSUPPORTED : ICONV_DATE;
 }
 
-static const char *input_date(const char *value, const char **error)
+static int month_of_name(const char *word, size_t length)
 {
-    if (strspn(value, "0123456789") != 8 || value[8]) {
-        *error = "ICONV date requires YYYYMMDD";
-        return NULL;
+    static const char *const names[] = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+        "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"};
+    if (length < 3) return 0;
+    for (int m = 0; m < 12; ++m) {
+        size_t full = strlen(names[m]);
+        if (length > full) continue;
+        size_t i = 0;
+        while (i < length && (word[i] & ~0x20) == names[m][i]) ++i;
+        if (i == length) return m + 1;
     }
-    int date = atoi(value);
-    int year = date / 10000, month = date / 100 % 100, day = date % 100;
-    if (year == 0 || month < 1 || month > 12 || day < 1 || day > month_length(year, month)) {
-        *error = "invalid ICONV calendar date";
-        return NULL;
-    }
-    int day_of_year = day;
-    for (int m = 1; m < month; ++m) day_of_year += month_length(year, m);
-    return internal_date(year, day_of_year);
+    return 0;
 }
 
-static const char *input_time(const char *value, const char **error)
+/* ICONV date as TAFC PB201214 reads it (tests/tafc/iconv-dates.b):
+   YYYYMMDD; a day, a month name or abbreviation and a year in either order,
+   as in 31 JAN 2020, JAN 31 2020 or 31JAN20; or numbers, month first (day
+   first with an E mask), the year defaulting to the current one. A day past
+   the end of its month rolls forward and sets STATUS 3; anything else that
+   is not a date gives '' and STATUS 1. Two-digit years from 30 are 19xx and
+   below 30 are 20xx (provisional). */
+static const char *input_date(const char *value, int european, int *status)
+{
+    long numbers[3];
+    size_t widths[3], count = 0;
+    int month = 0;
+    const char *p = value;
+    while (*p) {
+        if (ascii_digit((unsigned char)*p)) {
+            size_t width = strspn(p, "0123456789");
+            if (count == 3 || width > 8) goto invalid;
+            numbers[count] = 0;
+            for (size_t i = 0; i < width; ++i) numbers[count] = numbers[count] * 10 + (p[i] - '0');
+            widths[count++] = width;
+            p += width;
+        } else if (ascii_alpha((unsigned char)*p)) {
+            size_t width = 0;
+            while (ascii_alpha((unsigned char)p[width])) ++width;
+            if (month || !(month = month_of_name(p, width))) goto invalid;
+            p += width;
+        } else if (strchr(" /-.,", *p)) {
+            ++p;
+        } else {
+            goto invalid;
+        }
+    }
+    long year, day;
+    int year_width = 4;
+    if (!month && count == 1 && widths[0] == 8) {
+        year = numbers[0] / 10000;
+        month = (int)(numbers[0] / 100 % 100);
+        day = numbers[0] % 100;
+    } else if (!month && count == 1 && widths[0] == 7) {
+        /* YYYYDDD, a year and a day of the year: 2012123 is 2 May 2012. */
+        year = numbers[0] / 1000;
+        long day_of_year = numbers[0] % 1000;
+        if (year < 1 || day_of_year < 1) goto invalid;
+        *status = 0;
+        return internal_date((int)year, (int)day_of_year);
+    } else if (month && (count == 1 || count == 2)) {
+        day = numbers[0];
+        year = count == 2 ? numbers[1] : -1;
+        if (count == 2) year_width = (int)widths[1];
+    } else if (!month && (count == 2 || count == 3)) {
+        long first = numbers[0], second = numbers[1];
+        month = (int)(european ? second : first);
+        day = european ? first : second;
+        year = count == 3 ? numbers[2] : -1;
+        if (count == 3) year_width = (int)widths[2];
+    } else {
+        goto invalid;
+    }
+    if (year < 0) {
+        time_t now = time(NULL);
+        const struct tm *today = now == (time_t)-1 ? NULL : localtime(&now);
+        if (!today) goto invalid;
+        year = today->tm_year + 1900;
+    } else if (year_width <= 2) {
+        year += year < 30 ? 2000 : 1900;
+    }
+    if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 99) goto invalid;
+    *status = day > month_length((int)year, month) ? 3 : 0;
+    int day_of_year = (int)day;
+    for (int m = 1; m < month; ++m) day_of_year += month_length((int)year, m);
+    return internal_date((int)year, day_of_year);
+
+invalid:
+    *status = 1;
+    return "";
+}
+
+/* ICONV time: H:MM or H:MM:SS with an optional AM or PM. As in TAFC
+   PB201214, hours, minutes and seconds may overflow (25:00 is 90000 and
+   12:99 is 49140); the MT mask then sets STATUS 3, MTS does not. */
+static const char *input_time(const char *value, int seconds_mask, int *status)
 {
     const char *p = value;
     size_t width = strspn(p, "0123456789");
-    if (!width || width > 2 || p[width] != ':') goto invalid;
+    if (!width || width > 4 || p[width] != ':') goto invalid;
     size_t hour = read_decimal_count(&p, p + width);
     size_t minute, second = 0;
     ++p;
     width = strspn(p, "0123456789");
-    if (width != 2) goto invalid;
+    if (!width || width > 4) goto invalid;
     minute = read_decimal_count(&p, p + width);
     if (*p == ':') {
         ++p;
         width = strspn(p, "0123456789");
-        if (width != 2) goto invalid;
+        if (!width || width > 4) goto invalid;
         second = read_decimal_count(&p, p + width);
     }
     while (*p == ' ') ++p;
+    /* PM adds 12 to an hour below 12; AM changes nothing, so 12:34 AM is
+       45240 as in TAFC. */
     if (!strcmp(p, "AM") || !strcmp(p, "PM")) {
-        if (!hour || hour > 12) goto invalid;
-        hour = hour % 12 + (*p == 'P' ? 12 : 0);
-    } else if (*p || hour > 23) goto invalid;
-    if (minute >= 60 || second >= 60) goto invalid;
+        if (hour > 12) goto invalid;
+        if (*p == 'P' && hour < 12) hour += 12;
+    } else if (*p) goto invalid;
+    *status = !seconds_mask && (minute >= 60 || second >= 60) ? 3 : 0;
     return size_value(hour * 3600 + minute * 60 + second);
 
 invalid:
-    *error = "ICONV time requires a valid H:MM or H:MM:SS";
-    return NULL;
+    *status = 1;
+    return "";
 }
 
 /* MX: pairs of hex digits to bytes, as in ICONV('4020412042', 'MX'). */
+/* MX: hex digit pairs to bytes, up to the first pair that is not hex; an
+   odd last digit is ignored, as TAFC PB201214 reads ICONV('414', 'MX') as
+   "A". A 00 pair ends the result too, since strings cannot hold NUL yet. */
 static const char *input_hex(const char *value, const char **error)
 {
-    size_t n = strlen(value);
-    if (n % 2 || strspn(value, "0123456789ABCDEFabcdef") != n) {
-        *error = "ICONV MX requires pairs of hexadecimal digits";
-        return NULL;
-    }
+    size_t n = strlen(value), used = 0;
     char *out = allocate(n / 2);
-    for (size_t i = 0; i < n / 2; ++i) {
-        unsigned value_byte = 0;
-        for (int k = 0; k < 2; ++k) {
-            char c = value[2 * i + k];
-            value_byte = value_byte * 16 + (unsigned)(c <= '9' ? c - '0' : (c | 0x20) - 'a' + 10);
-        }
-        if (!value_byte) {
-            *error = "ICONV MX cannot produce a NUL byte";
-            return NULL;
-        }
-        out[i] = (char)value_byte;
+    for (size_t i = 0; i + 1 < n; i += 2) {
+        int high = hex_value(value[i]), low = hex_value(value[i + 1]);
+        if (high < 0 || low < 0 || !(high | low)) break;
+        out[used++] = (char)(high * 16 + low);
     }
-    out[n / 2] = '\0';
-    return out;
+    out[used] = '\0';
+    if (!used && n) *error = "ICONV MX found no hexadecimal pair";
+    return used || !n ? out : NULL;
 }
 
 static const char *convert_input(const char *value, enum input_conversion conversion,
-                                 const char **error)
+                                 const char *mask, int *status)
 {
-    if (conversion == ICONV_HEX) return input_hex(value, error);
-    return conversion == ICONV_TIME ? input_time(value, error) : input_date(value, error);
+    *status = 0;
+    if (conversion == ICONV_HEX) {
+        const char *error = NULL;
+        const char *result = input_hex(value, &error);
+        if (result) return result;
+        *status = 1;
+        return "";
+    }
+    if (conversion == ICONV_TIME) return input_time(value, !strcmp(mask, "MTS"), status);
+    return input_date(value, conversion == ICONV_DATE_EUROPEAN, status);
 }
 
+/* ICONV sets STATUS(): 0 when the conversion succeeds, 1 when the value or
+   the mask is not valid (the result is then ''), 3 when a date or time
+   rolled over. An unknown mask warns, as TAFC prints "Unknown conversion
+   code.", and execution continues. */
 const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
 {
     /* An empty mask returns the value unchanged (TAFC PB201214). */
     if (!*mask) return value;
+    struct md_mask md;
+    if (md_parse(mask, &md)) {
+        int status;
+        const char *result = md_input(value, &md, &status);
+        last_file_status = status;
+        return result;
+    }
     enum input_conversion conversion = input_mask(mask);
     if (conversion == ICONV_UNSUPPORTED) {
-        fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
-        jbc_terminate(EXIT_FAILURE);
+        fprintf(stderr, "%s:%d:%d: warning: unsupported ICONV mask '%s' -- Unknown conversion code.\n",
+                file, line, column, mask);
+        last_file_status = 1;
+        return "";
     }
-    const char *error = NULL;
-    const char *result = convert_input(value, conversion, &error);
-    if (!result) numeric_error(file, line, column, error);
+    int status;
+    const char *result = convert_input(value, conversion, mask, &status);
+    last_file_status = status;
     return result;
 }
 
@@ -3433,7 +3729,7 @@ const char *jbc_timedate(const char *file, int line, int column)
 
 struct output_conversion {
     char part, separator;
-    int width, european, name, seconds;
+    int width, european, name, seconds, twelve;
 };
 
 static int output_mask(const char *mask, struct output_conversion *conversion)
@@ -3442,6 +3738,9 @@ static int output_mask(const char *mask, struct output_conversion *conversion)
     if (strncmp(mask, "MT", 2) == 0) {
         const char *suffix = mask + 2;
         conversion->part = 'T';
+        /* MTH: a 12-hour clock with AM or PM, 12:00AM for 0 (TAFC). */
+        conversion->twelve = *suffix == 'H';
+        if (conversion->twelve) ++suffix;
         conversion->seconds = *suffix == 'S';
         if (conversion->seconds) ++suffix;
         return !*suffix || !strcmp(suffix, ":");
@@ -3455,8 +3754,11 @@ static int output_mask(const char *mask, struct output_conversion *conversion)
     }
     const char *p = mask + 1;
     if (*p && strchr("DMJQWY", *p)) conversion->part = *p++;
-    if ((!conversion->part || conversion->part == 'Y') && *p >= '0' && *p <= '4')
+    /* A width above 4 shows four digits, as TAFC prints OCONV(0, 'D5/'). */
+    if ((!conversion->part || conversion->part == 'Y') && *p >= '0' && *p <= '9') {
         conversion->width = *p++ - '0';
+        if (conversion->width > 4) conversion->width = 4;
+    }
     if ((conversion->part == 'M' || conversion->part == 'W') && *p == 'A') {
         conversion->name = 1;
         ++p;
@@ -3478,26 +3780,47 @@ static const char *convert_output(const char *value, const struct output_convers
         "FRIDAY", "SATURDAY", "SUNDAY"};
 
     struct decimal n;
+    /* As in TAFC PB201214 (tests/tafc/iconv-dates.b): hours go past 23
+       (99999 is 27:46:39), nonnumeric text is 00:00:00 with STATUS 1, a
+       fraction is dropped and a negative count gives its magnitude
+       (-1 is 00:00:01). */
     if (conversion->part == 'T') {
-        if (parse_decimal(value, &n) && !n.places && n.sign >= 0 && n.digits <= 5) {
-            int seconds = atoi(value);
-            if (seconds <= 86399) {
-                char *out = allocate(8);
-                snprintf(out, 9, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60);
-                if (!conversion->seconds) out[5] = '\0';
-                return out;
-            }
+        long seconds = 0;
+        if (parse_decimal(value, &n) && n.sign >= 0 && n.digits <= 9)
+            for (size_t i = 0; i < n.digits; ++i) seconds = seconds * 10 + (n.whole[i] - '0');
+        else if (parse_decimal(value, &n))
+            for (size_t i = 0; i < n.digits && n.digits <= 9; ++i) seconds = seconds * 10 + (n.whole[i] - '0');
+        else if (*value)
+            last_file_status = 1;
+        long hours = seconds / 3600;
+        const char *suffix = "";
+        if (conversion->twelve) {
+            suffix = hours % 24 < 12 ? "AM" : "PM";
+            hours = hours % 12 ? hours % 12 : 12;
         }
-        *error = "OCONV time requires whole seconds from 0 to 86399";
-        return NULL;
+        char *out = allocate(28);
+        if (conversion->seconds)
+            snprintf(out, 29, "%02ld:%02ld:%02ld%s", hours, seconds / 60 % 60, seconds % 60, suffix);
+        else
+            snprintf(out, 29, "%02ld:%02ld%s", hours, seconds / 60 % 60, suffix);
+        return out;
     }
 
-    if (!parse_decimal(value, &n) || n.places) {
-        *error = "OCONV date requires an integer day count";
+    /* A date that is not a number comes back as it is, with STATUS 1, and
+       a fractional day count is truncated toward zero, as in TAFC. */
+    if (!parse_decimal(value, &n)) {
+        if (*value) last_file_status = 1;
+        return value;
+    }
+    char whole[32];
+    if (n.digits > 18) {
+        *error = "integer operand out of range";
         return NULL;
     }
+    snprintf(whole, sizeof whole, "%s%.*s", n.sign < 0 ? "-" : "", (int)n.digits, n.whole);
+    if (!n.digits) strcpy(whole, "0");
     errno = 0;
-    intmax_t days = strtoimax(value, NULL, 10);
+    intmax_t days = strtoimax(whole, NULL, 10);
     if (errno || days > INT64_MAX || days < INT64_MIN) {
         *error = "integer operand out of range";
         return NULL;
@@ -3553,6 +3876,11 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
 {
     /* An empty mask returns the value unchanged (TAFC PB201214). */
     if (!*mask) return value;
+    struct md_mask md;
+    if (md_parse(mask, &md)) {
+        last_file_status = 0;
+        return md_output(value, &md);
+    }
     const char *converted = mc_conversion(value, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);
@@ -3563,8 +3891,12 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
     if (!output_mask(mask, &conversion) && (*mask == 'L' || *mask == 'R' || ascii_digit((unsigned char)*mask)))
         return jbc_fmt(value, mask, file, line, column);
     if (!output_mask(mask, &conversion)) {
-        fprintf(stderr, "%s:%d:%d: unsupported OCONV mask '%s'\n", file, line, column, mask);
-        jbc_terminate(EXIT_FAILURE);
+        /* TAFC prints "Unknown conversion code.", returns '' and sets
+           STATUS 1; execution continues. */
+        fprintf(stderr, "%s:%d:%d: warning: unsupported OCONV mask '%s' -- Unknown conversion code.\n",
+                file, line, column, mask);
+        last_file_status = 1;
+        return "";
     }
     const char *error = NULL;
     const char *result = convert_output(value, &conversion, &error);
@@ -4205,7 +4537,8 @@ const char *jbc_counts(const char *source, const char *needle)
 }
 
 static const char *convert_input_array(const char *source, enum input_conversion conversion,
-                                       const char *file, int line, int column)
+                                       const char *mask, int *flagged, const char *file, int line,
+                                       int column)
 {
     if (!*source) return source;
     size_t marks = 0, length = strlen(source);
@@ -4216,9 +4549,10 @@ static const char *convert_input_array(const char *source, enum input_conversion
         numeric_error(file, line, column, "ICONVS result too large");
     char *out = allocate(length + marks + 1), *write = out;
     for (const char *item = items;;) {
-        const char *error = NULL;
-        const char *value = *item ? convert_input(item, conversion, &error) : item;
-        if (!value) {
+        int status = 0;
+        const char *value = *item ? convert_input(item, conversion, mask, &status) : item;
+        if (status) *flagged = 1;
+        if (status == 1) {
             free(items);
             return NULL;
         }
@@ -4239,19 +4573,21 @@ const char *jbc_iconvs(const char *source, const char *mask, const char *file, i
 {
     if (!*mask) numeric_error(file, line, column, "ICONVS requires a conversion mask");
     const char *codes = mask;
+    int flagged = 0; /* a rolled-over element keeps its value; STATUS is 1 */
     while (codes) {
-        enum input_conversion conversion = input_mask(take_field(&codes, 253));
+        const char *code = take_field(&codes, 253);
+        enum input_conversion conversion = input_mask(code);
         if (conversion == ICONV_UNSUPPORTED) {
             file_result(2);
             return "";
         }
-        source = convert_input_array(source, conversion, file, line, column);
+        source = convert_input_array(source, conversion, code, &flagged, file, line, column);
         if (!source) {
             file_result(1);
             return "";
         }
     }
-    file_result(0);
+    file_result(flagged);
     return source;
 }
 
@@ -4281,7 +4617,9 @@ const char *jbc_oconvs(const char *source, const char *mask, const char *file, i
         const char *value = item;
         for (size_t i = 0; *value && i < count; ++i) {
             const char *error = NULL;
+            last_file_status = 0;
             value = convert_output(value, &conversions[i], &error);
+            if (last_file_status == 1) status = 1;
             if (!value) {
                 value = item;
                 status = 1;
