@@ -180,6 +180,32 @@ T24_MEMBER_STUBS = {
             "PW.Foundation.ProcessDefCatalogueCheckFields",
             "TF.Core.DumpCommon",
             "USREGS.RegD.RegdGenerateDealslip",
+            # EB.CODE.DIAGNOSTICS.ACTION drives TF.Core's coverage and call
+            # recording; TF.Core declares none of these.
+            "TF.Core.CoverageReport",
+            "TF.Core.CoverageReset",
+            "TF.Core.CoverageStop",
+            "TF.Core.DumpCalls",
+            "TF.Core.StartRecordCalls",
+            "TF.Core.StopRecordCalls",
+            # MessageAcceptanceService.processInward writes each inward
+            # message type through PP.InwardGenericTransactions.
+            *(
+                f"PP.InwardGenericTransactions.PpIn{table}Write"
+                for table in (
+                    "CancellationRequest",
+                    "DdReversalInitiation",
+                    "DirectDebit",
+                    "DirectDebitInit",
+                    "DirectDebitReturn",
+                    "DirectDebitReversal",
+                    "Return",
+                    "Roi",
+                )
+            ),
+            "PP.InwardCreditTransferInitiationService.mapSingleToPORPartyDebit",
+            "PP.LocalClearingService.doOutwardMapping",
+            "PP.OutwardInterfaceService.doOutwardRTGSMapping",
         )
     },
     # The OB_PMT mapping routines call 40 mappers, map<message>toPOR<part>;
@@ -435,6 +461,9 @@ class IncludeIndex:
         if generated is not None:
             return generated
         entry.update(status="missing")
+        if self.domain_inserts is not None and DOMAIN_INSERT.fullmatch(name):
+            # A generated insert whose class no catalogued .domain declares.
+            entry.update(domain_class="absent")
         return None
 
     def generate_domain_insert(self, name, token, entry):
@@ -495,6 +524,7 @@ def check(
     relax_access=False,
     exclude_local_routines=False,
     exclude_test_framework=False,
+    exclude_missing_domains=False,
     include_index=None,
     component_members=None,
 ):
@@ -716,6 +746,24 @@ def check(
         )
     except COMPILER.Diagnostic as error:
         detail = str(error).replace(str(root) + os.sep, "")
+        absent = [
+            lookup["target"]
+            for lookup in lookups
+            if lookup.get("domain_class") == "absent"
+        ]
+        if exclude_missing_domains and absent:
+            return (
+                relative,
+                "excluded",
+                f"generated insert {absent[0]} has no .domain class in the dump",
+                [],
+                fixes,
+                suppressed_next_warnings,
+                calls,
+                stubs,
+                lookups,
+                package_directives,
+            )
         return (
             relative,
             "rejected",
@@ -970,6 +1018,17 @@ def main():
         ),
     )
     components.add_argument(
+        "--t24-exclude-missing-domains",
+        action="store_true",
+        help=h(
+            """
+            With --t24-domain-inserts, report a unit as excluded when it
+            includes an I_<Service>_<Class> insert whose class no catalogued
+            .domain file declares, naming the insert in the reason.
+            """
+        ),
+    )
+    components.add_argument(
         "--t24-component-calls",
         action="store_true",
         help=h(
@@ -1104,6 +1163,7 @@ def main():
         relax_access=options.t24_relax_access,
         exclude_local_routines=options.t24_exclude_local_routines,
         exclude_test_framework=options.t24_exclude_test_framework,
+        exclude_missing_domains=options.t24_exclude_missing_domains,
     )
     counts = Counter()
     blockers = Counter()
@@ -1136,7 +1196,10 @@ def main():
                 coverage.add_unit(name, status, calls)
             files[name] = {"status": status}
             if status == "excluded":
-                files[name]["reason"] = excluded_reason(root.name, name)
+                files[name]["reason"] = diagnostic or excluded_reason(
+                    root.name, name
+                )
+                diagnostic = ""
             if fixes:
                 files[name]["source_fixes"] = fixes
             if stubs:
@@ -1207,6 +1270,8 @@ def main():
             scan_settings["t24_exclude_local_routines"] = True
         if options.t24_exclude_test_framework:
             scan_settings["t24_exclude_test_framework"] = True
+        if options.t24_exclude_missing_domains:
+            scan_settings["t24_exclude_missing_domains"] = True
         report["api_coverage"] = coverage.report(scan_settings)
     print(json.dumps(report, indent=2))
 
