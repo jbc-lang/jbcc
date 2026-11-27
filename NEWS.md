@@ -1,5 +1,14 @@
 # News
 
+## 2026-11-27 · Numeric FMT masks
+
+[jbcc 0.7.0](https://pypi.org/project/jbcc/0.7.0/) completes the guide's
+`FMT` masks: thousands separators, currency, credit indicators, scaling
+and `Z`, as in `FMT(X, 'R2,C&*$#15')`. It adds the `G` group conversion,
+and `FMT` and `OCONV` now accept each other's masks, as the guide's
+tables describe. [LANGUAGE-GAPS.md](https://github.com/jbc-lang/jbcc/blob/main/LANGUAGE-GAPS.md)
+lists what jbcc does not do yet.
+
 ## 2026-11-27 · MC conversions and FMT patterns
 
 [jbcc 0.6.0](https://pypi.org/project/jbcc/0.6.0/) adds the `MC`
