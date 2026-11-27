@@ -6401,6 +6401,52 @@ const char *jbc_cos(const char *s, const char *file, int line, int column)
 }
 #endif
 
+/* PASSDATA and RTNDATA between jbcc programs, as TAFC PB201214 passes them
+   (tests/tafc/execute-passdata.b): EXECUTE names two files in the child's
+   environment. COLLECTDATA reads the first, as often as asked, and gives ''
+   without one; RTNDATA replaces the second and is discarded without one.
+   A nested EXECUTE passes neither unless it has the clause. */
+#define PASSDATA_VARIABLE "JBCC_PASSDATA"
+#define RTNDATA_VARIABLE "JBCC_RTNDATA"
+
+static const char *read_whole_file(const char *path)
+{
+    FILE *stream = path && *path ? fopen(path, "rb") : NULL;
+    if (!stream) return "";
+    char *bytes = NULL;
+    size_t length = 0, capacity = 0;
+    int ch;
+    while ((ch = getc(stream)) != EOF) {
+        if (!ch) break; /* strings cannot hold NUL yet */
+        if (length + 1 >= capacity) {
+            size_t larger = capacity ? 2 * capacity : 64;
+            char *grown = allocate(larger);
+            if (length) memcpy(grown, bytes, length);
+            bytes = grown;
+            capacity = larger;
+        }
+        bytes[length++] = (char)ch;
+    }
+    fclose(stream);
+    if (!bytes) return "";
+    bytes[length] = '\0';
+    return bytes;
+}
+
+const char *jbc_collectdata(void)
+{
+    return read_whole_file(getenv(PASSDATA_VARIABLE));
+}
+
+void jbc_rtndata(const char *value)
+{
+    const char *path = getenv(RTNDATA_VARIABLE);
+    FILE *stream = path && *path ? fopen(path, "wb") : NULL;
+    if (!stream) return;
+    fputs(value, stream);
+    fclose(stream);
+}
+
 #ifdef JBC_EXECUTE
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -6450,8 +6496,34 @@ static FILE *command_input(void)
     return NULL;
 }
 
+/* A file for PASSDATA or RTNDATA in the temporary directory. */
+static char *exchange_file(const char *data, const char *file, int line, int column)
+{
+    const char *directory = getenv("TMPDIR");
+    if (!directory || !*directory) directory = "/tmp";
+    size_t length = strlen(directory) + sizeof "/jbcc-data-XXXXXX";
+    char *path = allocate(length);
+    snprintf(path, length + 1, "%s/jbcc-data-XXXXXX", directory);
+    int fd = mkstemp(path);
+    if (fd == -1) numeric_error(file, line, column, "cannot create EXECUTE data file");
+    size_t size = strlen(data);
+    while (size) {
+        ssize_t written = write(fd, data, size);
+        if (written <= 0) {
+            close(fd);
+            unlink(path);
+            numeric_error(file, line, column, "cannot write EXECUTE data file");
+        }
+        data += written;
+        size -= (size_t)written;
+    }
+    close(fd);
+    return path;
+}
+
 void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *returning,
-                 jbc_variable *return_list, const char *file, int line, int column)
+                 jbc_variable *return_list, const char *passdata, jbc_variable *rtndata,
+                 const char *file, int line, int column)
 {
     if (return_list)
         numeric_error(file, line, column, "RTNLIST requires a jBC command backend");
@@ -6464,7 +6536,10 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         numeric_error(file, line, column, "field-mark-separated EXECUTE commands are unsupported");
     if (fflush(stdout) == EOF || fflush(stderr) == EOF)
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
-    if (!capture && !returning && !input_data) {
+    const char *passdata_path = passdata ? exchange_file(passdata, file, line, column) : NULL;
+    const char *rtndata_path = rtndata ? exchange_file("", file, line, column) : NULL;
+    if (!capture && !returning && !input_data && !passdata && !rtndata
+        && !getenv(PASSDATA_VARIABLE) && !getenv(RTNDATA_VARIABLE)) {
         int status = system(command);
         if (status == -1) numeric_error(file, line, column, "cannot execute command");
         last_command_code = command_exit_code(status);
@@ -6495,6 +6570,10 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
             redirect_command_fd(output_pipe[1], STDOUT_FILENO);
         }
         if (returning) redirect_command_fd(error_fd, STDERR_FILENO);
+        if (passdata_path) setenv(PASSDATA_VARIABLE, passdata_path, 1);
+        else unsetenv(PASSDATA_VARIABLE);
+        if (rtndata_path) setenv(RTNDATA_VARIABLE, rtndata_path, 1);
+        else unsetenv(RTNDATA_VARIABLE);
         execl("/bin/sh", "sh", "-c", command, (char *)NULL);
         _exit(127);
     }
@@ -6508,6 +6587,15 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         close(output_pipe[1]);
         error = read_command_output(output, &captured, "CAPTURING cannot store a NUL byte");
         fclose(output);
+        /* One final newline is dropped, as TAFC PB201214 does
+           (tests/tafc/execute-capturing.b). */
+        size_t length = strlen(captured);
+        if (length && (unsigned char)captured[length - 1] == 254) {
+            char *trimmed = allocate(length - 1);
+            memcpy(trimmed, captured, length - 1);
+            trimmed[length - 1] = '\0';
+            captured = trimmed;
+        }
     }
     int status;
     pid_t waited;
@@ -6517,6 +6605,11 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         if (!error && fseek(errors, 0, SEEK_SET)) error = "cannot rewind command error file";
         if (!error) error = read_command_output(errors, &messages, "RETURNING cannot store a NUL byte");
         fclose(errors);
+    }
+    if (passdata_path) unlink(passdata_path);
+    if (rtndata_path) {
+        if (!error) assign_value(rtndata, read_whole_file(rtndata_path));
+        unlink(rtndata_path);
     }
     if (error) numeric_error(file, line, column, error);
     last_command_code = command_exit_code(status);
@@ -6542,7 +6635,7 @@ void jbc_chain(const char *command, const char *file, int line, int column)
         while (option > text && option[-1] == ' ') --option;
         *option = '\0';
     }
-    jbc_execute(text, NULL, NULL, NULL, file, line, column);
+    jbc_execute(text, NULL, NULL, NULL, NULL, NULL, file, line, column);
     fflush(stdout);
     jbc_terminate(last_command_code > 255 ? 255 : (int)last_command_code);
 }

@@ -58,6 +58,9 @@ See TAFC-CROSSCHECK.md for the probes.
 - `STATUS()` read in the same statement as a conversion, as in
   `CRT OCONV(X, 'D'), STATUS()`: TAFC appears to read it before the
   conversion runs; jbcc reads it after.
+- EXECUTE without a shell: TAFC runs `echo a; echo b` as `echo` with the
+  arguments `a;`, `echo` and `b`, taking `;`, `|` and quotes literally;
+  jbcc runs the command with `/bin/sh -c` (`tests/tafc/execute-capturing.b`).
 - NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
   NUL bytes read from files), while TAFC's can.
 

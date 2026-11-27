@@ -57,13 +57,30 @@ run_one() {
     name=$(basename "$source" .b)
     work=/tmp/work/$name
     mkdir -p "$work"
-    cp "$source" "$work/"
     cd "$work"
+    # Lines "* tafc-program: NAME" start other programs the probe EXECUTEs;
+    # each is written to NAME.b and compiled before the main program.
+    awk -v main="$name.b" '
+        /^\*[ \t]*tafc-program:[ \t]*[A-Za-z0-9_]+[ \t]*$/ {
+            out = $NF ".b"; print out > "companions"; next
+        }
+        { print > (out ? out : main) }
+    ' "$source"
     # Each program gets its own directory for jBASE files and OS files.
     export JEDIFILEPATH=$work
     set +e
-    timeout 120 jcompile -I"$JBCRELEASEDIR/include" "$name.b" </dev/null >"/output/$name.clog" 2>&1
-    echo $? >"/output/$name.crc"
+    : >"/output/$name.clog"
+    status=0
+    if [ -f companions ]; then
+        while read -r companion; do
+            timeout 120 jcompile -I"$JBCRELEASEDIR/include" "$companion" </dev/null >>"/output/$name.clog" 2>&1 || status=$?
+        done <companions
+    fi
+    if [ "$status" = 0 ]; then
+        timeout 120 jcompile -I"$JBCRELEASEDIR/include" "$name.b" </dev/null >>"/output/$name.clog" 2>&1
+        status=$?
+    fi
+    echo $status >"/output/$name.crc"
     if [ -x "./$name" ]; then
         # Concurrent jBASE start-ups sometimes fail to create the licensing
         # semaphore or attach shared memory; run such a program again.

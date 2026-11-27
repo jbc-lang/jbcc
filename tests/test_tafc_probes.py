@@ -37,15 +37,36 @@ def test_probe_matches_tafc(compiler, probe):
         pytest.skip(KNOWN_DIFFERENCES[probe.name])
     data = probe.read_bytes()
     options = crosscheck.OPTIONS_RE.search(data)
+    extra = options.group(1).decode().split() if options else []
+    emulation = crosscheck.emulation_of(data)
+    main, companions = crosscheck.split_programs(data)
+    for name, source in companions:
+        (compiler.work / (name + '.b')).write_bytes(source)
+        subprocess.run(
+            [
+                CLI,
+                '--emulation',
+                emulation,
+                *extra,
+                '--exe',
+                name + '.b',
+                '-o',
+                name,
+            ],
+            cwd=compiler.work,
+            check=True,
+        )
+    source = compiler.work / probe.name
+    source.write_bytes(main)
     binary = compiler.work / 'probe'
     subprocess.run(
         [
             CLI,
             '--emulation',
-            crosscheck.emulation_of(data),
-            *(options.group(1).decode().split() if options else []),
+            emulation,
+            *extra,
             '--exe',
-            probe,
+            source,
             '-o',
             binary,
         ],
