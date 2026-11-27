@@ -1,5 +1,14 @@
 # News
 
+## 2026-11-27 · MC conversions and FMT patterns
+
+[jbcc 0.6.0](https://pypi.org/project/jbcc/0.6.0/) adds the `MC`
+conversions of the guide's `OCONV` table to `FMT` and `OCONV` (`MCA`,
+`MCN`, `MCL`, `MCU`, `MCT`, `MCC`, `MCDX`, `MCXD` and others) and `FMT`
+pattern masks such as `R((###) ###-###)`. `MCP` now prints non-printable
+bytes as `.`, as the guide shows, while field, value and subvalue marks
+still print as `^`, `]` and `\`.
+
 ## 2026-11-27 · Guide functions and the JBC.h cache
 
 [jbcc 0.5.0](https://pypi.org/project/jbcc/0.5.0/) implements 36 functions
