@@ -11,6 +11,7 @@ FOR I = 0 TO 1
   IF I THEN Y = 'yes'
   IF NOT(UNASSIGNED(Y)) AND Y THEN PRINT Y
 NEXT
+* Prime starts COMMON at 0, so Z is assigned (TAFC PB201214).
 COMMON /STATE/ Z
 PRINT ASSIGNED(Z)
 Z = ''

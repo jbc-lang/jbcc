@@ -191,8 +191,12 @@ bytes in active code, literals or include paths report a source location.
 
 Use `--defer-unassigned-reads` for legacy code that reads a scalar before
 jbcc can establish an assignment. This opt-in turns that compile-time
-diagnostic into a warning. If execution reaches the read, the runtime
-requires an assigned value. Unknown function calls remain compile errors.
+diagnostic into a warning. If execution reaches the read of an unassigned
+variable, the runtime warns, assigns and uses an empty string, and goes on,
+as TAFC PB201214 does (`Invalid or uninitialised variable -- NULL USED`).
+Unknown function calls remain compile errors. Without the option, jbcc
+still rejects a read it can prove unassigned, where TAFC compiles it with
+a warning.
 Compound assignments such as `+=` and `:=` also check the target's old
 value at runtime under this option.
 
@@ -380,8 +384,14 @@ places unless a PRECISION statement says otherwise, as in TAFC PB201214
 
 Results print without trailing fractional zeros and never as `-0`.
 Comparisons and truth tests round numeric operands the same way, so
-`'0.33333' = '0.3333'` is true at PRECISION 4. Division by zero reports
-the operator location. TAFC keeps a numeric literal at the unit's first
+`'0.33333' = '0.3333'` is true at PRECISION 4.
+
+As in TAFC, arithmetic does not stop on bad operands. An empty string, a
+lone sign or a lone point is 0. Any other operand that is not a decimal
+number, such as `'abc'`, `'1E3'` or a dynamic array under prime, warns
+`Non-numeric value -- ZERO USED` at the operator and counts as 0. Division
+by zero, including `DIV` and `/=`, warns at the operator and gives 0.
+jbcc writes these warnings to stderr; TAFC writes them to stdout. TAFC keeps a numeric literal at the unit's first
 PRECISION when a later PRECISION statement lowers it; jbcc rounds it at
 the PRECISION in force (`tests/snippets/precision.b`).
 
@@ -799,11 +809,16 @@ internal date and time of a timestamp in `zone`. An empty zone is the
 process's own; another value is an IANA name such as `Asia/Tokyo`, set as
 `TZ` for the conversion. The playground's WASI runtime has no zone
 database and accepts only an empty zone, `UTC` and `GMT`.
-`TIMEDIFF(timestamp1, timestamp2, mask)` subtracts `timestamp2` and returns
-days, hours, minutes, seconds and milliseconds as fields (mask 0), with
-weeks first for mask 1. Each field carries the sign of the difference
-(provisional). Masks 2 to 7 count months or years; the guide does not say
-from which calendar date, so they report an error when reached.
+`TIMEDIFF(timestamp1, timestamp2, mask)` returns `timestamp2` minus
+`timestamp1` as fields, and every field carries that sign: TAFC PB201214
+computes it this way, although the guide's prose says the opposite.
+Mask 0 gives days, hours, minutes, seconds and milliseconds, and mask 1
+puts weeks first. Masks 2 to 7 count calendar months (2, 3), years
+(4, 5) or years and months (6, 7) from `timestamp1` towards `timestamp2`
+in UTC, clamping a day past the end of a shorter month, and split the
+rest, with weeks for masks 3, 5 and 7. So from 31 January 2020 to
+1 March 2021 01:00, mask 2 gives `13^1^1^0^0^0`, one month after
+31 January 2020 being 29 February (`tests/tafc/timediff.b`).
 `@TIMEZONE` returns `JBASE_TIMEZONE`, else `TZ`, else an empty string
 (provisional: the guide says only "as per jBASE Timezone").
 [MAKETIMESTAMP](https://jbc-lang.org/pages/maketimestamp.html), [LOCALDATE](https://jbc-lang.org/pages/localdate.html), [LOCALTIME](https://jbc-lang.org/pages/localtime.html), [TIMEDIFF](https://jbc-lang.org/pages/timediff.html).
@@ -1170,9 +1185,11 @@ negative value, `D` adds `DB` after a positive one, `E` encloses a
 negative value in `<>`, `M` puts the minus sign after it, `N` drops it),
 `$` and `&x`, then the fill `#n`, `%n` or `*n`. So
 `FMT(123456.78, 'R2,$#15')` returns `"    $123,456.78"` and
-`FMT(-123456.78, 'R2,C&*$#15')` returns `"  $123,456.78CR"`. `&x` names the
-fill for empty fields of a format string, so it adds nothing to a number;
-a value wider than the field is not cut. As the guide's table says, `FMT`
+`FMT(-123456.78, 'R2,C&*$#15')` returns `"**$123,456.78CR"`. `&x` makes
+`x` the fill character, overriding the `#`, `%` or `*` fill, and `x` itself
+is not shown, so `'R2,&$#15'` gives `"$$$$$123,456.78"`, as in TAFC
+PB201214; the guide's comments show blanks. A value wider than the field is
+not cut. As the guide's table says, `FMT`
 formats `D` and `MT` masks as `OCONV` does (`FMT(16376, 'D4/')` returns
 `10/31/2012`), and `OCONV` accepts `FMT`'s `L`, `R` and width masks.
 
@@ -1460,8 +1477,10 @@ MAT operations use the saved bounds, even if Config changes later.
 Re-entering the declaration or binding the same member in another routine
 checks its dimensions and preserves its values. A different shape produces
 a source-located diagnostic. This timing and mismatch policy is provisional
-pending a reference run. The current initialization policy leaves slots unassigned until
-written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
+pending a reference run. Under prime emulation every COMMON scalar and
+matrix element starts at 0 and counts as assigned, as in TAFC PB201214
+(`tests/tafc/common-*.b`); under `--emulation jbase` they start
+unassigned. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 
 `CLEARCOMMON` sets every scalar and matrix element of the unnamed COMMON
@@ -1649,8 +1668,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 ## Built-in functions
 
-CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
-reports a runtime diagnostic while strings use NUL termination.
+CHAR returns the byte for its argument's integer part modulo 256, as in
+TAFC PB201214: `CHAR(300)` is `,`, `CHAR(-1)` is byte 255 and `CHAR(65.9)`
+is `A`. A code that comes to 0, such as `CHAR(0)` or `CHAR(256)`, reports
+a runtime diagnostic while strings use NUL termination.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197
@@ -1945,14 +1966,15 @@ output.
   or 0. `CacheDelete`, `CacheKeyList` and `CacheBucketList` leave the
   statistics unchanged. The two lists are sorted by name, as in TAFC.
 - `CacheStats(bucket, counter)` reads `CACHE_HITS`, `CACHE_GETS`,
-  `CACHE_PUTS`, `CACHE_SIZE` (the sum of value lengths) and
-  `CACHE_NB_ITEMS`. `CacheClearStats` resets the counters. `CacheClear`
-  empties a bucket and resets its counters. `CacheClearAll` removes every
+  `CACHE_PUTS`, `CACHE_SIZE` and `CACHE_NB_ITEMS`; `CACHE_SIZE` is the
+  number of items, as in TAFC PB201214. `CacheClearStats` resets the
+  counters. `CacheClear` removes a bucket with its counters and options,
+  so a later `CacheGet` counts nothing, and `CacheClearAll` removes every
   bucket.
 - `CacheGetOption` returns zeros for a missing bucket and otherwise
   `CACHE_MAX_SIZE` (default 1048576) and `CACHE_PURGE_THRESHOLD`
   (default 90). `CacheSetOption` creates the bucket. When a bucket's
-  size exceeds `CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100`, jbcc
+  item count exceeds `CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100`, jbcc
   removes its least recently written or read items until it fits. The
   guide only says that "the most outdated data" is purged, so this order
   is provisional. Unknown counters and options read as 0.
@@ -2049,8 +2071,9 @@ spooler or licence backend.
 `OPENSEQ path TO F` and `OPENSEQ directory, name TO F` open regular files
 on the native filesystem. Relative paths use the executable’s working
 directory. `READONLY` takes a shared advisory lock. A writable open takes
-an exclusive lock. Contention takes `LOCKED` when supplied, otherwise
-`ELSE`. POSIX terminals also open without a file lock. Pipes and
+an exclusive lock. Contention with another process takes `LOCKED` when
+supplied, otherwise `ELSE`. A program can open a file it already has open
+through OPENSEQ or OSOPEN again, as TAFC PB201214 allows. POSIX terminals also open without a file lock. Pipes and
 other devices take the I/O error branch.
 [OPENSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_OPENSEQ.htm).
 
@@ -2135,8 +2158,9 @@ A failed write reports the source location when no error arm is present.
 [OSBWRITE](https://jbc-lang.org/pages/osbwrite.html).
 
 `OSREAD value FROM path` reads a regular file into a scalar or
-record context variable. It keeps internal line endings, strips one final
-LF, and replaces each NUL byte with byte 128. A bare name that is missing
+record context variable. It strips one final LF, turns every other LF into
+a field mark and keeps carriage returns, as TAFC PB201214 does, so a file
+of lines reads as a dynamic array. It replaces each NUL byte with byte 128. A bare name that is missing
 from the working directory is searched for in the colon-separated
 `JEDIFILEPATH`. The reference grammar accepts `SETTING` and `ON ERROR`
 with a required THEN or ELSE arm. jbcc uses sequential file status codes

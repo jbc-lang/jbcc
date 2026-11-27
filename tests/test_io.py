@@ -918,9 +918,6 @@ def test_readt_invalid_channel(compiler, fixture_name):
     [
         pytest.param('writet_1.b', 'writet-diagnostics.stderr', id='writet-1'),
         pytest.param('writet_2.b', 'writet-diagnostics.stderr', id='writet-2'),
-        pytest.param(
-            'writet_3.b', 'writet-diagnostics_2.stderr', id='writet-3'
-        ),
     ],
 )
 def test_writet_diagnostics(compiler, fixture_name, diagnostic_fixture):

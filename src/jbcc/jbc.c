@@ -636,21 +636,34 @@ static const char *format_decimal(long double result)
 }
 #endif
 
+/* An arithmetic operand as TAFC PB201214 reads it (tests/tafc/
+   nonnumeric-operands.b): prime skips spaces and tabs around a number; an
+   empty string, a lone sign or a lone point is 0; anything else that is
+   not a decimal number warns and is 0, and execution continues. */
+static const char *numeric_operand(const char *text, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (jbc_emulation_prime) text = trim_blanks(text);
+    if (parse_decimal(text, &n)) return text;
+    if (!*text || ((text[0] == '+' || text[0] == '-' || text[0] == '.') &&
+                   (!text[1] || (text[1] == '.' && text[0] != '.' && !text[2]))))
+        return "0";
+    fprintf(stderr, "%s:%d:%d: warning: Non-numeric value -- ZERO USED\n", file, line, column);
+    return "0";
+}
+
 static const char *arithmetic(char op, const char *left, const char *right,
                               int warn_on_zero_divisor, const char *file, int line, int column)
 {
     struct decimal lhs, rhs;
-    /* Prime skips spaces and tabs around a number. */
-    if (jbc_emulation_prime) {
-        left = trim_blanks(left);
-        right = trim_blanks(right);
-    }
-    if (!parse_decimal(left, &lhs) || !parse_decimal(right, &rhs))
-        numeric_error(file, line, column, "arithmetic requires numeric operands");
+    left = numeric_operand(left, file, line, column);
+    right = numeric_operand(right, file, line, column);
+    parse_decimal(left, &lhs);
+    parse_decimal(right, &rhs);
+    /* A zero divisor warns and gives 0; execution continues, as in TAFC. */
     if (op == '/' && rhs.sign == 0) {
-        if (!warn_on_zero_divisor)
-            numeric_error(file, line, column, "division by zero");
-        fprintf(stderr, "%s:%d:%d: warning: DIVS: division by zero\n", file, line, column);
+        fprintf(stderr, "%s:%d:%d: warning: %sdivision by zero\n", file, line, column,
+                warn_on_zero_divisor ? "DIVS: " : "");
         return "0";
     }
 
@@ -875,6 +888,11 @@ static struct jbc_slots *storage(size_t count, const char *name)
     s->name = name;
     s->next = storages;
     storages = s;
+    /* Named storage is COMMON. Prime starts COMMON scalars and matrix
+       elements at 0 (named_common and unnamed_common = zero in TAFC's
+       Config_EMULATE; tests/tafc/common-*.b); jbase leaves them unassigned. */
+    if (name && jbc_emulation_prime)
+        for (size_t i = 0; i < count; ++i) s->values[i].value = "0";
     return s;
 }
 
@@ -1197,13 +1215,16 @@ const char *jbc_extract(const char *text, const char **indices, int count,
     return array_part(text, strlen(text), index, depth, 0, NULL, 0);
 }
 
-const char *jbc_read(const char *value, const char *name, const char *file, int line, int column)
+const char *jbc_read(jbc_variable *slot, const char *name, const char *file, int line, int column)
 {
-    if (!value) {
-        fprintf(stderr, "%s:%d:%d: unassigned variable '%s'\n", file, line, column, name);
-        jbc_terminate(EXIT_FAILURE);
+    /* An unassigned read warns, assigns '' and continues, as in TAFC
+       PB201214, where ASSIGNED is then 1 (tests/tafc/unassigned-continues.b). */
+    if (!slot->value) {
+        fprintf(stderr, "%s:%d:%d: warning: unassigned variable '%s' -- NULL USED\n", file,
+                line, column, name);
+        assign_value(slot, "");
     }
-    return value;
+    return slot->value;
 }
 
 static const char *delete_component(const char *text, const char **indices, int count,
@@ -1255,7 +1276,7 @@ const char *jbc_delete(const char *text, const char **indices, int count,
 void jbc_del(jbc_variable *slot, const char **indices, int count, const char *name,
              const char *file, int line, int column)
 {
-    const char *text = jbc_read(slot->value, name, file, line, column);
+    const char *text = jbc_read(slot, name, file, line, column);
     const char *result = delete_component(text, indices, count, 0, file, line, column);
     if (result != text) assign_value(slot, result);
 }
@@ -1651,7 +1672,7 @@ void jbc_matparse(jbc_variable *dest, int rank, const int *bounds,
 const char *jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *setting,
                 const char *name, const char *file, int line, int column)
 {
-    const char *text = jbc_read(source->value, name, file, line, column);
+    const char *text = jbc_read(source, name, file, line, column);
     const char *code = "0", *result = "";
     if (source->remove_offset != SIZE_MAX) {
         const char *start = text + source->remove_offset;
@@ -2501,8 +2522,10 @@ static const char *pattern_format(const char *text, const char *mask)
    separator ",", a credit indicator (C, D, E, M or N), "$", "&x" and a
    fill (#n spaces, %n zeros, *n asterisks). The guide's examples:
    FMT(123456.78, 'R2,$#15') = "    $123,456.78" and
-   FMT(-123456.78, 'R2,C&*$#15') = "  $123,456.78CR". "&x" names the fill
-   for empty fields of a format string, so it never adds x to a number.
+   FMT(-123456.78, 'R2,C&*$#15') = "  $123,456.78CR". "&x" makes x the
+   fill character, whatever the #, % or * fill says, and x itself is not
+   shown: TAFC PB201214 gives "**$123,456.78CR" for that example and
+   "$$$$$123,456.78" for 'R2,&$#15' (tests/tafc/fmt-fill-character.b).
    Returns NULL for masks the plain FMT code handles. */
 static const char *numeric_format(const char *text, const char *mask)
 {
@@ -2510,7 +2533,7 @@ static const char *numeric_format(const char *text, const char *mask)
     if (*p != 'L' && *p != 'R') return NULL;
     char align = *p++;
     int precision = -1, scale = -1, zero = 0, thousands = 0, dollar = 0, extended = 0;
-    char credit = 0, fill = ' ';
+    char credit = 0, fill = ' ', ampersand_fill = 0;
     size_t width = 0;
     if (ascii_digit((unsigned char)*p)) precision = *p++ - '0';
     if (precision >= 0 && ascii_digit((unsigned char)*p)) { scale = *p++ - '0'; extended = 1; }
@@ -2520,7 +2543,7 @@ static const char *numeric_format(const char *text, const char *mask)
         else if (*p == ',') thousands = 1;
         else if (*p == '$') dollar = 1;
         else if (strchr("CDEMN", *p)) { if (credit) return NULL; credit = *p; }
-        else if (*p == '&' && p[1]) ++p;
+        else if (*p == '&' && p[1]) ampersand_fill = *++p;
         else return NULL;
     }
     if (*p) {
@@ -2533,6 +2556,7 @@ static const char *numeric_format(const char *text, const char *mask)
         }
         if (*p || !width) return NULL;
     }
+    if (ampersand_fill) fill = ampersand_fill;
     if (!extended) return NULL;
     struct decimal n;
     if (!parse_decimal(text, &n)) return NULL;
@@ -2624,6 +2648,8 @@ const char *jbc_oconv(const char *value, const char *mask, const char *file, int
 
 const char *jbc_fmt(const char *text, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return text;
     const char *converted = mc_conversion(text, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(text);
@@ -3101,9 +3127,51 @@ const char *jbc_localtime(const char *stamp, const char *zone, const char *file,
     return size_value((uintmax_t)(local - floor_div(local, 86400) * 86400));
 }
 
-/* Masks 0 and 1 split a fixed interval. Masks 2 to 7 count months or
-   years, whose length depends on the calendar position the guide leaves
-   unstated, so they report an error. Each field carries the sign. */
+/* Days from 1970-01-01 to a proleptic Gregorian date, and back. */
+static int64_t timediff_days(int64_t year, int month, int day)
+{
+    year -= month <= 2;
+    int64_t era = (year >= 0 ? year : year - 399) / 400;
+    int64_t yoe = year - era * 400;
+    int64_t doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    return era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+}
+
+static void timediff_civil(int64_t days, int64_t *year, int *month, int *day)
+{
+    days += 719468;
+    int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+    int64_t doe = days - era * 146097;
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    int64_t mp = (5 * doy + 2) / 153;
+    *day = (int)(doy - (153 * mp + 2) / 5 + 1);
+    *month = (int)(mp < 10 ? mp + 3 : mp - 9);
+    *year = yoe + era * 400 + (*month <= 2);
+}
+
+/* The UTC instant `months` calendar months after `start`, keeping its time
+   of day and clamping the day to the end of the month: 31 January plus one
+   month is the last day of February. */
+static int64_t add_calendar_months(int64_t start, int64_t months)
+{
+    int64_t day_ms = 86400000, days = start / day_ms - (start % day_ms < 0);
+    int64_t time = start - days * day_ms, year;
+    int month, day;
+    timediff_civil(days, &year, &month, &day);
+    int64_t index = year * 12 + (month - 1) + months;
+    year = index / 12 - (index % 12 < 0);
+    month = (int)(index - year * 12) + 1;
+    int64_t next = month == 12 ? timediff_days(year + 1, 1, 1) : timediff_days(year, month + 1, 1);
+    int last = (int)(next - timediff_days(year, month, 1));
+    return timediff_days(year, month, day < last ? day : last) * day_ms + time;
+}
+
+/* TIMEDIFF(first, second, mask) is second - first, as TAFC PB201214
+   computes it; every field carries that sign. Masks 2 to 7 count calendar
+   months or years forward from the earlier timestamp (UTC), clamping to the
+   end of a shorter month, and split the rest into weeks, days, hours,
+   minutes, seconds and milliseconds (tests/tafc/timediff.b). */
 const char *jbc_timediff(const char *first, const char *second, const char *mask,
                          const char *file, int line, int column)
 {
@@ -3111,20 +3179,45 @@ const char *jbc_timediff(const char *first, const char *second, const char *mask
     int64_t b = milliseconds(second, "TIMEDIFF requires numeric timestamps", file, line, column);
     int64_t m = milliseconds(*mask ? mask : "0", "TIMEDIFF requires a mask from 0 to 7", file, line, column);
     if (m % 1000 || m < 0 || m > 7000) numeric_error(file, line, column, "TIMEDIFF requires a mask from 0 to 7");
-    if (m > 1000) numeric_error(file, line, column, "TIMEDIFF masks with months or years are unsupported");
-    int64_t diff = a - b, sign = diff < 0 ? -1 : 1, rest = diff * sign;
-    int64_t fields[6], *f = fields;
-    int64_t days = rest / 86400000;
-    if (m == 1000) { *f++ = days / 7; days %= 7; }
+    int code = (int)(m / 1000);
+    int64_t sign = b < a ? -1 : 1, low = b < a ? b : a, high = b < a ? a : b;
+    int64_t fields[8], *f = fields;
+    int years = code >= 4, months = code == 2 || code == 3 || code >= 6;
+    int weeks = code == 1 || code == 3 || code == 5 || code == 7;
+    if (years || months) {
+        /* Count from the first timestamp towards the second, forwards or
+           backwards: TAFC gives -1^-30 for one order of 2020-01-31 and
+           2021-03-01 and 1^29 for the other. */
+        int64_t from_days = a / 86400000 - (a % 86400000 < 0);
+        int64_t to_days = b / 86400000 - (b % 86400000 < 0), fy, ty;
+        int fm, fd, tm, td;
+        timediff_civil(from_days, &fy, &fm, &fd);
+        timediff_civil(to_days, &ty, &tm, &td);
+        int64_t count = months ? (ty - fy) * 12 + (tm - fm) : ty - fy;
+        count *= sign;
+        int64_t step = months ? 1 : 12;
+        for (; count > 0; --count) {
+            int64_t moved = add_calendar_months(a, sign * count * step);
+            if (sign > 0 ? moved <= b : moved >= b) break;
+        }
+        if (count < 0) count = 0;
+        int64_t total = count * step, moved = add_calendar_months(a, sign * total);
+        low = sign > 0 ? moved : b;
+        high = sign > 0 ? b : moved;
+        if (years) *f++ = total / 12;
+        if (months) *f++ = years ? total % 12 : total;
+    }
+    int64_t rest = high - low, days = rest / 86400000;
+    if (weeks) { *f++ = days / 7; days %= 7; }
     *f++ = days;
     *f++ = rest / 3600000 % 24;
     *f++ = rest / 60000 % 60;
     *f++ = rest / 1000 % 60;
     *f++ = rest % 1000;
-    char *out = allocate(6 * 22);
+    char *out = allocate(8 * 22);
     size_t n = 0;
     for (int64_t *p = fields; p < f; ++p)
-        n += (size_t)snprintf(out + n, 6 * 22 - n, "%s%" PRId64, p == fields ? "" : "\376", *p * sign);
+        n += (size_t)snprintf(out + n, 8 * 22 - n, "%s%" PRId64, p == fields ? "" : "\376", *p * sign);
     return out;
 }
 #endif
@@ -3311,6 +3404,8 @@ static const char *convert_input(const char *value, enum input_conversion conver
 
 const char *jbc_iconv(const char *value, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return value;
     enum input_conversion conversion = input_mask(mask);
     if (conversion == ICONV_UNSUPPORTED) {
         fprintf(stderr, "%s:%d:%d: unsupported ICONV mask '%s'\n", file, line, column, mask);
@@ -3456,6 +3551,8 @@ static const char *convert_output(const char *value, const struct output_convers
 
 const char *jbc_oconv(const char *value, const char *mask, const char *file, int line, int column)
 {
+    /* An empty mask returns the value unchanged (TAFC PB201214). */
+    if (!*mask) return value;
     const char *converted = mc_conversion(value, mask, file, line, column);
     if (converted) return converted;
     if (strcmp(mask, "MX") == 0) return hex_bytes(value);
@@ -5211,13 +5308,14 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
 const char *jbc_char(const char *value, const char *file, int line, int column)
 {
     struct decimal n;
-    if (!parse_decimal(value, &n) || n.sign < 0 || n.places || n.digits > 3)
-        numeric_error(file, line, column, "CHAR requires an integer from 0 to 255");
+    if (!parse_decimal(value, &n))
+        numeric_error(file, line, column, "CHAR requires a number");
+    /* The integer part modulo 256, as TAFC PB201214 gives it: CHAR(300) is
+       ',' and CHAR(-1) is byte 255 (tests/tafc/char-bytes.b). */
     unsigned int code = 0;
     for (size_t i = 0; i < n.digits; ++i)
-        code = code * 10 + (unsigned int)(n.whole[i] - '0');
-    if (code > 255)
-        numeric_error(file, line, column, "CHAR requires an integer from 0 to 255");
+        code = (code * 10 + (unsigned int)(n.whole[i] - '0')) % 256;
+    if (n.sign < 0) code = (256 - code) % 256;
     if (code == 0)
         numeric_error(file, line, column, "CHAR(0) requires strings with embedded NUL support");
     char *out = allocate(1);
@@ -6548,6 +6646,21 @@ struct sequential_file {
 static struct sequential_file *sequential_files;
 static unsigned seq_depth;
 
+/* Whether this process already has the file behind fd open as a sequential
+   file. Its own lock then does not block it: TAFC PB201214 lets a program
+   OSOPEN or OPENSEQ a file it already has open (tests/tafc/
+   osread-line-feeds.b). Another process's lock still does. */
+static int open_in_this_process(int fd)
+{
+    struct stat target, other;
+    if (fstat(fd, &target) < 0) return 0;
+    for (struct sequential_file *s = sequential_files; s; s = s->next)
+        if (s->stream && fstat(fileno(s->stream), &other) == 0 &&
+            other.st_dev == target.st_dev && other.st_ino == target.st_ino)
+            return 1;
+    return 0;
+}
+
 static struct sequential_file **sequential_slot(const char *token)
 {
     struct sequential_file **slot = &sequential_files;
@@ -6642,7 +6755,8 @@ static int open_sequential(const char **path, enum sequential_access access, int
     if (fstat(fd, &st) < 0) status = 32768;
     else if (S_ISREG(st.st_mode)) {
         if (flock(fd, (access == SEQ_READ_ONLY ? LOCK_SH : LOCK_EX) | LOCK_NB) < 0)
-            status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
+            status = errno != EWOULDBLOCK ? file_error(errno)
+                   : open_in_this_process(fd) ? 0 : JBC_LOCKED;
     } else if (search_path || !S_ISCHR(st.st_mode) || !isatty(fd)) status = 32768;
     if (!status && append && lseek(fd, 0, SEEK_END) < 0) status = file_error(errno);
     if (!status && !(*out = fdopen(fd, mode))) status = file_error(errno);
@@ -6870,8 +6984,10 @@ int jbc_osread(const char *path, jbc_variable *out)
     if (!status && length) {
         if (contents[length - 1] == '\n') --length;
         char *value = allocate(length);
+        /* Line feeds become field marks, as TAFC PB201214 reads a file
+           (tests/tafc/osread-line-feeds.b); carriage returns stay. */
         for (size_t i = 0; i < length; ++i)
-            value[i] = contents[i] ? contents[i] : (char)128;
+            value[i] = contents[i] == '\n' ? (char)254 : contents[i] ? contents[i] : (char)128;
         value[length] = '\0';
         assign_value(out, value);
     }
@@ -7035,7 +7151,7 @@ int jbc_oswrite(const char *path, const char *value, int append)
     FILE *out = NULL;
     if (fstat(fd, &info) < 0) status = file_error(errno);
     else if (!S_ISREG(info.st_mode)) status = 32768;
-    else if (flock(fd, LOCK_EX | LOCK_NB) < 0)
+    else if (flock(fd, LOCK_EX | LOCK_NB) < 0 && (errno != EWOULDBLOCK || !open_in_this_process(fd)))
         status = errno == EWOULDBLOCK ? JBC_LOCKED : file_error(errno);
     else if (!(out = fdopen(fd, append ? "ab" : "wb"))) status = file_error(errno);
     if (!out) {
@@ -8055,7 +8171,7 @@ struct cache_bucket {
     struct cache_bucket *next;
     char *name;
     struct cache_item *items;
-    uint64_t size, count, hits, gets, puts, max_size, threshold;
+    uint64_t count, hits, gets, puts, max_size, threshold;
 };
 
 enum { CACHE_DEFAULT_SIZE = 1048576, CACHE_DEFAULT_THRESHOLD = 90 };
@@ -8095,7 +8211,6 @@ static void cache_remove(struct cache_bucket *bucket, struct cache_item **link)
 {
     struct cache_item *item = *link;
     *link = item->next;
-    bucket->size -= strlen(item->value);
     --bucket->count;
     free(item->key);
     free(item->value);
@@ -8109,14 +8224,16 @@ static void cache_empty(struct cache_bucket *bucket)
 }
 
 /* The guide purges "the most outdated data" once the size exceeds
-   CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100. jbcc removes the least
-   recently written or read items until the bucket is back under that
+   CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100. TAFC PB201214 counts the
+   size in items (CACHE_SIZE reports the item count, and three items stay
+   under a maximum of 10 at 60%: tests/snippets/cache.b). jbcc removes the
+   least recently written or read items until the bucket is back under that
    limit (provisional). */
 static void cache_purge(struct cache_bucket *bucket)
 {
     uint64_t limit = bucket->max_size / 100 * bucket->threshold
                    + bucket->max_size % 100 * bucket->threshold / 100;
-    while (bucket->items && bucket->size > limit) {
+    while (bucket->items && bucket->count > limit) {
         struct cache_item **oldest = &bucket->items;
         for (struct cache_item **link = &bucket->items; *link; link = &(*link)->next)
             if ((*link)->used < (*oldest)->used) oldest = link;
@@ -8138,7 +8255,6 @@ const char *jbc_cache_put(const char *name, const char *key, const char *value)
     struct cache_bucket *bucket = cache_bucket(name, 1);
     struct cache_item **link = cache_item(bucket, key);
     if (*link) {
-        bucket->size -= strlen((*link)->value);
         free((*link)->value);
     } else {
         *link = calloc(1, sizeof **link);
@@ -8148,7 +8264,6 @@ const char *jbc_cache_put(const char *name, const char *key, const char *value)
     }
     (*link)->value = cache_copy(value);
     (*link)->used = ++cache_clock;
-    bucket->size += strlen(value);
     ++bucket->puts;
     cache_purge(bucket);
     return "";
@@ -8180,10 +8295,19 @@ const char *jbc_cache_delete(const char *name, const char *key)
     return "";
 }
 
+/* CacheClear drops the bucket, so its statistics and options start again:
+   a CacheGet afterwards counts nothing in TAFC PB201214. */
 const char *jbc_cache_clear(const char *name)
 {
-    struct cache_bucket *bucket = cache_bucket(name, 0);
-    if (bucket) cache_empty(bucket);
+    for (struct cache_bucket **link = &cache_buckets; *link; link = &(*link)->next) {
+        struct cache_bucket *bucket = *link;
+        if (strcmp(bucket->name, name)) continue;
+        *link = bucket->next;
+        cache_empty(bucket);
+        free(bucket->name);
+        free(bucket);
+        break;
+    }
     return "";
 }
 
@@ -8255,7 +8379,9 @@ const char *jbc_cache_stats(const char *name, const char *counter)
     case 1: return size_value(bucket->hits);
     case 2: return size_value(bucket->gets);
     case 3: return size_value(bucket->puts);
-    case 4: return size_value(bucket->size);
+    /* TAFC PB201214 reports the number of items as CACHE_SIZE, not bytes
+       (tests/tafc/misc-section-4.b). */
+    case 4:
     case 5: return size_value(bucket->count);
     default: return "0";
     }

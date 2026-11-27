@@ -1349,7 +1349,7 @@ class Compiler:
         return self.checked_read(var, token)
 
     def checked_read(self, var, token):
-        read = f"jbc_read({var}.value, {c_string(token.word)}, {self.location(token)})"
+        read = f"jbc_read(&({var}), {c_string(token.word)}, {self.location(token)})"
         # Capture the value before a later operand can overwrite this slot.
         return (
             self.temporary(read)
@@ -5649,6 +5649,9 @@ class Compiler:
         ]
         for i in range(len(self.formals)):
             lines.append(f"    frame.arg{i} = arg{i};")
+        # Before any COMMON storage exists, whose start depends on it.
+        if not self.routine and not self.prime:
+            lines.append("    jbc_emulation_prime = 0;")
         for name, block in self.commons.items():
             lines.append(
                 f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});"
@@ -5658,8 +5661,6 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
-            if not self.prime:
-                lines.append("    jbc_emulation_prime = 0;")
             if self.uses_startup_clock:
                 lines.append("    jbc_init_startup_clock();")
             if self.uses_session:

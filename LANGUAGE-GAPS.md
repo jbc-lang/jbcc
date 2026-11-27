@@ -11,8 +11,6 @@ where it shows up. The README describes what is implemented.
 - `STATUS()` after a conversion with an invalid mask: jBASE sets
   `STATUS()` and goes on, as the guide's STATUS example shows; jbcc stops
   with an unsupported-mask error.
-- `TIMEDIFF` masks 2 to 7 (months and years): the guide does not say from
-  which calendar date months count; they report an error when reached.
 - Fractional day counts in date masks: some R19 code passes
   `(seconds - now)/86400 + 732` to `OCONV(..., "DG")`; jbcc reports an
   error when reached, where jBASE probably truncates.
@@ -42,7 +40,6 @@ Each is documented in the README as a guess.
 - `UNASSIGNED` of an R19 component call counts its result as assigned.
 - A COMMON member that a routine `DIM`s shares its elements between units
   that dimension it; a scalar use elsewhere keeps a separate value.
-- `TIMEDIFF` gives each field the sign of the difference.
 
 ## Differences from TAFC PB201214 kept on purpose
 
@@ -57,6 +54,15 @@ See TAFC-CROSSCHECK.md for the probes.
   jbcc broadcasts it like any other scalar.
 - TAFC prints the result of a division by zero as `0.0nan` or `0.0inf` for
   some divisor types; jbcc gives 0.
+- Spaced comparison chains: TAFC reads `2 < 3 > 0` as the extraction
+  `2<3>` with an implicit format and prints 0; jbcc compares
+  (`tests/tafc/comparison-chains.b`).
+- Before 1970: TAFC drops fractional seconds in MAKETIMESTAMP and
+  truncates negative timestamps toward zero, so `LOCALDATE(-1)` is
+  1 January 1970; jbcc gives 31 December 1967 + 731 days as the calendar
+  says. Dates past 2038 overflow in TAFC's CHANGETIMESTAMP; jbcc's do not.
+- NUL bytes: jbcc strings cannot hold byte 0 yet (`CHAR(0)`, `CHAR(256)`,
+  NUL bytes read from files), while TAFC's can.
 
 ## T24 corpora: outside translation
 

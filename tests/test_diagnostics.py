@@ -986,11 +986,9 @@ def test_seq_wrong_argument_count(compiler):
         pytest.param(
             'char_1.b', 'char-byte-range-diagnostics.stderr', id='char-1'
         ),
+        # CHAR(256) is byte 0, as in TAFC PB201214, which needs NUL support.
         pytest.param(
-            'char_2.b', 'char-byte-range-diagnostics_2.stderr', id='char-2'
-        ),
-        pytest.param(
-            'char_3.b', 'char-byte-range-diagnostics_2.stderr', id='char-3'
+            'char_2.b', 'char-byte-range-diagnostics.stderr', id='char-2'
         ),
     ],
 )

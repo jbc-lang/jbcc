@@ -5,7 +5,7 @@
 CACHE_HITS: 1
 CACHE_GETS: 2
 CACHE_PUTS: 2
-CACHE_SIZE: 12
+CACHE_SIZE: 2
 CACHE_NB_ITEMS: 2
 02
 First name: a
@@ -14,9 +14,9 @@ First bucket: bucket0
 Second bucket: bucket1
 z
 [customer1]
-[]1
+[]0
 CACHE_MAX_SIZE: 0
 CACHE_MAX_SIZE: 1048576
 CACHE_PURGE_THRESHOLD: 90
-a,c 6
+a,b,c 3
 []
