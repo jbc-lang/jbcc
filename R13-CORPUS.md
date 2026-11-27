@@ -75,4 +75,6 @@ byte for byte. `../jbc-extract/JBC.h` is an older revision.
   | R13 | 19,536 of 19,536 | 1 excluded, 5,837 include fragments | 2 min 53 s |
   | R10 | 17,336 of 17,336 | 5,138 include fragments | 2 min 18 s |
   | R07 | 15,030 of 15,030 | 3,322 include fragments, 10 C headers | 2 min 0 s |
-- [ ] 8. Extend from the R19 pilot to the full R19 corpus.
+- [x] 8. Extend from the R19 pilot to the full R19 corpus. Done: the full
+  scan translates 39,669 of 39,675 units, with 6 excluded (PLAN.md, "R19
+  baseline"); rechecked on 2026-11-27 after the TAFC cross-check work.
