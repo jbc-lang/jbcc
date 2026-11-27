@@ -1,122 +1,83 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 (2026-11-27)
+
+This release checks jbcc against a real TAFC PB201214 runtime and follows
+it: 268 of the guide's examples now give TAFC's output, and
+`tests/tafc/` holds 65 probes with TAFC's recorded output. Several
+results change as a consequence; see Changed.
 
 ### Added
 
-- INPUT, KEYIN and DATA keep byte 0, as TAFC PB201214 does.
-- ENCRYPT and DECRYPT implement JBASE_CRYPT_XOR11 and JBASE_CRYPT_BASE64,
-  and the Base64 mask bit, as TAFC PB201214 runs them.
 - `--emulation prime|jbase` (and `emulation=` in `jbcc.browser.translate`).
   The default is prime, the emulation T24 runs under.
+- Strings can hold byte 0, as TAFC's can (NUL-BYTES.md): `CHAR(0)` and
+  `CHAR(256)` work, and string, dynamic array and search functions, output,
+  files, records, INPUT, KEYIN, DATA and EXECUTE data keep the byte.
+- The masked decimal conversions MD, MR and ML for OCONV, ICONV and FMT,
+  with the Z, comma, $, minus, C, D, E, P and T options.
+- `EXECUTE ... PASSDATA expression RTNDATA variable` with the `COLLECTDATA`
+  and `RTNDATA` statements, and `PASSLIST`. EXECUTE shares the default
+  select list with the jbcc program it runs, as TAFC does.
+- ENCRYPT and DECRYPT implement JBASE_CRYPT_XOR11 and JBASE_CRYPT_BASE64,
+  and the Base64 mask bit.
+- The guide statements OUT, GROUPSTORE, INPUTNULL, LOCK, UNLOCK, PROCREAD,
+  PROCWRITE, RQM, PAUSE, WAKE, IN, CHAIN, ENTER, PRINTERR, READL, READVL,
+  MATWRITEU, DELETEU, SELECTV, SSELECTV, SELECTN and SSELECTN; the TRANS
+  and XLATE functions; the @DAY, @MONTH, @YEAR, @UID, @EOF, @LEVEL, @DATA,
+  @CODEPAGE, @LOCALE, @USER.THREAD and @CALLSTACK variables.
+- SYSTEM keys 1, 2, 3, 7, 12, 35 to 40 and 1017, and the keys T24 reads
+  (11, 1019, 1021, and those TAFC reports as 0 or empty). `ASSIGN value TO
+  SYSTEM(n)` keeps the value for any key.
 - The `LOCATE(key, array{, f{, v}}; pos{; order})` function form.
-- `tools/tafc_crosscheck/` and the `tafc-guide`, `tafc-probe` and
-  `tafc-recorded` recipes compare jbcc with TAFC PB201214 in Docker;
-  `tests/tafc/` holds probes with TAFC's recorded output.
+- MCPN and MCNP; pattern masks with decimal places such as `R2(##.##)`;
+  the MTH time mask.
+- `@(-n)` codes up to -20 with TAFC's vt100 sequences, and `@(n)`.
+- `tools/tafc_crosscheck/`, the `tafc-guide`, `tafc-probe` and
+  `tafc-recorded` recipes, and `tests/test_tafc_probes.py`, which runs the
+  TAFC probes in `just test`.
+- MISSING-BACKENDS.md lists the features that need a service jbcc does not
+  have.
 
 ### Changed
 
-- Under prime emulation, which is now the default:
-  - the CONVERT function takes `CONVERT(from, to, text)`;
-  - `LOCATE x IN A<f>` searches fields from field f, `A<f,v>` the values of
-    field f from v, and `A<f,v,s>` the subvalues of value v from s;
-  - `BY 'AR'` and `'DR'` compare numbers numerically and other values
-    right-justified;
-  - MATCH patterns accept `...`, lower-case codes and `n-m` ranges, and `C`
-    is literal text.
-  The previous behaviour is available with `--emulation jbase`.
-- LOCATE drops a trailing zero coordinate, and a start past the end is
-  the position returned for a miss, as TAFC does.
-- MATCHFIELD uses the prime pattern codes in both emulations.
 - Arithmetic follows TAFC's number model: exact decimals at PRECISION,
   which defaults to 4; operands round half away from zero, `*` and `/`
-  truncate, and integers have no size limit (no overflow errors).
-  Comparisons and truth tests round the same way, and prime ignores spaces
-  and tabs around numbers.
-- The first PRECISION statement in a unit applies from its first line, and
-  each subroutine and function runs at its own PRECISION.
-- Math functions round their result to PRECISION; FADD, FSUB, FMUL and FDIV
-  print ten significant digits; DROUND defaults to four places.
-- ADDS, SUBS, MULS, DIVS, ABSS and NEGS treat empty and missing elements as
-  0 under prime, and warn and continue for nonnumeric elements and zero
-  divisors. REUSE of a dynamic array has no effect instead of an error.
-- BITAND, BITOR, BITXOR and BITNOT return unsigned 32-bit values and count
-  empty or nonnumeric operands as 0.
+  truncate, and integers have no size limit. Comparisons and truth tests
+  round the same way. The first PRECISION in a unit applies from its first
+  line, and each subroutine runs at its own. Math functions round to
+  PRECISION; FADD, FSUB, FMUL and FDIV print ten significant digits;
+  DROUND defaults to four places; SADD, SSUB, SMUL and SDIV keep 14 places.
 - Errors that TAFC reports and continues past now warn on stderr and
-  continue: division by zero (0), a nonnumeric arithmetic operand (0) and
-  a runtime read of an unassigned variable (an empty string, which it then
-  holds). An empty conversion mask returns the value unchanged.
-- Under prime, COMMON variables and COMMON matrix elements start at 0.
-- OSREAD turns line feeds into field marks; a program can reopen a file it
-  already has open through OPENSEQ or OSOPEN.
-- CHAR takes its argument modulo 256; FMT's `&x` sets the fill character.
-- TIMEDIFF returns timestamp2 minus timestamp1 and supports masks 2 to 7
-  (calendar months and years).
-- CacheStats CACHE_SIZE counts items, the purge limit counts items, and
-  CacheClear removes the bucket.
-- The masked decimal conversions MD, MR and ML for OCONV, ICONV and FMT,
-  with the Z, comma, $, minus, C, D, E, P and T options.
-- ICONV reads dates as TAFC does (month names, US and European numeric
-  forms, YYYYDDD), rolls over impossible days with STATUS 3 and returns ''
-  with STATUS 1 for other bad input; times may overflow. An unknown OCONV
-  or ICONV mask warns and returns '' with STATUS 1 instead of stopping.
-- OCONV truncates fractional day counts, returns text unchanged for a date
-  mask, lets times pass 24 hours, and supports MTH.
-- MCPN and MCNP; pattern masks with decimal places such as R2(##.##); MX
-  decoding stops at the first non-hex pair.
-- The guide statements OUT, GROUPSTORE, INPUTNULL, LOCK, UNLOCK, PROCREAD,
-  PROCWRITE, RQM, PAUSE, WAKE, IN, CHAIN, ENTER, PRINTERR, READL, READVL,
-  MATWRITEU, DELETEU, SELECTV, SSELECTV, SELECTN and SSELECTN, the TRANS
-  and XLATE functions, the @DAY, @MONTH, @YEAR, @UID, @EOF, @LEVEL, @DATA,
-  @CODEPAGE, @LOCALE, @USER.THREAD and @CALLSTACK variables, and SYSTEM keys
-  1, 2, 3, 7, 12, 35 to 40 and 1017, as TAFC PB201214 runs them.
-- `@(-n)` writes TAFC's vt100 sequences: `@(-1)` is `ESC[H ESC[J`, and the
-  codes up to -20 cover blink, reverse, underline, the printer and cursor
-  moves; `@(n)` moves to a column.
-- `tests/test_tafc_probes.py` runs the TAFC probes in `just test`.
-- Under `--emulation jbase`, a division by zero stops the program, as TAFC's
-  debugger does without a terminal.
-- NUM follows TAFC under each emulation: under prime, blanks around a
-  number are skipped and a lone sign or point is not a number.
-- Under `--emulation jbase`, COUNT, COUNTS and DCOUNT count overlapping
-  matches.
+  continue: division by zero (0), a nonnumeric operand (0), an unassigned
+  read (an empty string), an unknown conversion mask ('' with STATUS 1).
+  Under `--emulation jbase`, a division by zero stops the program.
+- Under prime emulation: CONVERT takes `CONVERT(from, to, text)`; LOCATE's
+  last coordinate is the start; `BY 'AR'` and `'DR'` compare numbers
+  numerically; MATCH patterns accept `...`, lower-case codes and ranges;
+  empty and missing elements count as 0 in ADDS and the other element
+  operations; COMMON starts at 0; NUM skips blanks around a number and
+  rejects a lone sign or point. Under jbase, COUNT, COUNTS and DCOUNT count
+  overlapping matches.
+- Conversions: codes separated by value marks run in turn; STATUS() after
+  each mask family is as TAFC sets it; ICONVS and OCONVS keep every
+  element; OCONV's L and R codes are length and range tests, not FMT
+  masks; ICONV reads TAFC's date forms and rolls over impossible days with
+  STATUS 3; OCONV truncates fractional days and lets times pass 24 hours.
+- CAPTURING drops one final newline; INPUT writes its prompt only when
+  standard input is a terminal; OSREAD turns line feeds into field marks
+  and keeps byte 0; READSEQ ends a line at byte 0.
 - MATPARSE: one trailing delimiter adds no empty field, SETTING is 0 when
-  fields are left over, `USING ''` splits into bytes, and under jbase the
-  rest is joined to the last element.
-- ABSS and NEGS give 0 for an empty element under jbase too.
-- SADD, SSUB, SMUL and SDIV keep 14 fractional places, with TAFC's
-  rounding, and warn and use 0 for a nonnumeric operand instead of
-  stopping.
-- `EXECUTE ... PASSDATA expression RTNDATA variable`, with the
-  `COLLECTDATA` and `RTNDATA` statements in the program it runs.
-- CAPTURING drops one final newline, as TAFC does.
-- INPUT writes its prompt only when standard input is a terminal, as TAFC
-  does; piped input gets no prompt.
-- Strings can hold byte 0: `CHAR(0)` and `CHAR(256)` no longer stop the
-  program, and concatenation, LEN, substrings, comparisons, output and the
-  MX and MCP conversions keep it, as in TAFC (NUL-BYTES.md, stages 1 and
-  2).
-- Dynamic arrays, the search functions and the element-wise functions keep
-  byte 0 too (NUL-BYTES.md, stage 3).
-- Files, records, CAPTURING, RETURNING and EXECUTE data keep byte 0 as
-  TAFC does: OSREAD no longer turns it into byte 128, READBLK no longer
-  fails on it, and READSEQ ends a line at it (NUL-BYTES.md, stage 4).
-- EXECUTE shares the default select list with the jbcc program it runs, as
-  TAFC does; `PASSLIST` passes a list, and `RTNLIST` no longer stops the
-  program.
-- Conversions follow TAFC: codes separated by value marks run in turn in
-  OCONV, ICONV, OCONVS and ICONVS; STATUS() after each mask family is as
-  TAFC sets it; ICONVS and OCONVS keep every element; ICONV takes MC
-  codes; and a D code takes the rest of a chain.
-- OCONV's L and R codes are length and range tests, as in TAFC, instead of
-  FMT masks.
-- The SYSTEM keys T24 reads (11, 1019, 1021, and the keys TAFC reports as
-  0 or empty), and `ASSIGN value TO SYSTEM(n)` for any key, which SYSTEM
-  then returns.
-- INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
-  unchanged for an empty search string; FIELD and GROUP read occurrences
-  and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows
+  fields are left over, `USING ''` splits into bytes.
+- CHAR takes its argument modulo 256; FMT's `&x` sets the fill character;
+  TIMEDIFF returns timestamp2 minus timestamp1 with masks 2 to 7; BITAND,
+  BITOR, BITXOR and BITNOT return unsigned 32-bit values; INDEX finds an
+  empty needle at 1; FIELD and GROUP read counts below 1 as 1; MCP shows
   byte 255 as `_`.
+- CacheStats CACHE_SIZE and the purge limit count items, and CacheClear
+  removes the bucket.
+- A program can reopen a file it already has open through OPENSEQ or
+  OSOPEN; RTNLIST no longer stops the program.
 
 ## 0.7.0 (2026-11-27)
 
