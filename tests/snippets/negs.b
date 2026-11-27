@@ -1,7 +1,7 @@
 Marks = @FM:@VM:@SM
 A = @FM:1:@SM:-2:@VM:'':@FM:'.5':@FM
-CRT CONVERT(NEGS(A),Marks,'|^~')
+CRT CONVERT(Marks, '|^~', NEGS(A))
 CRT NEGS(''),NEGS(0),NEGS(-7),NEGS('1000000000000000000001')
-CRT CONVERT(A,Marks,'|^~')
+CRT CONVERT(Marks, '|^~', A)
 PRECISION 2
-CRT CONVERT(NEGS('1.234':@FM:'-0.009':@VM:'-.750'),Marks,'|^~')
+CRT CONVERT(Marks, '|^~', NEGS('1.234':@FM:'-0.009':@VM:'-.750'))

@@ -6,7 +6,7 @@ MATBUILD Selected FROM Items, 3, 7 USING ':ignored'
 PRINT Selected
 Items(4) = ''
 MATBUILD Record FROM Items
-PRINT CONVERT(Record, @FM, '|')
+PRINT CONVERT(@FM, '|', Record)
 Limit = 2
 COMMON /GridData/ Grid(Limit, 3)
 FOR R = 1 TO 2

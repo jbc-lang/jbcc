@@ -3,7 +3,7 @@ OPEN 'CUSTOMERS' ELSE STOP
 Rec = 'first' : @FM : 'two' : @VM : 'values' : @FM : '' : @FM : 'last'
 WRITE Rec TO F,'id'
 DIM Fields(2)
-READV Fields(1) FROM F,'id',2 SETTING Code THEN PRINT CONVERT(Fields(1),@VM,'|') ELSE STOP
+READV Fields(1) FROM F,'id',2 SETTING Code THEN PRINT CONVERT(@VM, '|', Fields(1)) ELSE STOP
 READV R FROM 'id',4 ELSE STOP
 PRINT R
 READV R FROM 'id',0 THEN PRINT R
@@ -21,4 +21,4 @@ Bad = 'CUSTOMERS'
 READV R FROM Bad,'id',1 SETTING Code ON ERROR STOP ELSE PRINT 'invalid ':Code
 READV R FROM 'id',1 SETTING Code ON ERROR STOP THEN PRINT R:' status=':Code
 WRITE 'replaced' TO F,'id'
-PRINT CONVERT(Fields(1),@VM,'|')
+PRINT CONVERT(@VM, '|', Fields(1))

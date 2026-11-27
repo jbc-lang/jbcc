@@ -1,0 +1,15 @@
+[1] [1] [2] [5] [5] [0.5]
+[6] [6]
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     5 , Source nonnumeric-operands.b
+0
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     6 , Source nonnumeric-operands.b
+0
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     7 , Source nonnumeric-operands.b
+1
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     8 , Source nonnumeric-operands.b
+1
+end

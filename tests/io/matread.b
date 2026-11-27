@@ -5,7 +5,7 @@ MAT A = 'old'
 Record = 'a' : @FM : '' : @FM : 'b' : @VM : 'c' : @FM : 'd' : @FM : 'e' : @FM
 WRITE Record TO F,'key'
 MATREAD A FROM F,'key' SETTING Count THEN PRINT Count ELSE STOP
-PRINT A(1,1), LEN(A(1,2)), A(2,1)<1,2>, CONVERT(A(2,2),@FM,'|')
+PRINT A(1,1), LEN(A(1,2)), A(2,1)<1,2>, CONVERT(@FM, '|', A(2,2))
 DELETE F,'key'
 MATREAD A FROM 'key' SETTING Count ON ERROR STOP ELSE PRINT Count,A(1,1),A(2,2)<2>
 WRITE 'short' TO F,'key'

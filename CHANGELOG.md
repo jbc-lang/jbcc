@@ -1,5 +1,61 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `--emulation prime|jbase` (and `emulation=` in `jbcc.browser.translate`).
+  The default is prime, the emulation T24 runs under.
+- The `LOCATE(key, array{, f{, v}}; pos{; order})` function form.
+- `tools/tafc_crosscheck/` and the `tafc-guide`, `tafc-probe` and
+  `tafc-recorded` recipes compare jbcc with TAFC PB201214 in Docker;
+  `tests/tafc/` holds probes with TAFC's recorded output.
+
+### Changed
+
+- Under prime emulation, which is now the default:
+  - the CONVERT function takes `CONVERT(from, to, text)`;
+  - `LOCATE x IN A<f>` searches fields from field f, `A<f,v>` the values of
+    field f from v, and `A<f,v,s>` the subvalues of value v from s;
+  - `BY 'AR'` and `'DR'` compare numbers numerically and other values
+    right-justified;
+  - MATCH patterns accept `...`, lower-case codes and `n-m` ranges, and `C`
+    is literal text.
+  The previous behaviour is available with `--emulation jbase`.
+- LOCATE drops a trailing zero coordinate, and a start past the end is
+  the position returned for a miss, as TAFC does.
+- MATCHFIELD uses the prime pattern codes in both emulations.
+- Arithmetic follows TAFC's number model: exact decimals at PRECISION,
+  which defaults to 4; operands round half away from zero, `*` and `/`
+  truncate, and integers have no size limit (no overflow errors).
+  Comparisons and truth tests round the same way, and prime ignores spaces
+  and tabs around numbers.
+- The first PRECISION statement in a unit applies from its first line, and
+  each subroutine and function runs at its own PRECISION.
+- Math functions round their result to PRECISION; FADD, FSUB, FMUL and FDIV
+  print ten significant digits; DROUND defaults to four places.
+- ADDS, SUBS, MULS, DIVS, ABSS and NEGS treat empty and missing elements as
+  0 under prime, and warn and continue for nonnumeric elements and zero
+  divisors. REUSE of a dynamic array has no effect instead of an error.
+- BITAND, BITOR, BITXOR and BITNOT return unsigned 32-bit values and count
+  empty or nonnumeric operands as 0.
+- Errors that TAFC reports and continues past now warn on stderr and
+  continue: division by zero (0), a nonnumeric arithmetic operand (0) and
+  a runtime read of an unassigned variable (an empty string, which it then
+  holds). An empty conversion mask returns the value unchanged.
+- Under prime, COMMON variables and COMMON matrix elements start at 0.
+- OSREAD turns line feeds into field marks; a program can reopen a file it
+  already has open through OPENSEQ or OSOPEN.
+- CHAR takes its argument modulo 256; FMT's `&x` sets the fill character.
+- TIMEDIFF returns timestamp2 minus timestamp1 and supports masks 2 to 7
+  (calendar months and years).
+- CacheStats CACHE_SIZE counts items, the purge limit counts items, and
+  CacheClear removes the bucket.
+- INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
+  unchanged for an empty search string; FIELD and GROUP read occurrences
+  and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows
+  byte 255 as `_`.
+
 ## 0.7.0 (2026-11-27)
 
 ### Added

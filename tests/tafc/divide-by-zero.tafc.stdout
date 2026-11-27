@@ -1,0 +1,12 @@
+Divide by zero !!
+Line     6 , Source divide-by-zero.b
+x=0 len 1
+Divide by zero !!
+Line     8 , Source divide-by-zero.b
+Divide by zero !!
+Line     8 , Source divide-by-zero.b
+5�0�0
+Divide by zero !!
+Line     9 , Source divide-by-zero.b
+mod 7 rem 7 div 0
+end

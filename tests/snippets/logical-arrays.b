@@ -17,5 +17,5 @@ CRT OCONV( MODS('' :@VM: 5 :@VM: -7, 3 :@VM: 0 :@VM: 3), 'MCP' )
 C = 1 :@FM: 0 :@VM: 1 :@SM: 0 :@FM: 1
 T = 'This' :@FM: 'was' :@VM: 'how' :@SM: 'system' :@FM: 'works'
 F = 'That' :@FM: 'is' :@VM: 'how' :@SM: 'Globus' :@FM: 'worked'
-CRT CONVERT(IFS(C, T, F), @FM:@VM:@SM, '^]\')
-CRT CONVERT(IFS(1 :@VM: '' :@VM: 1, 'a', 'b' :@VM: 'c'), @VM, ']')
+CRT CONVERT(@FM:@VM:@SM, '^]\', IFS(C, T, F))
+CRT CONVERT(@VM, ']', IFS(1 :@VM: '' :@VM: 1, 'a', 'b' :@VM: 'c'))

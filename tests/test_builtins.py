@@ -3,7 +3,13 @@ import re
 import subprocess
 
 import pytest
-from compiler_support import CLI, ROOT, expected_bytes, expected_text
+from compiler_support import (
+    CLI,
+    ROOT,
+    assert_unassigned_warning,
+    expected_bytes,
+    expected_text,
+)
 
 
 def test_ins_diagnostics(compiler, subtests):
@@ -97,32 +103,6 @@ def test_del_diagnostics(compiler, subtests):
     )
 
 
-@pytest.mark.parametrize(
-    'case_number, text, diagnostic_fixture',
-    [
-        pytest.param(
-            1,
-            '9223372036854775807',
-            'integer-limits.stderr',
-            id='9223372036854775807',
-        ),
-        pytest.param(2, '"nan"', 'integer-limits_2.stderr', id='nan'),
-    ],
-)
-def test_integer_limits(compiler, case_number, text, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/integer-limits' / f'numbers_{case_number}.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert diagnostic.encode() in run.stderr
-    assert (
-        expected_text(
-            'integer-limits_3.stderr', source=source, value_2=len(text) + 6
-        ).encode()
-        in run.stderr
-    )
-
-
 def test_precision_call_scope(compiler):
     sources = ROOT / 'tests/routines/precision-scope'
     run = compiler.run_native(
@@ -173,35 +153,23 @@ def test_locate_diagnostics(compiler, fixture_name, message_fixture):
 
 
 def test_locate_subvalue_start_diagnostics(compiler):
+    # TAFC drops a trailing zero coordinate, so <1,1,0> searches as <1,1>
+    # (observed reference run, tests/tafc/locate-forms-*.b).
     main = ROOT / 'tests/programs/locate-zero-subvalue.b'
-    run = compiler.run_native(main)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'locate-subvalue-start-diagnostics.stderr', main=main
-        ).encode()
-        in run.stderr
-    )
+    for emulation in ('prime', 'jbase'):
+        run = compiler.run_native(main, options=['--emulation', emulation])
+        assert run.returncode == 0, run.stderr
+    # Prime ignores a separate start after coordinates; jbase has two.
     main = ROOT / 'tests/programs/locate-duplicate-start.b'
     result = subprocess.run(
-        [CLI, main, '-o', compiler.c], capture_output=True, text=True
+        [CLI, '--emulation', 'jbase', main, '-o', compiler.c],
+        capture_output=True,
+        text=True,
     )
     assert result.returncode != 0
     assert (
         expected_text('locate-subvalue-start-diagnostics_2.stderr', main=main)
         in result.stderr
-    )
-
-
-def test_sum_overflow_reports_call_site(compiler):
-    source = ROOT / 'tests/programs/sum-overflow.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'sum-overflow-reports-call-site.stderr', source=source
-        ).encode()
-        in run.stderr
     )
 
 
@@ -437,11 +405,6 @@ def test_col_positions_require_no_arguments(compiler, case_number, name):
     'fixture_name, message_fixture',
     [
         pytest.param(
-            'fields_1.b',
-            'delimited-bracket-assignment-diagnostics.stderr',
-            id='fields-1',
-        ),
-        pytest.param(
             'fields_2.b',
             'delimited-bracket-assignment-diagnostics_2.stderr',
             id='fields-2',
@@ -551,34 +514,6 @@ def test_substrings_requires_numeric_bounds(compiler, fixture_name):
     )
 
 
-def test_splice_reuse_scalar(compiler):
-    source = ROOT / 'tests/routines/splice-reuse/main.b'
-    bump = ROOT / 'tests/routines/splice-reuse/bump.b'
-    run = compiler.run_native(source, bump)
-    assert run.returncode == 0, run.stderr
-    assert run.stdout == expected_bytes('splice-reuse-scalar.stdout')
-
-    source = ROOT / 'tests/programs/splice-reuse-array.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text('splice-reuse-scalar.stderr', source=source).encode()
-        in run.stderr
-    )
-
-
-def test_eqs_reuse_requires_scalar(compiler):
-    source = ROOT / 'tests/programs/eqs-reuse-array.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'eqs-reuse-requires-scalar.stderr', source=source
-        ).encode()
-        in run.stderr
-    )
-
-
 def test_ordered_array_comparisons(compiler):
     source = ROOT / 'tests/routines/ordered-array-comparisons/main.b'
     bump = ROOT / 'tests/routines/ordered-array-comparisons/bump.b'
@@ -587,20 +522,6 @@ def test_ordered_array_comparisons(compiler):
         0,
         expected_bytes('ordered-array-comparisons.stdout'),
         b'',
-    )
-
-
-def test_ordered_array_comparison_rejects_reuse_of_an_array(compiler):
-    source = ROOT / 'tests/programs/les-reuse-array.b'
-    result = compiler.run_native(source)
-    assert result.returncode == 1
-    assert result.stdout == b''
-    assert (
-        result.stderr
-        == expected_text(
-            'ordered-array-comparison-rejects-reuse-of-an-array.stderr',
-            source=source,
-        ).encode()
     )
 
 
@@ -637,7 +558,6 @@ def test_fold_invalid_width(compiler, fixture_name):
 @pytest.mark.parametrize(
     'fixture_name, mask',
     [
-        pytest.param('fmts_1.b', '', id='fmts-1'),
         pytest.param('fmts_2.b', 'R?', id='fmts-2'),
     ],
 )
@@ -726,50 +646,6 @@ def test_sdiv_diagnostics(compiler, fixture_name, diagnostic_fixture):
     )
 
 
-@pytest.mark.parametrize(
-    'fixture_name, diagnostic_fixture',
-    [
-        pytest.param('adds_1.b', 'adds-diagnostics.stderr', id='adds-1'),
-        pytest.param('adds_2.b', 'adds-diagnostics_2.stderr', id='adds-2'),
-        pytest.param('adds_3.b', 'adds-diagnostics_3.stderr', id='adds-3'),
-    ],
-)
-def test_adds_diagnostics(compiler, fixture_name, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/adds-diagnostics' / fixture_name
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (str(source) + diagnostic).encode() in run.stderr
-
-
-def test_infix_reuse_requires_scalar(compiler):
-    source = ROOT / 'tests/programs/infix-reuse-requires-scalar.b'
-    result = compiler.run_native(source)
-    assert result.returncode != 0
-    assert (
-        expected_text(
-            'infix-reuse-requires-scalar.stderr', source=source
-        ).encode()
-        in result.stderr
-    )
-
-
-@pytest.mark.parametrize(
-    'fixture_name, diagnostic_fixture',
-    [
-        pytest.param('muls_1.b', 'muls-diagnostics.stderr', id='muls-1'),
-        pytest.param('muls_2.b', 'muls-diagnostics_2.stderr', id='muls-2'),
-        pytest.param('muls_3.b', 'muls-diagnostics_3.stderr', id='muls-3'),
-    ],
-)
-def test_muls_diagnostics(compiler, fixture_name, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/muls-diagnostics' / fixture_name
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (str(source) + diagnostic).encode() in run.stderr
-
-
 def test_divs_substitutes_zero_for_zero_divisors(compiler):
     source = ROOT / 'tests/programs/divs-substitutes-zero-for-zero-divisors.b'
     run = compiler.run_native(source)
@@ -780,88 +656,8 @@ def test_divs_substitutes_zero_for_zero_divisors(compiler):
     warning = expected_text(
         'divs-substitutes-zero-for-zero-divisors.stderr', source=source
     )
-    assert run.stderr == warning.encode() * 2
-
-
-@pytest.mark.parametrize(
-    'case_number, expression, marker, message_fixture',
-    [
-        pytest.param(
-            1,
-            '(4:@VM:6) / REUSE(0)',
-            '/',
-            'infix-reuse-division-reports-invalid-operands.stderr',
-            id='4-vm-6-reuse-0',
-        ),
-        pytest.param(
-            2,
-            'REUSE(8) / (2:@VM:0)',
-            '/',
-            'infix-reuse-division-reports-invalid-operands.stderr',
-            id='reuse-8-2-vm-0',
-        ),
-        pytest.param(
-            3,
-            'REUSE(3:@FM:4) / 2',
-            'REUSE',
-            'infix-reuse-division-reports-invalid-operands_2.stderr',
-            id='reuse-3-fm-4-2',
-        ),
-    ],
-)
-def test_infix_reuse_division_reports_invalid_operands(
-    compiler, case_number, expression, marker, message_fixture
-):
-    message = expected_text(message_fixture)
-    statement = f'CRT {expression}'
-    source = (
-        ROOT
-        / 'tests/programs/infix-reuse-division-reports-invalid-operands'
-        / f'reuse_{case_number}.b'
-    )
-    result = compiler.run_native(source)
-    assert (result.returncode, result.stdout, result.stderr) == (
-        1,
-        b'',
-        expected_text(
-            'infix-reuse-division-reports-invalid-operands_3.stderr',
-            source=source,
-            value_2=statement.index(marker) + 1,
-            message=message,
-        ).encode(),
-    )
-
-
-@pytest.mark.parametrize(
-    'fixture_name, diagnostic_fixture',
-    [
-        pytest.param('divs_1.b', 'divs-diagnostics.stderr', id='divs-1'),
-        pytest.param('divs_2.b', 'divs-diagnostics_2.stderr', id='divs-2'),
-    ],
-)
-def test_divs_diagnostics(compiler, fixture_name, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/divs-diagnostics' / fixture_name
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (str(source) + diagnostic).encode() in run.stderr
-
-
-@pytest.mark.parametrize(
-    'fixture_name, diagnostic_fixture',
-    [
-        pytest.param('subs_1.b', 'subs-diagnostics.stderr', id='subs-1'),
-        pytest.param('subs_2.b', 'subs-diagnostics.stderr', id='subs-2'),
-        pytest.param('subs_3.b', 'subs-diagnostics_2.stderr', id='subs-3'),
-        pytest.param('subs_4.b', 'subs-diagnostics_3.stderr', id='subs-4'),
-    ],
-)
-def test_subs_diagnostics(compiler, fixture_name, diagnostic_fixture):
-    diagnostic = expected_text(diagnostic_fixture)
-    source = ROOT / 'tests/programs/subs-diagnostics' / fixture_name
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (str(source) + diagnostic).encode() in run.stderr
+    # One warning per zero or empty divisor, as TAFC PB201214 prints them.
+    assert run.stderr == warning.encode() * 4
 
 
 @pytest.mark.parametrize(
@@ -1017,22 +813,8 @@ def test_rnd_invalid_bound(compiler, fixture_name, diagnostic_fixture):
     )
 
 
-def test_bitxor_diagnostics(compiler, subtests):
-    for fixture_name in (
-        'bitxor_1.b',
-        'bitxor_2.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = ROOT / 'tests/programs/bitxor-diagnostics' / fixture_name
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert (
-                expected_text(
-                    'bitxor-diagnostics.stderr', source=source
-                ).encode()
-                in result.stderr
-            )
-
+def test_bitxor_diagnostics(compiler):
+    # Nonnumeric operands count as 0 (TAFC PB201214; see TAFC_OBSERVED).
     source = ROOT / 'tests/programs/bitxor-diagnostics/bitxor-variant-2.b'
     result = subprocess.run(
         [CLI, source, '-o', compiler.c], text=True, capture_output=True
@@ -1220,14 +1002,13 @@ def test_string_mutations_check_conditionally_assigned_targets(
         [binary, 'missing'], capture_output=True, timeout=5
     )
     column = statement.index('Value') + 1
-    assert (missing.returncode, missing.stdout, missing.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        missing,
         expected_text(
             'string-mutations-check-conditionally-assigned-targets.stderr',
             source=source,
             column=column,
-        ).encode(),
+        ),
     )
 
 
@@ -1289,13 +1070,12 @@ def test_implicit_format_reports_uninitialized_mask_at_read(compiler):
         / 'tests/programs/implicit-format-reports-uninitialized-mask-at-read.b'
     )
     run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
+    assert_unassigned_warning(
+        run,
         expected_text(
             'implicit-format-reports-uninitialized-mask-at-read.stderr',
             source=source,
-        ).encode()
-        in run.stderr
+        ),
     )
 
 
@@ -1344,7 +1124,8 @@ def test_index_diagnostics(compiler):
 def test_division_by_zero(compiler):
     source = ROOT / 'tests/programs/division-by-zero.b'
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text('division-by-zero.stderr', source=source).encode()
         in run.stderr
@@ -1381,7 +1162,8 @@ def test_div_requires_nonzero_numeric_operands(
         / fixture_name
     )
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text(
             'div-requires-nonzero-numeric-operands_3.stderr',
@@ -1395,7 +1177,8 @@ def test_div_requires_nonzero_numeric_operands(
 def test_compound_division_by_zero(compiler):
     source = ROOT / 'tests/programs/compound-division-by-zero.b'
     run = compiler.run_native(source)
-    assert run.returncode != 0
+    # TAFC warns and continues (TAFC-CROSSCHECK.md section 3).
+    assert run.returncode == 0
     assert (
         expected_text(
             'compound-division-by-zero.stderr', source=source
@@ -1488,14 +1271,13 @@ def test_remove_checks_conditionally_assigned_source(
         b'',
     )
     miss = subprocess.run([binary, 'miss'], capture_output=True, timeout=5)
-    assert (miss.returncode, miss.stdout, miss.stderr) == (
-        1,
-        b'',
+    assert_unassigned_warning(
+        miss,
         expected_text(
             'remove-checks-conditionally-assigned-source.stderr',
             source=source,
             column=column,
-        ).encode(),
+        ),
     )
 
 
@@ -1536,7 +1318,6 @@ def test_matchfield_invalid_field(compiler, fixture_name):
             '1:5',
             'CHANGETIMESTAMP requires whole adjustments',
         ),
-        ('chars-range.b', '1:5', 'CHAR requires an integer from 0 to 255'),
         ('fadd-null.b', '1:5', 'FADD requires numeric operands'),
         ('fdiv-zero.b', '1:5', 'FDIV division by zero'),
         ('sadd-nonnumeric.b', '1:5', 'SADD requires numeric operands'),
@@ -1550,3 +1331,57 @@ def test_catalogue_function_diagnostics(
     run = compiler.run_native(source)
     assert run.returncode != 0
     assert f'{source}:{location}: {message}\n'.encode() in run.stderr
+
+
+# Element-wise operations, REUSE and integer overflow as TAFC PB201214 runs
+# them under prime (observed reference run; TAFC-CROSSCHECK.md sections 2
+# and 3). A missing or empty element is 0, a nonnumeric one warns and is
+# 0, a zero divisor warns and gives 0, REUSE of a dynamic array has no
+# effect, and integers do not overflow. Each program's .stdout holds TAFC's
+# output without its warning lines, which jbcc writes to stderr.
+TAFC_OBSERVED = [
+    ('adds-diagnostics/adds_1.b', True),
+    ('adds-diagnostics/adds_2.b', False),
+    ('adds-diagnostics/adds_3.b', False),
+    ('muls-diagnostics/muls_1.b', True),
+    ('muls-diagnostics/muls_2.b', False),
+    ('muls-diagnostics/muls_3.b', False),
+    ('subs-diagnostics/subs_1.b', True),
+    ('subs-diagnostics/subs_2.b', True),
+    ('subs-diagnostics/subs_3.b', False),
+    ('subs-diagnostics/subs_4.b', False),
+    ('divs-diagnostics/divs_1.b', True),
+    ('divs-diagnostics/divs_2.b', True),
+    ('infix-reuse-division-reports-invalid-operands/reuse_1.b', True),
+    ('infix-reuse-division-reports-invalid-operands/reuse_2.b', True),
+    ('infix-reuse-division-reports-invalid-operands/reuse_3.b', True),
+    ('integer-limits/numbers_1.b', False),
+    ('integer-limits/numbers_2.b', True),
+    ('fmts-invalid-mask/fmts_1.b', False),
+    ('char-byte-range-diagnostics/char_3.b', False),
+    ('catalogue-diagnostics/chars-range.b', False),
+    ('sum-overflow.b', False),
+    ('eqs-reuse-array.b', False),
+    ('infix-reuse-requires-scalar.b', False),
+    ('les-reuse-array.b', False),
+    ('splice-reuse-array.b', False),
+    ('bitxor-diagnostics/bitxor_1.b', False),
+    ('bitxor-diagnostics/bitxor_2.b', False),
+    ('delimited-bracket-assignment-diagnostics/fields_1.b', False),
+    ('divs.b', True),
+    ('infix-division-reuse.b', True),
+]
+
+
+@pytest.mark.parametrize(
+    'name, warns', TAFC_OBSERVED, ids=[name for name, _ in TAFC_OBSERVED]
+)
+def test_element_operations_follow_tafc(compiler, name, warns):
+    source = ROOT / 'tests/programs' / name
+    run = compiler.run_native(source)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout == source.with_suffix('.stdout').read_bytes()
+    if warns:
+        assert b'warning' in run.stderr
+    else:
+        assert run.stderr == b''

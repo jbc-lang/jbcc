@@ -1,0 +1,8 @@
+readl ABC
+locked 1
+readvl x
+locked 1
+read NEW
+locked 0
+deleted
+sselectv A^B^C

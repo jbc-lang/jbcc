@@ -7,12 +7,12 @@ A(2,1) = 'left' : @VM : 'right'
 A(2,2) = 'four' : @FM : 'five' : @FM
 MATWRITE A TO F,'id' SETTING N ON ERROR STOP
 READ R FROM F,'id' ELSE STOP
-PRINT N,CONVERT(R,@FM:@VM,'|/')
+PRINT N,CONVERT(@FM:@VM, '|/', R)
 MAT A = 'new'
 MATWRITE A ON 'id' SETTING N
 PRINT N
 MATREAD B FROM F,'id' SETTING N ELSE STOP
-PRINT N,B(1,1),LEN(B(1,2)),B(2,1)<1,2>,CONVERT(B(2,2),@FM,'|')
+PRINT N,B(1,1),LEN(B(1,2)),B(2,1)<1,2>,CONVERT(@FM, '|', B(2,2))
 MATREAD B FROM 'id' ELSE STOP
 PRINT B(1,1),B(2,2)
 Bad = 'EXPLICIT'
@@ -22,7 +22,7 @@ END
 PRINT N
 MATWRITE A TO F,'id'
 READ R FROM F,'id' ELSE STOP
-PRINT CONVERT(R,@FM,'|')
+PRINT CONVERT(@FM, '|', R)
 DIM Empty(1)
 Empty(1) = ''
 MATWRITE Empty TO 'empty' SETTING N

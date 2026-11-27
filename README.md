@@ -121,6 +121,9 @@ can inspect or replace the decoded source of each unit and each expanded
 include. It can raise `SourceLimitError` to abort when a workspace budget
 is exceeded.
 
+`emulation` selects the jBASE emulation, `'prime'` (default) or
+`'jbase'`, as the `--emulation` option does.
+
 Translation errors raise `Diagnostic` with source locations where
 available. `SourceLimitError` is a subclass of `Diagnostic`. Compiler
 warnings go to standard error. The caller handles browser-specific
@@ -188,8 +191,12 @@ bytes in active code, literals or include paths report a source location.
 
 Use `--defer-unassigned-reads` for legacy code that reads a scalar before
 jbcc can establish an assignment. This opt-in turns that compile-time
-diagnostic into a warning. If execution reaches the read, the runtime
-requires an assigned value. Unknown function calls remain compile errors.
+diagnostic into a warning. If execution reaches the read of an unassigned
+variable, the runtime warns, assigns and uses an empty string, and goes on,
+as TAFC PB201214 does (`Invalid or uninitialised variable -- NULL USED`).
+Unknown function calls remain compile errors. Without the option, jbcc
+still rejects a read it can prove unassigned, where TAFC compiles it with
+a warning.
 Compound assignments such as `+=` and `:=` also check the target's old
 value at runtime under this option.
 
@@ -217,6 +224,29 @@ just quine
 just routine
 just corpus ../t24-extract/201001-R10 > /tmp/jbcc-corpus.json
 ```
+
+## Emulation
+
+jBASE, and TAFC with it, runs jBC under an emulation of an older
+MultiValue system, chosen by the `JBCEMULATE` environment variable and
+defined in TAFC's `config/Config_EMULATE`. T24 runs under `prime`, and its
+code depends on it: all 214 function-form CONVERT calls in the R13 and
+R19 corpora use the prime argument order. TAFC applies some emulation
+switches when it compiles a program and others when the program runs.
+jbcc fixes the emulation when it translates. The generated program does
+not read `JBCEMULATE`.
+
+`--emulation prime` (the default) and `--emulation jbase` select it. The
+emulation decides:
+
+- the argument order of the CONVERT function;
+- what `LOCATE x IN array<...>` searches, and the order of `BY 'AR'`;
+- the MATCH and MATCHES pattern codes.
+
+These rules come from TAFC PB201214 runs under both emulations; the
+probes are in `tests/tafc/` ([TAFC-CROSSCHECK.md](TAFC-CROSSCHECK.md),
+section 1). Other rules in this README follow the guide's prime-emulation
+examples unless they say otherwise.
 
 ## Implemented subset
 
@@ -310,9 +340,9 @@ deletes matches. jbcc leaves the input intact for an empty search string.
 [CHANGE](https://jbc-lang.org/pages/change.html).
 
 `EREPLACE(text, old, new [, count [, first]])` uses the same occurrence
-rules. An empty search string prefixes the replacement, as documented
-by jBASE and observed in TAFJ R23. The guide records different output
-from TAFC R23 for an empty search. The reference lexer also accepts
+rules. An empty search string leaves the text unchanged, as TAFC PB201214
+does and as the guide records for TAFC R23; jBASE documents, and TAFJ
+R23 shows, a prefixed replacement instead. The reference lexer also accepts
 `EREPLACE old TO new IN target` as a spelling of the CHANGE statement.
 [jBASE EREPLACE](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_EREPLACE.htm).
 
@@ -330,7 +360,7 @@ It also works on matrix elements, dynamic-array fields and substrings.
 
 Standalone `V++`, `V--`, `++V`, and `--V` change an assigned
 variable or matrix element by one. They use the same numeric coercion
-and overflow checks as compound assignment. The reference grammar
+as compound assignment. The reference grammar
 uses scalar and matrix targets for these statements.
 In expressions, a prefix operator returns the updated value and a
 postfix operator returns the previous value. jbcc evaluates operands
@@ -338,9 +368,32 @@ from left to right, including when they refer to the same variable.
 [Numeric variables](https://jbc-lang.org/pages/numeric_variables.html).
 
 The generated file includes the C runtime. Values are immutable strings. Assignment preserves a copied value, and loop
-boundaries reclaim temporary values that are no longer in use. Integer addition, subtraction and multiplication check signed 64-bit
-overflow. Division and fractional arithmetic use native long double,
-rounding results to at most 15 fractional places by default. Division by zero reports the operator location.
+boundaries reclaim temporary values that are no longer in use.
+
+Arithmetic is exact decimal arithmetic at the PRECISION in force, 4
+places unless a PRECISION statement says otherwise, as in TAFC PB201214
+([TAFC-CROSSCHECK.md](TAFC-CROSSCHECK.md), "TAFC's number model"):
+
+- each operand is rounded half away from zero to PRECISION places, so
+  `0.00004 + 0.00004` is 0 and `0.06245 * 1` is 0.0625;
+- `+` and `-` are then exact, and `*` and `/` truncate the exact result
+  toward zero, so `2/3` is 0.6666, `1/7*7` is 0.9996 and
+  `0.5555 * 0.5555` is 0.3085;
+- integers have no size limit, so `99999999999999999999 + 1` is exact;
+- under prime emulation, spaces and tabs around a number are ignored.
+
+Results print without trailing fractional zeros and never as `-0`.
+Comparisons and truth tests round numeric operands the same way, so
+`'0.33333' = '0.3333'` is true at PRECISION 4.
+
+As in TAFC, arithmetic does not stop on bad operands. An empty string, a
+lone sign or a lone point is 0. Any other operand that is not a decimal
+number, such as `'abc'`, `'1E3'` or a dynamic array under prime, warns
+`Non-numeric value -- ZERO USED` at the operator and counts as 0. Division
+by zero, including `DIV` and `/=`, warns at the operator and gives 0.
+jbcc writes these warnings to stderr; TAFC writes them to stdout. TAFC keeps a numeric literal at the unit's first
+PRECISION when a later PRECISION statement lowers it; jbcc rounds it at
+the PRECISION in force (`tests/snippets/precision.b`).
 
 `DIV(dividend, divisor)` returns the fractional quotient with the same
 PRECISION rules as `/`. The guide specifies an empty result if either
@@ -349,10 +402,10 @@ reports a zero divisor at the DIV call for nonempty operands.
 [DIV](https://jbc-lang.org/pages/div.html).
 
 `DROUND(value[, places])` rounds decimal values and removes trailing
-fractional zeros. It defaults to the active PRECISION, or four places
-before a PRECISION statement runs, following the jBASE manual. An
-explicit nonnegative integer overrides that default. jbcc provisionally
-uses exact decimal rounding with midpoint ties away from zero.
+fractional zeros. It defaults to four places whatever the PRECISION, as
+TAFC PB201214 does (`DROUND(1.235)` is 1.235 at PRECISION 2). An
+explicit nonnegative integer overrides that default. Rounding is exact
+decimal rounding with midpoint ties away from zero.
 [jBASE DROUND](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_DROUND.htm).
 
 `SMUL(left, right[, places])` multiplies decimal strings exactly before
@@ -427,9 +480,10 @@ precision, as it does for EXP. The guide leaves rounding unspecified.
 Zero, negative values, nonnumeric text and positive values outside the
 host's floating-point range raise a runtime error at the call site.
 
-`FSUB(a, b)` subtracts in floating point and rounds to the active
-`PRECISION`, so at `PRECISION 7` `FSUB(2.54, 5.703358)` prints `-3.163358`,
-as in the guide, while `2.54 - 5.703358` prints `-3.1633579`. The local
+`FADD`, `FSUB`, `FMUL` and `FDIV` compute in floating point and print
+ten significant digits, not PRECISION places: TAFC PB201214 stores their
+result as a raw double. So `FSUB(2.54, 5.703358)` prints `-3.163358`, as in
+the guide, and at `PRECISION 4` `FSUB(10, 0.00004)` prints `9.99996`. The
 reference compiles `FSUB` to its floating-point routine and `-` to its
 ordinary subtraction. [FSUB](https://jbc-lang.org/pages/fsub.html).
 [LN](https://jbc-lang.org/pages/ln.html).
@@ -460,19 +514,13 @@ expression without generating a seed operation. jbcc checks the
 expression at compile time and skips it at runtime. `RND` continues to
 draw from `/dev/urandom`.
 
-`BITAND(left, right)`, `BITOR(left, right)` and `BITXOR(left, right)` truncate numeric operands
-toward zero and return an empty value if either operand is empty.
-The guide specifies a 32-bit
-two's-complement operation. jbcc takes the low 32 bits of each truncated
-operand and returns the result as a signed integer on every target.
-Nonempty, nonnumeric operands produce a source-located error.
-[BITAND](https://jbc-lang.org/pages/bitand.html), [BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html).
-
-`BITNOT(value)` inverts the low 32 bits of the truncated operand. It
-returns the result as an unsigned integer, as in the guide's example
-`BITNOT(6)` = 4294967289, unlike the signed results above. That difference
-is provisional until a reference run confirms it. An empty operand returns
-an empty value. [BITNOT](https://jbc-lang.org/pages/bitnot.html).
+`BITAND(left, right)`, `BITOR(left, right)`, `BITXOR(left, right)` and
+`BITNOT(value)` take the low 32 bits of each operand's integer part and
+return an unsigned 32-bit result, so `BITOR(-1, 0)` is 4294967295 and
+`BITNOT(6)` is 4294967289. An empty or nonnumeric operand counts as 0, as
+does a value outside the signed 64-bit range. These rules follow a TAFC
+PB201214 run (`tests/tafc/bit-unsigned.b`).
+[BITAND](https://jbc-lang.org/pages/bitand.html), [BITOR](https://jbc-lang.org/pages/bitor.html), [BITXOR](https://jbc-lang.org/pages/bitxor.html), [BITNOT](https://jbc-lang.org/pages/bitnot.html).
 
 `ENCRYPT(text, key, method)` and `DECRYPT(text, key, method)` implement
 ROT13 (method 1 in PB201214's JBC.h). They rotate ASCII letters, preserve
@@ -495,9 +543,10 @@ ABS returns the magnitude of a numeric expression. For example,
 preserving their significant digits, and truncates the result when an
 explicit PRECISION applies. [ABS](https://jbc-lang.org/pages/abs.html).
 
-`ABSS(array)` applies ABS to each nonempty element and preserves empty
-elements and array marks. jbcc provisionally uses the scalar ABS error
-behavior for nonnumeric elements, with a diagnostic at the ABSS call.
+`ABSS(array)` applies ABS to each element and preserves array marks.
+Under prime emulation an empty element, or an empty argument, gives 0, as
+in TAFC PB201214; under `--emulation jbase` it stays empty. A nonnumeric
+element produces a diagnostic at the ABSS call.
 [ABSS](https://jbc-lang.org/pages/abss.html).
 
 NEG reverses the sign of a numeric expression, including a comparison
@@ -506,10 +555,11 @@ PRECISION as it does for ABS. For nonnumeric input, NEG writes a warning
 to stderr at the call site and returns zero, allowing execution to continue.
 [NEGS and NEG](https://jbc-lang.org/pages/negs.html).
 
-`NEGS(array)` applies the same conversion and explicit PRECISION to
-each nonempty element. It preserves field, value, and subvalue marks and
-keeps empty elements empty, following the jBASE reference prose. A
-nonnumeric element becomes zero and produces a warning at the call site.
+`NEGS(array)` applies the same conversion and PRECISION to each element
+and preserves field, value, and subvalue marks. Under prime emulation an
+empty element gives 0, as in TAFC PB201214; under `--emulation jbase` it
+stays empty, following the jBASE reference prose. A nonnumeric element
+becomes zero and produces a warning at the call site.
 [jBASE NEGS](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_NEGS.htm).
 
 DATE() returns the process’s current local calendar date as the number of
@@ -759,11 +809,16 @@ internal date and time of a timestamp in `zone`. An empty zone is the
 process's own; another value is an IANA name such as `Asia/Tokyo`, set as
 `TZ` for the conversion. The playground's WASI runtime has no zone
 database and accepts only an empty zone, `UTC` and `GMT`.
-`TIMEDIFF(timestamp1, timestamp2, mask)` subtracts `timestamp2` and returns
-days, hours, minutes, seconds and milliseconds as fields (mask 0), with
-weeks first for mask 1. Each field carries the sign of the difference
-(provisional). Masks 2 to 7 count months or years; the guide does not say
-from which calendar date, so they report an error when reached.
+`TIMEDIFF(timestamp1, timestamp2, mask)` returns `timestamp2` minus
+`timestamp1` as fields, and every field carries that sign: TAFC PB201214
+computes it this way, although the guide's prose says the opposite.
+Mask 0 gives days, hours, minutes, seconds and milliseconds, and mask 1
+puts weeks first. Masks 2 to 7 count calendar months (2, 3), years
+(4, 5) or years and months (6, 7) from `timestamp1` towards `timestamp2`
+in UTC, clamping a day past the end of a shorter month, and split the
+rest, with weeks for masks 3, 5 and 7. So from 31 January 2020 to
+1 March 2021 01:00, mask 2 gives `13^1^1^0^0^0`, one month after
+31 January 2020 being 29 February (`tests/tafc/timediff.b`).
 `@TIMEZONE` returns `JBASE_TIMEZONE`, else `TZ`, else an empty string
 (provisional: the guide says only "as per jBASE Timezone").
 [MAKETIMESTAMP](https://jbc-lang.org/pages/maketimestamp.html), [LOCALDATE](https://jbc-lang.org/pages/localdate.html), [LOCALTIME](https://jbc-lang.org/pages/localtime.html), [TIMEDIFF](https://jbc-lang.org/pages/timediff.html).
@@ -884,9 +939,8 @@ SUM adds numeric elements at the deepest mark present in the array
 For example, `SUM(1 : @FM : 2 : @VM : 3)` returns `1 : @FM : 5`.
 The guide specifies that nonnumeric elements are ignored. For a group
 with no numeric elements, jbcc returns zero provisionally. Both SUM and
-SUMMATION add decimal digits directly. Each addition rounds to at most
-15 fractional places by default or truncates to an explicit PRECISION.
-Integer additions retain the signed 64-bit overflow check. [SUM](https://jbc-lang.org/pages/sum.html).
+SUMMATION add decimal digits directly, rounding each element to the
+PRECISION in force as `+` does, with no integer size limit. [SUM](https://jbc-lang.org/pages/sum.html).
 
 `HUSH ON` suppresses screen output, runtime messages and the prompt and
 echo during `INPUT`. `HUSH OFF` restores output. Bare `HUSH` toggles
@@ -1015,7 +1069,7 @@ Comparisons return the same values. The reference preprocessor accepts
 `=<` for `LE` and `=>` for `GE`. For example, `balance => required` also
 succeeds when the two amounts are equal. Two decimal strings compare numerically;
 other pairs compare in byte order. Numeric zero and the empty string are
-false. Decimal comparisons are exact until an explicit PRECISION executes.
+false. Decimal comparisons round both sides to the PRECISION in force.
 See the [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html)
 and [IF](https://jbc-lang.org/pages/if_statement.html) chapters.
 
@@ -1027,34 +1081,38 @@ comment. Grouping follows the [jBC grammar](https://github.com/jbc-lang/jbc-lang
 Short-circuit evaluation follows the original C generator's use of C's
 `&&` and `||` in `operator_integer_gen`.
 
-PRECISION accepts an expression whose value is a nonnegative integer. For
-example, `PRECISION 6` followed by `CRT 2 / 3` prints `0.666666`. The
-runtime truncates fractional results toward zero at the selected number of
-decimal places. Numeric comparisons and truth tests use that many places
-while stored strings keep their original bytes. Arithmetic accuracy depends
-on the host's `long double`. A local GOSUB shares the current setting.
-In jbcc, an external subroutine or function inherits the setting on entry
-and restores the caller's setting on return.
-
-The arithmetic and truth tests follow the guide's examples. The guide's
-second PRECISION example predicts unequal values at 17 places although its
-two printed operands agree through those places. Until a reference runtime
-is available, jbcc compares the displayed decimal digits through the selected
-place. [PRECISION](https://jbc-lang.org/pages/precision.html),
+PRECISION sets the number of decimal places for arithmetic and
+comparisons; see the arithmetic rules above. For example, `PRECISION 6`
+followed by `CRT 2 / 3` prints `0.666666`. As TAFC PB201214 compiles it,
+the first PRECISION statement in a program, subroutine or function, when
+its argument is an integer literal, is that unit's precision from its
+first line, even inside a branch that never runs. Later PRECISION
+statements change it when they execute, and accept any expression whose
+value is a nonnegative integer. A unit without PRECISION uses 4. A local
+GOSUB shares the current setting. An external subroutine or function runs
+at its own precision and restores the caller's on return, as observed with
+cataloged routines in TAFC (`tests/routines/precision-scope`).
+[PRECISION](https://jbc-lang.org/pages/precision.html),
 [Boolean variables](https://jbc-lang.org/pages/boolean_variables.html).
 
 MATCH and MATCHES compare the whole input against a pattern. A count followed
-by A, N, C or X selects ASCII letters, digits, alphanumeric bytes or any
-bytes, respectively. A zero count allows any length, including zero.
+by A, N or X selects ASCII letters, digits or any bytes, respectively. A
+zero count allows any length, including zero, and `n-m` before a code
+allows n to m bytes. `...` matches any run of bytes, so
+`'JOHN DORY' MATCHES "'JOHN'..."` is true. The codes may be lower case.
 For example, `'QA42' MATCHES "2A2N"` is true, as is
 `'QA42' MATCHES "'QA'1-3N"`. Quoted literals match exactly, and a value mark
-(`@VM`) separates alternative patterns. Unquoted text such as the prefix
-in `PL5N` is literal, including periods in the default jBASE mode.
+(`@VM`) separates alternative patterns. Other unquoted text, such as the
+prefix in `PL5N` or the `5C` in `"5C"`, is literal; `C` is not a code under
+prime, and two periods are literal. Under `--emulation jbase`, `C` selects
+alphanumeric bytes, the codes are upper case only, and neither ranges nor
+`...` exist, as TAFC PB201214 shows.
 Concatenation binds more tightly than MATCH, so a program can build a
 pattern expression directly on its right. [MATCHES](https://jbc-lang.org/pages/matches.html).
 
 `MATCHFIELD(text, pattern, field)` returns the part of a whole-string
-match consumed by the numbered pattern component, starting at 1.
+match consumed by the numbered pattern component, starting at 1. It uses
+the prime pattern codes under both emulations, as TAFC PB201214 does.
 For example, `MATCHFIELD('QA123end', '2A0N3A', 2)` returns `123`.
 Literal components count. A failed match or a missing component returns
 an empty string. The field number must be an integer. For ambiguous
@@ -1102,7 +1160,8 @@ decimal integer in hexadecimal and `MCXD` reads it back, so
 `OCONV('FB', 'MCXD')` returns `251`. `MCP` replaces each non-printable
 byte, anything outside ASCII 32 to 126 as `ISPRINT` classifies it, with
 `.`, or with the character `c` in `MCPc`, but shows field, value and
-subvalue marks as `^`, `]` and `\`. The guide shows both: the text mark
+subvalue marks as `^`, `]` and `\`, and byte 255 as `_`, as TAFC
+PB201214 does. The guide shows both: the text mark
 in `LONG STRIN.G TO BE SP.LIT` and the marks in `1^2]3^4\5`. The guide's
 `MCPN` and `MCNP` conversions are not supported yet. `G{n}cx` takes `x`
 groups delimited by `c` after skipping `n`, so
@@ -1126,9 +1185,11 @@ negative value, `D` adds `DB` after a positive one, `E` encloses a
 negative value in `<>`, `M` puts the minus sign after it, `N` drops it),
 `$` and `&x`, then the fill `#n`, `%n` or `*n`. So
 `FMT(123456.78, 'R2,$#15')` returns `"    $123,456.78"` and
-`FMT(-123456.78, 'R2,C&*$#15')` returns `"  $123,456.78CR"`. `&x` names the
-fill for empty fields of a format string, so it adds nothing to a number;
-a value wider than the field is not cut. As the guide's table says, `FMT`
+`FMT(-123456.78, 'R2,C&*$#15')` returns `"**$123,456.78CR"`. `&x` makes
+`x` the fill character, overriding the `#`, `%` or `*` fill, and `x` itself
+is not shown, so `'R2,&$#15'` gives `"$$$$$123,456.78"`, as in TAFC
+PB201214; the guide's comments show blanks. A value wider than the field is
+not cut. As the guide's table says, `FMT`
 formats `D` and `MT` masks as `OCONV` does (`FMT(16376, 'D4/')` returns
 `10/31/2012`), and `OCONV` accepts `FMT`'s `L`, `R` and width masks.
 
@@ -1416,8 +1477,10 @@ MAT operations use the saved bounds, even if Config changes later.
 Re-entering the declaration or binding the same member in another routine
 checks its dimensions and preserves its values. A different shape produces
 a source-located diagnostic. This timing and mismatch policy is provisional
-pending a reference run. The current initialization policy leaves slots unassigned until
-written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
+pending a reference run. Under prime emulation every COMMON scalar and
+matrix element starts at 0 and counts as assigned, as in TAFC PB201214
+(`tests/tafc/common-*.b`); under `--emulation jbase` they start
+unassigned. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 
 `CLEARCOMMON` sets every scalar and matrix element of the unnamed COMMON
@@ -1605,8 +1668,10 @@ callee reads the status field, selects a CASE arm, and updates the output.
 
 ## Built-in functions
 
-CHAR returns a single byte for integer codes 1 through 255. CHAR(0)
-reports a runtime diagnostic while strings use NUL termination.
+CHAR returns the byte for its argument's integer part modulo 256, as in
+TAFC PB201214: `CHAR(300)` is `,`, `CHAR(-1)` is byte 255 and `CHAR(65.9)`
+is `A`. A code that comes to 0, such as `CHAR(0)` or `CHAR(256)`, reports
+a runtime diagnostic while strings use NUL termination.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197
@@ -1702,17 +1767,17 @@ without a corresponding replacement is deleted, so `CONVERT '-' TO '' IN S`
 removes every hyphen. The target may be a scalar, a matrix element, or a
 selected dynamic-array component. CONVERT and CHANGE check conditionally
 assigned scalar targets at runtime before updating them. The function
-form of CONVERT uses the default jBASE argument order,
-`CONVERT(text, from, to)`, and returns a new value.
-jbcc uses the first mapping for a repeated source byte, a provisional
-choice pending a reference run. [CONVERT](https://jbc-lang.org/pages/convert.html).
+form returns a new value. Under prime emulation its arguments are
+`CONVERT(from, to, text)`, the order T24 uses, so
+`CONVERT('ab', 'xy', 'aabbc')` returns `xxyyc`. Under
+`--emulation jbase` they are `CONVERT(text, from, to)`. A repeated source
+byte uses its first mapping, as TAFC does. [CONVERT](https://jbc-lang.org/pages/convert.html).
 
 `INDEX(text, needle, occurrence)` returns the one-based byte position of
 the requested match, or zero when it is missing. For example,
-`INDEX('ab--ab', 'ab', 2)` returns 5. jbcc currently counts
-nonoverlapping matches, truncates fractional occurrence numbers toward
-zero, and returns zero for an empty needle or a nonpositive occurrence.
-These edge cases are provisional pending a reference run.
+`INDEX('ab--ab', 'ab', 2)` returns 5. As in TAFC PB201214, matches do
+not overlap, a fractional occurrence is truncated toward zero, an empty
+needle is found at position 1, and a nonpositive occurrence returns zero.
 [INDEX](https://jbc-lang.org/pages/index.html).
 
 LEFT and RIGHT extract leading and trailing bytes respectively. For example,
@@ -1728,12 +1793,15 @@ LEN counts bytes in the current byte-oriented runtime. FIELD accepts a
 one-based occurrence and optional field count. The expression
 `Text[delimiter, occurrence, count]` calls the same FIELD runtime as
 `FIELD(Text, delimiter, occurrence, count)`. For example,
-`"a/b/c/d"["/",2,2]` returns `b/c`. FIELD, COUNT and DCOUNT
-support multi-byte delimiters. COUNT counts nonoverlapping occurrences as
-documented for TAFC R19. DCOUNT returns zero for an empty record. For an
-empty delimiter, this implementation returns byte length for COUNT and
-DCOUNT, and treats the input as one field for FIELD. These empty-delimiter
-choices are provisional. NOT uses the same truth conversion as IF.
+`"a/b/c/d"["/",2,2]` returns `b/c`. An occurrence or count below one
+means one, as in TAFC PB201214, so `FIELD(S, ':', 0)` is the first field.
+FIELD, COUNT and DCOUNT support multi-byte delimiters. COUNT counts
+nonoverlapping occurrences as documented for TAFC R19. DCOUNT returns zero
+for an empty record. For an empty delimiter, COUNT and DCOUNT return the
+byte length and FIELD returns the whole input, as TAFC does. With a
+multi-byte delimiter and a count above one, TAFC's results follow no
+consistent rule; jbcc matches the whole delimiter throughout. NOT uses
+the same truth conversion as IF.
 [FIELD](https://jbc-lang.org/pages/field.html), [COUNT](https://jbc-lang.org/pages/count.html),
 [DCOUNT](https://jbc-lang.org/pages/dcount.html), [LEN](https://jbc-lang.org/pages/len.html).
 
@@ -1803,7 +1871,8 @@ retain the combined array structure. EQS returns 1 for an equal pair and
 element counts as unequal. For the guide's null-element rule, jbcc
 provisionally treats an explicitly empty element as null and leaves
 that result position empty. A scalar occupies the first position.
-A direct `REUSE(scalar)` in either argument repeats it at every position.
+A direct `REUSE(scalar)` in either argument repeats it at every position;
+`REUSE` of a dynamic array has no effect, as in TAFC.
 [EQS](https://jbc-lang.org/pages/eqs.html), [NES](https://jbc-lang.org/pages/nes.html).
 
 `LES`, `LTS`, `GES`, and `GTS` use the same array structure and scalar
@@ -1816,40 +1885,27 @@ in either argument.
 [jBASE LES](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_LES.htm),
 [UniVerse vector functions](https://docs.rocketsoftware.com/bundle/universebasicuser_ug_1221/page/sat1687881202320.html).
 
-`ADDS(left, right)` adds corresponding fields, values and subvalues
-using the same arithmetic and PRECISION as `+`. It copies an unmatched
-element unchanged and leaves a paired position empty if either element
-is empty. jbcc provisionally treats a wholly empty operand as one empty
-element. A direct `REUSE(scalar)` in either argument repeats that scalar
-at every position and evaluates it once. [ADDS](https://jbc-lang.org/pages/adds.html).
+`ADDS(left, right)`, `SUBS`, `MULS` and `DIVS` add, subtract, multiply
+and divide corresponding fields, values and subvalues with the arithmetic
+and PRECISION of the scalar operators. Under prime emulation, as TAFC
+PB201214 runs them, a missing or empty element counts as 0, so
+`ADDS('', 1:@VM:2)` is `1]2` and `MULS('', 3)` is 0. A nonnumeric element
+warns at the call site and counts as 0, and a zero or empty divisor warns
+and gives 0 for that position; execution continues.
 
-`SUBS(left, right)` subtracts corresponding fields, values and subvalues.
-Empty or missing elements count as zero, including a wholly empty
-operand. Nonnumeric elements cause an error at the call site. SUBS uses
-the scalar subtraction rules for PRECISION and overflow and accepts
-direct `REUSE(scalar)` in either operand. [SUBS](https://jbc-lang.org/pages/subs.html).
+Under `--emulation jbase` the earlier rules apply: ADDS copies an
+unmatched element, MULS gives 0 for one, DIVS keeps the dividend for a
+missing divisor, and an empty element in a pair leaves its position
+empty; SUBS counts empty or missing elements as 0.
 
-`MULS(left, right)` multiplies corresponding fields, values and
-subvalues. An unmatched element gives zero. An empty element in a pair
-gives an empty result. MULS uses the same array alignment and scalar
-`REUSE` as ADDS, including the provisional treatment of a wholly empty
-operand as one empty element. Products follow the PRECISION and overflow
-rules of scalar multiplication. [MULS](https://jbc-lang.org/pages/muls.html).
-
-`array * REUSE(scalar)` and `REUSE(scalar) * array` use the same
-element-wise multiplication as MULS. jbcc accepts REUSE as a direct
-operand and evaluates the wrapped scalar once. This follows the
-infix form seen in T24's LI.SECURED.ONLINE.
-[MULS](https://jbc-lang.org/pages/muls.html).
-
-`DIVS(left, right)` divides corresponding fields, values and subvalues
-with the same PRECISION rules as scalar division. A missing divisor
-preserves the dividend and a missing dividend gives zero. An empty
-element in a pair gives an empty result. A wholly empty operand
-provisionally counts as one empty element. For a numeric pair with a
-zero divisor, jbcc warns at the call site, emits zero for that position,
-and continues. Direct `REUSE(scalar)` works on either side.
-[DIVS](https://jbc-lang.org/pages/divs.html).
+A direct `REUSE(scalar)` in either argument repeats that scalar at every
+position and evaluates it once. `REUSE` of a dynamic array has no effect,
+so its elements pair as usual, as in TAFC (`ADDS(REUSE(1:@VM:2), 3)` is
+`4]2`). `array * REUSE(scalar)`, `REUSE(scalar) * array` and the matching
+`/` forms use the same element-wise rules; this follows the infix form
+seen in T24's LI.SECURED.ONLINE.
+[ADDS](https://jbc-lang.org/pages/adds.html), [SUBS](https://jbc-lang.org/pages/subs.html),
+[MULS](https://jbc-lang.org/pages/muls.html), [DIVS](https://jbc-lang.org/pages/divs.html).
 
 `array / REUSE(scalar)` and `REUSE(scalar) / array` divide element by
 element, preserving the dynamic-array marks. jbcc evaluates each REUSE
@@ -1910,14 +1966,15 @@ output.
   or 0. `CacheDelete`, `CacheKeyList` and `CacheBucketList` leave the
   statistics unchanged. The two lists are sorted by name, as in TAFC.
 - `CacheStats(bucket, counter)` reads `CACHE_HITS`, `CACHE_GETS`,
-  `CACHE_PUTS`, `CACHE_SIZE` (the sum of value lengths) and
-  `CACHE_NB_ITEMS`. `CacheClearStats` resets the counters. `CacheClear`
-  empties a bucket and resets its counters. `CacheClearAll` removes every
+  `CACHE_PUTS`, `CACHE_SIZE` and `CACHE_NB_ITEMS`; `CACHE_SIZE` is the
+  number of items, as in TAFC PB201214. `CacheClearStats` resets the
+  counters. `CacheClear` removes a bucket with its counters and options,
+  so a later `CacheGet` counts nothing, and `CacheClearAll` removes every
   bucket.
 - `CacheGetOption` returns zeros for a missing bucket and otherwise
   `CACHE_MAX_SIZE` (default 1048576) and `CACHE_PURGE_THRESHOLD`
   (default 90). `CacheSetOption` creates the bucket. When a bucket's
-  size exceeds `CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100`, jbcc
+  item count exceeds `CACHE_MAX_SIZE * CACHE_PURGE_THRESHOLD / 100`, jbcc
   removes its least recently written or read items until it fits. The
   guide only says that "the most outdated data" is purged, so this order
   is provisional. Unknown counters and options read as 0.
@@ -1965,9 +2022,9 @@ convention rather than on the guide.
   [BITLOAD](https://jbc-lang.org/pages/bitload.html). BITTEST is reserved
   in the guide and remains unsupported.
 - `ISCNTRL`, `ISGRAPH`, `ISPRINT`, `ISPUNCT` and `ISXDIGIT` test every
-  byte with C-locale ASCII rules and return 0 for an empty string. The
-  guide's ISCNTRL example counts @FM as a control character, so bytes 248
-  to 255 count as control characters. Other high bytes belong to no class.
+  byte with C-locale ASCII rules and return 0 for an empty string. Bytes
+  above 127, the system marks included, belong to no class, so
+  `ISCNTRL(@FM)` is 0 as in TAFC PB201214; the guide's example says 1.
   [ISCNTRL](https://jbc-lang.org/pages/iscntrl.html), [ISPRINT](https://jbc-lang.org/pages/isprint.html).
 - `ANDS`, `ORS` and `MODS` pair elements as ADDS does. The guide's null
   rules use jbcc's empty string as null. For ANDS, a null beside a true
@@ -2014,8 +2071,9 @@ spooler or licence backend.
 `OPENSEQ path TO F` and `OPENSEQ directory, name TO F` open regular files
 on the native filesystem. Relative paths use the executable’s working
 directory. `READONLY` takes a shared advisory lock. A writable open takes
-an exclusive lock. Contention takes `LOCKED` when supplied, otherwise
-`ELSE`. POSIX terminals also open without a file lock. Pipes and
+an exclusive lock. Contention with another process takes `LOCKED` when
+supplied, otherwise `ELSE`. A program can open a file it already has open
+through OPENSEQ or OSOPEN again, as TAFC PB201214 allows. POSIX terminals also open without a file lock. Pipes and
 other devices take the I/O error branch.
 [OPENSEQ](https://static.zumasys.com/jbase/r99/knowledgebase/manuals/3.0/30manpages/man/jbc2_OPENSEQ.htm).
 
@@ -2100,8 +2158,9 @@ A failed write reports the source location when no error arm is present.
 [OSBWRITE](https://jbc-lang.org/pages/osbwrite.html).
 
 `OSREAD value FROM path` reads a regular file into a scalar or
-record context variable. It keeps internal line endings, strips one final
-LF, and replaces each NUL byte with byte 128. A bare name that is missing
+record context variable. It strips one final LF, turns every other LF into
+a field mark and keeps carriage returns, as TAFC PB201214 does, so a file
+of lines reads as a dynamic array. It replaces each NUL byte with byte 128. A bare name that is missing
 from the working directory is searched for in the colon-separated
 `JEDIFILEPATH`. The reference grammar accepts `SETTING` and `ON ERROR`
 with a required THEN or ELSE arm. jbcc uses sequential file status codes
@@ -2621,23 +2680,33 @@ every element. These two edge cases are provisional pending a reference
 run. [FINDSTR](https://jbc-lang.org/pages/findstr.html).
 
 `LOCATE key IN record SETTING pos THEN ... ELSE ...` searches fields.
-Use `record<field>` to search values in a field and `record<field,value>`
-to search subvalues. An optional comma and starting position restrict the
-search. Positions are one-based within the selected dimension.
+Under prime emulation the last coordinate is where the search starts, at
+the level below the coordinates before it:
 
-T24 also uses `record<field,value,start>`. jbcc treats its third expression
-as the first subvalue to search. For example, with subvalues `A,B,A`,
-starting at 2 finds `A` at position 3. The reference parser accepts a third
-selector and passes it to the runtime separately from the comma-start
-argument. Its runtime behavior is provisional pending a reference run.
-Supplying both starts produces a compiler diagnostic.
+- `record<f>` searches fields, starting at field f;
+- `record<f,v>` searches the values of field f, starting at value v;
+- `record<f,v,s>` searches the subvalues of value v, starting at s.
+
+So `LOCATE ID IN LIST<1> SETTING POS`, common in T24, searches the fields
+of LIST. An optional comma and starting position apply only without
+coordinates; after coordinates TAFC ignores it. Under `--emulation jbase`,
+every coordinate selects: `record<f>` searches the values of field f,
+`record<f,v>` the subvalues of value v, and a third coordinate is the
+starting subvalue; a separate start then produces a compiler diagnostic.
+In both emulations a trailing zero coordinate is dropped, so `<2,0>`
+means `<2>`. The function form `LOCATE(key, record{, f{, v}}; pos{; order})`
+takes the same coordinates. Positions are one-based within the searched
+level.
 
 A match sets `pos` and takes the THEN branch. An unordered miss sets it
-one past the end. With `BY`, a miss returns the insertion position for
-an already sorted array. jbcc supports AL/DL (byte order), AR/DR
-(right-justified), and AN/DN (numeric). Either branch can use `NULL`
-as a no-op. This implements the guide's `IN ... SETTING` form with
-byte-oriented strings. [LOCATE](https://jbc-lang.org/pages/locate.html).
+one past the end, or to the starting position when that is further. With
+`BY`, a miss returns the insertion position for an already sorted array.
+jbcc supports AL/DL (byte order), AR/DR (right-justified), and AN/DN
+(numeric when both values are numbers). Under prime, AR/DR compare two
+numbers numerically, two other values right-justified and a mixed pair
+byte by byte, so `100` sorts before `B` and `b2` before `b10`. Either
+branch can use `NULL` as a no-op. These rules follow TAFC PB201214 runs
+(`tests/tafc/locate-*.b`). [LOCATE](https://jbc-lang.org/pages/locate.html).
 
 ## Check whether a variable has a value
 
@@ -3113,6 +3182,46 @@ Calls counted after include and equate expansion can appear in several
 translation units. The JSON tracks occurrences and C99-checked units
 separately. Its snippet references identify source that contains a call.
 Reviewed runtime assertions are recorded independently.
+
+## Cross-check with TAFC
+
+`tools/tafc_crosscheck/` runs jBC programs through jbcc and through the
+reference runtime, TAFC PB201214, and compares their standard output.
+TAFC runs in Docker from the sibling `jbc-internals` checkout: the
+tarball `TAFC_PB201214_LINUX_ELF_AS6_106034-unbound.tar.gz` and the image
+`jbc-internals-tafc-runner:local`, which is built from
+`jbc-internals/docker` if missing. Each program runs under
+`JBCEMULATE=prime`, as T24 does, unless a comment line near its top
+names another emulation, such as `* tafc-emulation: jbase`.
+[TAFC-CROSSCHECK.md](TAFC-CROSSCHECK.md) records the findings and the
+plan that follows from them.
+
+```sh
+just tafc-guide                    # every guide code block, from ../jbc-language
+just tafc-probe probe.b dir/       # probes side by side
+just tafc-probe --record tests/tafc  # also save NAME.tafc.stdout
+just tafc-recorded                 # jbcc against tests/tafc, no Docker
+```
+
+The guide and probe runs write `report.txt` and `report.json` under
+`.cache/tafc/`. The guide report classifies each block as `same`,
+`differ`, `jbcc-rejects`, `jbcc-fails` (TAFC ran it and exited with
+status 0), `tafc-rejects` or `tafc-no-program`, and marks a difference
+as volatile when the source reads the clock, the process or random
+numbers. Comparison ignores carriage returns, trailing spaces and blank
+lines at either end. A probe runs under its file name, which TAFC's
+warnings and `SYSTEM(40)` show; guide blocks run as `P0001` and so on.
+
+`tests/tafc/` holds probes with the standard output TAFC printed, as
+`NAME.tafc.stdout`. They record the reference behaviour, including
+behaviour jbcc does not match yet, so they are not part of `just test`.
+`just tafc-recorded` lists which of them jbcc matches.
+
+TAFC prints its runtime warnings, such as `Divide by zero !!`, on
+standard output, so they appear in the recorded output. Two TAFC
+programs run in parallel by default (`--tafc-jobs`). More can fail to
+start with licensing-semaphore or shared-memory errors, and the
+container retries a program that fails that way.
 
 ## Python formatting
 

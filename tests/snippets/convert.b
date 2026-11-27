@@ -2,10 +2,10 @@ Value = 'ABCDEFGHIJ'
 CONVERT 'BJE' TO '^+!' IN Value
 PRINT Value
 Original = 'ab-cab'
-PRINT CONVERT(Original, 'ab-', 'ba'), Original
+PRINT CONVERT('ab-', 'ba', Original), Original
 CONVERT '-' TO '' IN Original
 PRINT Original
-PRINT CONVERT('abc', '', 'xyz'), CONVERT('aba', 'aab', '1234')
+PRINT CONVERT('', 'xyz', 'abc'), CONVERT('aab', '1234', 'aba')
 DIM Rows(2)
 Rows(1) = 'left' : @FM : 'b|c' : @VM : 'd|e'
 Rows(2) = 'untouched'

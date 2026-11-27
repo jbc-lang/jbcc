@@ -4,7 +4,7 @@ DIM A(2)
 MAT A = 'kept'
 WRITE 'one' : @FM : 'two' : @FM : 'three' ON F, 'id'
 MATREADU A FROM F, 'id' SETTING N LOCKED STOP THEN
-    CRT N, A(1), CONVERT(A(2), @FM, '|'), RECORDLOCKED(F, 'id')
+    CRT N, A(1), CONVERT(@FM, '|', A(2)), RECORDLOCKED(F, 'id')
 END ELSE STOP
 READU R FROM 'id' LOCKED STOP ELSE STOP
 A(1) = 'updated'
@@ -16,7 +16,7 @@ END
 MATWRITE A ON F, 'new'
 CRT RECORDLOCKED(F, 'new')
 MATREADU A FROM 'busy' SETTING N ON ERROR STOP LOCKED
-    CRT 'locked', N, A(1), CONVERT(A(2), @FM, '|')
+    CRT 'locked', N, A(1), CONVERT(@FM, '|', A(2))
 END THEN STOP ELSE STOP
 MATREADU A FROM 'invalid', 'id' SETTING N ON ERROR
     CRT 'error', N, A(1)
