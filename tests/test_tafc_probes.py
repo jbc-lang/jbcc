@@ -77,7 +77,7 @@ def test_probe_matches_tafc(compiler, probe):
         [binary],
         cwd=compiler.work,
         env=env,
-        stdin=subprocess.DEVNULL,
+        input=crosscheck.stdin_of(data) or b"",
         capture_output=True,
         timeout=30,
     )

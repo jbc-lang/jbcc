@@ -84,8 +84,10 @@ collected list (`record_text`), so `jbc_size` works on them as well.
 
 Stage 5 is not needed: TAFC PB201214 rejects a NUL byte in a string
 literal as a syntax error, as jbcc already does, and jbcc never folds
-`CHAR(0)` into a C literal. What remains is INPUT and KEYIN, which still
-report byte 0 as an error (LANGUAGE-GAPS.md). One change from the
+`CHAR(0)` into a C literal.
+
+INPUT, KEYIN and DATA keep byte 0 as well (`tests/tafc/nul-input.b`), so
+every part of the design is done. One change from the
 plan: only a buffer that actually holds byte 0 records its length and
 goes in the pointer set, so the set stays small, and every other buffer
 is an ordinary C string.

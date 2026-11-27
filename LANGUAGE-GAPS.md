@@ -62,8 +62,8 @@ See TAFC-CROSSCHECK.md for the probes.
 - EXECUTE without a shell: TAFC runs `echo a; echo b` as `echo` with the
   arguments `a;`, `echo` and `b`, taking `;`, `|` and quotes literally;
   jbcc runs the command with `/bin/sh -c` (`tests/tafc/execute-capturing.b`).
-- Byte 0: INPUT and KEYIN report it as an error. TAFC's OSBWRITE of byte 0
-  writes extra bytes; jbcc writes the bytes given. TAFC itself mishandles it in three places, which jbcc does not copy:
+- Byte 0 in OSBWRITE: TAFC writes extra bytes; jbcc writes the bytes
+  given. TAFC itself mishandles it in three places, which jbcc does not copy:
   LOCATE finds no value that holds byte 0, SORT scrambles such values, and
   CONVERT to byte 0 gives `''` (`tests/snippets/nul-locate-sort.b`).
 

@@ -82,7 +82,8 @@ follows: 216 same output, 84 different output, 114 rejected only by jbcc,
       emulation, `* jbcc-options: ...` passes jbcc options, and each
       `* tafc-program: NAME` line starts another program, written to
       `NAME.b` and built before the main one, for probes that EXECUTE
-      jBC programs.
+      jBC programs. `* tafc-stdin-hex: 610A` gives the probe those bytes
+      on standard input instead of `/dev/null`.
 
 ## Emulation
 

@@ -1075,15 +1075,18 @@ and nonterminal stdin stay available for subsequent reads.
 compiler generates the same operation for both spellings. jbcc reads
 queued DATA first and then standard input, sharing the same stream as
 INPUT. On terminals it temporarily disables editing and echo while
-preserving interrupt handling. jbcc returns an empty string at EOF
-and reports an error for a NUL byte.
+preserving interrupt handling. jbcc returns an empty string at EOF, and
+byte 0 as a one-byte value, as TAFC PB201214 does (`tests/tafc/nul-input.b`).
 [KEYIN](https://jbc-lang.org/pages/keyin.html).
 
 `INPUT Var` writes the current prompt and reads a line from standard input.
 `PROMPT expression` sets the prompt for subsequent reads. The default is
-`?`, and `PROMPT ''` suppresses it. On a terminal, `INPUT Var:` keeps
-typed characters visible and suppresses the echoed newline. With piped
-input, the program writes the prompt and reads through the next LF.
+`?`, and `PROMPT ''` suppresses it. The prompt appears only when standard
+input is a terminal: with piped or redirected input the program writes no
+prompt and reads through the next LF, as TAFC PB201214 does
+(`tests/tafc/input-prompt.b`). The line keeps byte 0. On a terminal,
+`INPUT Var:` keeps typed characters visible and suppresses the echoed
+newline.
 `INPUT Var, n` reads up to `n` bytes. Enter ends the read early. At
 the limit, INPUT returns immediately and leaves subsequent bytes,
 including any following LF, for the next read. With terminal echo enabled,
@@ -1794,8 +1797,7 @@ FIELD, FIELDS, GROUP, INDEX, COUNT, DCOUNT, CHANGE, EREPLACE, SWAP, CONVERT,
 the element-wise functions such as LENS, COUNTS, CATS, SPLICE, STRS,
 OCONVS and FMTS, the element comparisons, OSREAD, OSWRITE, WRITESEQ,
 READBLK, WRITEBLK, file records and keys, CAPTURING, RETURNING, PASSDATA,
-RTNDATA and passed select lists handle it too. INPUT and KEYIN still
-report byte 0 as an error.
+RTNDATA, passed select lists, INPUT, KEYIN and DATA handle it too.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197

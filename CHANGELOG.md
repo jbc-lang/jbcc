@@ -4,6 +4,7 @@
 
 ### Added
 
+- INPUT, KEYIN and DATA keep byte 0, as TAFC PB201214 does.
 - ENCRYPT and DECRYPT implement JBASE_CRYPT_XOR11 and JBASE_CRYPT_BASE64,
   and the Base64 mask bit, as TAFC PB201214 runs them.
 - `--emulation prime|jbase` (and `emulation=` in `jbcc.browser.translate`).
@@ -89,6 +90,8 @@
 - `EXECUTE ... PASSDATA expression RTNDATA variable`, with the
   `COLLECTDATA` and `RTNDATA` statements in the program it runs.
 - CAPTURING drops one final newline, as TAFC does.
+- INPUT writes its prompt only when standard input is a terminal, as TAFC
+  does; piped input gets no prompt.
 - Strings can hold byte 0: `CHAR(0)` and `CHAR(256)` no longer stop the
   program, and concatenation, LEN, substrings, comparisons, output and the
   MX and MCP conversions keep it, as in TAFC (NUL-BYTES.md, stages 1 and

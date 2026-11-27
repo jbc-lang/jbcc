@@ -470,8 +470,8 @@ def test_input_from_pipe(compiler):
     run = subprocess.run(
         [binary], input=b'a\0b\n', capture_output=True, timeout=5
     )
-    assert run.returncode != 0
-    assert expected_bytes('input-from-pipe.stderr') in run.stderr
+    # Byte 0 is kept, as in TAFC (tests/tafc/nul-input.b).
+    assert (run.returncode, run.stdout[:5]) == (0, b'"a\x00b"'), run.stderr
 
 
 def test_positioned_input_writes_cursor_before_prompt(compiler):
@@ -758,11 +758,8 @@ def test_keyin_reads_unedited_terminal_byte_and_restores_mode(
                 stdout, stderr = proc.communicate(timeout=5)
                 expected = {
                     b'\x7f': (0, b'127\n', b''),
-                    b'\x00': (
-                        1,
-                        b'',
-                        f'{source}:2:9: KEYIN cannot store a NUL byte\n'.encode(),
-                    ),
+                    # Byte 0 is a key, as in TAFC (tests/tafc/nul-input.b).
+                    b'\x00': (0, b'0\n', b''),
                     None: (-signal.SIGTERM, b'', b''),
                 }
                 assert (proc.returncode, stdout, stderr) == expected[value]
@@ -817,10 +814,7 @@ def test_timed_input_restarts_after_each_byte(compiler):
         [binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE
     ) as proc:
         try:
-            assert select.select([proc.stdout], [], [], 5)[0]
-            assert proc.stdout.read(1) == expected_bytes(
-                'timed-input-restarts-after-each-byte_2.stdout'
-            )
+            # No prompt on a pipe (TAFC, tests/tafc/input-prompt.b).
             for byte in (b'a', b'b', b'c'):
                 proc.stdin.write(byte)
                 proc.stdin.flush()
