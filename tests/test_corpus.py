@@ -95,6 +95,9 @@ def test_itype_requires_backend_only_when_evaluation_is_reached(compiler):
             'xml_5.b', "DYNTOXML('a':@FM:'b', '', Codes(1))", id='xml-5'
         ),
         pytest.param('xml_6.b', "DYNTOXML('a':@FM:'b', '')", id='xml-6'),
+        pytest.param(
+            'xml_7.b', "DYNTOXMLEXT('a':@FM:'b', '', Code)", id='xml-7'
+        ),
     ],
 )
 def test_xml_transforms_require_a_backend_when_reached(
@@ -112,6 +115,29 @@ def test_xml_transforms_require_a_backend_when_reached(
         expected_bytes('xml-transforms-require-a-backend-when-reached.stdout'),
         expected_text(
             'xml-transforms-require-a-backend-when-reached.stderr',
+            source=source,
+            value_2=name,
+        ).encode(),
+    )
+
+
+@pytest.mark.parametrize(
+    'name', ['DATELOCALETOGREGORIAN', 'DATEGREGORIANTOLOCALE']
+)
+def test_calendar_conversions_require_a_backend_when_reached(compiler, name):
+    source = (
+        ROOT
+        / 'tests/programs/calendar-conversions-require-a-backend-when-reached'
+        / f'{name.lower()}.b'
+    )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (
+        1,
+        expected_bytes(
+            'calendar-conversions-require-a-backend-when-reached.stdout'
+        ),
+        expected_text(
+            'calendar-conversions-require-a-backend-when-reached.stderr',
             source=source,
             value_2=name,
         ).encode(),
@@ -893,12 +919,19 @@ def test_corpus_index_resolves_and_reports_component_includes(compiler):
         '2',
     ]
     report = json.loads(subprocess.check_output(command, text=True))
-    assert report['counts'] == {'translated': 1, 'rejected': 2}
+    assert report['counts'] == {'translated': 2, 'rejected': 2}
     assert report['include_lookups'] == {
-        'resolved': 3,
+        'resolved': 4,
         'missing': 1,
         'ambiguous': 1,
     }
+    twin = report['files']['AA/Account/Private/Twin.b']['include_lookups'][0]
+    assert twin['status'] == 'resolved'
+    assert twin['resolved'] == 'BB/Billing/Public/I_Twin'
+    assert twin['identical_copies'] == [
+        'BB/Billing/Public/I_Twin',
+        'Flat/I_Twin',
+    ]
     files = report['files']
     main = 'AA/Account/Private/Main.b'
     assert files[main]['package_directives'] == [
@@ -1003,12 +1036,16 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         '2',
     ]
     report = json.loads(subprocess.check_output(command, text=True))
-    assert report['counts'] == {'translated': 1, 'rejected': 13}
+    assert report['counts'] == {'translated': 1, 'rejected': 14}
     assert report['selection']['component_calls']
     assert report['files']['Main.b']['status'] == 'translated'
     assert report['files']['Main.b']['warnings'] == [
         "Main.b:57:10: warning: table 'Shop.Prices.Archive' is not declared "
-        "by its component; using the standard table operations"
+        "by its component; using the standard table operations",
+        "Main.b:68:1: warning: component member 'Shop.Prices.setDrawings' "
+        "is not declared by its component; accepting its arguments",
+        "Main.b:69:5: warning: component member 'Shop.Prices.getDrawings' "
+        "is not declared by its component; accepting its arguments",
     ]
     failures = {
         'WrongArity.b': "2:5: arguments disagree with component declaration for 'Shop.Prices.getCurrent'",
@@ -1024,6 +1061,7 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         'UnknownComponentTable.b': "2:10: unknown variable or unsupported function 'Shop.Missing.Archive.Read'",
         'UndeclaredTableOperation.b': "2:1: unsupported statement 'Shop.Prices.Archive.Rebuild'",
         'StubbedMember.b': "3:10: arguments disagree with component declaration for 'TF.L3Helper.testPublishedMethod'",
+        'UnknownComponentAccessor.b': "2:5: unknown variable or unsupported function 'Shop.Missing.getDrawings'",
     }
     for name, diagnostic in failures.items():
         assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'
@@ -1055,6 +1093,15 @@ def test_corpus_can_stub_void_results_for_testing(compiler):
         ],
     }
     assert report['files']['WrongArity.b']['status'] == 'rejected'
+
+    relaxed = json.loads(
+        subprocess.check_output(command + ['--t24-relax-access'], text=True)
+    )['files']['PrivateAccess.b']
+    assert relaxed['status'] == 'translated'
+    assert relaxed['warnings'] == [
+        "PrivateAccess.b:2:1: warning: component member 'Shop.Prices.Reset' "
+        "has private access; allowed for testing"
+    ]
 
     stubbed = json.loads(
         subprocess.check_output(command + ['--t24-stub-members'], text=True)

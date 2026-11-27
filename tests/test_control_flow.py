@@ -608,6 +608,34 @@ def test_return_to_bypasses_for_header_with_explicit_step(compiler):
     )
 
 
+def test_deferred_convert_target_fails_only_when_reached(compiler):
+    source = ROOT / 'tests/programs/deferred-convert-target.b'
+    binary = compiler.work / 'program'
+    command = [CLI, '--exe', source, '-o', binary]
+    strict = subprocess.run(command, capture_output=True, text=True)
+    assert strict.returncode == 1
+    assert f"{source}:3:28: unassigned variable 'Display'" in strict.stderr
+    deferred = subprocess.run(
+        [*command, '--defer-unassigned-reads'],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert (
+        f"{source}:3:28: warning: read of 'Display' before assignment is "
+        "deferred to runtime"
+    ) in deferred.stderr
+    skipped = subprocess.run(
+        ['program', '0'], executable=binary, capture_output=True
+    )
+    assert (skipped.returncode, skipped.stdout) == (0, b'1,5\n')
+    reached = subprocess.run(
+        ['program', '1'], executable=binary, capture_output=True
+    )
+    assert reached.returncode != 0
+    assert b"unassigned variable 'Display'" in reached.stderr
+
+
 def test_deferred_scalar_read_warns_and_fails_only_when_reached(
     compiler, subtests
 ):

@@ -213,6 +213,11 @@ def read_component_members(catalogue, root):
     # known component, such as PP.SODEODGUI.PptSodeodjoblist.Read. A call
     # <component>.<table>.<operation> to an undeclared table falls back to
     # these entries: the standard operation signatures, with public access.
+    # Members the definitions declare differently stay unresolved; mark them
+    # so the compiler's fallbacks do not treat them as undeclared.
+    for owner, names in conflicts.items():
+        for name in names:
+            members[f"{owner}.!{name}"] = ("conflict", "conflict", (), owner)
     for owner in by_component:
         for method, (kind, signature) in TABLE_METHODS.items():
             members[f"{owner}.*.{method.casefold()}"] = (

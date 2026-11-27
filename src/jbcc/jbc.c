@@ -6586,6 +6586,27 @@ const char *jbc_validate_product_license(const char *product, const char *file, 
     return "";
 }
 
+/* DATELOCALETOGREGORIAN and DATEGREGORIANTOLOCALE(date, format, calendar,
+   format, locale) convert between calendars in R19. Neither the guide nor
+   the PB201214 headers define them; they parse and report when reached. */
+const char *jbc_datelocaletogregorian(const char *date, const char *from, const char *calendar,
+                                      const char *to, const char *locale,
+                                      const char *file, int line, int column)
+{
+    (void)date; (void)from; (void)calendar; (void)to; (void)locale;
+    numeric_error(file, line, column, "DATELOCALETOGREGORIAN requires a calendar backend");
+    return "";
+}
+
+const char *jbc_dategregoriantolocale(const char *date, const char *from, const char *calendar,
+                                      const char *to, const char *locale,
+                                      const char *file, int line, int column)
+{
+    (void)date; (void)from; (void)calendar; (void)to; (void)locale;
+    numeric_error(file, line, column, "DATEGREGORIANTOLOCALE requires a calendar backend");
+    return "";
+}
+
 const char *jbc_crypt(const char *value, const char *key, const char *method, int decrypt,
                       const char *file, int line, int column)
 {

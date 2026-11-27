@@ -1561,6 +1561,16 @@ reports a source-located error because XML conversion requires a backend.
 [DYNTOXML](https://jbc-lang.org/pages/dyntoxml.html),
 [XMLTOXML](https://jbc-lang.org/pages/xmltoxml.html),
 [XMLTODYN](https://jbc-lang.org/pages/xmltodyn.html).
+`DYNTOXMLEXT(array, xsl[, result])`, which T24 R19 uses but neither the
+guide nor the PB201214 headers define, parses the same way and reports
+the same error when reached.
+
+`DATELOCALETOGREGORIAN(date, format, calendar, format, locale)` and
+`DATEGREGORIANTOLOCALE` with the same arguments convert dates between
+calendars in T24 R19 (`EB.API` `ConvertLocaleDateToGregorian`). Neither
+the guide nor the PB201214 headers define them. They parse, and a reached
+call reports a source-located error because calendar conversion requires
+a backend.
 
 `READXML var FROM [file,] key` and `READXMLU` parse like READ and READU,
 with `SETTING`, `ON ERROR`, `LOCKED` for READXMLU, and THEN or ELSE. The
@@ -2604,7 +2614,9 @@ Source handling:
   pages, and literals must keep them unchanged. All T24 scans use it.
 - `--defer-unassigned-reads` turns a read that jbcc cannot prove is
   assigned into a runtime check and a `warnings` entry, instead of a
-  translation error. T24 relies on variables assigned through COMMON or
+  translation error. This includes the target of `CONVERT` and `CHANGE`,
+  as in R19 `IN2BMT`, which converts a variable two lines before
+  assigning it. T24 relies on variables assigned through COMMON or
   in other routines, which a single-unit scan cannot see.
 - `--quiet-next-warnings` replaces the many `NEXT` name mismatch warnings
   (`FOR I ... NEXT J`) with one total on stderr.
@@ -2622,7 +2634,10 @@ Source handling:
     argument to a matrix element; `TU.LIB.STD.CDF` and `TU.LIB.STD.INV`
     write decimal coefficients in exponent form.
   - R19, fixes named by path from the root: two AA `DAS` inserts end an
-    `EQU` with a comma and repeat `EQU` on the next line.
+    `EQU` with a comma and repeat `EQU` on the next line;
+    `CALEND.PAY.RESERVE.ACCOUNT.LOAD` writes two assignments on one line
+    without a `;`; `AT.GEN.ISO.RES.MSG` lacks the `:` before a second
+    `FMT` in a `PRINT`.
 - `--stub-r07-la-parameter` supplies a translation-only
   `I_F.LA.PARAMETER` (`tools/corpus_stubs/r07/`) for the R07 units that
   include it, because the R07 dump lacks it. Each use is reported in
@@ -2647,7 +2662,10 @@ R19 components and generated code:
 - `--t24-indexed-includes` resolves `$INSERT` through the catalog: the
   including file's directory, its component, the include paths and then
   a release-wide index. R19 keeps inserts in module trees, not on one
-  path. Each lookup is reported with the rule that resolved it.
+  path. Each lookup is reported with the rule that resolved it. When
+  several candidates are byte-identical, as R19's two copies of
+  `I_DAS.POR.CLG.IN.SETTLEMENT.PENDING`, the first is used and the lookup
+  lists them as `identical_copies`; different candidates stay ambiguous.
 - `--t24-domain-inserts DIR` generates the `I_<Service>_<Class>` inserts
   that T24 generates from `.domain` models and the dump leaves out, from
   the catalogued classes, into `DIR`. Each generated lookup is reported
@@ -2668,16 +2686,26 @@ R19 components and generated code:
     declared in any of them counts, unless they declare it differently;
   - a standard operation on a table that a catalogued component does not
     declare is accepted, with a `warnings` entry naming the table;
+  - likewise a `get`, `set` or `clear` accessor of a property the
+    component does not declare, as `LC.Foundation.getFDrawings()`, takes
+    its arguments as given, with a `warnings` entry; a property the
+    component's definitions declare differently stays an error;
   - a scalar passed for a matrix parameter is a placeholder: the call gets
     an empty matrix, as R19 `EbReadParameter` callers expect.
 - `--t24-stub-members`, for testing only, accepts any arguments for the
   members listed in `T24_MEMBER_STUBS` in `tools/check_corpus.py`, with a
   `warnings` entry for each unit that uses one. It lists
   `TF.L3Helper.testPublishedMethod`, a Java varargs helper declared with 3
-  parameters and called by the SEAT tests with 2 to 8, and the 40
-  `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers. `OB_PMT`
-  holds each mapper as its own routine, but the only definition of the
-  component in the dump declares none of them.
+  parameters and called by the SEAT tests with 2 to 8; the 40
+  `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers, which
+  `OB_PMT` holds as routines but no definition declares; nine other
+  methods no definition declares, such as `TF.Core.DumpCommon`; and four
+  methods whose declarations omit the `()` matrix marker on a parameter
+  every caller passes with `MAT`, such as `AU.API.TransferBalance`.
+- `--t24-relax-access`, for testing only, reports a call to a `private`
+  or `module` member from another package as a `warnings` entry instead
+  of an error. Three R19 units make such calls, which T24's own build
+  evidently allowed.
 - `--t24-stub-void-results`, for testing only, lets a method declared
   without a result be used as a value. The call is made and the value is
   `0`, with a `warnings` entry. R19 has about 25 such uses, as in

@@ -33,7 +33,7 @@ STEP_OPERATORS = {'++', '--'}
 ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
 EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
 C_FUNCTION_TYPES = {'INT', 'FLOAT', 'VAR', 'STRING'}
-XML_TRANSFORMS = {'DYNTOXML', 'XMLTODYN', 'XMLTOXML'}
+XML_TRANSFORMS = {'DYNTOXML', 'DYNTOXMLEXT', 'XMLTODYN', 'XMLTOXML'}
 EXPRESSION_WRITES = {'GETENV', 'GETCWD', 'IOCTL', 'REMOVE'} | XML_TRANSFORMS
 COMPARISONS = {
     "=": "==",
@@ -80,6 +80,8 @@ BUILTINS = {
     "BITNOT": (1,),
     "JBASECOREDUMP": (2,),
     "VALIDATE_PRODUCT_LICENSE": (1,),
+    "DATELOCALETOGREGORIAN": (5,),
+    "DATEGREGORIANTOLOCALE": (5,),
     "CHECKSUM": (1,),
     "CALLONEXIT": (1,),
     "PUTENV": (1,),
@@ -1102,7 +1104,9 @@ class Compiler:
         component_members=None,
         browser=False,
         stub_void_results=False,
+        relax_access=False,
     ):
+        self.relax_access = relax_access
         self.browser = browser
         self.stub_void_results = stub_void_results
         self.path = path
@@ -1114,6 +1118,7 @@ class Compiler:
         self.api_call = api_call
         self.component_members = component_members or {}
         self.undeclared_tables = set()
+        self.undeclared_accessors = set()
         self.warned_tables = set()
         self.package = ""
         self.warnings = []
@@ -1677,6 +1682,8 @@ class Compiler:
             if word in (
                 "JBASECOREDUMP",
                 "VALIDATE_PRODUCT_LICENSE",
+                "DATELOCALETOGREGORIAN",
+                "DATEGREGORIANTOLOCALE",
                 "CHECKSUM",
                 "LN",
                 "EXP",
@@ -2219,9 +2226,9 @@ class Compiler:
             and target.word not in self.maybe_assigned
             and not self.has_unstructured_jumps
         ):
-            self.assignment_error(
-                f"unassigned variable '{target.word}'", target
-            )
+            # CONVERT and CHANGE read their target, so --defer-unassigned-reads
+            # applies, as in R19 IN2BMT's CONVERT ... IN V$DISPLAY.VAL.
+            self.unassigned_read(target, f"unassigned variable '{target.word}'")
         indices = (
             self.array_indices() if self.current.kind == 'array_open' else None
         )
@@ -3721,6 +3728,26 @@ class Compiler:
                 )
             if member is not None:
                 self.undeclared_tables.add(word.rsplit('.', 1)[0])
+        if member is None and word.count('.') >= 2:
+            # A get/set/clear accessor of a property the export does not
+            # declare, on a catalogued component (one with table entries),
+            # as in R19 LC.Foundation.getFDrawings(): accept its arguments
+            # as given and report it.
+            component, accessor = word.rsplit('.', 1)
+            prefix = re.match(r'(get|set|clear)(?=[A-Z])', accessor)
+            owner = component.casefold()
+            if (
+                prefix
+                and f"{owner}.*.read" in self.component_members
+                and f"{owner}.!{accessor.casefold()}" not in self.component_members
+            ):
+                member = (
+                    "public",
+                    "function" if prefix[1] == "get" else "subroutine",
+                    None,
+                    owner,
+                )
+                self.undeclared_accessors.add(word)
         return member if member and member[1] != "constant" else None
 
     def component_constant(self, word):
@@ -3739,9 +3766,15 @@ class Compiler:
             and owner.split('.')[0] == self.package.split('.')[0]
         ):
             return
-        self.error(
-            f"component member '{target.word}' has {access} access", target
-        )
+        message = f"component member '{target.word}' has {access} access"
+        if self.relax_access:
+            # Corpus testing only (--t24-relax-access).
+            self.warnings.append(
+                f"{target.path}:{target.line}:{target.column}: warning: "
+                f"{message}; allowed for testing"
+            )
+            return
+        self.error(message, target)
 
     def component_call(self, target, *, expression=False):
         access, kind, signature, owner = self.component_call_member(target.word)
@@ -3773,12 +3806,17 @@ class Compiler:
             )
         args, kinds = self.call_arguments()
         if signature is None:
-            # Corpus testing only (--t24-stub-members): accept the arguments
-            # as given and report the member.
+            # An undeclared accessor, or a member stubbed for corpus testing
+            # (--t24-stub-members): accept the arguments as given and report.
             signature = tuple(bool(kind) for kind in kinds)
+            detail = (
+                "is not declared by its component; accepting its arguments"
+                if target.word in self.undeclared_accessors
+                else "is stubbed for testing"
+            )
             self.warnings.append(
                 f"{target.path}:{target.line}:{target.column}: warning: "
-                f"component member '{target.word}' is stubbed for testing"
+                f"component member '{target.word}' {detail}"
             )
         # R19 passes a placeholder scalar for a matrix parameter it does not
         # use, as in ST.CompanyCreation.EbReadParameter(file, lock, DIM.REC,
@@ -5243,6 +5281,7 @@ class Compiler:
                 for w in self.warnings
                 if "warning: table '" in w
                 or "for testing" in w
+                or "not declared by its component" in w
             ]
         for token in self.pending_matrices.values():
             self.error(f"expected a declaration of '{token.word}'", token)
@@ -5631,6 +5670,7 @@ def compile_unit(
     builtin_includes=True,
     builtin_used=None,
     stub_void_results=False,
+    relax_access=False,
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -5644,6 +5684,7 @@ def compile_unit(
         component_members=component_members,
         browser=browser,
         stub_void_results=stub_void_results,
+        relax_access=relax_access,
     )
     preprocessor = Preprocessor(
         directories,
