@@ -4,6 +4,9 @@
 
 ### Added
 
+- `jbcc --help` and `tools/check_corpus.py --help` group their options
+  and describe each one in a block, with examples and, for the checker,
+  the rules the T24 flags follow.
 - `@COMPANYNO`, a session value a program can read and assign, as T24 R19
   uses it; it starts empty (provisional).
 - `DYNTOXMLEXT`, `DATELOCALETOGREGORIAN` and `DATEGREGORIANTOLOCALE` parse

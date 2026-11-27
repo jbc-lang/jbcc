@@ -8,6 +8,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import textwrap
 from collections import deque
 from contextlib import nullcontext
 from pathlib import Path
@@ -5922,76 +5923,188 @@ def build_executable(source, output, libraries, *, verbose):
         os.replace(binary, output)
 
 
+class BlockHelpFormatter(argparse.RawTextHelpFormatter):
+    """Each option on its own line, its description indented below it and a
+    blank line after it, as in cc --help."""
+
+    def __init__(self, prog):
+        super().__init__(prog, max_help_position=8, width=80)
+
+    def _format_action(self, action):
+        return super()._format_action(action) + "\n"
+
+
+def option_help(text):
+    """Dedent a help block written as an indented triple-quoted string."""
+    return textwrap.dedent(text).strip("\n")
+
+
+HELP_EPILOG = option_help(
+    """
+    environment:
+      CC        C compiler for --exe and --run (default: cc)
+      CC_FLAGS  extra flags for that compiler, split like a shell would
+
+    examples:
+      jbcc hello.b -o hello.c              translate to standalone C99
+      jbcc --exe main.b util.b -o main     build a program and its routines
+      jbcc --run hello.b                   build in a temporary directory and run
+      jbcc --run -I include report.b       search include/ for INCLUDE files
+
+    The README describes each statement, function and option in detail:
+    https://github.com/jbc-lang/jbcc
+    """
+)
+
+
 def main():
-    cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('source', nargs='+', type=Path)
-    cli.add_argument(
-        '--memory-file',
-        dest='memory_files',
-        action='append',
-        default=[],
-        metavar='NAME',
-        help='provide an empty named file in the in-memory test backend (repeatable)',
+    cli = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=HELP_EPILOG,
+        formatter_class=BlockHelpFormatter,
     )
     cli.add_argument(
-        '--memory-dict',
-        dest='memory_dicts',
-        action='append',
-        default=[],
-        metavar='NAME',
-        help='provide an empty dictionary section in the in-memory test backend (repeatable)',
+        'source',
+        nargs='+',
+        type=Path,
+        help=option_help(
+            """
+            jBC source files. The first is the main program; the others are
+            the subroutines and functions it calls, linked into one program.
+            """
+        ),
     )
-    cli.add_argument(
-        '--memory-lock',
-        dest='memory_locks',
-        action='append',
-        nargs=2,
-        default=[],
-        metavar=('FILE', 'KEY'),
-        help='simulate a foreign update lock on a registered memory file',
-    )
-    cli.add_argument(
+    inputs = cli.add_argument_group('input')
+    inputs.add_argument(
         '-I',
         dest='directories',
         action='append',
         type=Path,
         default=[],
         metavar='DIR',
+        help=option_help(
+            """
+            Search DIR for $INSERT and INCLUDE files, after the including
+            file's directory. Repeat it to search several directories in order.
+            """
+        ),
     )
-    cli.add_argument(
+    inputs.add_argument(
         '--no-builtin-includes',
         dest='builtin_includes',
         action='store_false',
-        help="report a missing JBC.h instead of using jbcc's built-in copy",
+        help=option_help(
+            """
+            Report a missing JBC.h instead of using jbcc's built-in copy. The
+            built-in JBC.h defines only the constants the jBC guide's examples
+            use, and jbcc says on stderr when it uses it. A JBC.h found on the
+            include paths always wins.
+            """
+        ),
     )
-    cli.add_argument(
+    inputs.add_argument(
         '--source-encoding',
         choices=SOURCE_ENCODINGS,
         default='utf-8',
-        help='decode source as UTF-8 or preserve literal source bytes (default: utf-8)',
+        help=option_help(
+            """
+            utf-8 (default) decodes the sources as UTF-8 and reports invalid
+            bytes. bytes keeps every source byte as is, for older code pages
+            such as the T24 sources.
+            """
+        ),
     )
-    cli.add_argument(
-        '--defer-unassigned-reads',
-        action='store_true',
-        help='warn when a scalar variable read must be checked at runtime',
+    output = cli.add_argument_group('output and build')
+    output.add_argument(
+        '-o',
+        type=Path,
+        metavar='OUTPUT',
+        help=option_help(
+            """
+            Write the C program, or with --exe the executable, to OUTPUT.
+            Required unless --run is given.
+            """
+        ),
     )
-    cli.add_argument(
+    output.add_argument(
         '--exe',
         action='store_true',
-        help='build a native executable using CC and CC_FLAGS',
+        help=option_help(
+            """
+            Build a native executable with the C compiler named by CC, adding
+            CC_FLAGS, instead of writing C.
+            """
+        ),
     )
-    cli.add_argument(
+    output.add_argument(
         '--run',
         action='store_true',
-        help='build and run a native executable (temporary if -o is omitted)',
+        help=option_help(
+            """
+            Build a native executable and run it, passing on its exit status.
+            Without -o the executable lives in a temporary directory.
+            """
+        ),
     )
-    cli.add_argument(
+    output.add_argument(
         '-v',
         '--verbose',
         action='store_true',
-        help='print external commands to stderr before running them',
+        help='Print each external command, such as the C compiler, to stderr.',
     )
-    cli.add_argument('-o', type=Path, metavar='OUTPUT')
+    diagnostics = cli.add_argument_group('diagnostics')
+    diagnostics.add_argument(
+        '--defer-unassigned-reads',
+        action='store_true',
+        help=option_help(
+            """
+            When jbcc cannot prove that a variable is assigned before it is
+            read, warn and check it at runtime instead of rejecting the
+            program. Useful for code that relies on COMMON or on assignments
+            made in other routines.
+            """
+        ),
+    )
+    memory = cli.add_argument_group(
+        'in-memory test backend',
+        option_help(
+            """
+            Programs that OPEN files can run against empty in-memory files,
+            without a database.
+            """
+        ),
+    )
+    memory.add_argument(
+        '--memory-file',
+        dest='memory_files',
+        action='append',
+        default=[],
+        metavar='NAME',
+        help='Provide an empty in-memory file NAME. Repeatable.',
+    )
+    memory.add_argument(
+        '--memory-dict',
+        dest='memory_dicts',
+        action='append',
+        default=[],
+        metavar='NAME',
+        help='Provide an empty dictionary section for file NAME. Repeatable.',
+    )
+    memory.add_argument(
+        '--memory-lock',
+        dest='memory_locks',
+        action='append',
+        nargs=2,
+        default=[],
+        metavar=('FILE', 'KEY'),
+        help=option_help(
+            """
+            Make record KEY of in-memory file FILE look locked by another
+            process, to exercise LOCKED clauses. FILE must also be given with
+            --memory-file. Repeatable.
+            """
+        ),
+    )
     args = cli.parse_args()
     if args.o is None and not args.run:
         cli.error('the following arguments are required: -o')
