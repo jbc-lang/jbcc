@@ -304,14 +304,14 @@ Done for section 3 (2026-11-27):
 
 ## 4. Fixes in implemented functions
 
-- [ ] `OSREAD` converts LF to `@FM`, keeps CR and drops one trailing LF.
+- [x] `OSREAD` converts LF to `@FM`, keeps CR and drops one trailing LF.
       For example `a LF b CR LF c` reads as `61 FE 62 0D FE 63`.
       `WRITESEQ` writes marks unchanged plus LF, and `READSEQ` strips the
       LF.
 - [ ] Support embedded NUL: `LEN(CHAR(0):'A')` is 2 and
       `SEQ(CHAR(0))` is 0. The guide's SEEK and CHECKSUM blocks depend on
       it.
-- [ ] `CHAR(n)` takes n modulo 256: `CHAR(256)` is `00`, `CHAR(300)` is
+- [x] `CHAR(n)` takes n modulo 256: `CHAR(256)` is `00`, `CHAR(300)` is
       `,` and `CHAR(-1)` is `FF`.
 - [x] `BITOR`, `BITAND` and `BITXOR` return unsigned 32-bit values:
       `BITOR(-1,0)` and `BITXOR(-1,0)` give 4294967295. `BITNOT`
@@ -341,20 +341,40 @@ Done for section 3 (2026-11-27):
 - [x] `MCP` turns `CHAR(255)` into `_`, and every other byte outside 32
       to 126 except FE, FD and FC into `.`. `MCPx` uses x for all of
       them.
-- [ ] FMT and OCONV masks: `&x` sets x as the fill character.
+- [x] FMT and OCONV masks: `&x` sets x as the fill character.
       `R2,&$#15` gives `$$$$$123,456.78`, `R2,C&*$#15` gives
       `**$123,456.78CR` and `R2,&0#15` gives `00000123,456.78`. The
       guide's comments show blanks, which is wrong.
-- [ ] `TIMEDIFF(ts1, ts2, mask)` returns ts2 − ts1, so every field has
+- [x] `TIMEDIFF(ts1, ts2, mask)` returns ts2 − ts1, so every field has
       the sign of ts2 − ts1. The guide's prose says the opposite. Close
       the provisional sign item.
-- [ ] `CacheStats(bucket, CACHE_SIZE)` gives 2 for two small items; jbcc
+- [x] `CacheStats(bucket, CACHE_SIZE)` gives 2 for two small items; jbcc
       gives 12 (bytes). Probe more sizes to see what it counts.
 - [ ] `@(-1)` is `ESC[H ESC[J` under vt100; jbcc gives `ESC[2J ESC[H`.
 - [ ] `@TTY` is empty without a terminal; jbcc gives `phantom`.
-- [ ] Leave the 32-bit overflow alone: TAFC's 100-year `CHANGETIMESTAMP`
+- [x] Leave the 32-bit overflow alone: TAFC's 100-year `CHANGETIMESTAMP`
       gives 1990 and 1987 dates, and jbcc's dates are right. Note it in
       the README.
+
+Done for section 4 (2026-11-27):
+
+- OSREAD maps LF to `@FM`. TAFC also lets a program open a file it already
+  has open (OSOPEN after OPENSEQ, two OPENSEQs); jbcc's `flock` locks now
+  allow that within one process and still report another process's lock.
+- CHAR modulo 256 (`CHAR(1.5)` is CHAR(1)); a result of 0 still needs NUL
+  support, which waits for a value-model change (strings are
+  NUL-terminated), as do `LEN(CHAR(0):'A')` and NUL bytes from files.
+- FMT `&x` fill; TIMEDIFF sign and masks 2-7, counting from timestamp1
+  (TAFC gives `-1^-30` one way and `1^29` the other).
+- CacheStats CACHE_SIZE counts items, the purge limit counts items, and
+  CacheClear drops the bucket (`tests/snippets/cache.b` now matches TAFC).
+- Not copied, listed in LANGUAGE-GAPS: spaced comparison chains (TAFC
+  reads `2 < 3 > 0` as an extraction plus implicit format), pre-1970
+  timestamp truncation, and the 2038 overflow.
+- Still open: `@(-1)` and the `@(-n)` table (with section 6), `@TTY`
+  (`''` in TAFC without a terminal, `phantom` in jbcc), and the
+  `fmt-numeric-g` lines where TAFC prints `345,600.00` for a scaled mask
+  and `Error in Range Test.` for range masks.
 
 ## 5. Settled LANGUAGE-GAPS items
 

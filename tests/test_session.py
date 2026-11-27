@@ -66,14 +66,13 @@ def test_timezone_variable(compiler, subtests):
             assert result.stdout.startswith(expected)
 
 
-def test_timediff_month_mask_reports_when_reached(compiler):
+def test_timediff_month_mask(compiler):
     source = ROOT / 'tests/io/timediff-month-mask.b'
+    # Month masks count calendar months, as TAFC PB201214 does
+    # (tests/tafc/timediff.b).
     result = compiler.run_native(source)
-    assert result.returncode != 0
-    assert (
-        b'timediff-month-mask.b:1:5: TIMEDIFF masks with months or years are unsupported'
-        in result.stderr
-    )
+    assert (result.returncode, result.stderr) == (0, b'')
+    assert result.stdout == source.with_suffix('.stdout').read_bytes()
 
 
 def test_invocation_sentence(compiler, subtests):
