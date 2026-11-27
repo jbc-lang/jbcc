@@ -98,6 +98,16 @@ an expression, for example `EB.DataAccess.FRead`.
     call. Decision (2026-11-27): keep a member declared in any definition
     and drop only one they declare differently. Across R19 this adds that
     one member and changes nothing else.
+  After these decisions, with `--t24-exclude-test-framework`, the full
+  scan passes 38,265 of the 38,354 units in scope (99.77%); 1,321 test
+  framework units are excluded and 89 rejected, with no regressions. The
+  table fallback covers 20 undeclared tables in 67 units.
+  - [ ] Methods declared without a result but used as a value (about 25
+    units), such as `AF = EB.SystemTables.setAf(X)` and
+    `Rec = EB.DataAccess.FRead(...)`. Each method is otherwise used as a
+    statement (`setAf` 21,950 times, `FRead` 1,526), so these look like
+    defects of the automated conversion. **Needs a decision**: source
+    fixes, a provisional empty result, or leave them rejected.
   - [ ] Other methods and accessors without a matching declaration.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
