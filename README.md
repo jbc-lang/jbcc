@@ -1071,6 +1071,14 @@ aligned end on overflow. These edge rules are provisional pending a
 reference run. Unsupported masks produce a source-located runtime
 diagnostic. [FMT](https://jbc-lang.org/pages/fmt.html).
 
+`FMT(value, 'MCP')` and `OCONV(value, 'MCP')` show field, value and
+subvalue marks as `^`, `]` and `\`, so `1:@FM:2:@VM:3` prints as `1^2]3`.
+The guide gives this as the mask's only purpose and does not say what
+happens to other non-printable bytes, so jbcc leaves them unchanged. The
+guide notes that TAFJ does not support the mask.
+[FMT](https://jbc-lang.org/pages/fmt.html),
+[OCONV](https://jbc-lang.org/pages/oconv.html).
+
 Width-prefixed `T` masks such as `35T` wrap at spaces when possible.
 They split overlong words, pad each block on the right, and insert
 a text mark between blocks. jbcc provisionally uses the same

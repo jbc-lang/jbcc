@@ -269,9 +269,12 @@ an expression, for example `EB.DataAccess.FRead`.
     `--no-builtin-includes`. The corpus checker never uses it. 34 guide
     code blocks include it. Most of them still need files or the jBASE C runtime, so few
   will run in the playground; the gain is that they translate.
-  - [ ] The `MCP` conversion mask, which 30 guide blocks use and which is their
-  only failure. After the next jbcc release, rerun `just examples` in
-  jbc-language.
+  - [x] The `MCP` conversion mask, which 30 guide blocks use and which is
+    their only failure: `FMT` and `OCONV` show field, value and subvalue
+    marks as `^`, `]` and `\`. 29 of the 30 blocks now run; the other
+    stops at the `MX` mask.
+  - [ ] After the next jbcc release, rerun `just examples` in
+    jbc-language.
 - [ ] 5b. Playground toolchain. Investigate loading Pyodide and YoWASP
   Clang/LLD from jsDelivr instead of shipping them with the playground
   (jbc-playground `build-static.mjs`). Today the static site carries
