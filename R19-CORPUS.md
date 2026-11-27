@@ -145,9 +145,27 @@ an expression, for example `EB.DataAccess.FRead`.
 - [ ] 4. Test framework units (113). Decide whether the `SE_Test*`
   routines and `TF.*` helpers are in scope. If they are, find their
   component declarations.
-- [ ] 5. Remaining language gaps: `MSLEEP`, `CLEARCOMMON`, `@TIMEZONE`
-  and the parse errors. Triage each against the guide, then implement
-  it or record a source fix.
+- [ ] 5. Remaining language gaps. Triage each against the guide, then
+  implement it or record a source fix.
+  - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).
+  - [x] `MSLEEP` (13 uses).
+  - [x] `CLEARCOMMON` (11 uses): clears the unnamed COMMON only, as in the
+    guide's jBASE example.
+  - [ ] `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` and
+    `@TIMEZONE`.
+  - [ ] `UNASSIGNED` of a component property getter, such as
+    `UNASSIGNED(IN.Config.getBicDetails())`.
+  - [ ] The remaining parse errors: text after the final `END`, assignment
+    to `@COMPANYNO`, `DAS` equates continued with a trailing comma.
+- [ ] 5a. Guide examples. Ship a small `JBC.h` with jbcc that defines the
+  `EQUATE` constants the jBC guide's examples use (IOCTL commands, cache
+  options, `ENCRYPT` methods, user record positions), written from the
+  guide rather than copied from the jBASE header. 34 guide code blocks
+  include it. Most of them still need files or the jBASE C runtime, so few
+  will run in the playground; the gain is that they translate. Also add
+  the `MCP` conversion mask, which 30 guide blocks use and which is their
+  only failure. After the next jbcc release, rerun `just examples` in
+  jbc-language.
 - [ ] 6. Close the pilot's open item: find a declaration for
   `EB.Service.setFComo`, or record why it is missing.
 - [ ] 7. Re-run R07, R10 and R13 to check for regressions and update
