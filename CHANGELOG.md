@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1 (2026-11-27)
+
+### Changed
+
+- The browser (WASI) runtime no longer links the PASSDATA, RTNDATA and
+  select-list exchange files. COLLECTDATA gives '' and RTNDATA is discarded
+  there, as without an EXECUTE caller. 0.8.0 programs failed to load in
+  the playground, whose sandbox does not grant the file calls that fopen
+  imports.
+
 ## 0.8.0 (2026-11-27)
 
 This release checks jbcc against a real TAFC PB201214 runtime and follows
