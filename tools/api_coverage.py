@@ -77,6 +77,202 @@ RUNTIME_EVIDENCE = {
         "Rounding to PRECISION checked",
         "tests/snippets/element-functions.b",
     ),
+    ("expression", "TAN", 1, None): (
+        "Degrees and the guide example checked",
+        "tests/snippets/trigonometry-inverse.b",
+    ),
+    ("expression", "ASIN", 1, None): (
+        "Degrees returned (provisional) checked",
+        "tests/snippets/trigonometry-inverse.b",
+    ),
+    ("expression", "ACOS", 1, None): (
+        "Degrees returned (provisional) checked",
+        "tests/snippets/trigonometry-inverse.b",
+    ),
+    ("expression", "ATAN", 1, None): (
+        "Degrees returned (provisional) checked",
+        "tests/snippets/trigonometry-inverse.b",
+    ),
+    ("expression", "FADD", 2, None): (
+        "Guide example at PRECISION 7 checked",
+        "tests/snippets/float-arithmetic.b",
+    ),
+    ("expression", "FMUL", 2, None): (
+        "Guide example checked",
+        "tests/snippets/float-arithmetic.b",
+    ),
+    ("expression", "FDIV", 2, None): (
+        "Guide example checked",
+        "tests/snippets/float-arithmetic.b",
+    ),
+    ("expression", "FCMP", 2, None): (
+        "Ordering (provisional) checked",
+        "tests/snippets/float-arithmetic.b",
+    ),
+    ("expression", "SADD", 2, None): (
+        "Guide examples checked",
+        "tests/snippets/string-arithmetic.b",
+    ),
+    ("expression", "SSUB", 2, None): (
+        "Exact difference checked",
+        "tests/snippets/string-arithmetic.b",
+    ),
+    ("expression", "SCMP", 2, None): (
+        "Ordering (provisional) checked",
+        "tests/snippets/string-arithmetic.b",
+    ),
+    ("expression", "BITSET", 1, None): (
+        "Guide example and whole table checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "BITRESET", 1, None): (
+        "Guide example and whole table checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "BITCHANGE", 1, None): (
+        "Guide example checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "BITCHECK", 1, None): (
+        "Table bits checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "BITLOAD", 0, None): (
+        "Hexadecimal table checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "BITLOAD", 1, None): (
+        "Guide example load checked",
+        "tests/snippets/bit-table.b",
+    ),
+    ("expression", "ISCNTRL", 1, None): (
+        "Guide example with @FM checked",
+        "tests/snippets/character-class-extended.b",
+    ),
+    ("expression", "ISGRAPH", 1, None): (
+        "ASCII graphic bytes checked",
+        "tests/snippets/character-class-extended.b",
+    ),
+    ("expression", "ISPRINT", 1, None): (
+        "Guide note with @FM checked",
+        "tests/snippets/character-class-extended.b",
+    ),
+    ("expression", "ISPUNCT", 1, None): (
+        "ASCII punctuation checked",
+        "tests/snippets/character-class-extended.b",
+    ),
+    ("expression", "ISXDIGIT", 1, None): (
+        "Hexadecimal digits checked",
+        "tests/snippets/character-class-extended.b",
+    ),
+    ("expression", "ANDS", 2, None): (
+        "Guide example and nulls checked",
+        "tests/snippets/logical-arrays.b",
+    ),
+    ("expression", "ORS", 2, None): (
+        "Guide example and nulls checked",
+        "tests/snippets/logical-arrays.b",
+    ),
+    ("expression", "MODS", 2, None): (
+        "Guide example and nulls checked",
+        "tests/snippets/logical-arrays.b",
+    ),
+    ("expression", "IFS", 3, None): (
+        "Guide TAFC output checked",
+        "tests/snippets/logical-arrays.b",
+    ),
+    ("expression", "SEQS", 1, None): (
+        "Guide example checked",
+        "tests/snippets/array-character-functions.b",
+    ),
+    ("expression", "CHARS", 1, None): (
+        "Guide example checked",
+        "tests/snippets/array-character-functions.b",
+    ),
+    ("expression", "STRS", 2, None): (
+        "Guide example checked",
+        "tests/snippets/array-character-functions.b",
+    ),
+    ("expression", "LENSDP", 1, None): (
+        "Element lengths checked",
+        "tests/snippets/array-character-functions.b",
+    ),
+    ("expression", "SOUNDEX", 1, None): (
+        "Guide code table checked",
+        "tests/snippets/soundex.b",
+    ),
+    ("expression", "REGEXP", 2, None): (
+        "Guide examples checked",
+        "tests/snippets/regexp.b",
+    ),
+    ("expression", "CHANGETIMESTAMP", 2, None): (
+        "Guide examples checked",
+        "tests/snippets/changetimestamp.b",
+    ),
+    ("expression", "DELENV", 1, None): (
+        "Removal and absent names checked",
+        "tests/test_session.py",
+    ),
+    ("expression", "DIR", 1, None): (
+        "File, directory and missing path checked",
+        "tests/test_session.py",
+    ),
+    ("expression", "GETUSERNAME", 1, None): (
+        "Login name checked",
+        "tests/test_session.py",
+    ),
+    ("expression", "GETUSERGROUP", 1, None): (
+        "Primary group number checked",
+        "tests/test_session.py",
+    ),
+    ("defc", "CachePut", 3, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheGet", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheDelete", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheExists", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheClear", 1, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheClearAll", 0, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheKeyList", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheBucketList", 1, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheStats", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheClearStats", 1, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheSetOption", 3, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
+    ("defc", "CacheGetOption", 2, None): (
+        "Guide example checked",
+        "tests/snippets/cache.b",
+    ),
     ("expression", "GETCWD", 1, None): (
         "Working directory after CHDIR checked",
         "tests/io/chdir.b",
@@ -272,7 +468,8 @@ class Coverage:
             )
             support = (
                 "backend required"
-                if kind == "defc" or name in BACKENDS
+                if (kind == "defc" and not name.startswith("Cache"))
+                or name in BACKENDS
                 else "call translates"
             )
             if name in ("ENCRYPT", "DECRYPT"):

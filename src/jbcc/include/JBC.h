@@ -28,14 +28,26 @@
     EQUATE USER_PROC_STATS_READ TO 19
     EQUATE USER_PROC_USER_ROOT TO 28
 *
-* Cache options (CacheGetOption, CacheSetOption) and statistics (CacheStats)
-    EQUATE CACHE_MAX_SIZE TO 1
-    EQUATE CACHE_PURGE_THRESHOLD TO 2
+* In-memory cache functions, which jbcc's runtime implements
+    DEFC VAR CachePut(VAR, VAR, VAR)
+    DEFC VAR CacheGet(VAR, VAR)
+    DEFC VAR CacheDelete(VAR, VAR)
+    DEFC VAR CacheExists(VAR, VAR)
+    DEFC VAR CacheClear(VAR)
+    DEFC VAR CacheClearAll()
+    DEFC VAR CacheKeyList(VAR, VAR)
+    DEFC VAR CacheBucketList(VAR)
     EQUATE CACHE_HITS TO 1
     EQUATE CACHE_GETS TO 2
     EQUATE CACHE_PUTS TO 3
     EQUATE CACHE_SIZE TO 4
     EQUATE CACHE_NB_ITEMS TO 5
+    DEFC VAR CacheStats(VAR, VAR)
+    DEFC VAR CacheClearStats(VAR)
+    EQUATE CACHE_MAX_SIZE TO 1
+    EQUATE CACHE_PURGE_THRESHOLD TO 2
+    DEFC VAR CacheSetOption(VAR, VAR, VAR)
+    DEFC VAR CacheGetOption(VAR, VAR)
 *
 * Logger levels
     EQUATE TAFC_LOG_INFO TO 0

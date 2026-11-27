@@ -58,3 +58,23 @@ def test_browser_translation_uses_the_builtin_jbc_h(tmp_path):
     assert run.returncode == 0, run.stderr
     assert run.stdout == 'True\n'
     assert NOTE in run.stderr
+
+
+def test_browser_translation_lowers_cache_declarations(tmp_path):
+    cache = ROOT / 'tests/snippets/cache.b'
+    (tmp_path / 'main.b').write_bytes(cache.read_bytes())
+    script = (
+        'from pathlib import Path\n'
+        'from jbcc.browser import translate\n'
+        "c = translate([Path('main.b')], include_resolver=lambda *_: None)\n"
+        "print('jbc_cache_put(' in c and 'requires the jBASE C runtime' not in c)\n"
+    )
+    run = subprocess.run(
+        [sys.executable, '-c', script],
+        cwd=tmp_path,
+        env={'PYTHONPATH': str(ROOT / 'src')},
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr
+    assert run.stdout == 'True\n'
