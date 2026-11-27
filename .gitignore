@@ -8,3 +8,4 @@
 /playground/playwright-report/
 /playground/test-results/
 /.cache/
+uv.lock

@@ -178,6 +178,21 @@ an expression, for example `EB.DataAccess.FRead`.
   the `MCP` conversion mask, which 30 guide blocks use and which is their
   only failure. After the next jbcc release, rerun `just examples` in
   jbc-language.
+- [ ] 5b. Playground toolchain. Investigate loading Pyodide and YoWASP
+  Clang/LLD from jsDelivr instead of shipping them with the playground
+  (jbc-playground `build-static.mjs`). Today the static site carries
+  122 MB of toolchain: Clang 21.1.4-3 is 109 MB, mostly `llvm.core.wasm`
+  (69 MB) and `llvm-resources.tar` (28 MB), and Pyodide 314.0.8 is 13 MB.
+  Check:
+  - whether jsDelivr serves each file, in particular the 69 MB Wasm, given
+    its size limits, and with which caching and compression;
+  - pinned versions and Subresource Integrity or hash checks for each file;
+  - the CSP (`default-src 'none'`), which must allow the CDN for module
+    imports and fetches from the compile worker, and whether the
+    cross-origin loads keep the Wasm runner sandbox intact;
+  - first-load and cached-load times against GitHub Pages, and behaviour
+    when the CDN is unreachable (fallback to the self-hosted copy?);
+  - the third-party notices, which must still describe what is served.
 - [ ] 6. Close the pilot's open item: find a declaration for
   `EB.Service.setFComo`, or record why it is missing.
 - [ ] 7. Re-run R07, R10 and R13 to check for regressions and update
