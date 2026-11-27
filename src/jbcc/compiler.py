@@ -4739,6 +4739,21 @@ class Compiler:
             )
             self.emit(f"jbc_sleep({duration}, {self.location(opening)});")
         elif (
+            self.word == 'MSLEEP'
+            and self.following.word not in ASSIGNMENT_PREFIXES
+            and not (self.word in self.matrices and self.following.word == '(')
+        ):
+            opening = self.current
+            self.host_only(opening)
+            self.advance()
+            self.uses_sleep = True
+            duration = (
+                '"1"'
+                if not self.word or self.word in OUTPUT_END
+                else self.expression()
+            )
+            self.emit(f"jbc_msleep({duration}, {self.location(opening)});")
+        elif (
             self.word == 'RANDOMIZE'
             and self.following.word not in ASSIGNMENT_PREFIXES
             and self.word not in self.matrices

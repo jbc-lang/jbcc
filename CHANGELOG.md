@@ -5,6 +5,7 @@
 ### Added
 
 - `ISUPPER`, `ISLOWER` and `ISSPACE`.
+- `MSLEEP`.
 
 ## 0.3.0 (2026-11-26)
 

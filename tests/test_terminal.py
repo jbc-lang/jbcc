@@ -664,6 +664,49 @@ def test_sleep_duration_and_default(compiler, subtests):
             assert message.encode() in run.stderr
 
 
+def test_msleep_milliseconds_and_default(compiler, subtests):
+    source = ROOT / 'tests/programs/msleep.b'
+    binary = compiler.work / 'mpause'
+    subprocess.run(
+        [CLI, '--exe', source, '-o', binary],
+        check=True,
+        env=dict(os.environ, CC_FLAGS='-Wall -Wextra -Werror -pedantic'),
+    )
+    for args, minimum in [([], 0.001), (['150'], 0.15), (['0'], 0)]:
+        with subtests.test(args=args):
+            start = time.monotonic()
+            run = subprocess.run(
+                ['mpause', *args],
+                executable=binary,
+                capture_output=True,
+                timeout=5,
+            )
+            assert run.returncode == 0, run.stderr
+            assert time.monotonic() - start >= minimum
+            assert run.stdout == expected_bytes(
+                'sleep-duration-and-default.stdout'
+            )
+    for value in ['-1', 'later']:
+        with subtests.test(value=value):
+            run = subprocess.run(
+                ['mpause', value],
+                executable=binary,
+                capture_output=True,
+                timeout=5,
+            )
+            assert run.returncode != 0
+            assert (
+                expected_text(
+                    'msleep-milliseconds-and-default.stderr', source=source
+                ).encode()
+                in run.stderr
+            )
+            assert (
+                expected_text('msleep-milliseconds-and-default_2.stderr').encode()
+                in run.stderr
+            )
+
+
 def test_keyin_shares_queued_and_piped_input(compiler):
     binary = compiler.work / 'keyin'
     source = ROOT / 'tests/io/keyin-shares-queued-and-piped-input.b'

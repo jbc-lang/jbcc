@@ -4839,6 +4839,16 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
 #endif
 
 #ifdef JBC_SLEEP
+static void pause_for(struct timespec delay, const char *failure, const char *file, int line, int column)
+{
+    while (delay.tv_sec || delay.tv_nsec) {
+        struct timespec remaining;
+        if (nanosleep(&delay, &remaining) == 0) break;
+        if (errno != EINTR) numeric_error(file, line, column, failure);
+        delay = remaining;
+    }
+}
+
 void jbc_sleep(const char *duration, const char *file, int line, int column)
 {
     struct decimal n;
@@ -4856,12 +4866,19 @@ void jbc_sleep(const char *duration, const char *file, int line, int column)
         delay.tv_nsec += (n.fraction[i] - '0') * place;
         place /= 10;
     }
-    while (delay.tv_sec || delay.tv_nsec) {
-        struct timespec remaining;
-        if (nanosleep(&delay, &remaining) == 0) break;
-        if (errno != EINTR) numeric_error(file, line, column, "SLEEP failed");
-        delay = remaining;
-    }
+    pause_for(delay, "SLEEP failed", file, line, column);
+}
+
+void jbc_msleep(const char *duration, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(duration, &n) || n.sign < 0)
+        numeric_error(file, line, column, "MSLEEP requires a nonnegative duration in milliseconds");
+    int64_t milliseconds = n.digits ? integer(duration, file, line, column) : 0;
+    struct timespec delay = {(time_t)(milliseconds / 1000), (long)(milliseconds % 1000) * 1000000L};
+    if (delay.tv_sec != milliseconds / 1000)
+        numeric_error(file, line, column, "MSLEEP duration out of range");
+    pause_for(delay, "MSLEEP failed", file, line, column);
 }
 #endif
 

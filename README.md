@@ -700,6 +700,10 @@ nanoseconds and resumes an interrupted wait for the remaining duration.
 Clock-time strings such as `"08:30"` currently produce a diagnostic.
 [SLEEP](https://jbc-lang.org/pages/sleep.html).
 
+`MSLEEP` pauses for one millisecond, and `MSLEEP expression` for a
+nonnegative whole number of milliseconds, as in `MSLEEP 100`. A fraction
+is truncated. [MSLEEP](https://jbc-lang.org/pages/msleep.html).
+
 TIME() returns the local clock time in seconds past midnight. The OCONV
 mask `MT` prints hours and minutes on a 24-hour clock, and `MTS` adds
 seconds. For example, `OCONV(1,'MTS')` returns `00:00:01`. Both masks
