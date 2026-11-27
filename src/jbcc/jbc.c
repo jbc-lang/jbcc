@@ -623,6 +623,14 @@ jbc_variable *jbc_storage(size_t count, const char *name)
     return storage(count, name)->values;
 }
 
+/* Unnamed COMMON is the block named "" and its matrices are keyed ":<member>". */
+void jbc_clearcommon(void)
+{
+    for (struct jbc_slots *s = storages; s; s = s->next)
+        if (s->name && (!*s->name || *s->name == ':'))
+            for (size_t i = 0; i < s->count; ++i) assign_value(&s->values[i], "0");
+}
+
 int jbc_dimension(const char *text, const char *file, int line, int column)
 {
     struct decimal n;

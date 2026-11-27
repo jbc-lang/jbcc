@@ -4670,6 +4670,13 @@ class Compiler:
             self.advance()
             self.emit("jbc_cleardata();")
         elif (
+            self.word == 'CLEARCOMMON'
+            and self.word not in self.matrices
+            and self.following.word not in ASSIGNMENT_PREFIXES
+        ):
+            self.advance()
+            self.emit("jbc_clearcommon();")
+        elif (
             self.word == 'CLEAR'
             and self.following.word not in ASSIGNMENT_PREFIXES
             and not (self.word in self.matrices and self.following.word == '(')

@@ -1326,6 +1326,11 @@ pending a reference run. The current initialization policy leaves slots unassign
 written. [DIMENSION](https://jbc-lang.org/pages/dimension.html),
 [COMMON](https://jbc-lang.org/pages/common.html).
 
+`CLEARCOMMON` sets every scalar and matrix element of the unnamed COMMON
+to 0 and leaves named blocks unchanged, as the guide's jBASE example
+shows. The guide notes that TAFJ also clears named blocks.
+[CLEARCOMMON](https://jbc-lang.org/pages/clearcommon.html).
+
 ## Compile a T24-style routine
 
 Pass one main program and its subroutine and function source files to the same command.
