@@ -1765,11 +1765,15 @@ is `A`. A code that comes to 0, such as `CHAR(0)` or `CHAR(256)`, gives
 byte 0.
 
 Strings can hold byte 0, as TAFC's can (NUL-BYTES.md,
-`tests/tafc/nul-core.b`). Concatenation, LEN, SEQ, substrings and their
-assignment, LEFT, RIGHT, comparisons (byte order, then length), CRT and
-PRINT, STR, TRIM, UPCASE and DOWNCASE, QUOTE, CHECKSUM, and the MX, MCP,
-MCPN, MCNP, MCA, MCN and MCB conversions handle it. Other functions still
-stop at the first byte 0, as LANGUAGE-GAPS.md lists.
+`tests/tafc/nul-core.b`, `nul-arrays.b`). Concatenation, LEN, SEQ,
+substrings and their assignment, LEFT, RIGHT, comparisons (byte order, then
+length), CRT and PRINT, STR, TRIM, UPCASE and DOWNCASE, QUOTE, CHECKSUM,
+the MX, MCP, MCPN, MCNP, MCA, MCN and MCB conversions, dynamic array
+extraction and assignment, INSERT, DELETE, REPLACE, REMOVE, LOCATE, SORT,
+FIELD, FIELDS, GROUP, INDEX, COUNT, DCOUNT, CHANGE, EREPLACE, SWAP, CONVERT,
+the element-wise functions such as LENS, COUNTS, CATS, SPLICE, STRS,
+OCONVS and FMTS, and the element comparisons handle it. Input and files
+still stop at the first byte 0, as LANGUAGE-GAPS.md lists.
 
 `CHECKSUM(value)` sums each unsigned byte times its one-based position
 in the string representation. For example, `CHECKSUM('AB')` returns 197

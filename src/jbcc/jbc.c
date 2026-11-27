@@ -1415,8 +1415,7 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
         if (replacement) return replacement;
         char *out = allocate(len);
         memcpy(out, s, len);
-        out[len] = '\0';
-        return out;
+        return finish_bytes(out, len);
     }
     unsigned char mark = (unsigned char)(254 - level);
     size_t begin = 0, end = 0, padding = 0;
@@ -1449,7 +1448,7 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
         part = array_part(s + begin, end - begin, index, count, level + 1, replacement, inserting);
     }
     if (!replacement) return part;
-    size_t bytes = strlen(part), kept = len - (end - begin);
+    size_t bytes = jbc_size(part), kept = len - (end - begin);
     if (padding > SIZE_MAX - kept || bytes > SIZE_MAX - kept - padding)
         fail("dynamic array is too large");
     char *out = allocate(kept + padding + bytes);
@@ -1457,8 +1456,7 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
     memset(out + begin, mark, padding);
     memcpy(out + begin + padding, part, bytes);
     memcpy(out + begin + padding + bytes, s + end, len - end);
-    out[kept + padding + bytes] = '\0';
-    return out;
+    return finish_bytes(out, kept + padding + bytes);
 }
 
 const char *jbc_array(const char *s, const char **indices, int count, const char *replacement)
@@ -1473,7 +1471,7 @@ const char *jbc_array(const char *s, const char **indices, int count, const char
         if (replacement && n == 0) fail("dynamic-array indices start at one");
         index[i] = n;
     }
-    return array_part(s, strlen(s), index, count, 0, replacement, 0);
+    return array_part(s, jbc_size(s), index, count, 0, replacement, 0);
 }
 
 const char *jbc_extract(const char *text, const char **indices, int count,
@@ -1490,7 +1488,7 @@ const char *jbc_extract(const char *text, const char **indices, int count,
         uintmax_t position = number.sign > 0 ? strtoumax(number.whole, NULL, 10) : 0;
         index[i] = position > INT64_MAX ? INT64_MAX : (int64_t)position;
     }
-    return array_part(text, strlen(text), index, depth, 0, NULL, 0);
+    return array_part(text, jbc_size(text), index, depth, 0, NULL, 0);
 }
 
 const char *jbc_read(jbc_variable *slot, const char *name, const char *file, int line, int column)
@@ -1520,7 +1518,7 @@ static const char *delete_component(const char *text, const char **indices, int 
         position[i] = number.sign > 0 ? strtoumax(number.whole, NULL, 10) : 0;
     }
 
-    size_t length = strlen(text);
+    size_t length = jbc_size(text);
     const char *begin = text, *end = text + length;
     for (int i = 0; i < depth; ++i) {
         int mark = 254 - i;
@@ -1541,8 +1539,8 @@ static const char *delete_component(const char *text, const char **indices, int 
     char *out = allocate(length - (size_t)(end - begin));
     size_t prefix = (size_t)(begin - text);
     memcpy(out, text, prefix);
-    memcpy(out + prefix, end, (size_t)(text + length - end) + 1);
-    return out;
+    memcpy(out + prefix, end, (size_t)(text + length - end));
+    return finish_bytes(out, length - (size_t)(end - begin));
 }
 
 const char *jbc_delete(const char *text, const char **indices, int count,
@@ -2018,14 +2016,14 @@ const char *jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *se
     const char *text = jbc_read(source, name, file, line, column);
     const char *code = "0", *result = "";
     if (source->remove_offset != SIZE_MAX) {
-        const char *start = text + source->remove_offset;
+        const char *start = text + source->remove_offset, *limit = text + jbc_size(text);
         const char *end = start;
-        while (*end && (unsigned char)*end < 249) ++end;
+        while (end < limit && (unsigned char)*end < 249) ++end;
         size_t length = (size_t)(end - start);
         char *part = allocate(length);
         memcpy(part, start, length);
-        part[length] = '\0';
-        unsigned char mark = (unsigned char)*end;
+        finish_bytes(part, length);
+        unsigned char mark = end < limit ? (unsigned char)*end : 0;
         source->remove_offset = mark ? (size_t)(end - text) + 1 : SIZE_MAX;
         if (mark) code = size_value(256u - mark);
         if (out) assign_value(out, part);
@@ -2129,24 +2127,32 @@ int jbc_locate(const char *needle, const char *source, int mark, const char *sta
     int64_t first = integer(start, file, line, column);
     if (first < 1) numeric_error(file, line, column, "LOCATE positions start at one");
 
-    size_t index = 1;
+    size_t index = 1, length = jbc_size(source);
     int found = 0;
-    if (*source || !*needle) {
-        char *item = strcpy(allocate(strlen(source)), source);
+    if (length || !jbc_size(needle)) {
+        const char *item = source, *limit = source + length;
         for (;;) {
-            char *next = strchr(item, mark);
-            if (next) *next++ = '\0';
+            const char *next = memchr(item, mark, (size_t)(limit - item));
+            size_t bytes = (size_t)((next ? next : limit) - item);
             if (index >= (uint64_t)first) {
                 int cmp;
-                if (*order && order[1] == 'N') cmp = jbc_compare(item, needle, -1);
-                else if (*order && order[1] == 'R') cmp = locate_compare_right(item, needle);
-                else cmp = strcmp(item, needle);
+                if (*order && (order[1] == 'N' || order[1] == 'R')) {
+                    char *value = allocate(bytes);
+                    memcpy(value, item, bytes);
+                    finish_bytes(value, bytes);
+                    cmp = order[1] == 'N' ? jbc_compare(value, needle, -1)
+                                          : locate_compare_right(value, needle);
+                } else {
+                    size_t width = jbc_size(needle);
+                    cmp = memcmp(item, needle, bytes < width ? bytes : width);
+                    if (!cmp) cmp = bytes < width ? -1 : bytes > width;
+                }
                 found = cmp == 0;
                 if (found || (*order == 'A' && cmp > 0) || (*order == 'D' && cmp < 0)) break;
             }
             ++index;
             if (!next) break;
-            item = next;
+            item = next + 1;
         }
     }
     /* A start past the end is the position, as TAFC returns it. */
@@ -2554,14 +2560,14 @@ static const char *join_sorted_elements(struct sort_element *elements, size_t co
         memcpy(write, elements[i].text, elements[i].length);
         write += elements[i].length;
     }
-    *write = '\0';
-    return out;
+    return finish_bytes(out, (size_t)(write - out));
 }
 
 const char *jbc_sort(const char *source)
 {
-    size_t count = 1;
-    for (const char *p = source; *p; ++p)
+    size_t count = 1, length = jbc_size(source);
+    const char *limit = source + length;
+    for (const char *p = source; p < limit; ++p)
         if ((unsigned char)*p >= 249) ++count;
     if (count == 1) return source;
 
@@ -2569,9 +2575,9 @@ const char *jbc_sort(const char *source)
     if (!elements) fail("out of memory");
     const char *start = source, *end = source;
     for (size_t i = 0; i < count; ++i) {
-        while (*end && (unsigned char)*end < 249) ++end;
+        while (end < limit && (unsigned char)*end < 249) ++end;
         elements[i] = (struct sort_element){start, (size_t)(end - start)};
-        if (*end) start = ++end;
+        if (end < limit) start = ++end;
     }
     const char *out = join_sorted_elements(elements, count, (size_t)(end - source));
     free(elements);
@@ -4419,23 +4425,23 @@ const char *jbc_latin1(const char *value, const char *file, int line, int column
 
 const char *jbc_convert(const char *text, const char *from, const char *to)
 {
-    if (!*from || !*text) return text;
-    unsigned char map[256];
-    for (size_t i = 0; i < sizeof map; ++i) map[i] = (unsigned char)i;
-    size_t to_length = strlen(to);
+    size_t from_length = jbc_size(from), to_length = jbc_size(to), length = jbc_size(text);
+    if (!from_length || !length) return text;
+    /* Each byte maps to a byte, or to -1 when it is removed. */
+    int map[256];
+    for (int i = 0; i < 256; ++i) map[i] = i;
     /* Install earlier entries last, so the first occurrence wins. */
-    for (size_t i = strlen(from); i > 0; --i) {
+    for (size_t i = from_length; i > 0; --i) {
         size_t pos = i - 1;
-        map[(unsigned char)from[pos]] = pos < to_length ? (unsigned char)to[pos] : 0;
+        map[(unsigned char)from[pos]] = pos < to_length ? (unsigned char)to[pos] : -1;
     }
-    char *out = allocate(strlen(text));
+    char *out = allocate(length);
     char *write = out;
-    for (const unsigned char *read = (const unsigned char *)text; *read; ++read) {
-        unsigned char mapped = map[*read];
-        if (mapped) *write++ = (char)mapped;
+    for (size_t i = 0; i < length; ++i) {
+        int mapped = map[(unsigned char)text[i]];
+        if (mapped >= 0) *write++ = (char)mapped;
     }
-    *write = '\0';
-    return out;
+    return finish_bytes(out, (size_t)(write - out));
 }
 
 static const char *enclose(const char *text, char quote)
@@ -4547,32 +4553,56 @@ const char *jbc_not(const char *s)
     return jbc_truth(s) ? "0" : "1";
 }
 
-static size_t occurrences(const char *s, const char *separator)
+/* The first m-byte needle in the n bytes at hay, or NULL; either may hold
+   byte 0. An empty needle matches at once. */
+static const char *find_bytes(const char *hay, size_t n, const char *needle, size_t m)
 {
-    size_t width = strlen(separator);
-    if (!width) return strlen(s);
+    if (!m) return hay;
+    if (m > n) return NULL;
+    const char *last = hay + (n - m);
+    for (const char *p = hay; p <= last; ++p) {
+        p = memchr(p, needle[0], (size_t)(last - p) + 1);
+        if (!p) return NULL;
+        if (!memcmp(p, needle, m)) return p;
+    }
+    return NULL;
+}
+
+/* Matches of the needle, one after another or overlapping; an empty needle
+   counts the bytes. */
+static size_t count_bytes(const char *hay, size_t n, const char *needle, size_t m,
+                          int overlapping)
+{
+    if (!m) return n;
     size_t count = 0;
-    while ((s = strstr(s, separator)) != NULL) {
+    const char *end = hay + n;
+    for (const char *p = hay; (p = find_bytes(p, (size_t)(end - p), needle, m)) != NULL;) {
         ++count;
-        s += width;
+        p += overlapping ? 1 : m;
     }
     return count;
+}
+
+static size_t occurrences(const char *s, const char *separator)
+{
+    return count_bytes(s, jbc_size(s), separator, jbc_size(separator), 0);
 }
 
 static const char *change_substrings(const char *text, const char *search, const char *replacement,
                                      int64_t limit, int64_t first)
 {
-    if (!*search) return text;
-    size_t width = strlen(search);
-    const char *match = strstr(text, search);
+    size_t width = jbc_size(search), length = jbc_size(text);
+    if (!width) return text;
+    const char *end = text + length;
+    const char *match = find_bytes(text, length, search, width);
     for (int64_t i = 1; match && i < first; ++i)
-        match = strstr(match + width, search);
+        match = find_bytes(match + width, (size_t)(end - match - width), search, width);
     if (!match) return text;
 
-    size_t count = 1 + occurrences(match + width, search);
+    size_t count = 1 + count_bytes(match + width, (size_t)(end - match - width), search, width, 0);
     if (limit > 0 && (uint64_t)limit < count) count = (size_t)limit;
-    size_t bytes = strlen(replacement);
-    size_t kept = strlen(text) - count * width;
+    size_t bytes = jbc_size(replacement);
+    size_t kept = length - count * width;
     if (bytes > (SIZE_MAX - kept) / count) fail("CHANGE result is too large");
     char *out = allocate(kept + count * bytes);
     char *write = out;
@@ -4584,10 +4614,11 @@ static const char *change_substrings(const char *text, const char *search, const
         write += bytes;
         text = match + width;
         if (!--count) break;
-        match = strstr(text, search);
+        match = find_bytes(text, (size_t)(end - text), search, width);
     }
-    strcpy(write, text);
-    return out;
+    memcpy(write, text, (size_t)(end - text));
+    write += end - text;
+    return finish_bytes(out, (size_t)(write - out));
 }
 
 const char *jbc_change(const char *text, const char *search, const char *replacement,
@@ -4600,7 +4631,7 @@ const char *jbc_change(const char *text, const char *search, const char *replace
     int64_t count = integer(limit, file, line, column);
     int64_t start = integer(first, file, line, column);
     /* An empty search string changes nothing (TAFC, tests/tafc/search-edges.b). */
-    if (!*search) return text;
+    if (!jbc_size(search)) return text;
     return change_substrings(text, search, replacement, count, start);
 }
 
@@ -4609,13 +4640,7 @@ const char *jbc_change(const char *text, const char *search, const char *replace
    emulation-rules-*.b). */
 static size_t count_matches(const char *s, const char *needle)
 {
-    if (jbc_emulation_prime || !*needle) return occurrences(s, needle);
-    size_t count = 0;
-    while ((s = strstr(s, needle)) != NULL) {
-        ++count;
-        ++s;
-    }
-    return count;
+    return count_bytes(s, jbc_size(s), needle, jbc_size(needle), !jbc_emulation_prime);
 }
 
 const char *jbc_count(const char *s, const char *separator)
@@ -4625,8 +4650,8 @@ const char *jbc_count(const char *s, const char *separator)
 
 const char *jbc_dcount(const char *s, const char *separator)
 {
-    if (!*s) return "0";
-    if (!*separator) return jbc_len(s);
+    if (!jbc_size(s)) return "0";
+    if (!jbc_size(separator)) return jbc_len(s);
     return size_value(1 + count_matches(s, separator));
 }
 
@@ -4642,11 +4667,11 @@ static int64_t field_index(const char *s, const char *file, int line, int column
 
 /* Each selected range fits inside its input, including separators between
    selected fields. A missing occurrence has no start pointer. */
-static const char *field_range(const char *s, const char *separator, size_t width,
-                               int64_t first, int64_t count, size_t *bytes)
+static const char *field_range(const char *s, const char *limit, const char *separator,
+                               size_t width, int64_t first, int64_t count, size_t *bytes)
 {
     while (first > 1) {
-        const char *next = width ? strstr(s, separator) : NULL;
+        const char *next = width ? find_bytes(s, (size_t)(limit - s), separator, width) : NULL;
         if (!next) {
             *bytes = 0;
             return NULL;
@@ -4656,7 +4681,7 @@ static const char *field_range(const char *s, const char *separator, size_t widt
     }
     const char *end = s;
     while (width && count--) {
-        const char *next = strstr(end, separator);
+        const char *next = find_bytes(end, (size_t)(limit - end), separator, width);
         if (!next) break;
         end = next;
         if (!count) {
@@ -4665,7 +4690,7 @@ static const char *field_range(const char *s, const char *separator, size_t widt
         }
         end += width;
     }
-    *bytes = (size_t)(end - s) + strlen(end);
+    *bytes = (size_t)(limit - s);
     return s;
 }
 
@@ -4731,16 +4756,15 @@ const char *jbc_field(const char *s, const char *separator, const char *start,
 {
     int64_t first = field_index(start, file, line, column);
     int64_t length = field_index(count, file, line, column);
-    size_t bytes;
-    const char *selected = field_range(s, separator, strlen(separator), first, length, &bytes);
-    field_before = selected && *separator ? (size_t)(selected - s) : 0;
-    field_after = selected && *separator ? field_before + bytes + 1 : 0;
+    size_t bytes, size = jbc_size(s), width = jbc_size(separator);
+    const char *selected = field_range(s, s + size, separator, width, first, length, &bytes);
+    field_before = selected && width ? (size_t)(selected - s) : 0;
+    field_after = selected && width ? field_before + bytes + 1 : 0;
     if (!bytes) return "";
-    if (selected == s && !s[bytes]) return s;
+    if (selected == s && bytes == size) return s;
     char *field = allocate(bytes);
     memcpy(field, selected, bytes);
-    field[bytes] = '\0';
-    return field;
+    return finish_bytes(field, bytes);
 }
 
 const char *jbc_field_replace(const char *s, const char *separator, const char *start,
@@ -4749,8 +4773,8 @@ const char *jbc_field_replace(const char *s, const char *separator, const char *
 {
     int64_t first = field_index(start, file, line, column);
     int64_t length = field_index(count, file, line, column);
-    size_t width = strlen(separator), size = strlen(s), take;
-    const char *selected = field_range(s, separator, width, first, length, &take);
+    size_t width = jbc_size(separator), size = jbc_size(s), take;
+    const char *selected = field_range(s, s + size, separator, width, first, length, &take);
     size_t prefix = selected ? (size_t)(selected - s) : size;
     size_t padding = 0;
     if (!selected) {
@@ -4765,7 +4789,7 @@ const char *jbc_field_replace(const char *s, const char *separator, const char *
         prefix += take;
         take = 0;
     }
-    size_t kept = size - take, added = strlen(replacement);
+    size_t kept = size - take, added = jbc_size(replacement);
     if (padding > SIZE_MAX - kept || added > SIZE_MAX - kept - padding)
         numeric_error(file, line, column, "field replacement is too large");
     char *out = allocate(kept + padding + added);
@@ -4773,8 +4797,8 @@ const char *jbc_field_replace(const char *s, const char *separator, const char *
     for (size_t offset = 0; offset < padding; offset += width)
         memcpy(out + prefix + offset, separator, width);
     memcpy(out + prefix + padding, replacement, added);
-    memcpy(out + prefix + padding + added, s + prefix + take, size - prefix - take + 1);
-    return out;
+    memcpy(out + prefix + padding + added, s + prefix + take, size - prefix - take);
+    return finish_bytes(out, kept + padding + added);
 }
 
 /* REUSE of a dynamic array has no effect: its elements pair as usual
@@ -4786,27 +4810,35 @@ const char *jbc_reuse_scalar(const char *value, const char *message, const char 
 }
 
 struct array_cursor {
-    const char *item;
+    const char *item, *end;
     size_t length;
     unsigned mark;
     int present;
     int reuse;
 };
 
+static int array_mark(char c)
+{
+    unsigned char byte = (unsigned char)c;
+    return byte >= 252 && byte <= 254;
+}
+
 static void read_array_item(struct array_cursor *cursor, const char *item)
 {
     cursor->item = item;
-    cursor->length = strcspn(item, "\376\375\374");
-    unsigned char mark = (unsigned char)item[cursor->length];
-    cursor->mark = mark ? mark : 256;
+    size_t length = 0;
+    while (item + length < cursor->end && !array_mark(item[length])) ++length;
+    cursor->length = length;
+    cursor->mark = item + length < cursor->end ? (unsigned char)item[length] : 256;
 }
 
 static struct array_cursor array_cursor(const char *text, int reuse, int present)
 {
     struct array_cursor cursor = {0};
     cursor.present = present;
-    cursor.reuse = reuse && !strpbrk(text, "\376\375\374");
+    cursor.end = text + jbc_size(text);
     read_array_item(&cursor, text);
+    cursor.reuse = reuse && cursor.mark == 256;
     return cursor;
 }
 
@@ -4823,9 +4855,9 @@ static void advance_array_item(struct array_cursor *cursor, unsigned mark)
 static size_t join_array_elements(const char *left, const char *separator, const char *right,
                               int reuse_left, int reuse_right, char *out)
 {
-    size_t used = 0, width = strlen(separator);
-    struct array_cursor lhs = array_cursor(left, reuse_left, *left != 0);
-    struct array_cursor rhs = array_cursor(right, reuse_right, *right != 0);
+    size_t used = 0, width = jbc_size(separator);
+    struct array_cursor lhs = array_cursor(left, reuse_left, jbc_size(left) != 0);
+    struct array_cursor rhs = array_cursor(right, reuse_right, jbc_size(right) != 0);
     for (;;) {
         size_t a = lhs.present ? lhs.length : 0;
         size_t b = rhs.present ? rhs.length : 0;
@@ -4857,35 +4889,73 @@ static const char *join_arrays(const char *left, const char *separator, const ch
     size_t length = join_array_elements(left, separator, right, reuse_left, reuse_right, NULL);
     char *out = allocate(length);
     join_array_elements(left, separator, right, reuse_left, reuse_right, out);
-    out[length] = '\0';
-    return out;
+    return finish_bytes(out, length);
 }
 
 const char *jbc_splice(const char *left, const char *separator, const char *right,
                        int reuse_left, int reuse_right)
 {
-    if (!*separator || (!*left && !*right)) return "";
+    if (!jbc_size(separator) || (!jbc_size(left) && !jbc_size(right))) return "";
     return join_arrays(left, separator, right, reuse_left, reuse_right);
 }
 
 const char *jbc_cats(const char *left, const char *right, int reuse_left, int reuse_right)
 {
-    if (!*left) return right;
-    if (!*right) return left;
+    if (!jbc_size(left)) return right;
+    if (!jbc_size(right)) return left;
     return join_arrays(left, "", right, reuse_left, reuse_right);
 }
 
 /* Supply NUL-terminated scalar views at the original array's byte offsets. */
 static char *split_array_items(const char *array, size_t *marks)
 {
-    char *copy = malloc(strlen(array) + 1);
+    size_t length = jbc_size(array);
+    char *copy = malloc(length + 1);
     if (!copy) fail("out of memory");
-    strcpy(copy, array);
-    for (char *p = copy; (p = strpbrk(p, "\376\375\374")) != NULL; ++p) {
-        *p = '\0';
+    memcpy(copy, array, length);
+    copy[length] = '\0';
+    for (size_t i = 0; i < length; ++i) {
+        if (!array_mark(copy[i])) continue;
+        copy[i] = '\0';
         if (marks) ++*marks;
     }
     return copy;
+}
+
+static int holds_nul(const char *value)
+{
+    size_t i;
+    return nul_find(value, &i);
+}
+
+/* The end, in the split copy, of the element that starts at item. */
+static const char *item_end(const char *source, const char *items, const char *item)
+{
+    if (!holds_nul(source)) return item + strlen(item);
+    size_t length = jbc_size(source), i = (size_t)(item - items);
+    while (i < length && !array_mark(source[i])) ++i;
+    return items + i;
+}
+
+static const char *item_value(const char *source, const char *item, const char *end);
+
+/* The cursor's element of source as a value, using the split copy items
+   unless the array holds byte 0. */
+static const char *cursor_value(const struct array_cursor *cursor, const char *source,
+                                const char *items)
+{
+    const char *item = items + (cursor->item - source);
+    return item_value(source, item, item + cursor->length);
+}
+
+/* The element from item to end as a value: the split copy itself, or a
+   sized copy when the array holds byte 0. */
+static const char *item_value(const char *source, const char *item, const char *end)
+{
+    if (!holds_nul(source)) return item;
+    char *out = allocate((size_t)(end - item));
+    memcpy(out, item, (size_t)(end - item));
+    return finish_bytes(out, (size_t)(end - item));
 }
 
 const char *jbc_nums(const char *source)
@@ -4912,9 +4982,9 @@ static const char *map_elements(const char *source, const char *(*each)(const ch
     char *items = split_array_items(source, NULL);
     const char *out = "";
     for (const char *item = items;;) {
-        const char *end = item + strlen(item);
+        const char *end = item_end(source, items, item);
         char mark[2] = {source[end - items], '\0'};
-        out = jbc_concat(out, jbc_concat(each(item), mark));
+        out = jbc_concat(out, jbc_concat(each(item_value(source, item, end)), mark));
         if (!*mark) break;
         item = end + 1;
     }
@@ -4934,17 +5004,18 @@ const char *jbc_lens(const char *source)
 
 const char *jbc_counts(const char *source, const char *needle)
 {
-    size_t length = strlen(source), marks = 0;
+    size_t length = jbc_size(source), marks = 0;
     char *items = split_array_items(source, &marks);
     /* A count fits within each nonempty item. Empty items grow by one byte. */
     if (marks >= SIZE_MAX - length) fail("COUNTS result too large");
     size_t capacity = length + marks + 1;
     char *out = allocate(capacity), *write = out;
     for (const char *item = items;;) {
-        const char *end = item + strlen(item);
+        const char *end = item_end(source, items, item);
         char mark = source[end - items];
         size_t available = capacity - (size_t)(write - out) + 1;
-        write += snprintf(write, available, "%zu", count_matches(item, needle));
+        write += snprintf(write, available, "%zu",
+                          count_matches(item_value(source, item, end), needle));
         *write++ = mark;
         if (!mark) break;
         item = end + 1;
@@ -4963,14 +5034,14 @@ static const char *convert_array(const char *source, const char *mask, int input
 {
     char *items = split_array_items(source, NULL);
     const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
-    size_t capacity = strlen(source), used = 0;
+    size_t capacity = jbc_size(source), used = 0;
     char *out = allocate(capacity);
     for (const char *item = items;;) {
-        const char *value = convert_chain(item, mask, input ? iconv_code : oconv_code,
-                                          file, line, column);
-        const char *end = item + strlen(item);
+        const char *end = item_end(source, items, item);
+        const char *value = convert_chain(item_value(source, item, end), mask,
+                                          input ? iconv_code : oconv_code, file, line, column);
         char mark = source[end - items];
-        size_t bytes = strlen(value), separator = mark != '\0';
+        size_t bytes = jbc_size(value), separator = mark != '\0';
         if (bytes > limit - used || separator > limit - used - bytes)
             numeric_error(file, line, column, input ? "ICONVS result too large"
                                                     : "OCONVS result too large");
@@ -4988,7 +5059,7 @@ static const char *convert_array(const char *source, const char *mask, int input
         item = end + 1;
     }
     free(items);
-    return out;
+    return finish_bytes(out, used - 1);
 }
 
 const char *jbc_iconvs(const char *source, const char *mask, const char *file, int line, int column)
@@ -5008,13 +5079,13 @@ const char *jbc_fmts(const char *source, const char *mask, const char *file, int
     if (!*source) return jbc_fmt(source, mask, file, line, column);
     char *items = split_array_items(source, NULL);
     const size_t limit = SIZE_MAX - sizeof(struct jbc_buffer) - 1;
-    size_t capacity = strlen(source), used = 0;
+    size_t capacity = jbc_size(source), used = 0;
     char *out = allocate(capacity);
     for (const char *item = items;;) {
-        const char *end = item + strlen(item);
+        const char *end = item_end(source, items, item);
         char mark = source[end - items];
-        const char *formatted = jbc_fmt(item, mask, file, line, column);
-        size_t bytes = strlen(formatted), separator = mark != '\0';
+        const char *formatted = jbc_fmt(item_value(source, item, end), mask, file, line, column);
+        size_t bytes = jbc_size(formatted), separator = mark != '\0';
         if (bytes > limit - used || separator > limit - used - bytes)
             numeric_error(file, line, column, "FMTS result too large");
         size_t required = used + bytes + separator;
@@ -5031,7 +5102,7 @@ const char *jbc_fmts(const char *source, const char *mask, const char *file, int
         item = end + 1;
     }
     free(items);
-    return out;
+    return finish_bytes(out, used - 1);
 }
 
 static const char *prime_element(const char *item, const char *file, int line, int column)
@@ -5189,7 +5260,8 @@ static const char *compare_array_items(const char *left, const char *right, int 
     struct array_cursor lhs = array_cursor(left, reuse_left, 1);
     struct array_cursor rhs = array_cursor(right, reuse_right, 1);
     if (lhs.mark == 256 && rhs.mark == 256)
-        return !*left || !*right ? "" : (array_pair_matches(left, right, orders) ? "1" : "0");
+        return !jbc_size(left) || !jbc_size(right) ? ""
+               : (array_pair_matches(left, right, orders) ? "1" : "0");
 
     size_t marks = 0;
     char *a = split_array_items(left, &marks);
@@ -5200,8 +5272,8 @@ static const char *compare_array_items(const char *left, const char *right, int 
         if (unmatched && (!lhs.present || !rhs.present)) {
             *write++ = unmatched;
         } else if ((!lhs.present || lhs.length) && (!rhs.present || rhs.length)) {
-            const char *value_left = lhs.present ? a + (lhs.item - left) : "";
-            const char *value_right = rhs.present ? b + (rhs.item - right) : "";
+            const char *value_left = lhs.present ? cursor_value(&lhs, left, a) : "";
+            const char *value_right = rhs.present ? cursor_value(&rhs, right, b) : "";
             *write++ = array_pair_matches(value_left, value_right, orders) ? '1' : '0';
         }
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
@@ -5251,19 +5323,20 @@ const char *jbc_fields(const char *source, const char *separator, const char *st
 {
     int64_t first = field_index(start, file, line, column);
     int64_t length = field_index(count, file, line, column);
-    size_t width = strlen(separator);
-    char *out = strcpy(allocate(strlen(source)), source);
-    char *write = out, *item = out;
+    size_t width = jbc_size(separator), size = jbc_size(source);
+    char *out = allocate(size);
+    memcpy(out, source, size);
+    char *write = out, *item = out, *limit = out + size;
     for (;;) {
-        char *end = item + strcspn(item, "\376\375\374");
-        char mark = *end;
-        *end = '\0';
+        char *end = item;
+        while (end < limit && !array_mark(*end)) ++end;
+        char mark = end < limit ? *end : '\0';
         size_t bytes;
-        const char *selected = field_range(item, separator, width, first, length, &bytes);
+        const char *selected = field_range(item, end, separator, width, first, length, &bytes);
         if (selected) memmove(write, selected, bytes);
         write += bytes;
+        if (!mark) return finish_bytes(out, (size_t)(write - out));
         *write++ = mark;
-        if (!mark) return out;
         item = end + 1;
     }
 }
@@ -6057,7 +6130,7 @@ int jbc_read_field(const char *handle, const char *key, const char *field, jbc_v
         intmax_t index = strtoimax(field, NULL, 10);
         if (!errno && index <= INT64_MAX) {
             int64_t position = (int64_t)index;
-            value = array_part(record->value, strlen(record->value), &position, 1, 0, NULL, 0);
+            value = array_part(record->value, jbc_size(record->value), &position, 1, 0, NULL, 0);
         }
     }
     assign_value(out, value);
@@ -6077,7 +6150,7 @@ static int write_record_status(const char *handle, const char *key, const char *
     struct memory_record *r = *link;
     if (field) {
         const char *current = r ? r->value : "";
-        value = array_part(current, strlen(current), &field, 1, 0, value, 0);
+        value = array_part(current, jbc_size(current), &field, 1, 0, value, 0);
     }
     if (!r) {
         r = calloc(1, sizeof *r);
@@ -6208,7 +6281,7 @@ const char *jbc_update_array(const char *source, const char *value, const char *
     for (int i = 0; i < count; ++i) {
         if (!index[i]) index[i] = 1;
     }
-    return array_part(source, strlen(source), index, count, 0, value, inserting);
+    return array_part(source, jbc_size(source), index, count, 0, value, inserting);
 }
 
 void jbc_ins(jbc_variable *slot, const char *value, const char **indices, int count,
@@ -6222,12 +6295,12 @@ const char *jbc_index(const char *text, const char *needle, const char *occurren
                       const char *file, int line, int column)
 {
     int64_t remaining = truncated(occurrence, file, line, column);
-    size_t width = strlen(needle);
+    size_t width = jbc_size(needle), length = jbc_size(text);
     if (remaining < 1) return "0";
     /* An empty needle is found at position 1 (TAFC, tests/tafc/search-edges.b). */
     if (!width) return "1";
-    const char *cursor = text;
-    while ((cursor = strstr(cursor, needle)) != NULL) {
+    const char *cursor = text, *end = text + length;
+    while ((cursor = find_bytes(cursor, (size_t)(end - cursor), needle, width)) != NULL) {
         if (--remaining == 0) return size_value((size_t)(cursor - text) + 1);
         cursor += width;
     }
@@ -8991,8 +9064,8 @@ static const char *pair_elements(const char *left, const char *right,
     char *right_items = split_array_items(right, NULL);
     const char *out = "";
     for (;;) {
-        const char *a = lhs.present ? left_items + (lhs.item - left) : NULL;
-        const char *b = rhs.present ? right_items + (rhs.item - right) : NULL;
+        const char *a = lhs.present ? cursor_value(&lhs, left, left_items) : NULL;
+        const char *b = rhs.present ? cursor_value(&rhs, right, right_items) : NULL;
         out = jbc_concat(out, each(a, b, context));
         unsigned mark = lhs.mark < rhs.mark ? lhs.mark : rhs.mark;
         if (mark == 256) break;
@@ -9083,7 +9156,7 @@ const char *jbc_ifs(const char *condition, const char *when_true, const char *wh
         size_t value_length = strcspn(value, "\376\375");
         if (memchr(value, 252, value_length)) depth = 3;
         const char *source = *item && jbc_truth(item) ? when_true : when_false;
-        out = jbc_concat(out, array_part(source, strlen(source), position, depth, 0, NULL, 0));
+        out = jbc_concat(out, array_part(source, jbc_size(source), position, depth, 0, NULL, 0));
         if (!mark) break;
         out = jbc_concat(out, (const char[]){(char)mark, '\0'});
         if (mark == 254) {
@@ -9134,9 +9207,9 @@ const char *jbc_strs(const char *source, const char *count, const char *file, in
     char *items = split_array_items(source, NULL);
     const char *out = "";
     for (const char *item = items;;) {
-        const char *end = item + strlen(item);
+        const char *end = item_end(source, items, item);
         char mark[2] = {source[end - items], '\0'};
-        out = jbc_concat(out, jbc_str(item, count, file, line, column));
+        out = jbc_concat(out, jbc_str(item_value(source, item, end), count, file, line, column));
         out = jbc_concat(out, mark);
         if (!*mark) break;
         item = end + 1;
@@ -9189,7 +9262,7 @@ const char *jbc_regexp(const char *text, const char *expression)
 static int64_t adjustment_field(const char *changes, int index, const char *file, int line, int column)
 {
     int64_t position[1] = {index};
-    const char *field = array_part(changes, strlen(changes), position, 1, 0, NULL, 0);
+    const char *field = array_part(changes, jbc_size(changes), position, 1, 0, NULL, 0);
     if (!*field) return 0;
     struct decimal n;
     if (!parse_decimal(field, &n) || n.places)

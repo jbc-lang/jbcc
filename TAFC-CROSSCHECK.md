@@ -670,6 +670,6 @@ functions at once.
 - [x] Stage 1: foundation (header length, `jbc_size`, pointer set).
 - [x] Stage 2: CHAR, concatenation, LEN, SEQ, substrings, comparisons,
       output, MX; `char-bytes.b` matches TAFC.
-- [ ] Stage 3: dynamic arrays and the search functions.
+- [x] Stage 3: dynamic arrays and the search functions.
 - [ ] Stage 4: input, EXECUTE data and files.
 - [ ] Stage 5: source literals with byte 0.

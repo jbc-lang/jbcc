@@ -61,9 +61,11 @@ See TAFC-CROSSCHECK.md for the probes.
 - EXECUTE without a shell: TAFC runs `echo a; echo b` as `echo` with the
   arguments `a;`, `echo` and `b`, taking `;`, `|` and quotes literally;
   jbcc runs the command with `/bin/sh -c` (`tests/tafc/execute-capturing.b`).
-- Byte 0: jbcc strings hold it, but dynamic array operations, the search
-  functions, input, EXECUTE data and files still stop at the first one,
-  where TAFC's do not (NUL-BYTES.md, stages 3 to 5).
+- Byte 0: jbcc strings hold it, but input, EXECUTE data and files still
+  stop at the first one, where TAFC's do not (NUL-BYTES.md, stages 4 and
+  5). TAFC itself mishandles it in three places, which jbcc does not copy:
+  LOCATE finds no value that holds byte 0, SORT scrambles such values, and
+  CONVERT to byte 0 gives `''` (`tests/snippets/nul-locate-sort.b`).
 
 ## T24 corpora: outside translation
 

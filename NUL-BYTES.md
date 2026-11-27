@@ -72,7 +72,11 @@ static char *allocate_sized(size_t length);         /* sets length */
 
 ## Stages
 
-Stages 1 and 2 are done (`tests/tafc/nul-core.b`). One change from the
+Stages 1 to 3 are done (`tests/tafc/nul-core.b`, `nul-arrays.b`). In
+stage 3, `split_array_items` copies the whole sized array, and
+`item_end`, `item_value` and `cursor_value` give an element as a sized
+value only when the array holds byte 0, so other arrays keep the old fast
+path; a 20,000-element LOCATE benchmark runs as fast as before. One change from the
 plan: only a buffer that actually holds byte 0 records its length and
 goes in the pointer set, so the set stays small, and every other buffer
 is an ordinary C string.

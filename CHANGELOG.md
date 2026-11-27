@@ -91,6 +91,8 @@
   program, and concatenation, LEN, substrings, comparisons, output and the
   MX and MCP conversions keep it, as in TAFC (NUL-BYTES.md, stages 1 and
   2).
+- Dynamic arrays, the search functions and the element-wise functions keep
+  byte 0 too (NUL-BYTES.md, stage 3).
 - EXECUTE shares the default select list with the jbcc program it runs, as
   TAFC does; `PASSLIST` passes a list, and `RTNLIST` no longer stops the
   program.
