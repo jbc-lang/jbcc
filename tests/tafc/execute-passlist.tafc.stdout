@@ -1,0 +1,21 @@
+child next a
+child next b
+child next c
+child read 3
+rtnlist []
+child next x
+child next y
+child read 2
+quiet child
+quiet [] 1
+child next p
+child next q
+child read 2
+parent default still has x
+child next y
+child read 1
+parent next x
+parent next y
+parent read 2
+partial took a
+partial []

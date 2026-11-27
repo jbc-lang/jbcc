@@ -440,28 +440,16 @@ def test_execute_result_diagnostics(compiler):
         pytest.param('select_6.b', id='select-6'),
     ],
 )
-def test_execute_rtnlist_requires_backend_before_running_command(
-    compiler, fixture_name
-):
+def test_execute_rtnlist_forms(compiler, fixture_name):
+    """Every RTNLIST form parses, runs the command and continues; the
+    variable form gets '' as in TAFC (tests/tafc/execute-passlist.b)."""
     marker = compiler.work / 'child-ran'
-    source = (
-        ROOT
-        / 'tests/programs/execute-rtnlist-requires-backend-before-running-command'
-        / fixture_name
-    )
+    source = ROOT / 'tests/programs/execute-rtnlist-forms' / fixture_name
     run = compiler.run_native(source, cwd=compiler.work)
-    assert run.returncode == 1, run.stderr
-    assert run.stdout == expected_bytes(
-        'execute-rtnlist-requires-backend-before-running-command.stdout'
-    )
-    assert (
-        run.stderr
-        == expected_text(
-            'execute-rtnlist-requires-backend-before-running-command.stderr',
-            source=source,
-        ).encode()
-    )
-    assert not marker.exists()
+    assert run.returncode == 0, run.stderr
+    assert run.stdout == expected_bytes('execute-rtnlist-forms.stdout')
+    assert run.stderr == b''
+    assert marker.exists()
 
 
 def test_execute_child_program(compiler):

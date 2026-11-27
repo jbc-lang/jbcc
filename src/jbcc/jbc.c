@@ -127,8 +127,12 @@ void jbc_data(const char *text)
     input_data_tail = &chunk->next;
 }
 
+static void write_return_list(void);
+
 void jbc_finish(void)
 {
+    /* Before the buffers that hold the list are freed. */
+    write_return_list();
     jbc_run_exit_callbacks();
 #ifdef JBC_REPORT
     finish_reports();
@@ -5456,6 +5460,64 @@ static struct memory_file *selected_file(const char *token)
     return NULL;
 }
 
+/* The default select list is shared with EXECUTEd jbcc programs, as TAFC
+   PB201214 shares it with jBC programs it EXECUTEs (tests/tafc/
+   execute-passlist.b): a child starts with what is left of the caller's
+   list, or with the PASSLIST value, and the caller continues with what is
+   left of the child's. The lists travel in two files named in the child's
+   environment. */
+#define PASSLIST_VARIABLE "JBCC_PASSLIST"
+#define RTNLIST_VARIABLE "JBCC_RTNLIST"
+
+static const char *remaining_default_list(void)
+{
+    jbc_variable *list = &select_lists[0];
+    if (list->remove_offset == SIZE_MAX || !list->value) return "";
+    if (list->array_list) return list->value + list->remove_offset;
+    struct memory_file *f = selected_file(list->value);
+    if (!f) return "";
+    const char *keys = NULL;
+    for (struct memory_record *r = f->records; r; r = r->next) {
+        if (r->serial <= list->remove_offset) continue;
+        keys = keys ? jbc_concat(jbc_concat(keys, "\376"), r->key) : r->key;
+    }
+    return keys ? keys : "";
+}
+
+static int return_list_written;
+
+static void write_return_list(void)
+{
+    const char *path = getenv(RTNLIST_VARIABLE);
+    if (return_list_written || !path || !*path) return;
+    return_list_written = 1;
+    FILE *stream = fopen(path, "wb");
+    if (!stream) return;
+    /* A leading L shows that a jbcc program wrote the list. */
+    fputc('L', stream);
+    fputs(remaining_default_list(), stream);
+    fclose(stream);
+}
+
+static void write_return_list_at_exit(void)
+{
+    write_return_list();
+}
+
+static const char *read_whole_file(const char *path);
+
+/* Called first in every jbcc program. */
+void jbc_init_lists(void)
+{
+    const char *path = getenv(PASSLIST_VARIABLE);
+    if (path && *path) {
+        const char *keys = read_whole_file(path);
+        set_array_list(&select_lists[0], keys, *keys != '\0');
+    }
+    if (getenv(RTNLIST_VARIABLE) && atexit(write_return_list_at_exit) != 0)
+        fail("cannot register the return list");
+}
+
 int jbc_readnext(jbc_variable *list, jbc_variable *key, jbc_variable *mv, jbc_variable *setting,
                  const char *file, int line, int column)
 {
@@ -6522,11 +6584,9 @@ static char *exchange_file(const char *data, const char *file, int line, int col
 }
 
 void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *returning,
-                 jbc_variable *return_list, const char *passdata, jbc_variable *rtndata,
-                 const char *file, int line, int column)
+                 jbc_variable *return_list, const char *passlist, const char *passdata,
+                 jbc_variable *rtndata, const char *file, int line, int column)
 {
-    if (return_list)
-        numeric_error(file, line, column, "RTNLIST requires a jBC command backend");
     if ((unsigned char)command[0] == 255) {
         if (command[1] != 's')
             numeric_error(file, line, column, "unsupported EXECUTE shell selector");
@@ -6538,14 +6598,9 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         numeric_error(file, line, column, "cannot flush output before EXECUTE");
     const char *passdata_path = passdata ? exchange_file(passdata, file, line, column) : NULL;
     const char *rtndata_path = rtndata ? exchange_file("", file, line, column) : NULL;
-    if (!capture && !returning && !input_data && !passdata && !rtndata
-        && !getenv(PASSDATA_VARIABLE) && !getenv(RTNDATA_VARIABLE)) {
-        int status = system(command);
-        if (status == -1) numeric_error(file, line, column, "cannot execute command");
-        last_command_code = command_exit_code(status);
-        count_userstat(&command_count);
-        return;
-    }
+    const char *passlist_path =
+        exchange_file(passlist ? passlist : remaining_default_list(), file, line, column);
+    const char *rtnlist_path = exchange_file("", file, line, column);
 
     /* Spool stdin to let a child read any amount or exit without reading. */
     FILE *input = input_data ? command_input() : NULL;
@@ -6574,6 +6629,8 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         else unsetenv(PASSDATA_VARIABLE);
         if (rtndata_path) setenv(RTNDATA_VARIABLE, rtndata_path, 1);
         else unsetenv(RTNDATA_VARIABLE);
+        setenv(PASSLIST_VARIABLE, passlist_path, 1);
+        setenv(RTNLIST_VARIABLE, rtnlist_path, 1);
         execl("/bin/sh", "sh", "-c", command, (char *)NULL);
         _exit(127);
     }
@@ -6607,6 +6664,19 @@ void jbc_execute(const char *command, jbc_variable *capture, jbc_variable *retur
         fclose(errors);
     }
     if (passdata_path) unlink(passdata_path);
+    unlink(passlist_path);
+    if (!error) {
+        /* A jbcc child leaves its default list to the caller; another
+           command leaves the caller's list as it was. */
+        const char *keys = read_whole_file(rtnlist_path);
+        if (*keys == 'L')
+            set_array_list(&select_lists[0], strcpy(allocate(strlen(keys + 1)), keys + 1),
+                           keys[1] != '\0');
+        /* TAFC PB201214 gives the RTNLIST variable '' (tests/tafc/
+           execute-passlist.b). */
+        if (return_list && return_list != &select_lists[0]) assign_value(return_list, "");
+    }
+    unlink(rtnlist_path);
     if (rtndata_path) {
         if (!error) assign_value(rtndata, read_whole_file(rtndata_path));
         unlink(rtndata_path);
@@ -6635,7 +6705,7 @@ void jbc_chain(const char *command, const char *file, int line, int column)
         while (option > text && option[-1] == ' ') --option;
         *option = '\0';
     }
-    jbc_execute(text, NULL, NULL, NULL, NULL, NULL, file, line, column);
+    jbc_execute(text, NULL, NULL, NULL, NULL, NULL, NULL, file, line, column);
     fflush(stdout);
     jbc_terminate(last_command_code > 255 ? 255 : (int)last_command_code);
 }

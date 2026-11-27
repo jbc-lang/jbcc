@@ -87,6 +87,9 @@
 - `EXECUTE ... PASSDATA expression RTNDATA variable`, with the
   `COLLECTDATA` and `RTNDATA` statements in the program it runs.
 - CAPTURING drops one final newline, as TAFC does.
+- EXECUTE shares the default select list with the jbcc program it runs, as
+  TAFC does; `PASSLIST` passes a list, and `RTNLIST` no longer stops the
+  program.
 - Conversions follow TAFC: codes separated by value marks run in turn in
   OCONV, ICONV, OCONVS and ICONVS; STATUS() after each mask family is as
   TAFC sets it; ICONVS and OCONVS keep every element; ICONV takes MC

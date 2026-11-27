@@ -2844,7 +2844,15 @@ class Compiler:
         self.host_only(opening)
         self.advance()
         self.uses_execute = True
-        clauses = ('CAPTURING', 'RETURNING', 'SETTING', 'RTNLIST', 'PASSDATA', 'RTNDATA')
+        clauses = (
+            'CAPTURING',
+            'RETURNING',
+            'SETTING',
+            'RTNLIST',
+            'PASSLIST',
+            'PASSDATA',
+            'RTNDATA',
+        )
         command = self.expression(format_stops=clauses)
         outputs = {}
         assigned = []
@@ -2855,6 +2863,17 @@ class Compiler:
             self.advance()
             if clause == 'PASSDATA':
                 outputs[clause] = self.expression(format_stops=clauses)
+                continue
+            if clause == 'PASSLIST':
+                # Without an expression, the default select list, which
+                # the child shares anyway.
+                if (
+                    self.word
+                    and self.word not in OUTPUT_END
+                    and self.word not in stops
+                    and self.word not in clauses
+                ):
+                    outputs[clause] = self.expression(format_stops=clauses)
                 continue
             if clause == 'RTNLIST':
                 if (
@@ -2875,6 +2894,7 @@ class Compiler:
         self.emit(
             f"jbc_execute({command}, {outputs.get('CAPTURING', 'NULL')}, "
             f"{outputs.get('RETURNING', 'NULL')}, {outputs.get('RTNLIST', 'NULL')}, "
+            f"{outputs.get('PASSLIST', 'NULL')}, "
             f"{outputs.get('PASSDATA', 'NULL')}, {outputs.get('RTNDATA', 'NULL')}, "
             f"{self.location(opening)});"
         )
@@ -5855,6 +5875,8 @@ class Compiler:
             if size is not None:
                 lines.append(f"    frame.{field} = storage({size}, NULL);")
         if not self.routine:
+            # The default select list an EXECUTE caller passed.
+            lines.append("    jbc_init_lists();")
             if self.uses_startup_clock:
                 lines.append("    jbc_init_startup_clock();")
             if self.uses_session:
