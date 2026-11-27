@@ -44,6 +44,13 @@
   a runtime read of an unassigned variable (an empty string, which it then
   holds). An empty conversion mask returns the value unchanged.
 - Under prime, COMMON variables and COMMON matrix elements start at 0.
+- OSREAD turns line feeds into field marks; a program can reopen a file it
+  already has open through OPENSEQ or OSOPEN.
+- CHAR takes its argument modulo 256; FMT's `&x` sets the fill character.
+- TIMEDIFF returns timestamp2 minus timestamp1 and supports masks 2 to 7
+  (calendar months and years).
+- CacheStats CACHE_SIZE counts items, the purge limit counts items, and
+  CacheClear removes the bucket.
 - INDEX finds an empty needle at 1; CHANGE and EREPLACE leave the text
   unchanged for an empty search string; FIELD and GROUP read occurrences
   and counts below 1 as 1; ISCNTRL is false for the system marks; MCP shows
