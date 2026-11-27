@@ -1,5 +1,14 @@
 # News
 
+## 2026-11-27 · T24 R19 corpus
+
+[jbcc 0.4.0](https://pypi.org/project/jbcc/0.4.0/) translates the
+componentised T24 R19 corpus to strict C99: 39,669 of its 39,675
+production units, with component calls checked against the catalogued
+declarations. It adds date and time zone functions, `MSLEEP`,
+`CLEARCOMMON`, the `MCP` mask and a built-in `JBC.h` for the guide's
+examples. R13, R10 and R07 still translate in full.
+
 ## 2026-11-26 · T24 R13 corpus
 
 [jbcc 0.3.0](https://pypi.org/project/jbcc/0.3.0/) translates all 19,536
