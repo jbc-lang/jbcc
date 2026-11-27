@@ -2681,6 +2681,12 @@ has `table<Name>(id, error)`, a read with the table's visibility, as in
 available across components, as seen in R19 sources that reference
 fields in private tables. Calls still follow the table's visibility.
 
+With `--t24-source-fixes`, R19 fixes name each file by its path from the
+extract root. Two `DAS` inserts, `I_DAS.AA.PRODUCT.DESIGNER` and
+`I_DAS.AA.PRODUCT.LINE`, end an `EQU` with a comma and repeat `EQU` on the
+next line; the local reference preprocessor reports a syntax error there,
+so the checker drops the comma.
+
 The pilot checks C syntax one unit at a time, using external prototypes
 for qualified calls. Package-aware linkage and table runtime behavior
 are still pending.

@@ -642,6 +642,36 @@ def test_r13_corpus_applies_source_fixes_in_t24_bp():
     assert (root / dates).read_bytes() == original
 
 
+def test_r19_corpus_applies_source_fixes_by_path():
+    # R19 AA I_DAS.AA.PRODUCT.LINE ends an EQU with a comma before the next
+    # EQU line; the fix names the insert's path from the extract root.
+    root = ROOT / 'tests/corpus/r19/201809-R19'
+    source = 'AA/AA_ProductFramework/Source'
+    unit = f'{source}/Private/DAS.AA.PRODUCT.LINE.b'
+    insert = f'{source}/Public/I_DAS.AA.PRODUCT.LINE'
+    original = (root / insert).read_bytes()
+    command = [
+        sys.executable,
+        ROOT / 'tools/check_corpus.py',
+        root,
+        '-I',
+        root / source / 'Public',
+    ]
+    baseline = json.loads(subprocess.check_output(command, text=True))['files']
+    assert baseline[unit]['status'] == 'rejected'
+
+    report = json.loads(
+        subprocess.check_output(command + ['--t24-source-fixes'], text=True)
+    )['files']
+    assert report[unit] == {
+        'status': 'translated',
+        'source_fixes': [
+            dict(file=insert, line=3, column=48, before=',', after='')
+        ],
+    }
+    assert (root / insert).read_bytes() == original
+
+
 def test_r13_corpus_can_exclude_local_routines():
     root = ROOT / 'tests/corpus/r13/201307-R13'
     local = 'T24.BP/V.PL.B2LIM.NET'

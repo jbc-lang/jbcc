@@ -87,11 +87,33 @@ R13_SOURCE_FIXES = {
     "STEST.AZ.PD.DATES.CHK": T24_SOURCE_FIXES["STEST.AZ.PD.DATES.CHK"],
 }
 
-# Release extracts whose sources sit in BP folders, with the folder that
-# holds the fixed files and the fixes for that release.
+# R19 keeps each source in a module tree, so its fixes name the path from
+# the extract root.
+R19_SOURCE_FIXES = {
+    # Two DAS inserts end an EQU with a comma and start the next line with
+    # EQU again. The local reference (jpp, 201015.001) reports a syntax
+    # error, while R19's own compiler evidently accepts it. Drop the comma.
+    **{
+        f"AA/{module}/Source/Public/I_DAS.{table}": (
+            re.compile(
+                r"^[ \t]*EQU[ \t]+\S+[ \t]+TO[ \t]+\S+?(?P<edit>,)[ \t]*\r?$(?=\n[ \t]*EQU\b)",
+                re.M,
+            ),
+            "",
+        )
+        for module, table in (
+            ("AA_ProductManagement", "AA.PRODUCT.DESIGNER"),
+            ("AA_ProductFramework", "AA.PRODUCT.LINE"),
+        )
+    },
+}
+
+# Release extracts with the folder that holds the fixed files (None when
+# fixes name paths from the root) and the fixes for that release.
 RELEASE_SOURCE_FIXES = {
     "200707-R07": (Path("GLOBUS.BP"), R07_SOURCE_FIXES),
     "201307-R13": (Path("T24.BP"), R13_SOURCE_FIXES),
+    "201809-R19": (None, R19_SOURCE_FIXES),
 }
 
 # Files kept in an extract that are not part of the Temenos release.
@@ -107,6 +129,7 @@ LOCAL_ROUTINES = {
 def fix_t24_source(path, source, *, root, fixes):
     if path.name not in T24_SOURCE_FIXES and not any(
         path.name in release_fixes
+        or any(Path(key).name == path.name for key in release_fixes)
         for _, release_fixes in RELEASE_SOURCE_FIXES.values()
     ):
         return source
@@ -119,7 +142,9 @@ def fix_t24_source(path, source, *, root, fixes):
         rule = T24_SOURCE_FIXES.get(path.name)
     elif root.name in RELEASE_SOURCE_FIXES:
         folder, release_fixes = RELEASE_SOURCE_FIXES[root.name]
-        if relative.parent == folder and (
+        if folder is None:
+            rule = release_fixes.get(relative.as_posix())
+        elif relative.parent == folder and (
             path.name != "COMPARE.DB.JBASE"
             or (root / folder / "JBC.h").is_file()
         ):
