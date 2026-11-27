@@ -276,21 +276,18 @@ an expression, for example `EB.DataAccess.FRead`.
     stops at the `MX` mask.
   - [ ] After the next jbcc release, rerun `just examples` in
     jbc-language.
-- [ ] 5b. Playground toolchain. Investigate loading Pyodide and YoWASP
-  Clang/LLD from jsDelivr instead of shipping them with the playground
-  (jbc-playground `build-static.mjs`). Today the static site carries
-  122 MB of toolchain: Clang 21.1.4-3 is 109 MB, mostly `llvm.core.wasm`
-  (69 MB) and `llvm-resources.tar` (28 MB), and Pyodide 314.0.8 is 13 MB.
-  Check:
-  - whether jsDelivr serves each file, in particular the 69 MB Wasm, given
-    its size limits, and with which caching and compression;
-  - pinned versions and Subresource Integrity or hash checks for each file;
-  - the CSP (`default-src 'none'`), which must allow the CDN for module
-    imports and fetches from the compile worker, and whether the
-    cross-origin loads keep the Wasm runner sandbox intact;
-  - first-load and cached-load times against GitHub Pages, and behaviour
-    when the CDN is unreachable (fallback to the self-hosted copy?);
-  - the third-party notices, which must still describe what is served.
+- [x] 5b. Playground toolchain. Done on 2026-11-27 (jbc-playground #14):
+  the page loads Pyodide and YoWASP Clang from jsDelivr at the
+  `package.json` versions. The site dropped from 122 MB to under 300 KB.
+  Measured on the live site, a first Run downloads about 23 MB with
+  Brotli instead of about 33 MB with gzip, and the toolchain caches for a
+  year instead of 10 minutes; GitHub Pages had changed every ETag on each
+  deploy. Build time barely changed: the browser tests take 3 of its 3.5
+  minutes. Tests load the published page but answer jsDelivr requests
+  from `node_modules`; one test runs against the real jsDelivr, and
+  `just check-cdn` in CI checks that jsDelivr serves each file byte for
+  byte as the lockfile. The trade-offs are a dependency on jsDelivr and
+  no runtime integrity check for dynamically imported modules.
 - [ ] 6. Close the pilot's open item: find a declaration for
   `EB.Service.setFComo`, or record why it is missing.
 - [x] 7. Re-run R07, R10 and R13 to check for regressions (2026-11-27,
