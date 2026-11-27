@@ -5135,6 +5135,18 @@ class Compiler:
             self.advance()
             while self.word in (';', '\n'):
                 self.advance()
+            # The reference warns about a stray END after the final END
+            # ("END is misplaced", warning 47) and compiles the unit, as
+            # in T24 R19 CRS.CHECK.SKIP.ACCOUNT. Other text is an error.
+            while self.word == 'END':
+                token = self.current
+                print(
+                    f"{token.path}:{token.line}:{token.column}: warning: END after the final END ignored",
+                    file=sys.stderr,
+                )
+                self.advance()
+                while self.word in (';', '\n'):
+                    self.advance()
             if self.word:
                 self.error("unexpected text after final END")
         if self.pending_assignment_error and not self.has_goto:

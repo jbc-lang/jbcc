@@ -257,7 +257,9 @@ follow a named or numeric label directly, as in `setup:* read inputs` or
 `100: REM retry`.
 
 `END:` can label a statement, including inside a block. A bare `END` closes
-a block or terminates the source unit. A single `.` at the start of a
+a block or terminates the source unit. A stray `END` after the final one
+is ignored with a warning, as the local reference compiler does (warning
+47, "END is misplaced"), while other text there is an error. A single `.` at the start of a
 physical line can stand alone or label a statement on that line, with an
 optional colon. A digit-only label at the start of a source line can also
 omit the colon, including before a comment or statement. Separate the digits

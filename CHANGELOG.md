@@ -9,6 +9,7 @@
 - `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)
   and `@TIMEZONE`.
 - `ASSIGNED` and `UNASSIGNED` accept an R19 component call.
+- A stray `END` after the final `END` is ignored with a warning.
 
 ## 0.3.0 (2026-11-26)
 
