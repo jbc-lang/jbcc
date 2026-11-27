@@ -4,6 +4,9 @@
 
 ### Added
 
+- `--t24-exclude-missing-domains` excludes units whose generated
+  `I_<Service>_<Class>` insert has no `.domain` class in the dump, and
+  `T24_MEMBER_STUBS` lists the remaining undeclared R19 members.
 - `jbcc --help` and `tools/check_corpus.py --help` group their options
   and describe each one in a block, with examples and, for the checker,
   the rules the T24 flags follow.

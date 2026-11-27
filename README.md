@@ -2679,6 +2679,13 @@ R19 components and generated code:
   that T24 generates from `.domain` models and the dump leaves out, from
   the catalogued classes, into `DIR`. Each generated lookup is reported
   with its `.domain` file.
+- `--t24-exclude-missing-domains`, with `--t24-domain-inserts`, reports a
+  unit as `excluded` when it includes an `I_<Service>_<Class>` insert
+  whose class no catalogued `.domain` file declares; the reason names the
+  insert. In R19, six `OB_PMT` units include inserts for
+  `PORCreditTransferInitiation` and `BulkDetails`, which the dump's domain
+  models lack. The lookup also records `domain_class: absent` without the
+  flag.
 - `--t24-component-calls` checks `Component.member(...)` calls against
   the catalogued `.component` declarations: visibility, argument count
   and scalar or matrix positions. The dump does not define the code T24
@@ -2707,8 +2714,10 @@ R19 components and generated code:
   `TF.L3Helper.testPublishedMethod`, a Java varargs helper declared with 3
   parameters and called by the SEAT tests with 2 to 8; the 40
   `PP.InwardGenericTransactions.map<message>toPOR<part>` mappers, which
-  `OB_PMT` holds as routines but no definition declares; nine other
-  methods no definition declares, such as `TF.Core.DumpCommon`; and four
+  `OB_PMT` holds as routines but no definition declares; other methods
+  no definition declares, such as `TF.Core.DumpCommon`, the `TF.Core`
+  coverage and call-recording methods and the `PpIn<message>Write`
+  writers of `PP.InwardGenericTransactions`; and four
   methods whose declarations omit the `()` matrix marker on a parameter
   every caller passes with `MAT`, such as `AU.API.TransferBalance`.
 - `--t24-relax-access`, for testing only, reports a call to a `private`

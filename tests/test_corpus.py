@@ -1007,7 +1007,9 @@ def test_corpus_generates_domain_inserts_from_catalogued_classes(compiler):
     ]
     assert not (generated / 'I_OrderService_Header').exists()
     missing = files['Shop/Shop_Orders/Source/Private/Missing.b']
+    assert missing['status'] == 'rejected'
     assert missing['include_lookups'][0]['status'] == 'missing'
+    assert missing['include_lookups'][0]['domain_class'] == 'absent'
     ambiguous = files['Shop/Shop_Orders/Source/Private/Ambiguous.b']
     assert ambiguous['include_lookups'][0]['candidates'] == [
         'Shop/Shop_Archive/Definition/ArchiveDomain.domain',
@@ -1018,6 +1020,18 @@ def test_corpus_generates_domain_inserts_from_catalogued_classes(compiler):
     without = command[:6] + command[8:]
     report = json.loads(subprocess.check_output(without, text=True))
     assert report['files'][uses]['include_lookups'][0]['status'] == 'missing'
+
+    excluded = json.loads(
+        subprocess.check_output(
+            command + ['--t24-exclude-missing-domains'], text=True
+        )
+    )['files']
+    assert excluded['Shop/Shop_Orders/Source/Private/Missing.b']['status'] == 'excluded'
+    assert excluded['Shop/Shop_Orders/Source/Private/Missing.b']['reason'] == (
+        'generated insert I_OrderService_Unknown has no .domain class in the dump'
+    )
+    assert excluded[uses]['status'] == files[uses]['status']
+    assert excluded['Shop/Shop_Orders/Source/Private/Ambiguous.b']['status'] == 'rejected'
 
 
 def test_corpus_checks_qualified_component_signatures(compiler):
