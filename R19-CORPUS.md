@@ -274,8 +274,9 @@ an expression, for example `EB.DataAccess.FRead`.
     their only failure: `FMT` and `OCONV` show field, value and subvalue
     marks as `^`, `]` and `\`. 29 of the 30 blocks now run; the other
     stops at the `MX` mask.
-  - [ ] After the next jbcc release, rerun `just examples` in
-    jbc-language.
+  - [x] After the next jbcc release, rerun `just examples` in
+    jbc-language. Done for jbcc 0.4.0 (jbc-language #25): 133 of the
+    1,016 guide blocks have a Run button, up from 98, and none lost one.
 - [x] 5b. Playground toolchain. Done on 2026-11-27 (jbc-playground #14):
   the page loads Pyodide and YoWASP Clang from jsDelivr at the
   `package.json` versions. The site dropped from 122 MB to under 300 KB.
