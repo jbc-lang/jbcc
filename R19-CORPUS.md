@@ -102,12 +102,17 @@ an expression, for example `EB.DataAccess.FRead`.
   scan passes 38,265 of the 38,354 units in scope (99.77%); 1,321 test
   framework units are excluded and 89 rejected, with no regressions. The
   table fallback covers 20 undeclared tables in 67 units.
-  - [ ] Methods declared without a result but used as a value (about 25
+  - [x] Methods declared without a result but used as a value (about 25
     units), such as `AF = EB.SystemTables.setAf(X)` and
     `Rec = EB.DataAccess.FRead(...)`. Each method is otherwise used as a
     statement (`setAf` 21,950 times, `FRead` 1,526), so these look like
-    defects of the automated conversion. **Needs a decision**: source
-    fixes, a provisional empty result, or leave them rejected.
+    defects of the automated conversion. Decision (2026-11-27): for
+    testing, `--t24-stub-void-results` makes the call and uses 0, with a
+    warning.
+  - [x] `published` members (`EB.EnquiryHook` interfaces, 4 units) are
+    public, and methods without a body, which Java implements, are
+    declared (70 members, including `TF.L3Helper`). Neither changes an
+    existing declaration.
   - [ ] Other methods and accessors without a matching declaration.
   - [ ] Methods used inside expressions, and methods declared without a
     return value but used as one.
@@ -169,7 +174,17 @@ an expression, for example `EB.DataAccess.FRead`.
   `--t24-exclude-test-framework` reports the 1,321 units of the
   `SE/SE_Test*` components as excluded. Two production units that call
   `TF.ErrorHandling.consumeException` and `TF.Core.DumpCommon` stay in
-  scope as undeclared members.
+  scope as undeclared members. Assessment after the reader accepted methods
+  without a body (`TF.L3Helper`) and the R19 `STEST.AZ.PD.DATES.CHK` fix:
+  1,255 of the 1,321 translate. The other 66 call
+  `TF.L3Helper.testPublishedMethod`, a Java varargs helper declared with
+  3 parameters and called with 2 to 8 (`instance, "getTermRate",
+  currency, ...`); the declaration cannot express that, so they stay out
+  of scope.
+
+  Without the exclusion and with `--t24-stub-void-results`, the full scan
+  translates 39,552 of all 39,675 R19 units (99.69%), with no
+  regressions; 57 production units remain rejected.
 - [ ] 5. Remaining language gaps. Triage each against the guide, then
   implement it or record a source fix.
   - [x] `ISUPPER`, `ISLOWER` and `ISSPACE` (ASCII, like `ISALNUM`).
@@ -225,8 +240,19 @@ an expression, for example `EB.DataAccess.FRead`.
   - the third-party notices, which must still describe what is served.
 - [ ] 6. Close the pilot's open item: find a declaration for
   `EB.Service.setFComo`, or record why it is missing.
-- [ ] 7. Re-run R07, R10 and R13 to check for regressions and update
-  counts.
+- [x] 7. Re-run R07, R10 and R13 to check for regressions (2026-11-27,
+  8 workers, with `--t24-catalog`):
+
+  | Release | Units passing strict C99 | Other | Wall time |
+  |---|---:|---|---:|
+  | R13 | 19,536 of 19,536 | 1 excluded, 5,837 include fragments | 2 min 54 s |
+  | R10 | 17,332 of 17,332 | 5,142 include fragments | 2 min 32 s |
+  | R07 | 15,030 of 15,030 | 3,322 include fragments, 10 C headers | 2 min 28 s |
+
+  R10's four extra include fragments (`Logger`, `Util`,
+  `qbasiccommonpick`, `qbasiccommonseq`) come from the catalog, which
+  classifies them as includes; without `--t24-catalog` they count as
+  units, as in the R13 plan's table.
 
 Out of scope for this plan: package-aware linkage across units, table
 runtime behaviour, and running the `.tut` unit tests with their `.d`

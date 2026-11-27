@@ -90,6 +90,10 @@ R13_SOURCE_FIXES = {
 # R19 keeps each source in a module tree, so its fixes name the path from
 # the extract root.
 R19_SOURCE_FIXES = {
+    # The leading-dot selector seen in R07, R10 and R13, in the SEAT test.
+    "SE/SE_TestRetail/Source/Private/STEST.AZ.PD.DATES.CHK.b": T24_SOURCE_FIXES[
+        "STEST.AZ.PD.DATES.CHK"
+    ],
     # Two DAS inserts end an EQU with a comma and start the next line with
     # EQU again. The local reference (jpp, 201015.001) reports a syntax
     # error, while R19's own compiler evidently accepts it. Drop the comma.
@@ -406,6 +410,7 @@ def check(
     *,
     catalog_kind=None,
     stub_r07_la_parameter=False,
+    stub_void_results=False,
     exclude_local_routines=False,
     exclude_test_framework=False,
     include_index=None,
@@ -518,6 +523,7 @@ def check(
             # Corpus results reflect the headers given with -I, never
             # jbcc's built-in JBC.h.
             builtin_includes=False,
+            stub_void_results=stub_void_results,
             next_warning=count_next_warning if quiet_next_warnings else None,
             api_call=record_calls(calls) if collect_apis else None,
         )
@@ -723,6 +729,11 @@ def main():
         help="skip known non-Temenos routines kept in an extract and report them as excluded",
     )
     parser.add_argument(
+        "--t24-stub-void-results",
+        action="store_true",
+        help="for testing, use 0 where a component method without a result is used as a value, and report it",
+    )
+    parser.add_argument(
         "--t24-exclude-test-framework",
         action="store_true",
         help="skip R19 test framework components (SE/SE_Test*) and report them as excluded",
@@ -846,6 +857,7 @@ def main():
         quiet_next_warnings=options.quiet_next_warnings,
         collect_apis=coverage is not None,
         stub_r07_la_parameter=options.stub_r07_la_parameter,
+        stub_void_results=options.t24_stub_void_results,
         exclude_local_routines=options.t24_exclude_local_routines,
         exclude_test_framework=options.t24_exclude_test_framework,
     )
@@ -941,6 +953,8 @@ def main():
             scan_settings["t24_catalog"] = str(options.t24_catalog.resolve())
         if options.stub_r07_la_parameter:
             scan_settings["stub_r07_la_parameter"] = True
+        if options.t24_stub_void_results:
+            scan_settings["t24_stub_void_results"] = True
         if options.t24_exclude_local_routines:
             scan_settings["t24_exclude_local_routines"] = True
         if options.t24_exclude_test_framework:

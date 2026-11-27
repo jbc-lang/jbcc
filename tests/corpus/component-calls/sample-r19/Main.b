@@ -60,3 +60,7 @@ Shop.Prices.Archive.Write("item", Record)
 Shop.Shared.setOnlyHere("label")
 * An upper-case routine name is not a table operation, as R19 CALL EB.CONVERSION.LOG.WRITE
 CALL SHOP.PRICES.LOG.WRITE("item", "error", "routine", "")
+* A published interface, as in R19 EB.EnquiryHook.setIds(methodName, filterCriteria)
+Ids = Shop.Prices.pickIds("PICK.IDS", "all")
+* A method without a body, as in R19 TF.L3Helper.getInstance(className)
+Helper = Shop.Prices.lookupClass("com.example.Prices")

@@ -2576,6 +2576,106 @@ Linking its external dependencies and verifying its behavior require separate
 tests. UTF-8 decoding failures are counted separately and identify the
 source or include that could not be decoded.
 
+### T24 corpus flags
+
+The T24 extracts are real vendor code, not test material. Each release
+carries its own weirdness: typos that a later compiler tolerated, files
+left out of the dump, generated code that the dump does not define,
+conversion slips and inconsistent component exports. The checker's T24
+flags let the scans use as much of these sources as possible for testing
+jbcc, without letting jbcc itself accept anything the language does not
+allow. They follow three rules:
+
+- They affect only `tools/check_corpus.py`. The compiler, the playground
+  and native builds never apply them.
+- They never edit the extract. Fixes and generated files live in memory
+  or in a separate directory.
+- Every use is reported in the JSON report (`source_fixes`,
+  `include_stubs`, `include_lookups`, `warnings`, the `excluded` status
+  and its `reason`), so a scan shows exactly what it relied on.
+
+Source handling:
+
+- `--source-encoding bytes` reads each source byte for byte, as Latin-1,
+  instead of decoding UTF-8. T24 sources contain bytes from older code
+  pages, and literals must keep them unchanged. All T24 scans use it.
+- `--defer-unassigned-reads` turns a read that jbcc cannot prove is
+  assigned into a runtime check and a `warnings` entry, instead of a
+  translation error. T24 relies on variables assigned through COMMON or
+  in other routines, which a single-unit scan cannot see.
+- `--quiet-next-warnings` replaces the many `NEXT` name mismatch warnings
+  (`FOR I ... NEXT J`) with one total on stderr.
+- `--t24-source-fixes` applies a short list of known corrections in memory
+  and reports each as `source_fixes` with the original file, line, column
+  and text. Each fix is a pattern bound to one file, and the files on
+  disk are not changed:
+  - R10 (corpus root), R13 (`T24.BP/`), R07 (`GLOBUS.BP/`) and R19
+    (`SE/SE_TestRetail`): `STEST.AZ.PD.DATES.CHK` reads
+    `<.AZ.SLS.TYPE.I,POS>` with a stray leading dot.
+  - R10: `TK.VALIDATE.SYSGEN.FILES` names a variable `1ST.RECORD`, which
+    cannot start with a digit, and `LIST.DATA` writes `FM` for `@FM`.
+  - R07: `COMPARE.DB.JBASE` includes `/usr/jbc/include/JBC.h` by an
+    absolute path; `MG.EOD.REDEFINE.CONTRACT.RATES` passes an extra
+    argument to a matrix element; `TU.LIB.STD.CDF` and `TU.LIB.STD.INV`
+    write decimal coefficients in exponent form.
+  - R19, fixes named by path from the root: two AA `DAS` inserts end an
+    `EQU` with a comma and repeat `EQU` on the next line.
+- `--stub-r07-la-parameter` supplies a translation-only
+  `I_F.LA.PARAMETER` (`tools/corpus_stubs/r07/`) for the R07 units that
+  include it, because the R07 dump lacks it. Each use is reported in
+  `include_stubs`.
+
+Selection and exclusion:
+
+- `--t24-catalog SQLITE` uses the `t24-extract` catalog to classify files
+  (production source, include, `.tut` test, data record, component) and
+  scans only production sources.
+- `--source-prefix PATH` scans only catalogued sources under `PATH`
+  (whole path segments, repeatable).
+- `--t24-exclude-local-routines` reports routines that are not Temenos
+  code as `excluded` with a reason. R13 keeps one Raiffeisen Bank Polska
+  routine, `T24.BP/V.PL.B2LIM.NET`, whose includes are absent.
+- `--t24-exclude-test-framework` reports R19's test framework components,
+  `SE/SE_Test*` (the SEAT harness and its tests, 1,321 units), as
+  `excluded`, because they are out of scope for production translation.
+
+R19 components and generated code:
+
+- `--t24-indexed-includes` resolves `$INSERT` through the catalog: the
+  including file's directory, its component, the include paths and then
+  a release-wide index. R19 keeps inserts in module trees, not on one
+  path. Each lookup is reported with the rule that resolved it.
+- `--t24-domain-inserts DIR` generates the `I_<Service>_<Class>` inserts
+  that T24 generates from `.domain` models and the dump leaves out, from
+  the catalogued classes, into `DIR`. Each generated lookup is reported
+  with its `.domain` file.
+- `--t24-component-calls` checks `Component.member(...)` calls against
+  the catalogued `.component` declarations: visibility, argument count
+  and scalar or matrix positions. The dump does not define the code T24
+  generates from these declarations, so the checker applies these rules,
+  each taken from how all R19 sources use the form:
+  - table operations (`Read`, `ReadU`, `Write`, `Delete` and the others)
+    and `table<Name>(id, error)` reads;
+  - `get`, `set` and `clear` accessors, with the matrix rank from the
+    binding (`->MAT.LEG(2)`);
+  - hook `interface` members, called with the implementing method's name
+    first, and `published` members, which are public;
+  - methods without a body, which Java implements;
+  - duplicate definitions of one component are partial exports: a member
+    declared in any of them counts, unless they declare it differently;
+  - a standard operation on a table that a catalogued component does not
+    declare is accepted, with a `warnings` entry naming the table;
+  - a scalar passed for a matrix parameter is a placeholder: the call gets
+    an empty matrix, as R19 `EbReadParameter` callers expect.
+- `--t24-stub-void-results`, for testing only, lets a method declared
+  without a result be used as a value. The call is made and the value is
+  `0`, with a `warnings` entry. R19 has about 25 such uses, as in
+  `AF = EB.SystemTables.setAf(X)`, where the method is otherwise always a
+  statement; they look like conversion slips.
+
+The checker never uses jbcc's built-in `JBC.h`: scans see only the
+headers given with `-I`, such as PB201214's.
+
 ### R07 corpus
 
 The earlier R07.003 corpus is in `../t24-extract/200707-R07`. Its

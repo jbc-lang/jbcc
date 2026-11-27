@@ -1028,6 +1028,34 @@ def test_corpus_checks_qualified_component_signatures(compiler):
         assert report['files'][name]['diagnostic'] == f'{name}:{diagnostic}'
 
 
+def test_corpus_can_stub_void_results_for_testing(compiler):
+    fixture = ROOT / 'tests/corpus/component-calls'
+    catalog = compiler.work / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript((fixture / 'catalog.sql').read_text())
+    command = [
+        sys.executable,
+        ROOT / 'tools/check_corpus.py',
+        fixture / 'sample-r19',
+        '--t24-catalog',
+        catalog,
+        '--t24-component-calls',
+        '--t24-stub-void-results',
+    ]
+    report = json.loads(subprocess.check_output(command, text=True))
+    assert report['files']['VoidExpression.b'] == {
+        'status': 'translated',
+        'package_directives': report['files']['VoidExpression.b'][
+            'package_directives'
+        ],
+        'warnings': [
+            "VoidExpression.b:2:5: warning: component method "
+            "'Shop.Prices.setCurrent' has no return value; using 0 for testing"
+        ],
+    }
+    assert report['files']['WrongArity.b']['status'] == 'rejected'
+
+
 def test_corpus_report_can_preserve_source_bytes():
     corpus = ROOT / 'tests/corpus/legacy-include-bytes'
     command = [sys.executable, ROOT / 'tools/check_corpus.py', corpus]
