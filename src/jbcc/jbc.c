@@ -587,6 +587,20 @@ const char *jbc_chdir(const char *path)
 {
     return *path && chdir(path) == 0 ? "1" : "0";
 }
+
+const char *jbc_getcwd(jbc_variable *target)
+{
+    size_t size = 256;
+    for (;;) {
+        char *buffer = allocate(size);
+        if (getcwd(buffer, size)) {
+            assign_value(target, buffer);
+            return "1";
+        }
+        if (errno != ERANGE || size > SIZE_MAX / 2) return "0";
+        size *= 2;
+    }
+}
 #endif
 
 /* Live matrix and COMMON slots can hold values allocated inside a loop. */
@@ -3367,6 +3381,32 @@ const char *jbc_nums(const char *source)
     return out;
 }
 
+/* Apply a scalar function to each element, keeping the original marks. */
+static const char *map_elements(const char *source, const char *(*each)(const char *))
+{
+    char *items = split_array_items(source, NULL);
+    const char *out = "";
+    for (const char *item = items;;) {
+        const char *end = item + strlen(item);
+        char mark[2] = {source[end - items], '\0'};
+        out = jbc_concat(out, jbc_concat(each(item), mark));
+        if (!*mark) break;
+        item = end + 1;
+    }
+    free(items);
+    return out;
+}
+
+const char *jbc_nots(const char *source)
+{
+    return map_elements(source, jbc_not);
+}
+
+const char *jbc_lens(const char *source)
+{
+    return map_elements(source, jbc_len);
+}
+
 const char *jbc_counts(const char *source, const char *needle)
 {
     size_t length = strlen(source), marks = 0;
@@ -4802,6 +4842,19 @@ const char *jbc_right(const char *text, const char *length, const char *file, in
 }
 
 #ifdef JBC_MATH
+/* The reference compiles FSUB to its floating-point routine, unlike "-".
+   The guide's example, 2.54 - 5.703358 at PRECISION 7, prints -3.163358,
+   so the double result is rounded to the precision. */
+const char *jbc_fsub(const char *left, const char *right, const char *file, int line, int column)
+{
+    struct decimal n;
+    if (!parse_decimal(left, &n) || !parse_decimal(right, &n) || !*left || !*right)
+        numeric_error(file, line, column, "FSUB requires numeric operands");
+    long double value = (long double)strtod(left, NULL) - (long double)strtod(right, NULL);
+    if (!isfinite(value)) numeric_error(file, line, column, "FSUB result out of range");
+    return format_decimal(value, ROUND_RESULT);
+}
+
 const char *jbc_ln(const char *text, const char *file, int line, int column)
 {
     struct decimal n;

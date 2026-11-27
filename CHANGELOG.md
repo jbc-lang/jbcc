@@ -4,6 +4,8 @@
 
 ### Added
 
+- `NOTS`, `LENS`, `FSUB` and `GETCWD`.
+- The R19 corpus checker reads hook `interface` declarations.
 - `ISUPPER`, `ISLOWER` and `ISSPACE`.
 - `MSLEEP` and `CLEARCOMMON`.
 - `MAKETIMESTAMP`, `LOCALDATE`, `LOCALTIME`, `TIMEDIFF` (masks 0 and 1)

@@ -11,4 +11,6 @@ INSERT INTO file_path VALUES
   ('sample-r19', 'PrivateTableAccess.b', 'jbc_source', NULL),
   ('sample-r19', 'WrongTableArity.b', 'jbc_source', NULL),
   ('sample-r19', 'MissingSharedMember.b', 'jbc_source', NULL),
-  ('sample-r19', 'VoidExpression.b', 'jbc_source', NULL);
+  ('sample-r19', 'VoidExpression.b', 'jbc_source', NULL),
+  ('sample-r19', 'InterfaceWithoutMethodName.b', 'jbc_source', NULL),
+  ('sample-r19', 'WrongRank.b', 'jbc_source', NULL);

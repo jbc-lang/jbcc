@@ -384,6 +384,11 @@ return 0. [NUM](https://jbc-lang.org/pages/num.html).
 and subvalue marks. Empty strings are numeric under the same rules.
 [NUMS](https://jbc-lang.org/pages/nums.html).
 
+`NOTS(array)` returns the logical complement of each element and
+`LENS(array)` the byte length of each element, preserving the marks.
+An empty element is false and has length 0.
+[NOTS](https://jbc-lang.org/pages/nots.html), [LENS](https://jbc-lang.org/pages/lens.html).
+
 MOD and REM return the decimal remainder of two numeric expressions.
 The reference compiler emits the same runtime call for both. A
 statement-leading REM still introduces a comment.
@@ -410,6 +415,12 @@ power and overflow produce runtime errors. [PWR](https://jbc-lang.org/pages/pwr.
 precision, as it does for EXP. The guide leaves rounding unspecified.
 Zero, negative values, nonnumeric text and positive values outside the
 host's floating-point range raise a runtime error at the call site.
+
+`FSUB(a, b)` subtracts in floating point and rounds to the active
+`PRECISION`, so at `PRECISION 7` `FSUB(2.54, 5.703358)` prints `-3.163358`,
+as in the guide, while `2.54 - 5.703358` prints `-3.1633579`. The local
+reference compiles `FSUB` to its floating-point routine and `-` to its
+ordinary subtraction. [FSUB](https://jbc-lang.org/pages/fsub.html).
 [LN](https://jbc-lang.org/pages/ln.html).
 
 `EXP(value)` computes the natural exponential with the host's `expl`.
@@ -517,6 +528,10 @@ PERFORM see successful changes. [PUTENV](https://jbc-lang.org/pages/putenv.html)
 returns 0 and leaves it unchanged. An empty path returns 0. Later
 relative paths, including sequential files, resolve from the new
 directory. [CHDIR](https://jbc-lang.org/pages/chdir.html).
+
+`GETCWD(var)` assigns the process working directory to `var` and returns
+1, or returns 0 and leaves `var` unchanged.
+[GETCWD](https://jbc-lang.org/pages/getcwd.html).
 
 `DATA first, second` queues lines for INPUT in FIFO order. Field marks
 split an expression into separate lines, including empty fields.
@@ -2660,13 +2675,23 @@ catalogued `.component` declarations for fully qualified methods,
 property accessors and simple literal constants. It checks visibility
 against the unit's `$PACKAGE` and checks scalar and matrix argument
 positions. It recognizes indexed property access and whole-array
-accessors such as `getDynArrayFromRNew()`. A writable property also
+accessors such as `getDynArrayFromRNew()`. A property bound to a COMMON
+matrix as `->R.NEW()` takes one index; a binding with a number, such as
+`->MAT.LEG(2)`, gives the matrix rank, and its accessors take that many
+indices, as in `FX.Contract.getMatLeg(LEG, FLD.NO)`. In all 116 numbered
+R19 bindings the number is the rank the insert declares, and all 904
+calls pass that many indices. A writable property also
 has `clear<Name>()`, with no arguments, as R19 sources call it on scalar
 and matrix-backed properties. Method declarations can give the result
 type before or after the parameters, add `implements <interface>`, or be
 `external` service methods, which count as public. Parameters can omit
 the direction, use domain types with a multiplicity such as
-`CustomerDomain:Parent [0..1]`, and be separated by newlines. It also recognizes untyped scalar properties. Where the catalog has
+`CustomerDomain:Parent [0..1]` or lists such as `list<string>`, and be
+separated by newlines. Hook components declare `interface` members with no
+body, as in `AA.ActivityHook.checkValidateRoutine`. Every R19 call passes
+the implementing method's name before the declared parameters, so the
+checker expects one more argument than the declaration lists; an
+interface with a result type is a function. It also recognizes untyped scalar properties. Where the catalog has
 multiple definitions for one component, a member must have the same
 parsed declaration in each.
 

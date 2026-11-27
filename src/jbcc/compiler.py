@@ -34,7 +34,7 @@ ASSIGNMENT_PREFIXES = ASSIGNMENTS | STEP_OPERATORS | {'[', '<'}
 EQUATE_OPERATORS = {'TO', 'LIT', 'LITERALLY'}
 C_FUNCTION_TYPES = {'INT', 'FLOAT', 'VAR', 'STRING'}
 XML_TRANSFORMS = {'DYNTOXML', 'XMLTODYN', 'XMLTOXML'}
-EXPRESSION_WRITES = {'GETENV', 'IOCTL', 'REMOVE'} | XML_TRANSFORMS
+EXPRESSION_WRITES = {'GETENV', 'GETCWD', 'IOCTL', 'REMOVE'} | XML_TRANSFORMS
 COMPARISONS = {
     "=": "==",
     "EQ": "==",
@@ -124,6 +124,9 @@ BUILTINS = {
     "LATIN1": (1,),
     "NUM": (1,),
     "NUMS": (1,),
+    "NOTS": (1,),
+    "LENS": (1,),
+    "FSUB": (2,),
     "CHANGE": (3, 4, 5),
     "EREPLACE": (3, 4, 5),
     "SWAP": (3, 4, 5),
@@ -1442,6 +1445,20 @@ class Compiler:
                 for truth in (True, False):
                     self.assignment_facts[value, truth] = {target.word}
             return self.postfix(value, locate_source)
+        elif word == 'GETCWD' and self.following.word == '(':
+            opening = self.current
+            self.host_only(opening)
+            self.uses_chdir = True
+            self.advance()
+            self.advance()
+            target = self.identifier()
+            output = '&' + self.variable_slot(target)
+            self.expect(')')
+            self.record_api_call(opening, 1)
+            value = self.temporary(f'jbc_getcwd({output})')
+            if target.word not in self.matrices:
+                self.assignment_facts[value, True] = {target.word}
+            return self.postfix(value, locate_source)
         elif word == 'IOCTL' and self.following.word == '(':
             return self.postfix(self.ioctl_expression(), locate_source)
         elif word == 'CALLC' and self.following.word == 'JBASESubroutineExist':
@@ -1612,7 +1629,7 @@ class Compiler:
             if word in ('MOD', 'REM'):
                 args.append(c_string(f"{word} requires numeric operands"))
                 word = 'MOD'
-            if word in ("SIN", "COS", "PWR", "SQRT", "EXP", "LN"):
+            if word in ("SIN", "COS", "PWR", "SQRT", "EXP", "LN", "FSUB"):
                 self.uses_math = True
             if word == "CALLONEXIT":
                 self.uses_callonexit = True
@@ -1679,6 +1696,7 @@ class Compiler:
                 "TRIM",
                 "ABS",
                 "ABSS",
+                "FSUB",
                 "NEG",
                 "NEGS",
                 "ADDS",
