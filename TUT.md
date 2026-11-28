@@ -176,54 +176,98 @@ component's insert.
 
 ### 3. A first set: no stubs, no records
 
-- [ ] Choose a fixed set from the 1,253 tests with no stubs, no records, a
-      literal SUBROUTINE or FUNCTION target and a single `runTest`.
-      Prefer short tests whose targets read no clock, files or COMMON.
-      Record the list as corpus paths in the report, not as copies.
-- [ ] Make them pass. Each failure is a jbcc bug, a UTF assumption or a
-      missing service; fix it or record it in a "known" list with the
-      reason.
-- [ ] Record the baseline in this file: passed, failed and why.
+Overtaken by steps 4 to 6: with stubs and records in place, the whole
+corpus runs at once, and the report's states take the place of a fixed
+set.
 
 ### 4. Linking targets
 
 A target calls other routines: T24 library routines, component methods
-and its own helpers. The R19 scan checks each unit on its own, with
-prototypes for what it calls (R19-CORPUS.md); running needs real code.
+and its own helpers.
 
-- [ ] Resolve each CALL in a test build to one of:
-  - a stub;
-  - the real routine, built from the corpus on demand, with its own
-    callees in turn;
-  - a missing-routine failure, unless `ignoreMissingStubs` is set.
-- [ ] Settle how `ignoreMissingStubs` behaves: does it run the real
-      routine, or skip the call? Compare which hypothesis lets more of the
-      tests that use it pass.
+- [x] Following the calls transitively doesn't work: T24's call graph is
+      dense, and 186 of the first 300 tests needed more than 800
+      routines. UTF tests are written for isolation instead: they stub
+      what the target calls, and `ignoreMissingStubs` exists. So a test
+      build links the test, its target and the component property
+      accessors they use; every other routine the program calls gets a
+      generated body that the UTF runtime answers (`link_units(...,
+      stub_missing=True)`).
+- [x] Component property accessors (`EB.SystemTables.setRNew(field,
+      value)`, `getToday()`, `clearE()`, `getDynArrayFromRNew()`) are
+      generated as jBC units from each property's binding in its
+      component, as `jBC: I_COMMON ->R.NEW()`: a get, set or clear of the
+      COMMON variable or matrix element. They include `I_COMMON` and
+      `I_EQUATE` first, as T24 routines do; other inserts size their
+      matrices with `I_COMMON`'s `EQU C$SYSDIM TO 500`.
+- [ ] Settle how `ignoreMissingStubs` behaves. Now an unstubbed call does
+      nothing; the other reading, running the real routine, needs
+      transitive linking for those calls only.
 
 ### 5. Stubs
 
-- [ ] `addStub` and `addStubParam` with `any`, `same` and `matches`,
-      `setRepeatable` and `getNbInvocation`. A call whose arguments match
-      no stub fails the test (inferred). Measure how many stubbed tests
-      pass.
-- [ ] The property, COMMON and cache side effects, and
-      `setStubReturnValue`, for FUNCTION stubs.
+- [x] `addStub(name)` returns a handle. Each `addStubParam(stub,
+      expected, returned)` describes the next parameter: the value the
+      call must pass, or `any()`, `matches(pattern)`, `contains(text)`,
+      `greaterThan(n)` or `lessThan(n)`; and the value the stub returns
+      there, or `same()` (or `any()`) to leave it.
+- [x] A call takes the first stub of its name, in any case, whose
+      expected values match and which isn't used up: a stub answers once
+      unless `setRepeatable`. A call no stub matches fails the test with
+      the call and its arguments, unless `ignoreMissingStubs`.
+- [x] `setStubReturnValue` (a FUNCTION's result), `getNbInvocation` (a
+      handle, or a routine name for every call to it),
+      `addStubCommonChange(stub, VAR, value)` and
+      `addStubPropertyChange(stub, component, property, value)`.
+- [x] A handle that was never created, as `setRepeatable(stub)` after
+      `STUB = addStub(...)`, is ignored.
+- [ ] `addStubPropertyCondition` (332 tests), `addStubWriteDone` (235),
+      `addStubCacheChange`, the `startsWith` matcher, `setDate`.
+- [x] `JBCC_UTF_TRACE=1` prints each stubbed call, its arguments and
+      whether a stub answered it.
 
 ### 6. Records and T24 data access
 
-- [ ] `setRecord` and `getRecord` over jbcc's in-memory files, created on
-      demand for each file the test names.
-- [ ] The T24 data-access routines a target reads records with (`F.READ`,
-      `CACHE.READ`, their R19 component forms and so on), over the same
-      files: stubbed, or built from the corpus where that works.
+- [x] `setRecord(file, key, record)` and `getRecord(file, key)`. A file
+      is named without its company prefix: `F.ACCOUNT` and `FBNK.ACCOUNT`
+      are `ACCOUNT`.
+- [x] A data-access call that no stub answers reads and writes those
+      records: `F.READ`, `F.READU`, `CACHE.READ`, `F.WRITE`, `F.DELETE`,
+      `OPF`, their `EB.DataAccess` forms, and a component table's
+      operations, as `AC.AccountOpening.Account.Read(id, error)`, through
+      the table's `t24:` file. A missing record sets the error variable to
+      `RECORD NOT FOUND` (inferred).
+- [ ] `READ` statements on files the target opens itself, and
+      `EB.DataAccess.Das` selections.
 - [ ] Load the `.d` system records a target needs, such as `F.EB.ERROR`,
-      into in-memory files at startup, on demand.
+      on demand.
 
-### 7. Component-method targets and the rest
+#### Steps 4 to 6 baseline (2026-11-28)
 
-- [ ] The 2,821 component-method targets, with the R19 component call
-      mapping (`--t24-component-calls`).
-- [ ] Tests that run more than once (`reset`, `setRepeatable`).
+All 26,307 tests in 54 min with 8 workers and a 5 s limit:
+
+| State | Tests | Main causes |
+|---|---:|---|
+| passed | 14,865 | 56.5% of all tests |
+| failed | 4,887 | 2,850 at an assertion; 1,876 at a call no stub matches, as `EB.ErrorProcessing.StoreEndError()` (108) and `EB.DataAccess.Das` (71) |
+| timeout | 2,740 | mostly loops whose exit depends on what an unstubbed call returns; one sampled target appends to the list it REMOVEs from, which loops in TAFC too |
+| unsupported | 1,745 | `setEASYQAMode` (757), `addStubPropertyCondition` (332), `addStubWriteDone` (235) |
+| error | 1,565 | `expected a positive integer dimension` (214, inserts using C$SYSDIM without I_COMMON), FOR with text bounds (102), the `Logger` C function (101), WRITE without a file |
+| rejected, target missing, no target, unlinked, crashed | 505 | the step 1 source errors; 10 SIGSEGV |
+
+On the way, the runs found TAFC behaviour that jbcc now follows
+(TAFC-CROSSCHECK.md, section 3): indices that are not positive integers
+(`tests/tafc/array-index-conversion.b`) and `ABS` of text
+(`tests/tafc/abs-non-numeric.b`).
+
+### 7. The rest
+
+- [x] The component-method targets, through the catalog's method table
+      or the test's name (step 2).
+- [x] Tests that run more than once (`reset`, `setRepeatable`).
+- [ ] The unsupported UTF methods, starting with `setEASYQAMode`.
+- [ ] Sort the assertion failures into jbcc bugs and UTF assumptions,
+      with `JBCC_UTF_TRACE` and TAFC probes.
 - [ ] Track the pass rate over all 26,307 tests in this file, in the
       same way R19-CORPUS.md tracks translation.
 
@@ -232,8 +276,8 @@ prototypes for what it calls (R19-CORPUS.md); running needs real code.
 - The exact meaning of `setRepeatable`, `reset`, `setParam` and
   `ignoreMissingStubs`. These are inferred above; settle each one by which
   reading makes more of its tests pass.
-- How a stub's arguments are matched: by position, how many arguments, and
-  in which order, when the same routine is stubbed more than once.
+- Stub matching is inferred too (step 5): by position, first match wins,
+  used up unless repeatable.
 - Whether UTF runs each test in a fresh session, with COMMON, the cache and
   files reset, or shares one session across a test's runs.
 - The T24 environment a target expects: COMMON variables such as `TODAY`,

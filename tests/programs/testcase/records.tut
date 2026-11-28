@@ -1,0 +1,16 @@
+TESTCASE SAMPLE.LOAD_1
+* setRecord seeds a record, the target reads and writes through F.READ,
+* CACHE.READ, F.WRITE and a component table, and getRecord reads back.
+    UTF.setTarget("SAMPLE.LOAD")
+    UTF.setRecord("F.SAMPLE", "7", "ADA" : @FM : "LOVELACE")
+    UTF.addParam("7")
+    UTF.addParam(NAME)
+    UTF.addParam(ERR)
+    UTF.addParam(COPY)
+    UTF.runTest()
+    UTF.assertEquals(NAME, "ADA/RECORD NOT FOUND")
+    UTF.assertEquals(ERR, "")
+    UTF.assertEquals(UTF.getRecord("F.SAMPLE", "7.COPY"), "ADA" : @FM : "LOVELACE")
+    UTF.assertEquals(COPY<2>, "LOVELACE")
+    UTF.assertEquals(UTF.getNbInvocation("F.READ"), 1)
+END

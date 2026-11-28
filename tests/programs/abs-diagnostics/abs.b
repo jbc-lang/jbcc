@@ -1,1 +1,0 @@
-PRINT ABS('text')

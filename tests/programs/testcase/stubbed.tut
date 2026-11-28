@@ -1,0 +1,36 @@
+TESTCASE SAMPLE.LOOKUP_1
+* Stubs answer the target's calls: expected arguments, returned values, a
+* FUNCTION's result, a COMMON change and invocation counts.
+    COMMON /SAMPLE/ LAST.ERROR
+    LAST.ERROR = ''
+    UTF.setTarget("SAMPLE.LOOKUP")
+    FETCH = UTF.addStub("Sample.Fetch")
+    UTF.addStubParam(FETCH, "K1", UTF.same())
+    UTF.addStubParam(FETCH, UTF.any(), "ADA" : @FM : "X")
+    CHECK = UTF.addStub("SAMPLE.CHECK")
+    UTF.addStubParam(CHECK, UTF.any(), UTF.same())
+    UTF.setStubReturnValue(CHECK, "OK")
+    UTF.setRepeatable(CHECK)
+    NAME = ''
+    STATUS = ''
+    UTF.addParam("K1")
+    UTF.addParam(NAME)
+    UTF.addParam(STATUS)
+    UTF.runTest()
+    UTF.assertEquals(NAME, "ADA")
+    UTF.assertEquals(STATUS, "OK")
+    UTF.assertEquals(UTF.getNbInvocation(FETCH), 1)
+* The fetch stub is used up: a second run matches no stub and fails, unless
+* missing stubs are ignored. A COMMON change shows in the target.
+    FAIL = UTF.addStub("SAMPLE.FETCH")
+    UTF.addStubParam(FAIL, "K2", UTF.same())
+    UTF.addStubParam(FAIL, UTF.any(), "")
+    UTF.addStubCommonChange(FAIL, LAST.ERROR, "MISSING")
+    UTF.reset()
+    UTF.addParam("K2")
+    UTF.addParam(NAME)
+    UTF.addParam(STATUS)
+    UTF.runTest()
+    UTF.assertEquals(STATUS, "ERROR MISSING")
+    UTF.assertEquals(UTF.getNbInvocation(CHECK), 2)
+END

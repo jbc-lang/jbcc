@@ -1574,7 +1574,7 @@ class Compiler:
         elif self.uses_matrix(word, self.following.word):
             target = self.current
             self.advance()
-            slot = self.matrix_slot(target)
+            slot = self.matrix_slot(target, reading=True)
             return self.variable_expression(target, slot, locate_source)
         elif word in self.functions and self.following.word == '(':
             return self.postfix(self.function_call(), locate_source)
@@ -1638,7 +1638,7 @@ class Compiler:
             self.expect('(')
             target = self.identifier()
             if target.word in self.matrices:
-                handle = self.checked_read(self.matrix_slot(target), target)
+                handle = self.checked_read(self.matrix_slot(target, reading=True), target)
             else:
                 handle = self.read_variable(target)
             index = 'NULL'
@@ -2760,7 +2760,7 @@ class Compiler:
             return "jbc_default_file.value"
         target = self.identifier()
         if target.word in self.matrices:
-            return self.checked_read(self.matrix_slot(target), target)
+            return self.checked_read(self.matrix_slot(target, reading=True), target)
         return self.read_variable(target)
 
     def file_lock_statement(self):
@@ -3121,7 +3121,7 @@ class Compiler:
         elif op == 'WEOFSEQ':
             target = self.identifier()
             if target.word in self.matrices:
-                handle = self.checked_read(self.matrix_slot(target), target)
+                handle = self.checked_read(self.matrix_slot(target, reading=True), target)
             else:
                 handle = self.read_variable(target)
             call = f'jbc_weofseq({handle})'
@@ -4377,7 +4377,7 @@ class Compiler:
                 self.error("expected a variable after CALL @")
             self.advance()
             if self.uses_matrix(target.word, self.word):
-                value = self.checked_read(self.matrix_slot(target), target)
+                value = self.checked_read(self.matrix_slot(target, reading=True), target)
             else:
                 value = self.read_variable(target)
             name = self.temporary(value)
@@ -4762,7 +4762,9 @@ class Compiler:
                 f"jbc_matrix_fill({dest.base}, {dest.count}, {self.expression()});"
             )
 
-    def matrix_slot(self, token):
+    def matrix_slot(self, token, reading=False):
+        """The element a subscripted matrix names. A read takes a negative
+        subscript as 1, as TAFC PB201214 does; an assignment stops."""
         matrix = self.checked_matrix(token)
         rank = matrix.rank
         self.expect('(')
@@ -4781,7 +4783,7 @@ class Compiler:
         index = f"index_{self.temporaries}"
         self.temporaries += 1
         self.emit(
-            f"size_t {index} = jbc_matrix_index({rank}, {matrix.limits}, {len(subscripts)}, "
+            f"size_t {index} = jbc_matrix_{'read_' if reading else ''}index({rank}, {matrix.limits}, {len(subscripts)}, "
             f"(const char *[]){{{', '.join(subscripts)}}}, {self.location(token)});"
         )
         return f"({matrix.base})[{index}]"
@@ -6143,14 +6145,25 @@ def render_indirect_calls(units):
     return "\n".join(lines)
 
 
-def render_utf_targets(units, aliases=None):
+def render_utf_targets(units, aliases=None, tables=None):
     """jbc_utf_call_target for UTF.runTest: each SUBROUTINE or FUNCTION of
     the program by name, with the test's parameters as its arguments.
     aliases maps other target names, such as an R19 component method
-    (AA.Account.AccountMaintain), to the routine that implements it."""
+    (AA.Account.AccountMaintain), to the routine that implements it.
+    tables maps R19 component tables, as component calls name them, to
+    their T24 files, for the UTF records (jbc_utf_table_file)."""
     if not any(unit.uses_utf for unit in units):
         return ""
     lines = [
+        "static const char *jbc_utf_table_file(const char *table)",
+        "{",
+        "    (void)table;",
+        *(
+            f"    if (!strcmp(table, {c_string(name)})) return {c_string(file)};"
+            for name, file in sorted((tables or {}).items())
+        ),
+        "    return NULL;",
+        "}",
         "static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,",
         "                               const char **result)",
         "{",
@@ -6341,11 +6354,15 @@ def compile_program(
     link_packages=False,
     unit_options=None,
     utf_aliases=None,
+    stub_missing=False,
+    utf_tables=None,
 ):
     """link_packages links units with T24 $PACKAGE directives by their
     global routine names, as tools/run_tuts.py does; unit_options are
     further compile_unit options, such as the R19 component settings;
-    utf_aliases are other names UTF.setTarget may give a routine."""
+    utf_aliases are other names UTF.setTarget may give a routine, and
+    stub_missing stubs the routines no unit defines and utf_tables names
+    component tables' files (link_units)."""
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -6386,6 +6403,51 @@ def compile_program(
             routines[name] = unit
         else:
             programs.append(unit)
+    return link_units(
+        units,
+        memory_files,
+        memory_dicts,
+        memory_locks,
+        utf_aliases=utf_aliases,
+        builtin_used=builtin_used,
+        stub_missing=stub_missing,
+        utf_tables=utf_tables,
+    )
+
+
+def link_units(
+    units,
+    memory_files=(),
+    memory_dicts=(),
+    memory_locks=(),
+    *,
+    utf_aliases=None,
+    builtin_used=(),
+    stub_missing=False,
+    utf_tables=None,
+):
+    """Check the linkage of compiled units, one main program and its
+    routines, and return the program's C source and libraries. utf_tables
+    are render_utf_targets' tables. Each unit
+    needs a distinct index (compile_unit's index). With stub_missing, a
+    routine no unit defines gets a body that answers from the UTF stubs
+    of a unit test (TUT.md)."""
+    routines = {}
+    programs = []
+    for unit in units:
+        if unit.routine:
+            routines[unit.routine.word] = unit
+        else:
+            programs.append(unit)
+    stubs = {}
+    if stub_missing:
+        for unit in units:
+            for target, kinds, is_function in unit.calls:
+                if target.word not in routines:
+                    stubs.setdefault(
+                        target.word,
+                        (tuple(bool(kind) for kind in kinds), is_function),
+                    )
     if len(programs) != 1:
         raise Diagnostic("expected one main program among the input files")
     programs[0].needs_arguments = any(unit.needs_arguments for unit in units)
@@ -6408,6 +6470,13 @@ def compile_program(
                     x if x is not None else y for x, y in zip(known[i], shape)
                 )
         for target, kinds, is_function in unit.calls:
+            if target.word in stubs:
+                formals, stub_is_function = stubs[target.word]
+                if stub_is_function != is_function:
+                    unit.error(f"calls to '{target.word}' disagree on a result", target)
+                if not compatible_call_kinds(kinds, formals):
+                    unit.error(f"calls to '{target.word}' disagree on their arguments", target)
+                continue
             if (
                 target.word not in routines
                 or routines[target.word].is_function != is_function
@@ -6424,16 +6493,26 @@ def compile_program(
                 )
     runtime = read_runtime()
     prototypes = [u.signature() + ";" for u in routines.values()]
+    prototypes += [
+        routine_signature(routine_symbol(name), kinds, is_function) + ";"
+        for name, (kinds, is_function) in stubs.items()
+    ]
     prototypes.append(render_indirect_calls(units))
-    prototypes.append(render_utf_targets(units, utf_aliases))
+    prototypes.append(render_utf_targets(units, utf_aliases, utf_tables))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
     prototypes.append(
         render_empty_arguments(
             units,
             {
-                routine_symbol(name): tuple(u.formals.values())
-                for name, u in routines.items()
+                **{
+                    routine_symbol(name): tuple(u.formals.values())
+                    for name, u in routines.items()
+                },
+                **{
+                    routine_symbol(name): kinds
+                    for name, (kinds, _) in stubs.items()
+                },
             },
         )
     )
@@ -6447,9 +6526,27 @@ def compile_program(
         [features, runtime]
         + prototypes
         + [u.render(memory_files, memory_dicts, memory_locks) for u in units]
+        + [render_utf_stub(name, *stub) for name, stub in stubs.items()]
     )
     libraries = ['-lm'] if any(unit.uses_math for unit in units) else []
     return source, libraries
+
+
+def render_utf_stub(name, kinds, is_function):
+    """The body of a routine a unit test's program calls but doesn't
+    define: the UTF runtime answers from the test's stubs."""
+    args = ", ".join(
+        f"{{NULL, arg{i}, 0}}" if matrix else f"{{arg{i}, {{0}}, 0}}"
+        for i, matrix in enumerate(kinds)
+    )
+    vector = "args" if kinds else "NULL"
+    lines = [routine_signature(routine_symbol(name), kinds, is_function), "{"]
+    if kinds:
+        lines.append(f"    jbc_utf_argument args[] = {{{args}}};")
+    call = f"jbc_utf_stub({c_string(name)}, {len(kinds)}, {vector})"
+    lines.append(f"    *result = {call};" if is_function else f"    (void){call};")
+    lines += ["}", ""]
+    return "\n".join(lines)
 
 
 def runtime_features(units):

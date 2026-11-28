@@ -1010,13 +1010,9 @@ def test_negs_warns_for_nonnumeric_elements(compiler):
 
 
 def test_abs_diagnostics(compiler):
-    source = ROOT / 'tests/programs/abs-diagnostics/abs.b'
-    run = compiler.run_native(source)
-    assert run.returncode != 0
-    assert (
-        expected_text('abs-diagnostics.stderr', source=source).encode()
-        in run.stderr
-    )
+    """ABS of text that is not a number returns it unchanged, as TAFC
+    PB201214 does (tests/tafc/abs-non-numeric.b); a wrong argument count
+    is a compile error."""
     source = ROOT / 'tests/programs/abs-diagnostics/abs-variant-2.b'
     run = subprocess.run(
         [CLI, source, '-o', compiler.c], capture_output=True, text=True
