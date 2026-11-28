@@ -1,0 +1,8 @@
+start empty [HEL]
+len empty []
+both empty []
+one empty []
+start zero [HEL]
+ins empty [new^a^b]
+ins value empty [a^new^b]
+insert fn [fn^a^b]

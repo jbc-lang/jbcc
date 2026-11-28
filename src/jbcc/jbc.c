@@ -1219,6 +1219,26 @@ int jbc_dimension(const char *text, const char *file, int line, int column)
     return (int)bound;
 }
 
+/* A local matrix with new bounds: the first elements keep their values,
+   and the rest start unassigned. */
+static struct jbc_slots *resize_storage(struct jbc_slots *s, int rank, const int *bounds,
+                                        size_t count)
+{
+    struct jbc_slots **link = &storages;
+    while (*link != s) link = &(*link)->next;
+    struct jbc_slots *grown = storage(count, NULL);
+    storages = grown->next;
+    grown->next = s->next;
+    *link = grown;
+    size_t kept = count < s->count ? count : s->count;
+    memcpy(grown->values, s->values, kept * sizeof *s->values);
+    grown->bounds = s->bounds;
+    memcpy(grown->bounds, bounds, (size_t)rank * sizeof *bounds);
+    grown->rank = rank;
+    free(s);
+    return grown;
+}
+
 struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key,
                                      int rank, const int *bounds, const char *mismatch,
                                      const char *file, int line, int column)
@@ -1237,10 +1257,17 @@ struct jbc_slots *jbc_matrix_storage(struct jbc_slots *previous, const char *key
         if (!s->bounds) fail("out of memory");
         memcpy(s->bounds, bounds, bytes);
         s->rank = rank;
-    } else if (s->rank != rank || memcmp(s->bounds, bounds, bytes)) {
+    } else if (s->rank != rank) {
         if (!mismatch) mismatch = key ? "incompatible COMMON matrix dimensions"
                                       : "incompatible local matrix dimensions";
         numeric_error(file, line, column, mismatch);
+    } else if (memcmp(s->bounds, bounds, bytes)) {
+        /* TAFC PB201214 (tests/tafc/dim-again.b, common-dims.b): a COMMON
+           matrix keeps the dimensions it was first given, and a local
+           matrix's DIM, run again, resizes it and keeps the elements in
+           their linear order. */
+        if (key) return s;
+        return resize_storage(s, rank, bounds, count);
     }
     return s;
 }
@@ -1252,9 +1279,9 @@ void jbc_dimension_mat_parameter(jbc_matrix *matrix, struct jbc_slots **owned,
         struct jbc_slots *s = jbc_matrix_storage(NULL, NULL, rank, bounds, NULL, file, line, column);
         *owned = s;
         *matrix = (jbc_matrix){s->values, s->bounds, s->rank, s->count};
-    } else if (matrix->rank != rank || memcmp(matrix->bounds, bounds, (size_t)rank * sizeof *bounds)) {
-        numeric_error(file, line, column, "incompatible MAT parameter dimensions");
     }
+    /* Otherwise the caller's matrix keeps its dimensions, as in TAFC
+       PB201214 (tests/tafc/mat-param-dim.b). */
 }
 
 void jbc_release(jbc_variable *slots)
@@ -4764,13 +4791,13 @@ const char *jbc_dcount(const char *s, const char *separator)
     return size_value(1 + count_matches(s, separator));
 }
 
-/* A FIELD position or count below 1 means 1 (TAFC, tests/tafc/field-edges.b). */
+/* A FIELD position or count below 1 means 1 (TAFC, tests/tafc/field-edges.b);
+   a fraction truncates and text that is not a number is 0, so 1
+   (tests/tafc/field-positions.b). */
 static int64_t field_index(const char *s, const char *file, int line, int column)
 {
-    struct decimal n;
-    if (!parse_decimal(s, &n) || n.places)
-        numeric_error(file, line, column, "FIELD requires integer positions and counts");
-    int64_t value = n.sign <= 0 ? 1 : integer(s, file, line, column);
+    (void)file, (void)line, (void)column;
+    int64_t value = index_value(s);
     return value < 1 ? 1 : value;
 }
 
@@ -6394,9 +6421,13 @@ const char *jbc_seq(const char *value)
     return size_value((unsigned char)*value);
 }
 
+/* An integer from a number, truncated. '' is 0, as TAFC PB201214 takes an
+   empty substring start or length and an empty INS position
+   (tests/tafc/empty-positions.b). */
 static int64_t truncated(const char *value, const char *file, int line, int column)
 {
     struct decimal n;
+    if (!*value) return 0;
     if (!parse_decimal(value, &n)) numeric_error(file, line, column, "expected a numeric value");
     if (!n.digits) return 0;
     return integer(value, file, line, column);
@@ -6480,6 +6511,18 @@ const char *jbc_index(const char *text, const char *needle, const char *occurren
 
 const char *jbc_int(const char *value, const char *file, int line, int column)
 {
+    struct decimal d;
+    if (!*value) return "0";
+    if (!parse_decimal(value, &d)) {
+        /* TAFC PB201214 (tests/tafc/int-text.b): INT of text that is not a
+           number keeps its leading sign and digits, so INT('12abc') is 12
+           and INT('abc') is ''; INT('') is 0. */
+        size_t n = *value == '+' || *value == '-';
+        while (value[n] >= '0' && value[n] <= '9') ++n;
+        char *out = allocate(n);
+        memcpy(out, value, n);
+        return finish_bytes(out, n);
+    }
     int64_t n = truncated(value, file, line, column);
     char *out = allocate(20);
     snprintf(out, 21, "%" PRId64, n);

@@ -57,6 +57,10 @@ def test_probe_matches_tafc(compiler, probe):
         )
     source = compiler.work / probe.name
     source.write_bytes(main)
+    subroutines = []
+    for name, sub_source in crosscheck.subroutines_of(data):
+        subroutines.append(compiler.work / (name + '.b'))
+        subroutines[-1].write_bytes(sub_source)
     binary = compiler.work / 'probe'
     subprocess.run(
         [
@@ -66,6 +70,7 @@ def test_probe_matches_tafc(compiler, probe):
             *extra,
             '--exe',
             source,
+            *subroutines,
             '-o',
             binary,
         ],

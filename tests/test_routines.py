@@ -517,11 +517,12 @@ def test_matrix_parameter_diagnostics(compiler):
             in result.stderr
         )
     main = ROOT / 'tests/routines/matrix-parameter-diagnostics/main-variant-2.b'
+    # DIM of a MAT parameter keeps the caller's matrix, as in TAFC
+    # (tests/tafc/mat-param-dim.b).
+    sub = ROOT / 'tests/routines/matrix-parameter-diagnostics/sub-variant-2_1.b'
+    run = compiler.run_native(main, sub)
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'', b'')
     for fixture_name, message in (
-        (
-            'sub-variant-2_1.b',
-            expected_text('matrix-parameter-diagnostics_3.stderr'),
-        ),
         (
             'sub-variant-2_2.b',
             expected_text('matrix-parameter-diagnostics_4.stderr'),
@@ -778,12 +779,7 @@ def test_common_scalar_dimensioned_in_routines(compiler):
         b'',
     )
 
+    # Another DIM keeps the COMMON matrix's first dimensions, as in TAFC.
     resize = fixture / 'resize.linked.b'
     run = compiler.run_native(fixture / 'resize.b', fill, resize)
-    assert (run.returncode, run.stdout, run.stderr) == (
-        1,
-        b'',
-        expected_text(
-            'common-scalar-dimensioned-in-routines.stderr', source=resize
-        ).encode(),
-    )
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'', b'')

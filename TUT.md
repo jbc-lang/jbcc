@@ -353,6 +353,24 @@ the target wrote survived `reset`, fixed above) and
 `LC.PROCESS.CHARGES_9`, which now reads the account records it sets and
 calls the exchange-rate stub on another branch (open).
 
+#### TAFC rules baseline (2026-11-28)
+
+With `reset` clearing the records and the DIM, INT, FIELD and empty
+position rules above, all 26,307 tests in 55 min:
+
+| State | Tests | Change from the records baseline |
+|---|---:|---|
+| passed | 18,466 | 70.2%; 268 more, 2 fewer |
+| failed | 3,335 | |
+| timeout | 2,851 | |
+| error | 1,008 | 193 fewer |
+| unsupported | 144 | |
+| rejected and the rest | 503 | |
+
+The 2 that stopped passing read in a later run a record set before an
+earlier `reset` (step 6): `RC.GET.BLOCK.CHARS_01` and
+`GST.RETRIEVE.ENTITLEMENT.DETAILS_1`.
+
 ### 7. The rest
 
 - [x] The component-method targets, through the catalog's method table
@@ -367,7 +385,10 @@ calls the exchange-rate stub on another branch (open).
   - jbcc errors on values T24 code passes before its environment is set,
     now following TAFC (TAFC-CROSSCHECK.md, section 3): a DIM of 0 or
     `''` (`DIM LOCALI(V)`) gives 10 elements, and FOR takes an empty bound
-    as 0;
+    as 0; a DIM run again resizes a local matrix and keeps a COMMON or
+    MAT parameter's dimensions; INT of text keeps its leading digits; a
+    FIELD position below 1 means 1; and an empty substring start, length
+    or INS position is 0 (see the TAFC rules baseline below);
   - TAFJ arithmetic: `FRA.VALUATION_0` expects `-5792.70`, where TAFC
     PB201214 and jbcc give `-5792.69` from the same inputs at PRECISION 4.
     Tests written against TAFJ's Java decimals can fail under TAFC's
