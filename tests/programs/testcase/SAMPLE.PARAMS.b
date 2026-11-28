@@ -1,0 +1,8 @@
+    SUBROUTINE SAMPLE.PARAMS(RESULT)
+* Passes a matrix to a routine, as T24 code passes one to EB.READ.PARAMETER.
+    DIM PARAMS(3)
+    MAT PARAMS = ''
+    CALL SAMPLE.READ.PARAMS("F.PARAMS", MAT PARAMS)
+    RESULT = PARAMS(1) : "/" : PARAMS(2)
+    RETURN
+END

@@ -1341,6 +1341,13 @@ def test_utf_stubs_c_functions(compiler):
     assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
 
 
+def test_utf_stubs_take_matrix_arguments(compiler):
+    """A stub compares a MAT argument by its elements joined with field
+    marks and fills the matrix from its value."""
+    run = utf_build(compiler, 'matstub.tut', 'SAMPLE.PARAMS.b', stub_missing=True)
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
+
+
 def test_utf_records_answer_data_access(compiler):
     """setRecord seeds records that unstubbed F.READ, CACHE.READ and
     component table reads return; F.WRITE stores one that getRecord reads
@@ -1410,3 +1417,49 @@ def test_long_string_literals_split_for_c99(compiler):
     source.write_text("X = '" + 'ab' * 3000 + "'\nCRT LEN(X), X[5999, 2]\n")
     run = compiler.run_native(source)
     assert (run.returncode, run.stdout) == (0, b'6000\tab\n'), run.stderr
+
+
+def test_component_readers_take_domains_module_methods_and_text_constants(
+    tmp_path, monkeypatch
+):
+    """Domain class fields are their positions, `module method` routines
+    come from the definitions, and a bare constant value is text."""
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    from t24_components import read_component_members, read_component_methods
+
+    root = tmp_path / 'sample-r19'
+    (root / 'Shop').mkdir(parents=True)
+    (root / 'Shop/Shop.Orders.component').write_text(
+        "component Shop.Orders\n"
+        "public constant AllIds(ORD$ALL.IDS) = ALL.IDS\n"
+        "module constant Line.total(Line.total) = 3\n"
+        "module constant Line.count = 4\n"
+        "public method place(IN iRequest OrderDomain:Request [0..1])\n"
+        "{\n    jBC: ORDER.PLACE\n}\n"
+        "module method check (\n    INOUT iOrder string\n)\n \n{\n"
+        "          jBC: OrdersService.check\n}\n"
+        "public method hook(IN iOrder string)\n{\n    jBC: variable\n}\n"
+    )
+    (root / 'Shop/OrderDomain.domain').write_text(
+        "Domain OrderDomain\nClasses {\n"
+        "    Request\n    {\n        customer : mml:string\n\n"
+        "        currency : mml:string\n"
+        "        lines -> byValue OrderDomain:Line *\n    }\n}\n"
+    )
+    catalog = tmp_path / 'catalog.sqlite'
+    with sqlite3.connect(catalog) as db:
+        db.executescript(
+            "CREATE TABLE file_path (extract TEXT, rel TEXT, kind TEXT, component_name TEXT);"
+            "INSERT INTO file_path VALUES"
+            " ('sample-r19', 'Shop/Shop.Orders.component', 'component', 'Shop.Orders'),"
+            " ('sample-r19', 'Shop/OrderDomain.domain', 'domain', NULL);"
+        )
+    members = read_component_members(catalog, root)
+    assert members['shop.orders.allids'] == ('public', 'constant', 'ALL.IDS', 'shop.orders')
+    assert members['shop.orders.line.total'] == ('module', 'constant', '3', 'shop.orders')
+    assert members['shop.orders.line.count'] == ('module', 'constant', '4', 'shop.orders')
+    assert [members[f'shop.orders.request.{field}'][2] for field in ('customer', 'currency', 'lines')] == ['1', '2', '3']
+    assert read_component_methods(catalog, root) == {
+        'Shop.Orders.place': 'ORDER.PLACE',
+        'Shop.Orders.check': 'OrdersService.check',
+    }

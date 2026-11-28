@@ -2150,6 +2150,9 @@ const char *jbc_remove(jbc_variable *out, jbc_variable *source, jbc_variable *se
         if (mark) code = size_value(256u - mark);
         if (out) assign_value(out, part);
         result = part;
+    } else if (out) {
+        /* Past the end, REMOVE gives '' (TAFC, tests/tafc/remove-end.b). */
+        assign_value(out, "");
     }
     assign_value(setting, code);
     return result;
@@ -9060,6 +9063,27 @@ static const char *utf_value(const jbc_utf_argument *argument)
     return argument->scalar->value ? argument->scalar->value : "";
 }
 
+/* What a stub sees of the target's argument: a MAT argument reads as its
+   elements joined with field marks, unassigned ones as '' and without
+   trailing empties, so a stub expecting '' matches an empty matrix
+   (inferred: tests give '' for EB.READ.PARAMETER's MAT parameter). A
+   matrix the test passes to a UTF method still reads as ''. */
+static const char *utf_actual(const jbc_utf_argument *argument)
+{
+    if (argument->scalar) return utf_value(argument);
+    const jbc_matrix *m = &argument->matrix;
+    if (!m->values || !m->rank) return "";
+    const char *joined = "";
+    size_t kept = 0;
+    for (size_t i = 1; i < m->count; ++i)
+        if (m->values[i].value && *m->values[i].value) kept = i;
+    for (size_t i = 1; i <= kept; ++i) {
+        const char *element = m->values[i].value ? m->values[i].value : "";
+        joined = i == 1 ? element : jbc_concat(jbc_concat(joined, "\376"), element);
+    }
+    return joined;
+}
+
 /* Values of by_value parameters stay alive while UTF holds them. */
 static int utf_holds(const char *value)
 {
@@ -9221,8 +9245,7 @@ static int utf_stub_matches(const struct utf_stub *stub, int count, const jbc_ut
     for (int i = 0; i < stub->count && i < count; ++i) {
         const char *expected = stub->expected[i];
         if (!strcmp(expected, utf_any)) continue;
-        if (!args[i].scalar) return 0;
-        const char *actual = utf_value(&args[i]);
+        const char *actual = utf_actual(&args[i]);
         if (utf_marked(expected, utf_matches)) {
             if (!jbc_truth(jbc_matches(actual, expected + strlen(utf_matches)))) return 0;
         } else if (utf_marked(expected, utf_contains)) {
@@ -9247,6 +9270,29 @@ static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argume
 
 static void utf_write(const char *file, const char *key, const char *value);
 
+/* A matrix-backed property, such as EB.SystemTables RNew, is changed or
+   read whole through its setDynArrayTo or getDynArrayFrom accessor; a
+   scalar property has only set and get. accessor is "<component>.set<name>"
+   or ".get<name>", casefolded. Returns 1 when an accessor ran. */
+static int utf_property_call(const char *accessor, int count, const jbc_utf_argument *args,
+                             const char **result)
+{
+    const char *dot = strrchr(accessor, '.');
+    if (dot && (!strncmp(dot + 1, "set", 3) || !strncmp(dot + 1, "get", 3))) {
+        const char *whole = dot[1] == 's' ? "setdynarrayto" : "getdynarrayfrom";
+        size_t head = (size_t)(dot + 1 - accessor);
+        char *name = malloc(strlen(accessor) + strlen(whole));
+        if (!name) fail("out of memory");
+        memcpy(name, accessor, head);
+        strcpy(name + head, whole);
+        strcat(name, dot + 4);
+        int ran = jbc_utf_call_target(name, count, args, result) == 1;
+        free(name);
+        if (ran) return 1;
+    }
+    return jbc_utf_call_target(accessor, count, args, result) == 1;
+}
+
 /* addStubPropertyCondition: the stub answers only while each property
    has its value, read with the component's get accessor. */
 static int utf_conditions_hold(const struct utf_stub *stub)
@@ -9256,7 +9302,7 @@ static int utf_conditions_hold(const struct utf_stub *stub)
         const char *value = "";
         if (condition->variable) {
             value = condition->variable->value ? condition->variable->value : "";
-        } else if (jbc_utf_call_target(condition->accessor, 0, NULL, &value) != 1) {
+        } else if (!utf_property_call(condition->accessor, 0, NULL, &value)) {
             return 0;
         }
         if (jbc_compare(value, condition->value, jbc_precision) != 0) return 0;
@@ -9311,7 +9357,7 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
         char shown[1024];
         fprintf(stderr, "UTF trace: %s(", name);
         for (int i = 0; i < count; ++i) {
-            utf_show(shown, sizeof shown, args[i].scalar ? utf_value(&args[i]) : "MAT");
+            utf_show(shown, sizeof shown, utf_actual(&args[i]));
             fprintf(stderr, "%s%s", i ? ", " : "", shown);
         }
         fprintf(stderr, ") -> %s\n", found ? "stub" : "no stub");
@@ -9340,7 +9386,7 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
             char text[400], shown[80];
             int n = snprintf(text, sizeof text, "the target called %.100s(", name);
             for (int i = 0; i < count && i < 3; ++i) {
-                utf_show(shown, sizeof shown, args[i].scalar ? utf_value(&args[i]) : "MAT");
+                utf_show(shown, sizeof shown, utf_actual(&args[i]));
                 n += snprintf(text + n, sizeof text - (size_t)n, "%s%s", i ? ", " : "", shown);
             }
             snprintf(text + n, sizeof text - (size_t)n, "%s), which no stub matches",
@@ -9352,9 +9398,13 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
     ++found->invocations;
     for (int i = 0; i < found->count && i < count; ++i)
         /* same(), or any() as the returned value, leaves the argument. */
-        if (args[i].scalar && strcmp(found->returned[i], utf_same) &&
-            strcmp(found->returned[i], utf_any))
-            assign_value(args[i].scalar, copy_value(found->returned[i]));
+        if (strcmp(found->returned[i], utf_same) && strcmp(found->returned[i], utf_any)) {
+            if (args[i].scalar)
+                assign_value(args[i].scalar, copy_value(found->returned[i]));
+            else if (args[i].matrix.values && args[i].matrix.rank)
+                jbc_matparse(args[i].matrix.values, args[i].matrix.rank, args[i].matrix.bounds,
+                             NULL, NULL, found->returned[i], "\376", NULL, "", 0, 0);
+        }
     for (int i = 0; i < found->change_count; ++i) {
         struct utf_change *change = &found->changes[i];
         if (change->file) {
@@ -9370,7 +9420,7 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
             jbc_variable value = {copy_value(change->value), 0, 0};
             jbc_utf_argument argument = {&value, {0}, 0};
             const char *ignored = "";
-            if (jbc_utf_call_target(change->accessor, 1, &argument, &ignored) != 1) {
+            if (!utf_property_call(change->accessor, 1, &argument, &ignored)) {
                 char text[200];
                 snprintf(text, sizeof text, "no property accessor %.100s", change->accessor);
                 utf_fail(text);

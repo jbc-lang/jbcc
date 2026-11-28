@@ -256,6 +256,26 @@ and its own helpers.
 - [x] A stub may name the routine that implements a component method:
       `addStub("OPF")` answers the target's `EB.DataAccess.Opf(...)`, through
       the catalog's method table.
+- [x] The method table also takes the 4,693 `module method` definitions
+      that the catalog leaves out, read from the `.component` files, so
+      `addStub("TPSGUIFrameworkService.validate")` answers
+      `PP.TPSGUIFramework.validate(...)`.
+- [x] A MAT argument reads as its elements joined with field marks, so
+      `addStubParam(STUB, '', ...)` matches an empty matrix, as tests give
+      for `EB.READ.PARAMETER`'s `MAT DIM.PARAM.REC` (65 tests); a stub's
+      value fills the matrix.
+- [x] `CALL @methodName` to a routine the program lacks answers from the
+      stubs, as tests stub the API names they put in records (`ack.api`).
+- [x] `addStubPropertyChange` and `addStubPropertyCondition` on a
+      matrix-backed property such as `RNew` set or read it whole, through
+      `setDynArrayToRNew` and `getDynArrayFromRNew`.
+- [x] Component constants with bare text values (`DasAllIds = ALL.IDS`,
+      which tests expect as `"ALL.IDS"`) and dotted names
+      (`FileDataObject.messageFormat = 10`, also without the bound EQU:
+      `PaymentResponse.returnCode = 1`), and the fields of domain
+      classes as their positions: `PP.LocalClearingService.ClrRequest.companyID`
+      is 1, the first field of `LocalClearingDomain`'s `ClrRequest`. Tests
+      expect the records built from them (`BNK^USACH^USD`).
 - [x] A DEFC function the runtime lacks, such as T24's `Logger`, answers
       from the stubs in a unit test build (`stub_c_functions`).
 - [ ] `addStubCacheChange` (50 tests), `setFilePointer` (25),
@@ -370,6 +390,29 @@ position rules above, all 26,307 tests in 55 min:
 The 2 that stopped passing read in a later run a record set before an
 earlier `reset` (step 6): `RC.GET.BLOCK.CHARS_01` and
 `GST.RETRIEVE.ENTITLEMENT.DETAILS_1`.
+
+#### Stub matching and constants baseline (2026-11-28)
+
+With stubs for `module method` routines, MAT arguments and `CALL @name`,
+whole-matrix property changes, the component constants and domain fields
+above, and REMOVE following TAFC past the end of its list, all 26,307
+tests:
+
+| State | Tests | Change from the TAFC rules baseline |
+|---|---:|---|
+| passed | 22,067 | 83.9%; 3,603 more, 2 fewer |
+| failed | 2,795 | |
+| timeout | 43 | 2,808 fewer: REMOVE kept the last element, so `WHILE X:POS` loops never ended |
+| error | 718 | |
+| unsupported | 200 | |
+| rejected and the rest | 484 | |
+
+The 2 that stopped passing: `TestRScheckCutOffTime` now passes today's
+date to a stub that expects a fixed one, and `LIMIT.HISTORY.MOVE_1`
+compares the whole `ROld` matrix, whose COMMON elements start at `0`
+under prime (as in TAFC), with a record that leaves them empty. Whether
+TAFJ, which the tests were written against, starts COMMON at `''` is
+open.
 
 ### 7. The rest
 
