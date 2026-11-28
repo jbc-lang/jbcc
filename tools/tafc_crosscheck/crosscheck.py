@@ -55,16 +55,30 @@ def stdin_of(data):
 
 # A probe can carry other programs that it runs with EXECUTE: each line
 # "* tafc-program: NAME" starts NAME.b, which is built first.
-PROGRAM_RE = re.compile(rb'^\*\s*tafc-program:\s*(\w+)\s*$', re.M)
+# Lines "* tafc-subroutine: NAME" start subroutines it CALLs, built with
+# the main program.
+PROGRAM_RE = re.compile(rb'^\*\s*tafc-(program|subroutine):\s*([\w.]+)\s*$', re.M)
+
+
+def split_parts(data):
+    """The main program and a list of (kind, name, source) parts."""
+    parts = PROGRAM_RE.split(data)
+    return parts[0], [
+        (parts[i].decode(), parts[i + 1].decode(), parts[i + 2].lstrip(b'\n'))
+        for i in range(1, len(parts), 3)
+    ]
 
 
 def split_programs(data):
     """The main program and a list of (name, source) companions."""
-    parts = PROGRAM_RE.split(data)
-    return parts[0], [
-        (parts[i].decode(), parts[i + 1].lstrip(b'\n'))
-        for i in range(1, len(parts), 2)
-    ]
+    main, parts = split_parts(data)
+    return main, [(name, source) for kind, name, source in parts if kind == 'program']
+
+
+def subroutines_of(data):
+    """The (name, source) subroutines a probe carries."""
+    return [(name, source) for kind, name, source in split_parts(data)[1]
+            if kind == 'subroutine']
 
 
 def build_companions(data, work, emulation, extra):
@@ -204,6 +218,10 @@ def run_jbcc_one(source, output, emulation):
         options = OPTIONS_RE.search(data)
         extra = options.group(1).decode().split() if options else []
         log, status = build_companions(data, work, emulation, extra)
+        subroutines = []
+        for sub_name, sub_source in subroutines_of(data):
+            (work / (sub_name + '.b')).write_bytes(sub_source)
+            subroutines.append(sub_name + '.b')
         if status:
             (output / (name + '.clog')).write_bytes(log)
             (output / (name + '.crc')).write_text('%d\n' % status)
@@ -217,6 +235,7 @@ def run_jbcc_one(source, output, emulation):
                 *extra,
                 '--exe',
                 source.name,
+                *subroutines,
                 '-o',
                 name,
             ],

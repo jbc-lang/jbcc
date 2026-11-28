@@ -1,0 +1,7 @@
+FIELD empty [a]
+FIELD frac [b]
+FIELD count empty [b]
+FIELD zero [a]
+FIELD neg [a]
+GROUP empty [b]
+GROUP neg [b]

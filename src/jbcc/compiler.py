@@ -1055,21 +1055,19 @@ class Matrix(NamedTuple):
             return f"frame->{self.field}.values"
         return f"frame->{self.field}->values"
 
+    # The storage holds the dimensions: a local DIM run again resizes it,
+    # and a COMMON matrix keeps the dimensions it was first given.
     @property
     def limits(self):
         if self.shape is None:
             return f"frame->{self.field}.bounds"
-        if None in self.shape:
-            return f"frame->{self.field}->bounds"
-        return "(const int[]){" + ", ".join(map(str, self.shape)) + "}"
+        return f"frame->{self.field}->bounds"
 
     @property
     def count(self):
         if self.shape is None:
             return f"frame->{self.field}.count"
-        if None in self.shape:
-            return f"frame->{self.field}->count"
-        return math.prod(n + 1 for n in self.shape)
+        return f"frame->{self.field}->count"
 
     @property
     def rank(self):
@@ -4605,7 +4603,7 @@ class Compiler:
                 matrix.field if pending else f"matrix{len(self.local_arrays)}"
             )
             self.local_arrays[field] = (
-                None if None in shape else math.prod(n + 1 for n in bounds)
+                None if None in shape else (bounds, self.location(token))
             )
 
         if common or None in shape:
@@ -4659,22 +4657,14 @@ class Compiler:
         block_name = matrix.common_block
         kind = "local" if block_name is None else "COMMON"
         message = f"incompatible {kind} matrix dimensions"
-        if len(matrix.shape) != len(shape) or (
-            not resize and not compatible_dimensions(matrix.shape, shape)
-        ):
+        # Only the rank must agree: the storage resizes a local matrix and
+        # keeps a COMMON matrix's first dimensions (jbc_matrix_storage).
+        if len(matrix.shape) != len(shape):
             self.error(message, token)
         if None not in shape and matrix.shape == shape:
             return
 
         mismatch = 'NULL'
-        if resize:
-            message = f"{kind} matrix resize is unsupported"
-            mismatch = c_string(message)
-        for expected, bound in zip(matrix.shape, bounds):
-            if expected is not None and expected != bound:
-                self.emit(
-                    f'if ({bound} != {expected}) numeric_error({self.location(token)}, {c_string(message)});'
-                )
         slot = f"frame->{matrix.field}"
         key = "NULL"
         if block_name is not None:
@@ -5968,9 +5958,13 @@ class Compiler:
                 f"    frame.{block.field} = jbc_storage({len(block.shapes)}, {c_string(name)});"
             )
             lines.extend("    " + init for init in block.initializers)
-        for field, size in self.local_arrays.items():
-            if size is not None:
-                lines.append(f"    frame.{field} = storage({size}, NULL);")
+        for field, static in self.local_arrays.items():
+            if static is not None:
+                bounds, location = static
+                lines.append(
+                    f"    frame.{field} = jbc_matrix_storage(NULL, NULL, {len(bounds)}, "
+                    f"(const int[]){{{', '.join(map(str, bounds))}}}, NULL, {location});"
+                )
         if not self.routine:
             # The default select list an EXECUTE caller passed.
             lines.append("    jbc_init_lists();")
@@ -6492,8 +6486,10 @@ def link_units(
     for unit in units:
         for name, block in unit.commons.items():
             known = layouts.setdefault(name, list(block.shapes))
+            # A COMMON matrix keeps the dimensions it is first given, as in
+            # TAFC (tests/tafc/common-dims.b); the members and ranks agree.
             if len(known) != len(block.shapes) or not all(
-                compatible_dimensions(a, b) for a, b in zip(known, block.shapes)
+                len(a) == len(b) for a, b in zip(known, block.shapes)
             ):
                 unit.error(
                     f"incompatible COMMON layout for /{name}/", block.token

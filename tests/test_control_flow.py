@@ -789,12 +789,13 @@ def test_common_storage(compiler):
     run = compiler.run_native(caller, sub)
     assert run.returncode == 0, run.stderr
     assert run.stdout == expected_bytes('common-storage.stdout')
+    # A unit may give a COMMON matrix other dimensions; the first stay
+    # (TAFC, tests/tafc/common-dims.b).
     sub = ROOT / 'tests/routines/common-storage/sub-variant-2.b'
-    result = subprocess.run(
-        [CLI, caller, sub, '-o', compiler.c], text=True, capture_output=True
+    run = compiler.run_native(caller, sub)
+    assert (run.returncode, run.stdout, run.stderr) == (
+        0, b'caller\tmatrix\t0\t0\n', b''
     )
-    assert result.returncode != 0
-    assert expected_text('common-storage.stderr') in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -856,44 +857,18 @@ def test_repeated_include_reuses_common_matrix_slots(compiler):
     assert result.stderr == b''
 
 
-def test_repeated_common_matrix_rejects_incompatible_dimensions(
-    compiler, subtests
-):
+@pytest.mark.parametrize(
+    'fixture_name', ['bad.b', 'bad-variant-2_1.b', 'bad-variant-2_2.b']
+)
+def test_repeated_common_matrix_keeps_first_dimensions(compiler, fixture_name):
+    # TAFC keeps the dimensions a COMMON matrix was first given
+    # (tests/tafc/common-dims.b).
     source = (
-        ROOT
-        / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions/bad.b'
+        ROOT / 'tests/routines/repeated-common-matrix-keeps-first-dimensions'
+        / fixture_name
     )
-    result = subprocess.run(
-        [CLI, source, '-o', compiler.c], capture_output=True
-    )
-    assert result.returncode != 0
-    assert (
-        expected_text(
-            'repeated-common-matrix-rejects-incompatible-dimensions.stderr',
-            source=source,
-        ).encode()
-        in result.stderr
-    )
-
-    for fixture_name in (
-        'bad-variant-2_1.b',
-        'bad-variant-2_2.b',
-    ):
-        with subtests.test(source=fixture_name):
-            source = (
-                ROOT
-                / 'tests/routines/repeated-common-matrix-rejects-incompatible-dimensions'
-                / fixture_name
-            )
-            result = compiler.run_native(source)
-            assert result.returncode != 0
-            assert (
-                expected_text(
-                    'repeated-common-matrix-rejects-incompatible-dimensions_2.stderr',
-                    source=source,
-                ).encode()
-                in result.stderr
-            )
+    result = compiler.run_native(source)
+    assert (result.returncode, result.stdout, result.stderr) == (0, b'', b'')
 
 
 def test_dim_reuses_named_and_unnamed_common_matrix_slots(compiler):
@@ -965,21 +940,12 @@ def test_common_matrix_subscript_mismatches_report_when_reached(
         pytest.param('shape_5.b', id='shape-5'),
     ],
 )
-def test_dim_reports_a_reached_common_matrix_resize(compiler, fixture_name):
+def test_dim_keeps_common_matrix_dimensions(compiler, fixture_name):
     source = (
-        ROOT
-        / 'tests/routines/dim-reports-a-reached-common-matrix-resize'
-        / fixture_name
+        ROOT / 'tests/routines/dim-keeps-common-matrix-dimensions' / fixture_name
     )
     result = compiler.run_native(source)
-    assert result.returncode == 1, result.stderr
-    assert result.stdout == b''
-    assert (
-        result.stderr
-        == expected_text(
-            'dim-reports-a-reached-common-matrix-resize.stderr', source=source
-        ).encode()
-    )
+    assert (result.returncode, result.stdout, result.stderr) == (0, b'', b'')
 
 
 def test_runtime_common_dimensions(compiler):
@@ -1115,22 +1081,14 @@ def test_repeated_local_dim_rejects_changed_rank(compiler):
         pytest.param('shape_3.b', id='shape-3'),
     ],
 )
-def test_repeated_local_dim_reports_reached_resize(compiler, fixture_name):
-    source = (
-        ROOT
-        / 'tests/routines/repeated-local-dim-reports-reached-resize'
-        / fixture_name
-    )
+def test_repeated_local_dim_resizes(compiler, fixture_name):
+    # TAFC resizes a local matrix whose DIM runs again (tests/tafc/dim-again.b).
+    source = ROOT / 'tests/routines/repeated-local-dim-resizes' / fixture_name
     result = compiler.run_native(source)
-    assert (result.returncode, result.stdout) == (
-        1,
-        expected_bytes('repeated-local-dim-reports-reached-resize.stdout'),
-    )
-    assert (
-        result.stderr
-        == expected_text(
-            'repeated-local-dim-reports-reached-resize.stderr', source=source
-        ).encode()
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        expected_bytes('repeated-local-dim-resizes.stdout'),
+        b'',
     )
 
 
@@ -1145,9 +1103,6 @@ def test_repeated_local_dim_reports_reached_resize(compiler, fixture_name):
             3,
             'local-dimension-errors_3.stderr',
             id='n-2-if-0-then-dim-a-n-mat-a-0',
-        ),
-        pytest.param(
-            4, 'local-dimension-errors_4.stderr', id='for-n-1-to-2-dim-a-n-next'
         ),
         pytest.param(
             5, 'local-dimension-errors_5.stderr', id='n-2-dim-a-n-n-3-a-n-1'
@@ -1180,11 +1135,6 @@ def test_local_dimension_errors(compiler, case_number, location_fixture):
             'runtime-common-dimension-errors_3.stderr',
             id='n-2-if-0-then-common-a-n-mat-a-0',
         ),
-        pytest.param(
-            4,
-            'runtime-common-dimension-errors_4.stderr',
-            id='for-n-1-to-2-common-a-n-next',
-        ),
     ],
 )
 def test_runtime_common_dimension_errors(
@@ -1205,13 +1155,17 @@ def test_common_runtime_shape_across_routines(compiler):
     main = ROOT / 'tests/routines/common-runtime-shape-across-routines/main.b'
     sub = ROOT / 'tests/routines/common-runtime-shape-across-routines/sub.b'
     run = compiler.run_native(main, sub)
-    assert run.returncode != 0
-    assert (
-        expected_text(
-            'common-runtime-shape-across-routines.stderr', sub=sub
-        ).encode()
-        in run.stderr
-    )
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'', b'')
+
+
+@pytest.mark.parametrize(
+    'directory', ['local-dimension-errors', 'runtime-common-dimension-errors']
+)
+def test_dimension_run_again_in_a_loop(compiler, directory):
+    # A local DIM resizes and a COMMON matrix keeps its first dimensions.
+    source = ROOT / 'tests/routines' / directory / 'bad_4.b'
+    run = compiler.run_native(source)
+    assert (run.returncode, run.stdout, run.stderr) == (0, b'', b'')
 
 
 def test_assignment_predicates_on_arguments(compiler):

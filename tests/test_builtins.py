@@ -368,11 +368,6 @@ def test_col_positions_require_no_arguments(compiler, case_number, name):
     'fixture_name, message_fixture',
     [
         pytest.param(
-            'fields_2.b',
-            'delimited-bracket-assignment-diagnostics_2.stderr',
-            id='fields-2',
-        ),
-        pytest.param(
             'fields_3.b',
             'delimited-bracket-assignment-diagnostics_3.stderr',
             id='fields-3',

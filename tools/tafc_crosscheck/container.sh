@@ -60,9 +60,14 @@ run_one() {
     cd "$work"
     # Lines "* tafc-program: NAME" start other programs the probe EXECUTEs;
     # each is written to NAME.b and compiled before the main program.
+    # Lines "* tafc-subroutine: NAME" start subroutines the probe CALLs;
+    # they are built into one shared library on JBCOBJECTLIST.
     awk -v main="$name.b" '
         /^\*[ \t]*tafc-program:[ \t]*[A-Za-z0-9_]+[ \t]*$/ {
             out = $NF ".b"; print out > "companions"; next
+        }
+        /^\*[ \t]*tafc-subroutine:[ \t]*[A-Za-z0-9_.]+[ \t]*$/ {
+            out = $NF ".b"; print out > "subroutines"; next
         }
         { print > (out ? out : main) }
     ' "$source"
@@ -78,7 +83,12 @@ run_one() {
     set +e
     : >"/output/$name.clog"
     status=0
-    if [ -f companions ]; then
+    if [ -f subroutines ]; then
+        export JBCOBJECTLIST="$work:$release/lib"
+        # shellcheck disable=SC2046
+        timeout 120 jcompile -I"$JBCRELEASEDIR/include" -s "lib$name.so" $(cat subroutines) </dev/null >>"/output/$name.clog" 2>&1 || status=$?
+    fi
+    if [ "$status" = 0 ] && [ -f companions ]; then
         while read -r companion; do
             timeout 120 jcompile -I"$JBCRELEASEDIR/include" "$companion" </dev/null >>"/output/$name.clog" 2>&1 || status=$?
         done <companions

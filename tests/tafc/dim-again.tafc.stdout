@@ -1,0 +1,18 @@
+Invalid or uninitialised variable -- NULL USED ,
+Var X(5) , Line     7 , Source dim-again.b
+grow [a][c][]
+shrink [a][b]
+Invalid or uninitialised variable -- NULL USED ,
+Var X(3) , Line    11 , Source dim-again.b
+Invalid or uninitialised variable -- NULL USED ,
+Var X(4) , Line    11 , Source dim-again.b
+regrow [][]
+Invalid or uninitialised variable -- NULL USED ,
+Var Y(2,2) , Line    15 , Source dim-again.b
+Invalid or uninitialised variable -- NULL USED ,
+Var Y(3,3) , Line    15 , Source dim-again.b
+two [][]
+pass 1 [last1] [1]
+pass 2 [last2] [2]
+Z [y]
+Z [y]

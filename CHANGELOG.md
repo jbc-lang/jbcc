@@ -22,7 +22,7 @@
   newest; `reset` clears the stubs and the records. The records are
   in-memory files, so a target's own `OPEN`, `READ` and `WRITE` statements
   see them, and a DEFC function the runtime lacks answers from the stubs.
-  18,199 of the 26,307 tests pass.
+  18,466 of the 26,307 tests pass.
 
 ### Changed
 
@@ -33,6 +33,12 @@
 - `ABS('')` is 0, and `ABS` of text that is not a number returns it
   unchanged, as in TAFC.
 - MATBUILD without an end leaves out trailing empty elements, as in TAFC.
+- A local DIM run again resizes the matrix, a COMMON matrix keeps the
+  dimensions it was first given, and DIM of a MAT parameter keeps the
+  caller's matrix, as in TAFC; jbcc stopped at such a DIM.
+- `INT` of text that is not a number keeps its leading sign and digits,
+  a FIELD position or count that is not a positive number means 1, and an
+  empty substring start, length or INS position is 0, as in TAFC.
 - `DIM X(0)` and `DIM X('')` give 10 elements, and FOR takes an empty bound
   as 0 and an empty step as no iteration, as in TAFC.
 

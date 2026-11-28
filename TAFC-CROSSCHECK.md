@@ -72,7 +72,7 @@ follows: 216 same output, 84 different output, 114 rejected only by jbcc,
       `.cache`), runs both compilers and classifies the results.
 - [x] `just tafc-probe [--record] PATHS` runs probes side by side and
       can save TAFC's stdout.
-- [x] `tests/tafc/` has 34 probes with `NAME.tafc.stdout`, one or more
+- [x] `tests/tafc/` has 76 probes with `NAME.tafc.stdout`, one or more
       for each item below. Each probe names its emulation and plan
       section. `just tafc-recorded` compares jbcc with them without
       Docker. A probe runs under its file name, as TAFC's warnings show
@@ -82,8 +82,11 @@ follows: 216 same output, 84 different output, 114 rejected only by jbcc,
       emulation, `* jbcc-options: ...` passes jbcc options, and each
       `* tafc-program: NAME` line starts another program, written to
       `NAME.b` and built before the main one, for probes that EXECUTE
-      jBC programs. `* tafc-stdin-hex: 610A` gives the probe those bytes
-      on standard input instead of `/dev/null`.
+      jBC programs. Each `* tafc-subroutine: NAME` line starts a
+      subroutine the probe CALLs: TAFC builds them into one shared
+      library on `JBCOBJECTLIST` (`jcompile -s`), and jbcc links them
+      into the probe. `* tafc-stdin-hex: 610A` gives the probe those
+      bytes on standard input instead of `/dev/null`.
 
 ## Emulation
 
@@ -357,6 +360,30 @@ Done for section 3 (2026-11-27):
   restarts after each append in TAFC too: the assignment resets the
   REMOVE pointer. Checked because a T24 unit test's target looped that
   way.
+- A local DIM that runs again with other dimensions resizes the matrix
+  and keeps the elements in their linear order; elements past the old
+  size start empty (`tests/tafc/dim-again.b`). A COMMON matrix keeps the
+  dimensions it was first given when another unit or DIM gives it others,
+  and the members after it still line up (`tests/tafc/common-dims.b`).
+  DIM of a MAT parameter keeps the caller's matrix and its dimensions
+  (`tests/tafc/mat-param-dim.b`). Each reads past those dimensions as
+  ARRAY_SUBS. jbcc stopped at the DIM with "incompatible ... dimensions"
+  or "matrix resize is unsupported"; T24 code dimensions R.NEW-sized
+  matrices with sizes that differ between units. The rank still has to
+  agree in jbcc.
+- INT of text that is not a number keeps its leading sign and digits:
+  `INT('12abc')` is 12, `INT('-3.7q')` is -3 and `INT('abc')` is `''`;
+  `INT('')` is 0 (`tests/tafc/int-text.b`). Not followed: `INT('+4')` is
+  `+4` in TAFC and 4 in jbcc.
+- A FIELD position or count that is empty or below 1 means 1, and a
+  fraction truncates (`tests/tafc/field-positions.b`). A text position
+  gave `a` and then `''` in two TAFC runs; jbcc takes it as 1.
+- An empty substring start or length, or INS position, is 0
+  (`tests/tafc/empty-positions.b`): `S['',3]` is `S[1,3]`, `S[2,'']` is
+  `''`, and `INS X BEFORE R<''>` inserts a first field. Text that is not
+  a number there varies in TAFC (`S['x',3]` is `S[1,3]`, `S['3x',2]` is
+  `''`, and INS before `R<'x'>` wrote thousands of field marks); jbcc
+  still stops.
 
 ## 4. Fixes in implemented functions
 

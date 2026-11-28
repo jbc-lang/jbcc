@@ -1,0 +1,23 @@
+Non-numeric value -- ZERO USED ,
+Variable 'X' , Line     5 , Source int-text.b
+INT text []
+INT empty [0]
+Non-numeric value -- ZERO USED ,
+Variable 'Z' , Line     9 , Source int-text.b
+INT mixed [12]
+Non-numeric value -- ZERO USED ,
+Variable 'V(1)' , Line    13 , Source int-text.b
+INT 1 [1]
+Non-numeric value -- ZERO USED ,
+Variable 'V(2)' , Line    13 , Source int-text.b
+INT 2 [-3]
+Non-numeric value -- ZERO USED ,
+Variable 'V(3)' , Line    13 , Source int-text.b
+INT 3 []
+INT 4 []
+INT 5 [7]
+Non-numeric value -- ZERO USED ,
+Variable 'V(6)' , Line    13 , Source int-text.b
+INT 6 [-0]
+INT 7 []
+INT 8 [-]
