@@ -3268,7 +3268,7 @@ test with the routine it names in `UTF.setTarget`, runs it, and records
 the UTF runtime's verdict. Routines the target calls answer from the
 test's stubs and records, as UTF does, and R19's component property
 accessors are generated from the component definitions. On 2026-11-28,
-17,696 tests passed. [TUT.md](TUT.md) has the details and the plan.
+18,199 tests passed. [TUT.md](TUT.md) has the details and the plan.
 
 Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide

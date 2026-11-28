@@ -1328,10 +1328,25 @@ def test_utf_stub_named_after_the_implementing_routine(compiler):
     assert (run.returncode, run.stderr) == (0, b'UTF: passed 3 checks in 1 runs\n')
 
 
+def test_utf_stubs_c_functions(compiler):
+    """With stub_c_functions, a DEFC function the runtime lacks, such as
+    T24's Logger, answers from the stubs."""
+    run = utf_build(
+        compiler,
+        'cfunction.tut',
+        'SAMPLE.LOG.b',
+        stub_missing=True,
+        unit_options={'stub_c_functions': True},
+    )
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
+
+
 def test_utf_records_answer_data_access(compiler):
     """setRecord seeds records that unstubbed F.READ, CACHE.READ and
     component table reads return; F.WRITE stores one that getRecord reads
-    back. F.SAMPLE and FBNK.SAMPLE name the same file."""
+    back. They are in-memory files, so the target's READ, OPEN and WRITE
+    statements see them too. F.SAMPLE and FBNK.SAMPLE name the same
+    file."""
     run = utf_build(
         compiler,
         'records.tut',
@@ -1339,7 +1354,7 @@ def test_utf_records_answer_data_access(compiler):
         stub_missing=True,
         utf_tables={'sample.records.sample': 'SAMPLE'},
     )
-    assert (run.returncode, run.stderr) == (0, b'UTF: passed 5 checks in 1 runs\n')
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 9 checks in 1 runs\n')
 
 
 def test_run_tuts_synthesizes_property_accessors(monkeypatch):

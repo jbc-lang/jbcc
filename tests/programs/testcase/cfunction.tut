@@ -1,0 +1,13 @@
+TESTCASE SAMPLE.LOG_1
+* In a unit test build, a DEFC function answers from the stubs.
+    UTF.setTarget("SAMPLE.LOG")
+    STUB = UTF.addStub("SampleLog")
+    UTF.addStubParam(STUB, "hello", UTF.same())
+    UTF.addStubParam(STUB, 3, UTF.same())
+    UTF.setStubReturnValue(STUB, 7)
+    UTF.addParam("hello")
+    UTF.addParam(RESULT)
+    UTF.runTest()
+    UTF.assertEquals(RESULT, 7)
+    UTF.assertEquals(UTF.getNbInvocation(STUB), 1)
+END

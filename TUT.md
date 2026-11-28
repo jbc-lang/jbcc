@@ -225,9 +225,13 @@ and its own helpers.
       (step 4 to 6 runs) left 569 invocation counts at 0; taking the
       newest instead passed 1,133 more tests but lost 199, of which
       specificity recovers 170.
-- [x] `reset` clears the parameters, the stubs and the call counts, and
-      keeps the target and the records: tests define their stubs again
-      after each `reset`.
+- [x] `reset` clears the parameters, the stubs, the call counts and the
+      records, and keeps the target: tests define their stubs and records
+      again after each `reset`. Of the 5,961 tests that run more than
+      once, clearing the records passes 133 more; keeping the records
+      `setRecord` gave and dropping only what the target wrote passes 22
+      (`RC.GET.BLOCK.CHARS_01` reads in a later run a record set before an
+      earlier one).
 - [x] `setStubReturnValue` (a FUNCTION's result), `getNbInvocation` (a
       handle, or a routine name for every call to it),
       `addStubCommonChange(stub, VAR, value)` and
@@ -252,6 +256,8 @@ and its own helpers.
 - [x] A stub may name the routine that implements a component method:
       `addStub("OPF")` answers the target's `EB.DataAccess.Opf(...)`, through
       the catalog's method table.
+- [x] A DEFC function the runtime lacks, such as T24's `Logger`, answers
+      from the stubs in a unit test build (`stub_c_functions`).
 - [ ] `addStubCacheChange` (50 tests), `setFilePointer` (25),
       `lockRecord`, and `addStubCommonChange` given a name in quotes.
 - [x] `JBCC_UTF_TRACE=1` prints each stubbed call, its arguments and
@@ -267,10 +273,14 @@ and its own helpers.
       records: `F.READ`, `F.READU`, `CACHE.READ`, `F.WRITE`, `F.DELETE`,
       `OPF`, their `EB.DataAccess` forms, and a component table's
       operations, as `AC.AccountOpening.Account.Read(id, error)`, through
-      the table's `t24:` file. A missing record sets the error variable to
+      the table's `t24:` file, and its `table<Name>(id, error)` read, as
+      `AC.AccountOpening.tableAccount`. `F.RELEASE` does nothing. A missing record sets the error variable to
       `RECORD NOT FOUND` (inferred).
-- [ ] `READ` statements on files the target opens itself, and
-      `EB.DataAccess.Das` selections.
+- [x] The records are jbcc's in-memory files, created on demand and
+      named without the company prefix, so the target's own `OPEN`,
+      `READ` and `WRITE` statements see them, and `OPF` returns a handle
+      they take.
+- [ ] `EB.DataAccess.Das` selections.
 - [ ] Load the `.d` system records a target needs, such as `F.EB.ERROR`,
       on demand.
 
@@ -320,6 +330,29 @@ all 26,307 tests in 53 min:
 | unsupported | 137 | |
 | rejected and the rest | 506 | |
 
+#### Records baseline (2026-11-28)
+
+With the records in jbcc's in-memory files, component `table<Name>`
+reads, stubbed DEFC functions, and DIM and FOR following TAFC, all 26,307
+tests in 54 min:
+
+| State | Tests | Change from the stub choice baseline |
+|---|---:|---|
+| passed | 18,199 | 69.2%; 503 more |
+| failed | 3,446 | |
+| timeout | 2,816 | |
+| error | 1,201 | 403 fewer |
+| unsupported | 139 | |
+| rejected and the rest | 506 | |
+
+`reset` clearing the records (step 6) came after this run: on the tests
+that run more than once it passes 133 more and 4 fewer, about 18,328 in
+all. Against the run before the `table<Name>` reads, 4 tests stopped
+passing: 2 timeouts under load, `SL.UPDATE.CHARGE.BALANCES_5` (a record
+the target wrote survived `reset`, fixed above) and
+`LC.PROCESS.CHARGES_9`, which now reads the account records it sets and
+calls the exchange-rate stub on another branch (open).
+
 ### 7. The rest
 
 - [x] The component-method targets, through the catalog's method table
@@ -331,6 +364,10 @@ all 26,307 tests in 53 min:
   - a jbcc bug: MATBUILD kept trailing empty elements, which TAFC leaves
     out (`tests/tafc/matbuild-trailing.b`); records built from `R.NEW`
     then compared unequal;
+  - jbcc errors on values T24 code passes before its environment is set,
+    now following TAFC (TAFC-CROSSCHECK.md, section 3): a DIM of 0 or
+    `''` (`DIM LOCALI(V)`) gives 10 elements, and FOR takes an empty bound
+    as 0;
   - TAFJ arithmetic: `FRA.VALUATION_0` expects `-5792.70`, where TAFC
     PB201214 and jbcc give `-5792.69` from the same inputs at PRECISION 4.
     Tests written against TAFJ's Java decimals can fail under TAFC's

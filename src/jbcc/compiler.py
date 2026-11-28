@@ -1217,6 +1217,7 @@ class Compiler:
         stub_void_results=False,
         relax_access=False,
         emulation='prime',
+        stub_c_functions=False,
     ):
         if emulation not in EMULATIONS:
             raise Diagnostic(f"unknown emulation '{emulation}'")
@@ -1225,6 +1226,9 @@ class Compiler:
         self.relax_access = relax_access
         self.browser = browser
         self.stub_void_results = stub_void_results
+        # Unit test builds only (tools/run_tuts.py): a DEFC function the
+        # runtime lacks answers from the UTF stubs.
+        self.stub_c_functions = stub_c_functions
         self.path = path
         self.unit = unit
         self.encoding = encoding
@@ -4256,6 +4260,7 @@ class Compiler:
             return self.runtime_c_function_call(target, len(types))
         self.expect('(')
         index = 0
+        stub_args = []
         if self.word != ')':
             while True:
                 if index >= len(types):
@@ -4266,8 +4271,11 @@ class Compiler:
                     argument, name = self.scalar_argument()
                     if name is not None:
                         self.assigned.add(name)
+                    stub_args.append(f"{{{argument}, {{0}}, 0}}")
                 else:
                     argument = self.expression()
+                    if self.stub_c_functions:
+                        stub_args.append(f"{{{self.value_argument(argument)}, {{0}}, 1}}")
                 self.emit(f"(void)({argument});")
                 index += 1
                 if self.word != ',':
@@ -4279,6 +4287,13 @@ class Compiler:
         if index != len(types):
             self.error(f"too few arguments for DEFC '{target.word}'", target)
         self.record_api_call(target, index, kind='defc')
+        if self.stub_c_functions:
+            vector = (
+                f"(jbc_utf_argument[]){{{', '.join(stub_args)}}}" if stub_args else "NULL"
+            )
+            return self.temporary(
+                f"jbc_utf_stub({c_string(target.word)}, {len(stub_args)}, {vector})"
+            )
         reason = c_string(
             f"C function '{target.word}' requires the jBASE C runtime"
         )
@@ -6296,6 +6311,7 @@ def compile_unit(
     stub_void_results=False,
     relax_access=False,
     emulation='prime',
+    stub_c_functions=False,
 ):
     encoding = SOURCE_ENCODINGS[source_encoding]
     unit = Compiler(
@@ -6311,6 +6327,7 @@ def compile_unit(
         stub_void_results=stub_void_results,
         relax_access=relax_access,
         emulation=emulation,
+        stub_c_functions=stub_c_functions,
     )
     preprocessor = Preprocessor(
         directories,

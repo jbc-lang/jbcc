@@ -344,6 +344,15 @@ Done for section 3 (2026-11-27):
   `R.NEW` this way. jbcc's own records (STATUS, @USERSTATS and MATWRITE)
   keep every field. Not followed: TAFC builds a five-element COMMON matrix
   with an extra `0` at the end.
+- A dimension of 0 or `''` gives a matrix of 10 elements: `A(10)` works and
+  `A(11)` is ARRAY_SUBS (`tests/tafc/dim-zero.b`). T24 code runs
+  `DIM LOCALI(V)` with the field count `V` unset. jbcc stopped with
+  "expected a positive integer dimension"; it now gives 10 under prime.
+  Not followed: `INMAT()` is 0 after such a DIM in TAFC.
+- FOR takes an empty value or bound as 0, and an empty step runs no
+  iteration (`tests/tafc/for-empty-bounds.b`); jbcc stopped with "FOR
+  requires numeric bounds and step". Not followed: after `FOR I = 1 TO ''`
+  TAFC leaves `I` unassigned, where jbcc has set it to 1.
 - A REMOVE loop over a list that the loop appends to with `L<1,-1> = X`
   restarts after each append in TAFC too: the assignment resets the
   REMOVE pointer. Checked because a T24 unit test's target looped that

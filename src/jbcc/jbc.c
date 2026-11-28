@@ -1060,6 +1060,11 @@ int jbc_for_test(const char *value, const char *limit, const char *step,
                  const char *file, int line, int column)
 {
     struct decimal n;
+    /* TAFC PB201214 takes an empty value or bound as 0, and an empty step
+       runs no iteration (tests/tafc/for-empty-bounds.b). */
+    if (!*step) return 0;
+    if (!*value) value = "0";
+    if (!*limit) limit = "0";
     if (!parse_decimal(value, &n) || !parse_decimal(limit, &n) || !parse_decimal(step, &n))
         numeric_error(file, line, column, "FOR requires numeric bounds and step");
     int cmp = jbc_compare(value, limit, jbc_precision);
@@ -1202,6 +1207,11 @@ void jbc_clearcommon(void)
 int jbc_dimension(const char *text, const char *file, int line, int column)
 {
     struct decimal n;
+    /* Prime: a dimension of 0 or '' gives 10 elements, as TAFC PB201214
+       does (tests/tafc/dim-zero.b); T24 code dimensions with COMMON
+       counts such as V before they are set. */
+    if (jbc_emulation_prime && (!*text || (parse_decimal(text, &n) && !n.digits && !n.places)))
+        return 10;
     if (!parse_decimal(text, &n) || n.sign <= 0 || n.places || n.digits > 10)
         numeric_error(file, line, column, "expected a positive integer dimension");
     int64_t bound = integer(text, file, line, column);
@@ -5643,10 +5653,19 @@ void jbc_close_local_files(const void *scope)
     }
 }
 
+#ifdef JBC_UTF
+static struct memory_file *utf_memory_file(const char *name);
+#endif
+
 int jbc_open_file(const char *section, const char *name, jbc_variable *out, const void *scope,
                   jbc_variable *setting)
 {
+#ifdef JBC_UTF
+    /* A unit test's files are its records (UTF.setRecord). */
+    struct memory_file *f = *section ? find_memory_file(section, name) : utf_memory_file(name);
+#else
     struct memory_file *f = find_memory_file(section, name);
+#endif
     if (f && scope) remember_open(scope, out, f);
     if (f) count_userstat(&record_open_count);
     assign_value(out, f ? f->name : "");
@@ -8971,8 +8990,6 @@ static struct {
     int stub_count, ignore_missing;
     struct utf_calls { char *name; int count; } *calls; /* by routine name */
     int call_count;
-    struct utf_record { char *file, *key, *value; } *records; /* setRecord */
-    int record_count;
     jmp_buf stop; /* where a stopping stub ends the run */
     int running;
 } utf;
@@ -9071,9 +9088,23 @@ static void utf_check(int holds, const char *check, const char *actual, const ch
     ++utf.failures;
     if (utf.failure) return;
     char shown_actual[80], shown_expected[80], text[512];
-    utf_show(shown_actual, sizeof shown_actual, actual);
+    /* Long values are shown from a little before where they first differ. */
+    size_t from = 0;
     if (expected) {
-        utf_show(shown_expected, sizeof shown_expected, expected);
+        size_t n = jbc_size(actual), m = jbc_size(expected), at = 0;
+        while (at < n && at < m && actual[at] == expected[at]) ++at;
+        if (at > 40 && (n > 60 || m > 60)) from = at - 20;
+    }
+    if (from) {
+        char *a = shown_actual, *e = shown_expected;
+        snprintf(a, 8, "@%zu:", from);
+        snprintf(e, 8, "@%zu:", from);
+    }
+    utf_show(shown_actual + (from ? strlen(shown_actual) : 0),
+             sizeof shown_actual - (from ? strlen(shown_actual) : 0), actual + from);
+    if (expected) {
+        utf_show(shown_expected + (from ? strlen(shown_expected) : 0),
+                 sizeof shown_expected - (from ? strlen(shown_expected) : 0), expected + from);
         snprintf(text, sizeof text, "%s:%d:%d: UTF.%s(%s, %s)%s%.100s", file, line, column,
                  check, shown_actual, shown_expected, *note ? ": " : "", note);
     } else {
@@ -9320,38 +9351,34 @@ static const char *utf_file(const char *name)
     return name;
 }
 
-static struct utf_record *utf_record(const char *file, const char *key)
+/* The test's records are jbcc's in-memory files, created on demand and
+   named without the company prefix, so the target's OPEN, READ and WRITE
+   statements see them as F.READ and setRecord do. */
+static struct memory_file *utf_memory_file(const char *name)
 {
-    file = utf_file(file);
-    for (int i = 0; i < utf.record_count; ++i)
-        if (!strcmp(utf.records[i].file, file) && !strcmp(utf.records[i].key, key))
-            return &utf.records[i];
-    return NULL;
+    name = utf_file(name);
+    struct memory_file *f = find_memory_file("", name);
+    if (!f) {
+        jbc_create_memory_file("", utf_copy(name));
+        f = find_memory_file("", name);
+    }
+    return f;
+}
+
+static const char *utf_lookup(const char *file, const char *key)
+{
+    struct memory_record *r = *record_link(utf_memory_file(file), key);
+    return r ? r->value : NULL;
 }
 
 static void utf_write(const char *file, const char *key, const char *value)
 {
-    struct utf_record *record = utf_record(file, key);
-    if (record) {
-        free(record->value);
-    } else {
-        utf.records = realloc(utf.records, (size_t)(utf.record_count + 1) * sizeof *utf.records);
-        if (!utf.records) fail("out of memory");
-        record = &utf.records[utf.record_count++];
-        record->file = utf_copy(utf_file(file));
-        record->key = utf_copy(key);
-    }
-    record->value = utf_copy(value);
+    jbc_write_record(utf_memory_file(file)->name, key, value, NULL, 0);
 }
 
 static void utf_delete(const char *file, const char *key)
 {
-    struct utf_record *record = utf_record(file, key);
-    if (!record) return;
-    free(record->file);
-    free(record->key);
-    free(record->value);
-    *record = utf.records[--utf.record_count];
+    jbc_delete_record(utf_memory_file(file)->name, key, NULL);
 }
 
 /* Reads a record into a variable and sets the error variable, as F.READ
@@ -9359,10 +9386,10 @@ static void utf_delete(const char *file, const char *key)
 static const char *utf_read(const char *file, const char *key, jbc_variable *into,
                             jbc_variable *error)
 {
-    struct utf_record *record = utf_record(file, key);
-    const char *value = record ? copy_value(record->value) : "";
+    const char *found = utf_lookup(file, key);
+    const char *value = found ? copy_value(found) : "";
     if (into) assign_value(into, value);
-    if (error) assign_value(error, record ? "" : "RECORD NOT FOUND");
+    if (error) assign_value(error, found ? "" : "RECORD NOT FOUND");
     return value;
 }
 
@@ -9385,6 +9412,7 @@ static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
         {"f.write", 3, 0, 1, 2, -1},        {"eb.dataaccess.fwrite", 3, 0, 1, 2, -1},
         {"f.delete", 2, 0, 1, -1, -1},      {"eb.dataaccess.fdelete", 2, 0, 1, -1, -1},
         {"opf", 2, 0, -1, -1, -1},          {"eb.dataaccess.opf", 2, 0, -1, -1, -1},
+        {"f.release", 3, 0, 1, -1, -1},     {"eb.dataaccess.frelease", 3, 0, 1, -1, -1},
     };
     for (size_t i = 0; i < sizeof routines / sizeof routines[0]; ++i) {
         if (jbc_strcasecmp(name, routines[i].name) || count != routines[i].count) continue;
@@ -9392,12 +9420,14 @@ static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
             if (!args[j].scalar) return 0;
         const char *file = utf_value(&args[routines[i].file]);
         if (routines[i].key < 0) {
-            /* OPF(name, handle): the handle is the file's name. */
-            assign_value(args[1].scalar, copy_value(file));
+            /* OPF(name, handle): a handle the READ statements take. */
+            assign_value(args[1].scalar, utf_memory_file(file)->name);
             return 1;
         }
         const char *key = utf_value(&args[routines[i].key]);
-        if (strstr(routines[i].name, "write"))
+        if (strstr(routines[i].name, "release"))
+            ; /* Releases a lock; the test's files hold none. */
+        else if (strstr(routines[i].name, "write"))
             utf_write(file, key, utf_value(&args[routines[i].record]));
         else if (strstr(routines[i].name, "delete"))
             utf_delete(file, key);
@@ -9413,9 +9443,18 @@ static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
     memcpy(table, name, (size_t)(dot - name));
     table[dot - name] = '\0';
     for (char *c = table; *c; ++c) *c = (char)utf_lower((unsigned char)*c);
-    const char *bound = jbc_utf_table_file(table);
-    if (!bound) return 0;
     const char *operation = dot + 1;
+    const char *bound = jbc_utf_table_file(table);
+    if (!bound && !jbc_strncasecmp(operation, "table", 5) && operation[5]) {
+        /* <component>.table<Name>(id, error) reads the component's table
+           Name, as AC.AccountOpening.tableAccount. */
+        char named[200];
+        snprintf(named, sizeof named, "%s.%s", table, operation + 5);
+        for (char *c = named; *c; ++c) *c = (char)utf_lower((unsigned char)*c);
+        bound = jbc_utf_table_file(named);
+        if (bound) operation = "read";
+    }
+    if (!bound) return 0;
     char file[240];
     const char *suffix = "";
     size_t length = strlen(operation);
@@ -9540,12 +9579,18 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
         utf_release(&utf.params[position - 1]);
         utf.params[position - 1] = utf_keep(&args[1]);
     } else if (utf_is(method, "reset")) {
-        /* Clears the parameters, stubs and call counts; the target and the
-           records stay (inferred: tests define their stubs again after
-           each reset). */
+        /* Clears the parameters, stubs, call counts and records; the target
+           stays (inferred: tests define their stubs and records again after
+           each reset; on the 5,961 tests with more than one run, clearing
+           the records passes 133 more and keeping what setRecord seeded
+           passes 22). */
         for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
         utf.count = 0;
         utf_clear_stubs();
+        for (struct memory_file *f = files; f; f = f->next) {
+            clear_records(f);
+            release_locks(f, NULL, 1);
+        }
     } else if (utf_is(method, "runTest")) {
         return utf_run(count, args, file, line, column);
     } else if (utf_is(method, "setTestNumber") || utf_is(method, "setDescription")) {
@@ -9730,8 +9775,8 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
     } else if (utf_is(method, "setRecord") && count >= 3) {
         utf_write(a, b, utf_value(&args[2]));
     } else if (utf_is(method, "getRecord") && count == 2) {
-        struct utf_record *record = utf_record(a, b);
-        return record ? copy_value(record->value) : "";
+        const char *record = utf_lookup(a, b);
+        return record ? copy_value(record) : "";
     } else {
         /* Records and the rest come in later steps of TUT.md. */
         utf_unsupported(method);
@@ -9762,12 +9807,6 @@ static int utf_report(void)
     utf_clear_stubs();
     jbc_fixed_date[0] = '\0';
     jbc_fixed_time[0] = '\0';
-    for (int i = 0; i < utf.record_count; ++i) {
-        free(utf.records[i].file);
-        free(utf.records[i].key);
-        free(utf.records[i].value);
-    }
-    free(utf.records);
     free(utf.params);
     free(utf.target);
     free(utf.failure);
