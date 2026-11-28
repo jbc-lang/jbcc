@@ -18,7 +18,8 @@
   component property accessors are generated from the component
   definitions. Stubs cover conditions, recorded EASYQA calls, stopping
   calls, fixed dates and times, and routine names for component methods.
-  16,510 of the 26,307 tests pass.
+  Of the stubs that match a call, the most specific answers, then the
+  newest; `reset` clears the stubs. 17,696 of the 26,307 tests pass.
 
 ### Changed
 

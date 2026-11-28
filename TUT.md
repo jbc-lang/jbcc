@@ -153,7 +153,8 @@ Inferred behaviour, to revisit as more tests run:
   target with fewer parameters than it takes.
 - `setParam(n, value)` sets parameter n, adding empty ones before it: a
   test calls it after `reset`, with no parameters left.
-- `reset` clears the parameters and keeps the target.
+- `reset` clears the parameters and keeps the target (and, step 5, clears
+  the stubs).
 
 #### Step 2 baseline (2026-11-28)
 
@@ -211,10 +212,22 @@ and its own helpers.
       call must pass, or `any()`, `matches(pattern)`, `contains(text)`,
       `greaterThan(n)` or `lessThan(n)`; and the value the stub returns
       there, or `same()` (or `any()`) to leave it.
-- [x] A call takes the first stub of its name, in any case, whose
-      expected values match and which isn't used up: a stub answers once
-      unless `setRepeatable`. A call no stub matches fails the test with
-      the call and its arguments, unless `ignoreMissingStubs`.
+- [x] A call goes to a stub of its name, in any case, whose expected
+      values and conditions match and which isn't used up (a stub answers
+      once unless `setRepeatable`). Of those, the most specific answers:
+      the one with the most expected values and conditions that aren't
+      `any()`; of equally specific ones, the newest. A call no stub
+      matches fails the test with the call and its arguments, unless
+      `ignoreMissingStubs`. Evidence: `AA.ACCOUNT.SETTLE.SUSP_2` defines
+      two equally specific stubs and expects the second to answer;
+      `EB.USER.ROLES.VALIDATE_005` defines a stub with two conditions and
+      then a general one, and expects the first. Taking the first match
+      (step 4 to 6 runs) left 569 invocation counts at 0; taking the
+      newest instead passed 1,133 more tests but lost 199, of which
+      specificity recovers 170.
+- [x] `reset` clears the parameters, the stubs and the call counts, and
+      keeps the target and the records: tests define their stubs again
+      after each `reset`.
 - [x] `setStubReturnValue` (a FUNCTION's result), `getNbInvocation` (a
       handle, or a routine name for every call to it),
       `addStubCommonChange(stub, VAR, value)` and
@@ -242,7 +255,8 @@ and its own helpers.
 - [ ] `addStubCacheChange` (50 tests), `setFilePointer` (25),
       `lockRecord`, and `addStubCommonChange` given a name in quotes.
 - [x] `JBCC_UTF_TRACE=1` prints each stubbed call, its arguments and
-      whether a stub answered it.
+      whether a stub answered it, and for the other stubs of the name why
+      not: the parameter and value each expects, used up, or a condition.
 
 ### 6. Records and T24 data access
 
@@ -292,6 +306,20 @@ routine name, all 26,307 tests in 53 min:
 | unsupported | 137 | `addStubCacheChange` (50), `addStubCommonChange` with a quoted name (46), `setFilePointer` (25) |
 | rejected and the rest | 508 | |
 
+#### Stub choice baseline (2026-11-28)
+
+With the most specific stub answering and `reset` clearing the stubs,
+all 26,307 tests in 53 min:
+
+| State | Tests | Change from the step 5 baseline |
+|---|---:|---|
+| passed | 17,696 | 67.3%; 1,197 more pass, 21 fewer |
+| failed | 3,633 | 1,845 at `assertEquals` |
+| timeout | 2,731 | |
+| error | 1,604 | |
+| unsupported | 137 | |
+| rejected and the rest | 506 | |
+
 ### 7. The rest
 
 - [x] The component-method targets, through the catalog's method table
@@ -315,8 +343,8 @@ routine name, all 26,307 tests in 53 min:
 - The exact meaning of `setRepeatable`, `reset`, `setParam` and
   `ignoreMissingStubs`. These are inferred above; settle each one by which
   reading makes more of its tests pass.
-- Stub matching is inferred too (step 5): by position, first match wins,
-  used up unless repeatable.
+- Stub matching is inferred too (step 5): by position, the most specific
+  match wins and then the newest, used up unless repeatable.
 - Whether UTF runs each test in a fresh session, with COMMON, the cache and
   files reset, or shares one session across a test's runs.
 - The T24 environment a target expects: COMMON variables such as `TODAY`,

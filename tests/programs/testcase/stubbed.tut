@@ -7,6 +7,9 @@ TESTCASE SAMPLE.LOOKUP_1
     FETCH = UTF.addStub("Sample.Fetch")
     UTF.addStubParam(FETCH, "K1", UTF.same())
     UTF.addStubParam(FETCH, UTF.any(), "ADA" : @FM : "X")
+    OLDER = UTF.addStub("SAMPLE.CHECK")
+    UTF.addStubParam(OLDER, UTF.any(), UTF.same())
+    UTF.setStubReturnValue(OLDER, "OLDER")
     CHECK = UTF.addStub("SAMPLE.CHECK")
     UTF.addStubParam(CHECK, UTF.any(), UTF.same())
     UTF.setStubReturnValue(CHECK, "OK")
@@ -20,17 +23,27 @@ TESTCASE SAMPLE.LOOKUP_1
     UTF.assertEquals(NAME, "ADA")
     UTF.assertEquals(STATUS, "OK")
     UTF.assertEquals(UTF.getNbInvocation(FETCH), 1)
-* The fetch stub is used up: a second run matches no stub and fails, unless
-* missing stubs are ignored. A COMMON change shows in the target.
-    FAIL = UTF.addStub("SAMPLE.FETCH")
-    UTF.addStubParam(FAIL, "K2", UTF.same())
-    UTF.addStubParam(FAIL, UTF.any(), "")
-    UTF.addStubCommonChange(FAIL, LAST.ERROR, "MISSING")
+    UTF.assertEquals(UTF.getNbInvocation(OLDER), 0)
+* reset clears the parameters and the stubs. Of the stubs that match, the
+* most specific answers, defined before or after a general one; of equally
+* specific ones the newest (OLDER above). A COMMON change shows in the
+* target.
     UTF.reset()
+    MISSING = UTF.addStub("SAMPLE.FETCH")
+    UTF.addStubParam(MISSING, "K2", UTF.same())
+    UTF.addStubParam(MISSING, UTF.any(), "")
+    UTF.addStubCommonChange(MISSING, LAST.ERROR, "MISSING")
+    FETCH = UTF.addStub("SAMPLE.FETCH")
+    UTF.addStubParam(FETCH, UTF.any(), UTF.same())
+    UTF.addStubParam(FETCH, UTF.any(), "OTHER")
+    CHECK = UTF.addStub("SAMPLE.CHECK")
+    UTF.addStubParam(CHECK, UTF.any(), UTF.same())
+    UTF.setStubReturnValue(CHECK, "OK")
     UTF.addParam("K2")
     UTF.addParam(NAME)
     UTF.addParam(STATUS)
     UTF.runTest()
     UTF.assertEquals(STATUS, "ERROR MISSING")
-    UTF.assertEquals(UTF.getNbInvocation(CHECK), 2)
+    UTF.assertEquals(UTF.getNbInvocation(FETCH), 0)
+    UTF.assertEquals(UTF.getNbInvocation(MISSING), 1)
 END
