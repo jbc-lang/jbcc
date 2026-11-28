@@ -1290,6 +1290,43 @@ def test_utf_call_that_no_stub_matches_fails(compiler):
     ), run.stderr
 
 
+def test_utf_stubs_chained_by_property_conditions(compiler):
+    """addStubPropertyCondition makes a stub answer only while a property
+    has a value, read with its get accessor, and addStubPropertyChange sets
+    the next; addStubWriteDone writes a record when the stub answers, and
+    startsWith matches an argument's start. setEASYQAMode has no effect."""
+    run = utf_build(
+        compiler,
+        'chained.tut',
+        'SAMPLE.STEPS.b',
+        'SAMPLE.STATE.b',
+        'SAMPLE.STATE.SET.b',
+        stub_missing=True,
+    )
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
+
+
+def test_utf_recorded_stubs_dates_and_stopping(compiler):
+    """setDate and setTime fix DATE() and TIME(); addEasyQAStub builds a stub from in and out
+    matrices; addStubCommonCondition checks a COMMON variable; a stub
+    marked setStopping ends the target's run, and runTest returns."""
+    run = utf_build(compiler, 'recorded.tut', 'SAMPLE.RECORDED.b', stub_missing=True)
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 8 checks in 1 runs\n')
+
+
+def test_utf_stub_named_after_the_implementing_routine(compiler):
+    """utf_routines maps a component method, as calls name it, to the
+    routine implementing it: a stub of either name answers."""
+    run = utf_build(
+        compiler,
+        'routine-stub.tut',
+        'SAMPLE.VIA.b',
+        stub_missing=True,
+        utf_routines={'sample.access.fetch': 'SAMPLE.FETCH.ROUTINE'},
+    )
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 3 checks in 1 runs\n')
+
+
 def test_utf_records_answer_data_access(compiler):
     """setRecord seeds records that unstubbed F.READ, CACHE.READ and
     component table reads return; F.WRITE stores one that getRecord reads

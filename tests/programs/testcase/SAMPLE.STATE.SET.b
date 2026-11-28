@@ -1,0 +1,5 @@
+    SUBROUTINE sample.state.setmode(VALUE)
+    COMMON /SAMPLE.STATE/ MODE
+    MODE = VALUE
+    RETURN
+END

@@ -1,0 +1,14 @@
+TESTCASE SAMPLE.VIA_1
+* A stub named after the routine answers calls to the component method
+* it implements, and both names count the call.
+    UTF.setTarget("SAMPLE.VIA")
+    STUB = UTF.addStub("SAMPLE.FETCH.ROUTINE")
+    UTF.addStubParam(STUB, "K", UTF.same())
+    UTF.addStubParam(STUB, UTF.any(), "found")
+    UTF.addParam("K")
+    UTF.addParam(VALUE)
+    UTF.runTest()
+    UTF.assertEquals(VALUE, "found")
+    UTF.assertEquals(UTF.getNbInvocation("SAMPLE.FETCH.ROUTINE"), 1)
+    UTF.assertEquals(UTF.getNbInvocation("Sample.Access.Fetch"), 1)
+END

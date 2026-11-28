@@ -1351,13 +1351,20 @@ static size_t matrix_position(const char *value, size_t fallback, size_t total,
     return (size_t)pos;
 }
 
-const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
+static const char *matbuild(const jbc_variable *src, int rank, const int *bounds,
                          const char *start, const char *end, const char *delimiter,
-                         const char *name, const char *file, int line, int column)
+                         const char *name, int trim, const char *file, int line, int column)
 {
     size_t total = matrix_elements(rank, bounds);
     size_t first = matrix_position(start, 1, total, "MATBUILD", file, line, column);
     size_t last = matrix_position(end, total, total, "MATBUILD", file, line, column);
+    /* Without an end, TAFC PB201214 leaves out trailing empty elements
+       (tests/tafc/matbuild-trailing.b). */
+    while (trim && !end && last >= first) {
+        const char *value = src[matrix_element_offset(last - 1, rank, bounds)].value;
+        if (!value || *value || jbc_size(value)) break;
+        --last;
+    }
     if (first > last) return "";
     size_t length = *delimiter ? last - first : 0;
     for (size_t i = first; i <= last; ++i) {
@@ -1382,6 +1389,14 @@ const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
     }
     *write = '\0';
     return out;
+}
+
+/* The MATBUILD statement; the runtime's own records keep every field. */
+const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
+                         const char *start, const char *end, const char *delimiter,
+                         const char *name, const char *file, int line, int column)
+{
+    return matbuild(src, rank, bounds, start, end, delimiter, name, 1, file, line, column);
 }
 
 static int64_t index_value(const char *text);
@@ -1878,7 +1893,7 @@ const char *jbc_userstats(const char *file, int line, int column)
     attrs[42].value = size_value((size_t)line);
     attrs[43].value = file;
     const int bounds[] = {USERSTATS_ATTRIBUTES};
-    return jbc_matbuild(attrs, 1, bounds, NULL, NULL, "\376", "@USERSTATS", file, line, column);
+    return matbuild(attrs, 1, bounds, NULL, NULL, "\376", "@USERSTATS", 0, file, line, column);
 }
 #endif
 #endif
@@ -3444,8 +3459,12 @@ static const char *time_from_clock(const struct tm *now)
     return size_value(now->tm_hour * 3600 + now->tm_min * 60 + now->tm_sec);
 }
 
+/* UTF.setTime fixes what TIME() returns (seconds past midnight), else ''. */
+static char jbc_fixed_time[12];
+
 const char *jbc_time(const char *file, int line, int column)
 {
+    if (jbc_fixed_time[0]) return jbc_fixed_time;
     return time_from_clock(local_clock(file, line, column, "TIME cannot read local time"));
 }
 
@@ -3764,8 +3783,12 @@ static const char *date_from_clock(const struct tm *today, const char *file, int
     return internal_date(today->tm_year + 1900, today->tm_yday + 1);
 }
 
+/* UTF.setDate fixes what DATE() returns (an internal date), else ''. */
+static char jbc_fixed_date[12];
+
 const char *jbc_date(const char *file, int line, int column)
 {
+    if (jbc_fixed_date[0]) return jbc_fixed_date;
     return date_from_clock(read_local_clock(), file, line, column);
 }
 
@@ -6322,7 +6345,7 @@ int jbc_matwrite(const char *handle, const char *key, const jbc_variable *src, i
                  const int *bounds, jbc_variable *setting, int keep_lock, const char *name,
                  const char *file, int line, int column)
 {
-    const char *record = jbc_matbuild(src, rank, bounds, NULL, NULL, "\376", name, file, line, column);
+    const char *record = matbuild(src, rank, bounds, NULL, NULL, "\376", name, 0, file, line, column);
     int status = write_record_status(handle, key, record, 0, keep_lock);
     if (setting) {
         const char *result = status == 128 ? "128" : "32768";
@@ -8758,7 +8781,7 @@ int jbc_file_status(const char *handle, jbc_variable *out, jbc_variable *setting
     else status = sequential_status(handle, attrs);
 #endif
     const int bounds[] = {STATUS_ATTRIBUTES};
-    const char *value = status ? "" : jbc_matbuild(attrs, 1, bounds, NULL, NULL, "\376", "STATUS",
+    const char *value = status ? "" : matbuild(attrs, 1, bounds, NULL, NULL, "\376", "STATUS", 0,
                                                    source, line, column);
     assign_value(out, value);
     if (setting) assign_value(setting, size_value((size_t)status));
@@ -8900,6 +8923,8 @@ typedef struct {
 } jbc_utf_argument;
 
 #ifdef JBC_UTF
+#include <setjmp.h>
+
 /* Generated beside the routines: runs the named target with the
    parameters and returns 1, or 0 when no routine of the program has that
    name, or -1 when the parameters do not fit its arguments. Missing
@@ -8916,6 +8941,9 @@ struct utf_change {
     jbc_variable *variable; /* addStubCommonChange */
     char *accessor;         /* addStubPropertyChange: the set accessor */
     char *value;
+    char *file;             /* addStubWriteDone: the record it writes */
+    char *key;
+    jbc_matrix matrix;      /* addStubCommonChange on a COMMON matrix */
 };
 
 struct utf_stub {
@@ -8925,6 +8953,10 @@ struct utf_stub {
     char *result; /* setStubReturnValue */
     struct utf_change *changes;
     int change_count;
+    struct utf_change *conditions; /* addStubPropertyCondition: get accessors,
+                                      addStubCommonCondition: variables */
+    int condition_count;
+    int stopping; /* setStopping: the call ends the target's run */
 };
 
 /* The test's state. Text is copied with malloc, outside the collector. */
@@ -8941,6 +8973,8 @@ static struct {
     int call_count;
     struct utf_record { char *file, *key, *value; } *records; /* setRecord */
     int record_count;
+    jmp_buf stop; /* where a stopping stub ends the run */
+    int running;
 } utf;
 
 /* any(), same() and matches(pattern) as values: ESC and a tag. */
@@ -8951,6 +8985,7 @@ static const char utf_matches[] = UTF_MARK "matches:";
 static const char utf_contains[] = UTF_MARK "contains:";
 static const char utf_greater[] = UTF_MARK "greaterThan:";
 static const char utf_less[] = UTF_MARK "lessThan:";
+static const char utf_starts[] = UTF_MARK "startsWith:";
 
 static char *utf_copy(const char *text)
 {
@@ -9120,6 +9155,9 @@ static int utf_stub_matches(const struct utf_stub *stub, int count, const jbc_ut
             if (!find_bytes(actual, jbc_size(actual), part, strlen(part))) return 0;
         } else if (utf_marked(expected, utf_greater)) {
             if (jbc_compare(actual, expected + strlen(utf_greater), jbc_precision) <= 0) return 0;
+        } else if (utf_marked(expected, utf_starts)) {
+            const char *part = expected + strlen(utf_starts);
+            if (strncmp(actual, part, strlen(part))) return 0;
         } else if (utf_marked(expected, utf_less)) {
             if (jbc_compare(actual, expected + strlen(utf_less), jbc_precision) >= 0) return 0;
         } else if (jbc_compare(actual, expected, jbc_precision) != 0) {
@@ -9132,8 +9170,28 @@ static int utf_stub_matches(const struct utf_stub *stub, int count, const jbc_ut
 static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,
                                const char **result);
 
+static void utf_write(const char *file, const char *key, const char *value);
+
+/* addStubPropertyCondition: the stub answers only while each property
+   has its value, read with the component's get accessor. */
+static int utf_conditions_hold(const struct utf_stub *stub)
+{
+    for (int i = 0; i < stub->condition_count; ++i) {
+        const struct utf_change *condition = &stub->conditions[i];
+        const char *value = "";
+        if (condition->variable) {
+            value = condition->variable->value ? condition->variable->value : "";
+        } else if (jbc_utf_call_target(condition->accessor, 0, NULL, &value) != 1) {
+            return 0;
+        }
+        if (jbc_compare(value, condition->value, jbc_precision) != 0) return 0;
+    }
+    return 1;
+}
+
 static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
                            const char **result);
+static const char *jbc_utf_routine_name(const char *method);
 
 /* Called by the generated body of each routine the program doesn't
    define: answers from the stubs, then from the test's records for the
@@ -9141,11 +9199,16 @@ static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
 const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
 {
     struct utf_stub *found = NULL;
+    /* A stub may name the component method, as the call does, or the
+       routine that implements it, as EB.DataAccess.Opf is OPF. */
+    const char *routine = jbc_utf_routine_name(name);
     ++*utf_calls_to(name);
+    if (routine) ++*utf_calls_to(routine);
     for (int i = 0; i < utf.stub_count && !found; ++i) {
         struct utf_stub *stub = &utf.stubs[i];
-        if (!jbc_strcasecmp(stub->name, name) && (stub->repeatable || !stub->invocations) &&
-            utf_stub_matches(stub, count, args))
+        if ((!jbc_strcasecmp(stub->name, name) || (routine && !jbc_strcasecmp(stub->name, routine))) &&
+            (stub->repeatable || !stub->invocations) &&
+            utf_stub_matches(stub, count, args) && utf_conditions_hold(stub))
             found = stub;
     }
     if (getenv("JBCC_UTF_TRACE")) {
@@ -9182,7 +9245,14 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
             assign_value(args[i].scalar, copy_value(found->returned[i]));
     for (int i = 0; i < found->change_count; ++i) {
         struct utf_change *change = &found->changes[i];
-        if (change->variable) {
+        if (change->file) {
+            utf_write(change->file, change->key, change->value);
+        } else if (change->matrix.rank) {
+            /* A matrix takes the value's fields, as MATPARSE does. */
+            jbc_variable setting = {"", 0, 0};
+            jbc_matparse(change->matrix.values, change->matrix.rank, change->matrix.bounds, NULL,
+                         NULL, copy_value(change->value), "\376", &setting, "UTF", 0, 0);
+        } else if (change->variable) {
             assign_value(change->variable, copy_value(change->value));
         } else {
             jbc_variable value = {copy_value(change->value), 0, 0};
@@ -9195,6 +9265,7 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
             }
         }
     }
+    if (found->stopping && utf.running) longjmp(utf.stop, 1);
     return found->result ? copy_value(found->result) : "";
 }
 
@@ -9352,7 +9423,13 @@ static const char *utf_run(int count, jbc_utf_argument *args, const char *file, 
         snprintf(text, sizeof text, "%s:%d:%d: UTF.runTest without UTF.setTarget", file, line,
                  column);
     } else {
-        int ran = jbc_utf_call_target(utf.target, utf.count, utf.params, &result);
+        /* A stopping stub ends the run here, as a T24 routine that stops
+           processing (setStopping). */
+        int ran = 1;
+        utf.running = 1;
+        if (!setjmp(utf.stop)) ran = jbc_utf_call_target(utf.target, utf.count, utf.params, &result);
+        else result = "";
+        utf.running = 0;
         if (ran == 1) return result;
         snprintf(text, sizeof text, "%s:%d:%d: target '%.100s' %s", file, line, column,
                  utf.target,
@@ -9417,6 +9494,9 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
     } else if (utf_is(method, "assertMatches") && count >= 2) {
         utf_check(jbc_truth(jbc_matches(a, b)), method, a, b,
                   count > 2 ? utf_value(&args[2]) : "", file, line, column);
+    } else if (utf_is(method, "assertGreaterThan") && count >= 2) {
+        utf_check(jbc_compare(a, b, jbc_precision) > 0, method, a, b,
+                  count > 2 ? utf_value(&args[2]) : "", file, line, column);
     } else if (utf_is(method, "assertLessThan") && count >= 2) {
         utf_check(jbc_compare(a, b, jbc_precision) < 0, method, a, b,
                   count > 2 ? utf_value(&args[2]) : "", file, line, column);
@@ -9425,11 +9505,13 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
     } else if (utf_is(method, "same") && count == 0) {
         return utf_same;
     } else if ((utf_is(method, "matches") || utf_is(method, "contains") ||
-                utf_is(method, "greaterThan") || utf_is(method, "lessThan")) && count == 1) {
+                utf_is(method, "greaterThan") || utf_is(method, "lessThan") ||
+                utf_is(method, "startsWith")) && count == 1) {
         /* A matcher for addStubParam: the mark, then its operand. */
         const char *mark = utf_is(method, "matches")    ? utf_matches
                            : utf_is(method, "contains") ? utf_contains
                            : utf_is(method, "greaterThan") ? utf_greater
+                           : utf_is(method, "startsWith")  ? utf_starts
                                                            : utf_less;
         size_t n = strlen(mark), m = strlen(a);
         char *out = allocate(n + m);
@@ -9466,24 +9548,107 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
             free(stub->result);
             stub->result = utf_copy(b);
         }
-    } else if (utf_is(method, "addStubCommonChange") && count == 3 && args[1].scalar &&
-               !args[1].by_value) {
+    } else if (utf_is(method, "addStubCommonChange") && count == 3 &&
+               (args[1].scalar ? !args[1].by_value : args[1].matrix.rank > 0)) {
+        /* (stub, VAR, value): a COMMON variable, or a COMMON matrix such as
+           R.NEW, which takes the value's fields. */
         if (utf_find_stub(a))
-            utf_add_change(utf_find_stub(a), (struct utf_change){args[1].scalar, NULL,
-                                                                 utf_copy(utf_value(&args[2]))});
-    } else if (utf_is(method, "addStubPropertyChange") && count == 4) {
-        /* (stub, component, property, value): set<Property> of the
-           component, as the generated accessor names it. */
+            utf_add_change(utf_find_stub(a),
+                           (struct utf_change){args[1].scalar, NULL, utf_copy(utf_value(&args[2])),
+                                               NULL, NULL, args[1].matrix});
+    } else if ((utf_is(method, "addStubPropertyCondition") ||
+                utf_is(method, "addStubPropertyChange")) && count == 4) {
+        /* (stub, component, property, value): the component's get or set
+           accessor, as the generated accessor names it. */
+        int condition = utf_is(method, "addStubPropertyCondition");
         const char *property = utf_value(&args[2]);
         char *accessor = malloc(strlen(b) + strlen(property) + 6);
         if (!accessor) fail("out of memory");
-        sprintf(accessor, "%s.set%s", b, property);
+        sprintf(accessor, "%s.%s%s", b, condition ? "get" : "set", property);
         for (char *c = accessor; *c; ++c) *c = (char)utf_lower((unsigned char)*c);
-        if (utf_find_stub(a))
-            utf_add_change(utf_find_stub(a),
-                           (struct utf_change){NULL, accessor, utf_copy(utf_value(&args[3]))});
-        else
+        struct utf_stub *stub = utf_find_stub(a);
+        struct utf_change change = {NULL, accessor, utf_copy(utf_value(&args[3])), NULL, NULL,
+                                     {0}};
+        if (!stub) {
             free(accessor);
+            free(change.value);
+        } else if (condition) {
+            stub->conditions = realloc(stub->conditions, (size_t)(stub->condition_count + 1) *
+                                                             sizeof *stub->conditions);
+            if (!stub->conditions) fail("out of memory");
+            stub->conditions[stub->condition_count++] = change;
+        } else {
+            utf_add_change(stub, change);
+        }
+    } else if (utf_is(method, "addStubWriteDone") && count == 4) {
+        /* (stub, file, key, record): the stub writes the record when it
+           answers (inferred). */
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub)
+            utf_add_change(stub, (struct utf_change){NULL, NULL, utf_copy(utf_value(&args[3])),
+                                                     utf_copy(b), utf_copy(utf_value(&args[2])), {0}});
+    } else if (utf_is(method, "addStubCommonCondition") && count == 3 && args[1].scalar &&
+               !args[1].by_value) {
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub) {
+            stub->conditions = realloc(stub->conditions, (size_t)(stub->condition_count + 1) *
+                                                             sizeof *stub->conditions);
+            if (!stub->conditions) fail("out of memory");
+            stub->conditions[stub->condition_count++] =
+                (struct utf_change){args[1].scalar, NULL, utf_copy(utf_value(&args[2])), NULL, NULL,
+                                    {0}};
+        }
+    } else if (utf_is(method, "setStopping") && count == 1) {
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub) stub->stopping = 1;
+    } else if (utf_is(method, "setTime") && count == 3) {
+        /* (hours, minutes, seconds): what TIME() returns. */
+        int64_t h = truncated(a, file, line, column), m = truncated(b, file, line, column);
+        int64_t sec = truncated(utf_value(&args[2]), file, line, column);
+        if (h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59)
+            numeric_error(file, line, column, "UTF.setTime needs valid hours, minutes and seconds");
+        snprintf(jbc_fixed_time, sizeof jbc_fixed_time, "%d", (int)(h * 3600 + m * 60 + sec));
+    } else if (utf_is(method, "setDate") && count == 3) {
+        /* (day, month, year): what DATE() returns. */
+        int64_t day = truncated(a, file, line, column), month = truncated(b, file, line, column);
+        int64_t year = truncated(utf_value(&args[2]), file, line, column);
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 ||
+            day > month_length((int)year, (int)month))
+            numeric_error(file, line, column, "UTF.setDate needs a valid day, month and year");
+        int day_of_year = (int)day;
+        for (int m = 1; m < month; ++m) day_of_year += month_length((int)year, m);
+        snprintf(jbc_fixed_date, sizeof jbc_fixed_date, "%s",
+                 internal_date((int)year, day_of_year));
+    } else if (utf_is(method, "addEasyQAStub") && count == 5 && !args[2].scalar &&
+               !args[3].scalar) {
+        /* (name, parameters, MAT in, MAT out, error): a repeatable stub from
+           a recorded call. In the matrices '*' is any() and same(). */
+        utf.stubs = realloc(utf.stubs, (size_t)(utf.stub_count + 1) * sizeof *utf.stubs);
+        if (!utf.stubs) fail("out of memory");
+        struct utf_stub *stub = &utf.stubs[utf.stub_count];
+        *stub = (struct utf_stub){.name = utf_copy(a), .repeatable = 1};
+        int64_t n = truncated(b, file, line, column);
+        for (int64_t i = 0; i < n; ++i) {
+            const char *in = "*", *out = "*";
+            if (args[2].matrix.rank == 1 && (size_t)i < args[2].matrix.count - 1) {
+                const char *v = args[2].matrix.values[i + 1].value;
+                in = v ? v : "";
+            }
+            if (args[3].matrix.rank == 1 && (size_t)i < args[3].matrix.count - 1) {
+                const char *v = args[3].matrix.values[i + 1].value;
+                out = v ? v : "";
+            }
+            utf_append(&stub->expected, stub->count, strcmp(in, "*") ? in : utf_any);
+            utf_append(&stub->returned, stub->count, strcmp(out, "*") ? out : utf_same);
+            ++stub->count;
+        }
+        if (args[4].scalar && !args[4].by_value) assign_value(args[4].scalar, "");
+        char handle[16];
+        snprintf(handle, sizeof handle, "%d", ++utf.stub_count);
+        return copy_value(handle);
+    } else if (utf_is(method, "setEASYQAMode") && count == 0) {
+        /* Marks a test converted from EASYQA recordings; no effect found
+           (inferred). */
     } else if (utf_is(method, "ignoreMissingStubs") && count == 0) {
         utf.ignore_missing = 1;
     } else if (utf_is(method, "setRecord") && count >= 3) {
@@ -9527,7 +9692,15 @@ static int utf_report(void)
         for (int j = 0; j < stub->change_count; ++j) {
             free(stub->changes[j].accessor);
             free(stub->changes[j].value);
+            free(stub->changes[j].file);
+            free(stub->changes[j].key);
         }
+        for (int j = 0; j < stub->condition_count; ++j) {
+            free(stub->conditions[j].accessor);
+            free(stub->conditions[j].value);
+        }
+        jbc_fixed_date[0] = '\0';
+        free(stub->conditions);
         free(stub->expected);
         free(stub->returned);
         free(stub->changes);
@@ -9535,6 +9708,8 @@ static int utf_report(void)
         free(stub->name);
     }
     free(utf.stubs);
+    jbc_fixed_date[0] = '\0';
+    jbc_fixed_time[0] = '\0';
     for (int i = 0; i < utf.call_count; ++i) free(utf.calls[i].name);
     for (int i = 0; i < utf.record_count; ++i) {
         free(utf.records[i].file);

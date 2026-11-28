@@ -89,10 +89,11 @@ def test_target(source):
 
 
 def read_targets(catalogue, extract):
-    """(target name -> corpus path, component method -> routine name). A
-    target is a routine, or an R19 component method such as
-    AA.Account.AccountMaintain, which the component's definition maps to
-    the routine that implements it (AA.ACCOUNT.MAINTAIN)."""
+    """(target name -> corpus path, target alias -> routine name,
+    component method as calls name it -> routine name). A target is a
+    routine, or an R19 component method such as AA.Account.AccountMaintain,
+    which the component's definition maps to the routine that implements
+    it (AA.ACCOUNT.MAINTAIN); a stub may name either."""
     uri = catalogue.resolve().as_uri() + "?mode=ro"
     with closing(sqlite3.connect(uri, uri=True)) as db:
         rows = db.execute(
@@ -108,28 +109,32 @@ def read_targets(catalogue, extract):
     targets = {}
     for name, rel in rows:
         targets.setdefault(name, rel)
+    routines = {
+        f"{component}.{method}".casefold(): routine for component, method, routine in methods
+    }
     aliases = {}
     for component, method, routine in methods:
         alias = f"{component}.{method}"
         if routine in targets and alias not in targets:
             aliases.setdefault(alias, routine)
             targets.setdefault(alias, targets[routine])
-    return targets, aliases
+    return targets, aliases, routines
 
 
 # Set in each worker by initialize_worker.
 properties = {}
 tables = {}
+methods = {}
 unit_cache = OrderedDict()
 CACHE_SIZE = 3000
 synthesized = None
 next_index = 0
 
 
-def initialize_worker(include_index, members, accessors, table_files):
-    global properties, tables, synthesized
+def initialize_worker(include_index, members, accessors, table_files, method_routines):
+    global properties, tables, methods, synthesized
     check_corpus.initialize_worker(include_index, members)
-    properties, tables = accessors, table_files
+    properties, tables, methods = accessors, table_files, method_routines
     synthesized = Path(tempfile.mkdtemp(prefix="tut-units-"))
 
 
@@ -202,7 +207,7 @@ def synthesized_path(name, source):
 
 
 PROPERTY_CHANGE = re.compile(
-    rb"""UTF\.addStubPropertyChange\(\s*[^,()]+,\s*(["'])([\w.]+)\1\s*,\s*(["'])(\w+)\3"""
+    rb"""UTF\.addStubProperty(Change|Condition)\(\s*[^,()]+,\s*(["'])([\w.]+)\2\s*,\s*(["'])(\w+)\4"""
 )
 
 
@@ -216,7 +221,7 @@ def link_units(test, target, root, directories):
     ]
     accessors = {call.word for unit in units for call, _, _ in unit.calls}
     accessors.update(
-        f"{match[2].decode()}.set{match[4].decode()}".casefold()
+        f"{match[3].decode()}.{'set' if match[1] == b'Change' else 'get'}{match[5].decode()}".casefold()
         for match in PROPERTY_CHANGE.finditer(test.read_bytes())
     )
     for name in sorted(accessors):
@@ -256,14 +261,14 @@ def run_test(relative, *, root, directories, targets, aliases, timeout, keep):
         # jbcc's warnings about the corpus sources are not the test's result.
         with redirect_stderr(io.StringIO()):
             units = link_units(path, target_path, root, directories)
-            used = {
-                call.word.rsplit(".", 1)[0] for unit in units for call, _, _ in unit.calls
-            }
+            called = {call.word for unit in units for call, _, _ in unit.calls}
+            used = {name.rsplit(".", 1)[0] for name in called}
             source, libraries = COMPILER.link_units(
                 units,
                 utf_aliases=aliases,
                 stub_missing=True,
                 utf_tables={table: tables[table] for table in used if table in tables},
+                utf_routines={name: methods[name] for name in called if name in methods},
             )
     except COMPILER.Diagnostic as error:
         detail = first_line(str(error).replace(str(root) + os.sep, ""))
@@ -331,7 +336,7 @@ def main():
         include_index = check_corpus.IncludeIndex(options.t24_catalog, root, options.t24_domain_inserts)
         members = read_component_members(options.t24_catalog, root)
         check_corpus.stub_component_members(members)
-        targets, aliases = read_targets(options.t24_catalog, root.name)
+        targets, aliases, method_routines = read_targets(options.t24_catalog, root.name)
         accessors = read_component_properties(options.t24_catalog, root)
         table_files = read_component_tables(options.t24_catalog, root)
     except (sqlite3.Error, OSError, ValueError) as error:
@@ -361,7 +366,7 @@ def main():
     with ProcessPoolExecutor(
         max_workers=options.j,
         initializer=initialize_worker,
-        initargs=(include_index, members, accessors, table_files),
+        initargs=(include_index, members, accessors, table_files, method_routines),
     ) as pool:
         for relative, state, target, detail in pool.map(run, tests, chunksize=4):
             counts[state] += 1
