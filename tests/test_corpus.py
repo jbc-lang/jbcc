@@ -1276,9 +1276,10 @@ def test_utf_stubs_answer_the_targets_calls(compiler):
     from the test's stubs: expected arguments (a value, any() or a
     matcher), returned values or same(), a FUNCTION's result, a COMMON
     change, setRepeatable and invocation counts. Stub names match calls
-    whatever their case."""
+    whatever their case; reset clears the stubs. Of the matching stubs the
+    most specific answers, and of equally specific ones the newest."""
     run = utf_build(compiler, 'stubbed.tut', 'SAMPLE.LOOKUP.b', stub_missing=True)
-    assert (run.returncode, run.stderr) == (0, b'UTF: passed 5 checks in 2 runs\n')
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 7 checks in 2 runs\n')
 
 
 def test_utf_call_that_no_stub_matches_fails(compiler):

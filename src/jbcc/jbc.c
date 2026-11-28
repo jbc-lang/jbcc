@@ -9043,14 +9043,15 @@ static void utf_unsupported(const char *method)
     }
 }
 
-/* A shown value: at most 60 bytes, marks as ^ ] \ as in the debugger. */
+/* A shown value, cut to fit size (60 bytes in a failure), with marks as
+   ^ ] \ as in the debugger. */
 static void utf_show(char *out, size_t size, const char *value)
 {
     size_t length = jbc_size(value), n = 0;
     out[n++] = '"';
     for (size_t i = 0; i < length && n + 5 < size; ++i) {
         unsigned char byte = (unsigned char)value[i];
-        if (i == 60) {
+        if (n + 12 >= size) {
             memcpy(out + n, "...", 3);
             n += 3;
             break;
@@ -9193,6 +9194,17 @@ static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
                            const char **result);
 static const char *jbc_utf_routine_name(const char *method);
 
+/* How much a stub constrains its call: the parameters it expects a value
+   or a matcher for, and its conditions. Among the stubs that match, the
+   most specific answers, and of those the newest (TUT.md). */
+static int utf_specificity(const struct utf_stub *stub)
+{
+    int score = stub->condition_count;
+    for (int i = 0; i < stub->count; ++i)
+        if (strcmp(stub->expected[i], utf_any)) ++score;
+    return score;
+}
+
 /* Called by the generated body of each routine the program doesn't
    define: answers from the stubs, then from the test's records for the
    data-access routines, or fails the test. */
@@ -9204,22 +9216,48 @@ const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
     const char *routine = jbc_utf_routine_name(name);
     ++*utf_calls_to(name);
     if (routine) ++*utf_calls_to(routine);
-    for (int i = 0; i < utf.stub_count && !found; ++i) {
+    /* The most specific matching stub answers, and of equally specific
+       ones the newest: a test defines a general stub and a case one in
+       either order (tests/programs/testcase/stubbed.tut; TUT.md). */
+    int best = -1;
+    for (int i = utf.stub_count - 1; i >= 0; --i) {
         struct utf_stub *stub = &utf.stubs[i];
         if ((!jbc_strcasecmp(stub->name, name) || (routine && !jbc_strcasecmp(stub->name, routine))) &&
             (stub->repeatable || !stub->invocations) &&
-            utf_stub_matches(stub, count, args) && utf_conditions_hold(stub))
-            found = stub;
+            utf_stub_matches(stub, count, args) && utf_conditions_hold(stub)) {
+            int score = utf_specificity(stub);
+            if (score > best) {
+                best = score;
+                found = stub;
+            }
+        }
     }
     if (getenv("JBCC_UTF_TRACE")) {
         /* Each call, its arguments and the stub that answers. */
-        char shown[80];
+        char shown[1024];
         fprintf(stderr, "UTF trace: %s(", name);
         for (int i = 0; i < count; ++i) {
             utf_show(shown, sizeof shown, args[i].scalar ? utf_value(&args[i]) : "MAT");
             fprintf(stderr, "%s%s", i ? ", " : "", shown);
         }
         fprintf(stderr, ") -> %s\n", found ? "stub" : "no stub");
+        /* Why the other stubs of the name didn't answer. */
+        for (int i = 0; i < utf.stub_count; ++i) {
+            struct utf_stub *stub = &utf.stubs[i];
+            if (stub == found || (jbc_strcasecmp(stub->name, name) &&
+                                  (!routine || jbc_strcasecmp(stub->name, routine))))
+                continue;
+            int at = 0;
+            while (at < stub->count && at < count && utf_stub_matches(stub, at + 1, args)) ++at;
+            if (!stub->repeatable && stub->invocations)
+                fprintf(stderr, "UTF trace:   stub %d is used up\n", i + 1);
+            else if (at < stub->count && at < count) {
+                utf_show(shown, sizeof shown, stub->expected[at]);
+                fprintf(stderr, "UTF trace:   stub %d expects parameter %d %s\n", i + 1, at + 1,
+                        shown);
+            } else if (!utf_conditions_hold(stub))
+                fprintf(stderr, "UTF trace:   stub %d: its condition doesn't hold\n", i + 1);
+        }
     }
     const char *answer = "";
     if (!found && utf_data_access(name, count, args, &answer)) return answer;
@@ -9445,6 +9483,40 @@ static int utf_is(const char *method, const char *name)
     return !strcmp(method, name);
 }
 
+static void utf_clear_stubs(void)
+{
+    for (int i = 0; i < utf.stub_count; ++i) {
+        struct utf_stub *stub = &utf.stubs[i];
+        for (int j = 0; j < stub->count; ++j) {
+            free(stub->expected[j]);
+            free(stub->returned[j]);
+        }
+        for (int j = 0; j < stub->change_count; ++j) {
+            free(stub->changes[j].accessor);
+            free(stub->changes[j].value);
+            free(stub->changes[j].file);
+            free(stub->changes[j].key);
+        }
+        for (int j = 0; j < stub->condition_count; ++j) {
+            free(stub->conditions[j].accessor);
+            free(stub->conditions[j].value);
+        }
+        free(stub->conditions);
+        free(stub->expected);
+        free(stub->returned);
+        free(stub->changes);
+        free(stub->result);
+        free(stub->name);
+    }
+    free(utf.stubs);
+    utf.stubs = NULL;
+    utf.stub_count = 0;
+    for (int i = 0; i < utf.call_count; ++i) free(utf.calls[i].name);
+    free(utf.calls);
+    utf.calls = NULL;
+    utf.call_count = 0;
+}
+
 const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const char *file,
                     int line, int column)
 {
@@ -9468,8 +9540,12 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
         utf_release(&utf.params[position - 1]);
         utf.params[position - 1] = utf_keep(&args[1]);
     } else if (utf_is(method, "reset")) {
+        /* Clears the parameters, stubs and call counts; the target and the
+           records stay (inferred: tests define their stubs again after
+           each reset). */
         for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
         utf.count = 0;
+        utf_clear_stubs();
     } else if (utf_is(method, "runTest")) {
         return utf_run(count, args, file, line, column);
     } else if (utf_is(method, "setTestNumber") || utf_is(method, "setDescription")) {
@@ -9683,41 +9759,15 @@ static int utf_report(void)
     }
     fflush(stderr);
     for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
-    for (int i = 0; i < utf.stub_count; ++i) {
-        struct utf_stub *stub = &utf.stubs[i];
-        for (int j = 0; j < stub->count; ++j) {
-            free(stub->expected[j]);
-            free(stub->returned[j]);
-        }
-        for (int j = 0; j < stub->change_count; ++j) {
-            free(stub->changes[j].accessor);
-            free(stub->changes[j].value);
-            free(stub->changes[j].file);
-            free(stub->changes[j].key);
-        }
-        for (int j = 0; j < stub->condition_count; ++j) {
-            free(stub->conditions[j].accessor);
-            free(stub->conditions[j].value);
-        }
-        jbc_fixed_date[0] = '\0';
-        free(stub->conditions);
-        free(stub->expected);
-        free(stub->returned);
-        free(stub->changes);
-        free(stub->result);
-        free(stub->name);
-    }
-    free(utf.stubs);
+    utf_clear_stubs();
     jbc_fixed_date[0] = '\0';
     jbc_fixed_time[0] = '\0';
-    for (int i = 0; i < utf.call_count; ++i) free(utf.calls[i].name);
     for (int i = 0; i < utf.record_count; ++i) {
         free(utf.records[i].file);
         free(utf.records[i].key);
         free(utf.records[i].value);
     }
     free(utf.records);
-    free(utf.calls);
     free(utf.params);
     free(utf.target);
     free(utf.failure);
