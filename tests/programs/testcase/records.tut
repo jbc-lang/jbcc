@@ -1,6 +1,8 @@
 TESTCASE SAMPLE.LOAD_1
 * setRecord seeds a record, the target reads and writes through F.READ,
-* CACHE.READ, F.WRITE and a component table, and getRecord reads back.
+* CACHE.READ, F.WRITE, a component table and its own READ, OPEN and WRITE
+* statements, and getRecord reads back. A reset drops
+* the records.
     UTF.setTarget("SAMPLE.LOAD")
     UTF.setRecord("F.SAMPLE", "7", "ADA" : @FM : "LOVELACE")
     UTF.addParam("7")
@@ -12,5 +14,10 @@ TESTCASE SAMPLE.LOAD_1
     UTF.assertEquals(ERR, "")
     UTF.assertEquals(UTF.getRecord("F.SAMPLE", "7.COPY"), "ADA" : @FM : "LOVELACE")
     UTF.assertEquals(COPY<2>, "LOVELACE")
+    UTF.assertEquals(COPY<3>, "ADA")
     UTF.assertEquals(UTF.getNbInvocation("F.READ"), 1)
+    UTF.assertEquals(UTF.getRecord("F.SAMPLE", "STATEMENT"), "LOVELACE")
+    UTF.reset()
+    UTF.assertEquals(UTF.getRecord("F.SAMPLE", "7.COPY"), "")
+    UTF.assertEquals(UTF.getRecord("F.SAMPLE", "7"), "")
 END

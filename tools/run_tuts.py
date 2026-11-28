@@ -162,6 +162,7 @@ def compile_cached(path, root, directories, *, cache=True):
         stub_void_results=True,
         relax_access=True,
         next_warning=lambda _message: None,
+        stub_c_functions=True,
     )
     if cache:
         unit_cache[path] = unit
@@ -263,6 +264,12 @@ def run_test(relative, *, root, directories, targets, aliases, timeout, keep):
             units = link_units(path, target_path, root, directories)
             called = {call.word for unit in units for call, _, _ in unit.calls}
             used = {name.rsplit(".", 1)[0] for name in called}
+            # A component's table<Name> read names the table by its member.
+            used.update(
+                f"{component}.{member[5:]}"
+                for component, member in (name.rsplit(".", 1) for name in called if "." in name)
+                if member.startswith("table") and len(member) > 5
+            )
             source, libraries = COMPILER.link_units(
                 units,
                 utf_aliases=aliases,

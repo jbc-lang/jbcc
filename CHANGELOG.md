@@ -19,7 +19,10 @@
   definitions. Stubs cover conditions, recorded EASYQA calls, stopping
   calls, fixed dates and times, and routine names for component methods.
   Of the stubs that match a call, the most specific answers, then the
-  newest; `reset` clears the stubs. 17,696 of the 26,307 tests pass.
+  newest; `reset` clears the stubs and the records. The records are
+  in-memory files, so a target's own `OPEN`, `READ` and `WRITE` statements
+  see them, and a DEFC function the runtime lacks answers from the stubs.
+  18,199 of the 26,307 tests pass.
 
 ### Changed
 
@@ -30,6 +33,8 @@
 - `ABS('')` is 0, and `ABS` of text that is not a number returns it
   unchanged, as in TAFC.
 - MATBUILD without an end leaves out trailing empty elements, as in TAFC.
+- `DIM X(0)` and `DIM X('')` give 10 elements, and FOR takes an empty bound
+  as 0 and an empty step as no iteration, as in TAFC.
 
 - String literals longer than C99's 4,095-byte limit are emitted in
   pieces joined at run time.
