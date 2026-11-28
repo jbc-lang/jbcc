@@ -378,6 +378,10 @@ Done for section 3 (2026-11-27):
 - A FIELD position or count that is empty or below 1 means 1, and a
   fraction truncates (`tests/tafc/field-positions.b`). A text position
   gave `a` and then `''` in two TAFC runs; jbcc takes it as 1.
+- Past the end of its list, REMOVE sets the variable to `''` and the
+  mark to 0, under prime and jbase (`tests/tafc/remove-end.b`). jbcc left
+  the variable unchanged, so a T24 loop `WHILE X:POS` never ended once a
+  list's last element was taken.
 - An empty substring start or length, or INS position, is 0
   (`tests/tafc/empty-positions.b`): `S['',3]` is `S[1,3]`, `S[2,'']` is
   `''`, and `INS X BEFORE R<''>` inserts a first field. Text that is not

@@ -6144,6 +6144,25 @@ def render_indirect_calls(units):
                 "    }",
             ]
         )
+    # In a unit test build, a routine the program lacks answers from the
+    # test's stubs, as T24 code CALLs @methodName with a name the test
+    # stubs (PP InwardMappingFramework.executeBulkLevel, 'ack.api').
+    lines.extend(
+        [
+            "#ifdef JBC_UTF",
+            "    if (!strcmp(message, \"unknown subroutine\")) {",
+            "        int count = (int)strlen(kinds);",
+            "        jbc_utf_argument utf_args[count ? count : 1];",
+            "        for (int i = 0; i < count; ++i)",
+            "            utf_args[i] = kinds[i] == 'M' ? (jbc_utf_argument){NULL, args[i].matrix, 0}",
+            "                          : kinds[i] == 'S' ? (jbc_utf_argument){args[i].scalar, {0}, 0}",
+            "                                            : (jbc_utf_argument){NULL, {0}, 0};",
+            "        jbc_utf_stub(name, count, utf_args);",
+            "        return;",
+            "    }",
+            "#endif",
+        ]
+    )
     lines.extend(
         [
             """    fprintf(stderr, "%s:%d:%d: %s '%s'\\n", file, line, column, message, name);""",

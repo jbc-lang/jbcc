@@ -1,0 +1,12 @@
+TESTCASE SAMPLE.PARAMS_1
+* A MAT argument to a stubbed routine reads as its elements joined with
+* field marks, so '' matches an empty matrix, and a stub's value fills it.
+    UTF.setTarget("SAMPLE.PARAMS")
+    STUB = UTF.addStub("SAMPLE.READ.PARAMS")
+    UTF.addStubParam(STUB, "F.PARAMS", UTF.same())
+    UTF.addStubParam(STUB, "", "rate" : @FM : "5")
+    UTF.addParam(RESULT)
+    UTF.runTest()
+    UTF.assertEquals(RESULT, "rate/5")
+    UTF.assertEquals(UTF.getNbInvocation(STUB), 1)
+END

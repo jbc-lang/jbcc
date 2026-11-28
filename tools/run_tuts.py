@@ -40,10 +40,14 @@ from pathlib import Path
 
 if __package__:
     from . import check_corpus
-    from .t24_components import read_component_members, read_component_properties, read_component_tables
+    from .t24_components import (
+        read_component_members, read_component_methods, read_component_properties, read_component_tables,
+    )
 else:
     import check_corpus
-    from t24_components import read_component_members, read_component_properties, read_component_tables
+    from t24_components import (
+        read_component_members, read_component_methods, read_component_properties, read_component_tables,
+    )
 
 COMPILER = check_corpus.COMPILER
 
@@ -88,7 +92,7 @@ def test_target(source):
     return values.pop().decode("latin-1").strip() if len(values) == 1 else None
 
 
-def read_targets(catalogue, extract):
+def read_targets(catalogue, extract, extract_root):
     """(target name -> corpus path, target alias -> routine name,
     component method as calls name it -> routine name). A target is a
     routine, or an R19 component method such as AA.Account.AccountMaintain,
@@ -109,6 +113,12 @@ def read_targets(catalogue, extract):
     targets = {}
     for name, rel in rows:
         targets.setdefault(name, rel)
+    # The catalog leaves out `module method`; the definitions have them.
+    known = {(component, method) for component, method, _ in methods}
+    for qualified, routine in read_component_methods(catalogue, Path(extract_root)).items():
+        component, method = qualified.rsplit(".", 1)
+        if (component, method) not in known:
+            methods.append((component, method, routine))
     routines = {
         f"{component}.{method}".casefold(): routine for component, method, routine in methods
     }
@@ -221,10 +231,12 @@ def link_units(test, target, root, directories):
         compile_cached(target, root, directories),
     ]
     accessors = {call.word for unit in units for call, _, _ in unit.calls}
-    accessors.update(
-        f"{match[3].decode()}.{'set' if match[1] == b'Change' else 'get'}{match[5].decode()}".casefold()
-        for match in PROPERTY_CHANGE.finditer(test.read_bytes())
-    )
+    # A change or condition on a matrix-backed property, such as RNew, sets
+    # or reads it whole (setDynArrayToRNew, getDynArrayFromRNew).
+    for match in PROPERTY_CHANGE.finditer(test.read_bytes()):
+        component, name = match[3].decode(), match[5].decode()
+        operations = ("set", "setDynArrayTo") if match[1] == b"Change" else ("get", "getDynArrayFrom")
+        accessors.update(f"{component}.{operation}{name}".casefold() for operation in operations)
     for name in sorted(accessors):
         if name in properties:
             path = synthesized_path(name, accessor_source(name, properties[name]))
@@ -343,7 +355,7 @@ def main():
         include_index = check_corpus.IncludeIndex(options.t24_catalog, root, options.t24_domain_inserts)
         members = read_component_members(options.t24_catalog, root)
         check_corpus.stub_component_members(members)
-        targets, aliases, method_routines = read_targets(options.t24_catalog, root.name)
+        targets, aliases, method_routines = read_targets(options.t24_catalog, root.name, root)
         accessors = read_component_properties(options.t24_catalog, root)
         table_files = read_component_tables(options.t24_catalog, root)
     except (sqlite3.Error, OSError, ValueError) as error:

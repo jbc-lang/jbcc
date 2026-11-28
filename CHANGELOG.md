@@ -22,10 +22,16 @@
   newest; `reset` clears the stubs and the records. The records are
   in-memory files, so a target's own `OPEN`, `READ` and `WRITE` statements
   see them, and a DEFC function the runtime lacks answers from the stubs.
-  18,466 of the 26,307 tests pass.
+  Stubs match component methods declared `module method`, compare a
+  MAT argument by its elements and answer `CALL @name` to a routine the
+  program lacks; a property change on a matrix such as `RNew` sets it
+  whole. 22,067 of the 26,307 tests pass.
 
 ### Changed
 
+- R19 component constants take bare text values (`= ALL.IDS`) and dotted
+  names (`FileDataObject.messageFormat`), and a domain class's fields are
+  constants of the components that use it, valued by position.
 - Dynamic-array indices and matrix subscripts follow TAFC PB201214: text
   that is not a number is 0 in an index, a fraction truncates, `X<0>`
   reads `''` and assigned prepends, a later 0 means the whole element,
@@ -39,6 +45,8 @@
 - `INT` of text that is not a number keeps its leading sign and digits,
   a FIELD position or count that is not a positive number means 1, and an
   empty substring start, length or INS position is 0, as in TAFC.
+- REMOVE past the end of its list sets the variable to `''`, as in TAFC;
+  jbcc left it unchanged.
 - `DIM X(0)` and `DIM X('')` give 10 elements, and FOR takes an empty bound
   as 0 and an empty step as no iteration, as in TAFC.
 

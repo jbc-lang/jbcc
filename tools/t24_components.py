@@ -46,11 +46,17 @@ PROPERTY = re.compile(
 MATRIX_PROPERTY = re.compile(
     r"\bjBC:[^\n]*->\s*[\w.$%]+\((?P<rank>[0-9]*)\)[ \t]*$", re.M
 )
+# A constant may name a domain class field (FileDataObject.messageFormat)
+# and may leave out the EQU it binds (PaymentResponse.returnCode = 1).
 CONSTANT = re.compile(
-    MEMBER + rf"constant[ \t]+({NAME})[ \t]*\([^()\r\n]+\)[ \t]*=[ \t]*(.*)$",
+    MEMBER + rf"constant[ \t]+({NAME}(?:\.{NAME})*)[ \t]*(?:\([^()\r\n]+\)[ \t]*)?=[ \t]*(.*)$",
     re.M,
 )
-LITERAL = re.compile(r"""[+-]?[0-9]+(?:\.[0-9]+)?|[-_./:]|"[^"]*"|'[^']*'""")
+# A constant's value is a number, a quoted string or bare text such as
+# ALL.IDS, SWIFT or </tag>, which the bound EQU gives as a string
+# (EB.DataAccess DasAllIds = ALL.IDS, I_DAS.COMMON EQU DAS$ALL.IDS TO
+# 'ALL.IDS'). A value with parentheses, as R.NEW(5), is an expression.
+LITERAL = re.compile(r"""[+-]?[0-9]+(?:\.[0-9]+)?|"[^"]*"|'[^']*'|[^\s()'"]+""")
 TABLE = re.compile(
     MEMBER + rf"table[ \t]+({NAME})\s*\{{((?:[^{{}}]|\{{[^{{}}]*\}})*)\}}", re.M
 )
@@ -162,6 +168,60 @@ def declarations(source):
                 )
 
 
+DOMAIN_NAME = re.compile(r"^\s*Domain[ \t]+(\w+)", re.M)
+DOMAIN_CLASS = re.compile(r"^[ \t]*(\w+)[ \t]*\r?\n?[ \t]*\{([^{}]*)\}", re.M)
+DOMAIN_FIELD = re.compile(r"^[ \t]*(\w+)[ \t]*(?::|->)", re.M)
+DOMAIN_REFERENCE = re.compile(r"\b(\w+):\w+")
+
+
+def read_domains(catalogue, root):
+    """Domain name -> {class: [field, ...]} from the R19 .domain files."""
+    uri = catalogue.resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        rows = db.execute(
+            "SELECT rel FROM file_path WHERE extract = ? AND kind = 'domain' ORDER BY rel",
+            (root.name,),
+        ).fetchall()
+    domains = {}
+    for (relative,) in rows:
+        source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
+        name = DOMAIN_NAME.search(source)
+        start = source.find("Classes")
+        if not name or start < 0:
+            continue
+        classes = domains.setdefault(name[1], {"": relative.rsplit("/", 1)[0]})
+        for cls, body in DOMAIN_CLASS.findall(source[start + len("Classes"):]):
+            classes.setdefault(cls, DOMAIN_FIELD.findall(body))
+    return domains
+
+
+def domain_fields(catalogue, root, components):
+    """Component (casefolded) -> {class.field: position}. R19 code names a
+    field of a domain class by its position in the record, as
+    iClrRequest<PP.LocalClearingService.ClrRequest.companyID> (field 1 of
+    LocalClearingDomain's ClrRequest), and a unit test expects the record
+    built that way. A component sees the domains its definition names in
+    types (LocalClearingDomain:ClrRequest) and those in its folder."""
+    domains = read_domains(catalogue, root)
+    by_folder = {}
+    for name, classes in domains.items():
+        by_folder.setdefault(classes[""], []).append(name)
+    fields = {}
+    for component, relative in components:
+        source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
+        names = by_folder.get(relative.rsplit("/", 1)[0], []) + [
+            name for name in DOMAIN_REFERENCE.findall(source) if name in domains
+        ]
+        owned = fields.setdefault(component.casefold(), {})
+        for name in names:
+            for cls, members in domains[name].items():
+                if not cls:
+                    continue
+                for position, field in enumerate(members, 1):
+                    owned.setdefault(f"{cls}.{field}".casefold(), position)
+    return fields
+
+
 def read_component_members(catalogue, root):
     uri = catalogue.resolve().as_uri() + "?mode=ro"
     with closing(sqlite3.connect(uri, uri=True)) as db:
@@ -209,6 +269,11 @@ def read_component_members(catalogue, root):
         for owner, declared in by_component.items()
         for name, member in declared.items()
     }
+    for owner, fields in domain_fields(catalogue, root, components).items():
+        for name, position in fields.items():
+            members.setdefault(
+                f"{owner}.{name}", ("public", "constant", str(position), owner)
+            )
     # The export leaves out some tables that R19 sources read through a
     # known component, such as PP.SODEODGUI.PptSodeodjoblist.Read. A call
     # <component>.<table>.<operation> to an undeclared table falls back to
@@ -295,3 +360,29 @@ def read_component_tables(catalogue, root):
             if bound:
                 tables.setdefault(f"{component}.{table}".casefold(), bound[1])
     return tables
+
+
+METHOD_ROUTINE = re.compile(r"\{\s*jBC:[ \t]*([\w.$%]+)[ \t]*\r?\n?\s*\}")
+
+
+def read_component_methods(catalogue, root):
+    """Component method (component.method, as calls name it) -> the jBC
+    routine that implements it. The catalog's method table leaves out
+    `module method` (4,693 in R19), so this reads the definitions; a
+    method bound to `jBC: variable` has no fixed routine."""
+    uri = catalogue.resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        components = db.execute(
+            "SELECT component_name, rel FROM file_path "
+            "WHERE extract = ? AND kind = 'component' AND component_name IS NOT NULL ORDER BY rel",
+            (root.name,),
+        ).fetchall()
+    methods = {}
+    for component, relative in components:
+        source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
+        source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+        for match in METHOD.finditer(source):
+            body = METHOD_ROUTINE.match(source, match.end() - 1 if source[match.end() - 1] == "{" else match.end())
+            if body and body[1] != "variable":
+                methods.setdefault(f"{component}.{match['name']}", body[1])
+    return methods
