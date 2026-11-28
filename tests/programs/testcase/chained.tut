@@ -1,0 +1,27 @@
+TESTCASE SAMPLE.STEPS_1
+* Stubs chained by a property: each answers only in its mode and moves to
+* the next one. A write-done stub writes a record when it answers, and the
+* startsWith matcher checks an argument's start.
+    UTF.setEASYQAMode()
+    UTF.setTarget("SAMPLE.STEPS")
+    CALL sample.state.setmode("A")
+    FIRST = UTF.addStub("SAMPLE.STEP")
+    UTF.addStubParam(FIRST, UTF.any(), UTF.same())
+    UTF.addStubParam(FIRST, UTF.any(), "a")
+    UTF.addStubPropertyCondition(FIRST, "Sample.State", "Mode", "A")
+    UTF.addStubPropertyChange(FIRST, "Sample.State", "Mode", "B")
+    SECOND = UTF.addStub("SAMPLE.STEP")
+    UTF.addStubParam(SECOND, UTF.any(), UTF.same())
+    UTF.addStubParam(SECOND, UTF.any(), "b")
+    UTF.addStubPropertyCondition(SECOND, "Sample.State", "Mode", "B")
+    UTF.addStubPropertyChange(SECOND, "Sample.State", "Mode", "C")
+    THIRD = UTF.addStub("SAMPLE.STEP")
+    UTF.addStubParam(THIRD, UTF.startsWith("3"), UTF.same())
+    UTF.addStubParam(THIRD, UTF.any(), "c")
+    UTF.addStubPropertyCondition(THIRD, "Sample.State", "Mode", "C")
+    UTF.addStubWriteDone(THIRD, "F.SAMPLE", "DONE", "yes")
+    UTF.addParam(TRAIL)
+    UTF.runTest()
+    UTF.assertEquals(TRAIL, "abc")
+    UTF.assertEquals(UTF.getRecord("F.SAMPLE", "DONE"), "yes")
+END

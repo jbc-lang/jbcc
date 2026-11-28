@@ -6145,13 +6145,16 @@ def render_indirect_calls(units):
     return "\n".join(lines)
 
 
-def render_utf_targets(units, aliases=None, tables=None):
+def render_utf_targets(units, aliases=None, tables=None, routines=None):
     """jbc_utf_call_target for UTF.runTest: each SUBROUTINE or FUNCTION of
     the program by name, with the test's parameters as its arguments.
     aliases maps other target names, such as an R19 component method
     (AA.Account.AccountMaintain), to the routine that implements it.
     tables maps R19 component tables, as component calls name them, to
-    their T24 files, for the UTF records (jbc_utf_table_file)."""
+    their T24 files, for the UTF records (jbc_utf_table_file), and
+    routines maps R19 component methods, as component calls name them, to
+    the routines that implement them, which stubs may name instead
+    (jbc_utf_routine_name)."""
     if not any(unit.uses_utf for unit in units):
         return ""
     lines = [
@@ -6161,6 +6164,15 @@ def render_utf_targets(units, aliases=None, tables=None):
         *(
             f"    if (!strcmp(table, {c_string(name)})) return {c_string(file)};"
             for name, file in sorted((tables or {}).items())
+        ),
+        "    return NULL;",
+        "}",
+        "static const char *jbc_utf_routine_name(const char *method)",
+        "{",
+        "    (void)method;",
+        *(
+            f"    if (!strcmp(method, {c_string(name)})) return {c_string(routine)};"
+            for name, routine in sorted((routines or {}).items())
         ),
         "    return NULL;",
         "}",
@@ -6356,13 +6368,15 @@ def compile_program(
     utf_aliases=None,
     stub_missing=False,
     utf_tables=None,
+    utf_routines=None,
 ):
     """link_packages links units with T24 $PACKAGE directives by their
     global routine names, as tools/run_tuts.py does; unit_options are
     further compile_unit options, such as the R19 component settings;
     utf_aliases are other names UTF.setTarget may give a routine, and
-    stub_missing stubs the routines no unit defines and utf_tables names
-    component tables' files (link_units)."""
+    stub_missing stubs the routines no unit defines, and utf_tables and
+    utf_routines name component tables' files and component methods'
+    routines (link_units)."""
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -6412,6 +6426,7 @@ def compile_program(
         builtin_used=builtin_used,
         stub_missing=stub_missing,
         utf_tables=utf_tables,
+        utf_routines=utf_routines,
     )
 
 
@@ -6425,10 +6440,11 @@ def link_units(
     builtin_used=(),
     stub_missing=False,
     utf_tables=None,
+    utf_routines=None,
 ):
     """Check the linkage of compiled units, one main program and its
     routines, and return the program's C source and libraries. utf_tables
-    are render_utf_targets' tables. Each unit
+    and utf_routines are render_utf_targets' tables and routines. Each unit
     needs a distinct index (compile_unit's index). With stub_missing, a
     routine no unit defines gets a body that answers from the UTF stubs
     of a unit test (TUT.md)."""
@@ -6498,7 +6514,7 @@ def link_units(
         for name, (kinds, is_function) in stubs.items()
     ]
     prototypes.append(render_indirect_calls(units))
-    prototypes.append(render_utf_targets(units, utf_aliases, utf_tables))
+    prototypes.append(render_utf_targets(units, utf_aliases, utf_tables, utf_routines))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
     prototypes.append(

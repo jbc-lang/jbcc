@@ -16,7 +16,9 @@
   `addStub` definitions, and data-access routines (`F.READ`, `CACHE.READ`,
   component table reads and writes) from its `setRecord` records. R19
   component property accessors are generated from the component
-  definitions. 14,865 of the 26,307 tests pass.
+  definitions. Stubs cover conditions, recorded EASYQA calls, stopping
+  calls, fixed dates and times, and routine names for component methods.
+  16,510 of the 26,307 tests pass.
 
 ### Changed
 
@@ -26,6 +28,7 @@
   and a matrix read takes a negative subscript as 1.
 - `ABS('')` is 0, and `ABS` of text that is not a number returns it
   unchanged, as in TAFC.
+- MATBUILD without an end leaves out trailing empty elements, as in TAFC.
 
 - String literals longer than C99's 4,095-byte limit are emitted in
   pieces joined at run time.

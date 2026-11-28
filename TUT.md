@@ -221,8 +221,26 @@ and its own helpers.
       `addStubPropertyChange(stub, component, property, value)`.
 - [x] A handle that was never created, as `setRepeatable(stub)` after
       `STUB = addStub(...)`, is ignored.
-- [ ] `addStubPropertyCondition` (332 tests), `addStubWriteDone` (235),
-      `addStubCacheChange`, the `startsWith` matcher, `setDate`.
+- [x] `addStubPropertyCondition(stub, component, property, value)` and
+      `addStubCommonCondition(stub, VAR, value)`: the stub answers only
+      while the property or COMMON variable has the value. Tests chain
+      stubs this way, each moving `Comi` on for the next.
+- [x] `addStubWriteDone(stub, file, key, record)` writes the record when
+      the stub answers; `addStubCommonChange` on a COMMON matrix such as
+      `R.NEW` fills it from the value's fields, as MATPARSE does.
+- [x] `setStopping(stub)`: the call ends the target's run, as a routine
+      that stops processing (`StoreEndError`); `runTest` returns.
+- [x] `addEasyQAStub(name, n, MAT in, MAT out, error)`, from tests
+      converted from EASYQA recordings: a repeatable stub whose expected and
+      returned values come from the matrices, where `'*'` is `any()` and
+      `same()`. `setEASYQAMode()` marks those tests and has no effect found.
+- [x] `setDate(day, month, year)` and `setTime(h, m, s)` fix what `DATE()`
+      and `TIME()` return; the `startsWith` matcher; `assertGreaterThan`.
+- [x] A stub may name the routine that implements a component method:
+      `addStub("OPF")` answers the target's `EB.DataAccess.Opf(...)`, through
+      the catalog's method table.
+- [ ] `addStubCacheChange` (50 tests), `setFilePointer` (25),
+      `lockRecord`, and `addStubCommonChange` given a name in quotes.
 - [x] `JBCC_UTF_TRACE=1` prints each stubbed call, its arguments and
       whether a stub answered it.
 
@@ -260,14 +278,35 @@ On the way, the runs found TAFC behaviour that jbcc now follows
 (`tests/tafc/array-index-conversion.b`) and `ABS` of text
 (`tests/tafc/abs-non-numeric.b`).
 
+#### Step 5 completion baseline (2026-11-28)
+
+With the stub methods above, MATBUILD's trailing elements and stubs by
+routine name, all 26,307 tests in 53 min:
+
+| State | Tests | Main causes |
+|---|---:|---|
+| passed | 16,510 | 62.8% of all tests |
+| failed | 4,844 | 3,107 at an assertion; 1,548 at a call no stub matches, as `ST.CompanyCreation.EbReadParameter` (67) and `EB.DataAccess.Das` (41) |
+| timeout | 2,724 | as before |
+| error | 1,584 | as before: C$SYSDIM without I_COMMON (214), `Logger` (101), FOR with text bounds (100) |
+| unsupported | 137 | `addStubCacheChange` (50), `addStubCommonChange` with a quoted name (46), `setFilePointer` (25) |
+| rejected and the rest | 508 | |
+
 ### 7. The rest
 
 - [x] The component-method targets, through the catalog's method table
       or the test's name (step 2).
 - [x] Tests that run more than once (`reset`, `setRepeatable`).
-- [ ] The unsupported UTF methods, starting with `setEASYQAMode`.
-- [ ] Sort the assertion failures into jbcc bugs and UTF assumptions,
-      with `JBCC_UTF_TRACE` and TAFC probes.
+- [ ] The remaining unsupported UTF methods (step 5).
+- [ ] Sort the assertion failures into jbcc bugs, UTF assumptions and
+      TAFJ behaviour, with `JBCC_UTF_TRACE` and TAFC probes. Found so far:
+  - a jbcc bug: MATBUILD kept trailing empty elements, which TAFC leaves
+    out (`tests/tafc/matbuild-trailing.b`); records built from `R.NEW`
+    then compared unequal;
+  - TAFJ arithmetic: `FRA.VALUATION_0` expects `-5792.70`, where TAFC
+    PB201214 and jbcc give `-5792.69` from the same inputs at PRECISION 4.
+    Tests written against TAFJ's Java decimals can fail under TAFC's
+    rules; jbcc keeps TAFC's.
 - [ ] Track the pass rate over all 26,307 tests in this file, in the
       same way R19-CORPUS.md tracks translation.
 

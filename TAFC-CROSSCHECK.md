@@ -338,6 +338,12 @@ Done for section 3 (2026-11-27):
   unchanged, without a warning (`tests/tafc/abs-non-numeric.b`; jbcc
   stopped with an error). A FOR loop whose bound is text that is not a
   number never ends in TAFC; jbcc keeps its error.
+- `MATBUILD` without an end position leaves out trailing empty elements
+  (`tests/tafc/matbuild-trailing.b`): a matrix of `a`, `''`, `c` and three
+  empty elements builds `a^^c`. T24 unit tests compare records built from
+  `R.NEW` this way. jbcc's own records (STATUS, @USERSTATS and MATWRITE)
+  keep every field. Not followed: TAFC builds a five-element COMMON matrix
+  with an extra `0` at the end.
 - A REMOVE loop over a list that the loop appends to with `L<1,-1> = X`
   restarts after each append in TAFC too: the assignment resets the
   REMOVE pointer. Checked because a T24 unit test's target looped that
