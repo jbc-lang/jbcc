@@ -1199,22 +1199,85 @@ def test_corpus_checks_external_arities_and_reports_the_linkage_conflict(
     }
 
 
-def test_testcase_units_translate_and_stop_at_utf(compiler):
-    """A T24 unit test (*.tut, TUT.md step 1) translates: TESTCASE names
-    the program, UTF calls take scalars by reference and whole matrices,
-    and the program stops at its first UTF call until the UTF runtime
-    exists."""
+def test_testcase_units_translate(compiler):
+    """A T24 unit test (*.tut, TUT.md) translates: TESTCASE names the
+    program, UTF calls take scalars by reference, expressions by value and
+    whole matrices. A UTF method the runtime can't run yet, such as
+    addStub, makes the verdict "unsupported"."""
     source = ROOT / 'tests/programs/testcase/sample.tut'
     generated = subprocess.run(
         [CLI, source, '-o', compiler.c], capture_output=True, text=True
     )
     assert generated.returncode == 0, generated.stderr
     c = compiler.c.read_text()
+    assert '#define JBC_UTF 1' in c
     assert 'jbc_utf("addParam", 1, (jbc_utf_argument[]){{&' in c
     assert c.count('jbc_utf("addParam", 1, (jbc_utf_argument[]){{NULL, (jbc_matrix)') == 2
     run = compiler.run_native(source)
-    assert run.returncode == 1
-    assert b'UTF.setTarget requires the unit-test runtime (TUT.md)' in run.stderr
+    assert (run.returncode, run.stderr) == (4, b'UTF: unsupported UTF.addStub\n')
+
+
+TESTCASES = ROOT / 'tests/programs/testcase'
+
+
+def test_utf_runs_a_subroutine_target(compiler):
+    """UTF.runTest calls the target with the parameters by reference; the
+    test asserts on them afterwards. reset clears the parameters, and the
+    first failing check is the verdict (exit status 3)."""
+    run = compiler.run_native(TESTCASES / 'split.tut', TESTCASES / 'SAMPLE.SPLIT.b')
+    assert run.returncode == 3
+    assert run.stderr.endswith(
+        b'split.tut:23:5: UTF.assertEquals("1", "2"): deliberately wrong\n'
+    ), run.stderr
+    assert run.stderr.startswith(b'UTF: failed 1, first at ')
+
+
+def test_utf_runs_a_function_target(compiler):
+    """runTest returns a FUNCTION target's result; setParam replaces a
+    parameter; the other checks hold."""
+    run = compiler.run_native(TESTCASES / 'twice.tut', TESTCASES / 'SAMPLE.TWICE.b')
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 6 checks in 2 runs\n')
+
+
+def test_utf_target_aliases_and_missing_parameters(compiler):
+    """An alias names a routine, as an R19 component method does; missing
+    trailing parameters are empty, and setParam pads before its position."""
+    translate = (
+        "import sys; from pathlib import Path; from jbcc.compiler import compile_program; "
+        "source, _ = compile_program([Path(sys.argv[1]), Path(sys.argv[2])], [], "
+        "utf_aliases={'Sample.Split': 'SAMPLE.SPLIT'}); Path(sys.argv[3]).write_text(source)"
+    )
+    subprocess.run(
+        [sys.executable, '-c', translate, TESTCASES / 'padded.tut', TESTCASES / 'SAMPLE.SPLIT.b',
+         compiler.c],
+        check=True,
+        env={**os.environ, 'PYTHONPATH': str(ROOT / 'src')},
+    )
+    program = compiler.work / 'padded'
+    subprocess.run(
+        ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic', compiler.c, '-o', program],
+        check=True,
+    )
+    run = subprocess.run([program], capture_output=True)
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
+
+
+def test_utf_without_its_target(compiler):
+    """A target that isn't linked fails the test at runTest."""
+    run = compiler.run_native(TESTCASES / 'twice.tut')
+    assert run.returncode == 3
+    assert b"target 'SAMPLE.TWICE' is not a routine of the program" in run.stderr
+
+
+def test_run_tuts_finds_the_target(monkeypatch):
+    """tools/run_tuts.py takes the target from a literal, or from a
+    variable assigned one literal, with CRLF line ends."""
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    import run_tuts
+
+    assert run_tuts.test_target(b'UTF.setTarget("A.B")\r\n') == 'A.B'
+    assert run_tuts.test_target(b'N = "X.Y"\r\n  UTF.setTarget(N)\r\n') == 'X.Y'
+    assert run_tuts.test_target(b'N = "X"\nN = "Y"\nUTF.setTarget(N)\n') is None
 
 
 def test_long_string_literals_split_for_c99(compiler):

@@ -7,6 +7,11 @@
 - T24 unit tests (`*.tut`) translate: `TESTCASE name` heads a program, and
   `UTF.method(...)` calls take scalars by reference and whole matrices.
   `tools/check_corpus.py --t24-tests` scans them (TUT.md).
+- A UTF runtime: `UTF.runTest` calls the target routine with the test's
+  parameters, and the assertions decide the test's verdict, printed as the
+  last stderr line and given as the exit status.
+- `tools/run_tuts.py` (`just tut`) builds each R19 unit test with its
+  target, runs it and writes a JSON report; 745 tests pass so far.
 
 ### Changed
 

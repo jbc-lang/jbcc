@@ -688,6 +688,7 @@ def check(
         if unit.routine and (unit.has_indirect_call or unit.uses_callonexit):
             prototypes.append(unit.signature() + ";")
         prototypes.append(COMPILER.render_indirect_calls([unit]))
+        prototypes.append(COMPILER.render_utf_targets([unit]))
         prototypes.append(COMPILER.render_exit_callbacks([unit]))
         prototypes.append(COMPILER.render_subroutine_exists([unit]))
         prototypes.append(

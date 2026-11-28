@@ -1247,6 +1247,7 @@ class Compiler:
         self.targets = {}
         self.calls = []
         self.has_indirect_call = False
+        self.uses_utf = False
         self.uses_callonexit = False
         self.uses_subroutine_exists = False
         self.opens_local_files = False
@@ -4111,6 +4112,7 @@ class Compiler:
         """Each argument is passed by reference when it is a variable, as
         UTF.addParam(X) needs: the test reads X back after UTF.runTest()."""
         target = self.identifier()
+        self.uses_utf = True
         args = self.utf_arguments()
         vector = f"(jbc_utf_argument[]){{{', '.join(args)}}}" if args else "NULL"
         call = (
@@ -4133,12 +4135,15 @@ class Compiler:
                 if self.word == 'MAT':
                     self.advance()
                 matrix = self.checked_matrix(self.matrix_name())
-                args.append(f"{{NULL, {matrix.argument()}}}")
+                args.append(f"{{NULL, {matrix.argument()}, 0}}")
             else:
                 argument, name = self.scalar_argument()
                 if name is not None:
                     self.assigned.add(name)
-                args.append(f"{{{argument}, {{0}}}}")
+                # An expression's temporary lives only for this statement,
+                # so the runtime copies it before keeping it.
+                by_value = int(argument.startswith('&(jbc_variable)'))
+                args.append(f"{{{argument}, {{0}}, {by_value}}}")
             if self.word != ',':
                 break
             self.advance()
@@ -6138,6 +6143,70 @@ def render_indirect_calls(units):
     return "\n".join(lines)
 
 
+def render_utf_targets(units, aliases=None):
+    """jbc_utf_call_target for UTF.runTest: each SUBROUTINE or FUNCTION of
+    the program by name, with the test's parameters as its arguments.
+    aliases maps other target names, such as an R19 component method
+    (AA.Account.AccountMaintain), to the routine that implements it."""
+    if not any(unit.uses_utf for unit in units):
+        return ""
+    lines = [
+        "static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,",
+        "                               const char **result)",
+        "{",
+        "    (void)name;",
+        "    (void)count;",
+        "    (void)params;",
+        "    (void)result;",
+    ]
+    for unit in units:
+        if not unit.routine:
+            continue
+        kinds = tuple(unit.formals.values())
+        fits = " && ".join(
+            [f"count <= {len(kinds)}"]
+            + [
+                f"(count <= {i} || {'!' if matrix else ''}params[{i}].scalar)"
+                for i, matrix in enumerate(kinds)
+            ]
+        )
+        args = [
+            f"(count > {i} ? params[{i}].matrix : (jbc_matrix){{0}})"
+            if matrix
+            else f"(count > {i} ? params[{i}].scalar : &spare[{i}])"
+            for i, matrix in enumerate(kinds)
+        ]
+        if unit.is_function:
+            args.insert(0, "result")
+        names = [unit.routine.word] + sorted(
+            alias
+            for alias, routine in (aliases or {}).items()
+            if routine == unit.routine.word
+        )
+        matches = " || ".join(
+            f"strcmp(name, {c_string(n, unit.encoding)}) == 0" for n in names
+        )
+        lines.extend(
+            [
+                f"    if ({matches}) {{",
+                f"        if (!({fits})) return -1;",
+                *(
+                    [
+                        f"        jbc_variable spare[{len(kinds)}];",
+                        f"        for (int i = 0; i < {len(kinds)}; ++i) spare[i] = (jbc_variable){{\"\", 0, 0}};",
+                    ]
+                    if any(not matrix for matrix in kinds)
+                    else []
+                ),
+                f"        {routine_symbol(unit.routine.word)}({', '.join(args)});",
+                "        return 1;",
+                "    }",
+            ]
+        )
+    lines.extend(["    return 0;", "}"])
+    return "\n".join(lines)
+
+
 def render_exit_callbacks(units):
     if not any(unit.uses_callonexit for unit in units):
         return ""
@@ -6269,7 +6338,14 @@ def compile_program(
     include_depth=None,
     builtin_includes=True,
     emulation='prime',
+    link_packages=False,
+    unit_options=None,
+    utf_aliases=None,
 ):
+    """link_packages links units with T24 $PACKAGE directives by their
+    global routine names, as tools/run_tuts.py does; unit_options are
+    further compile_unit options, such as the R19 component settings;
+    utf_aliases are other names UTF.setTarget may give a routine."""
     for name, _ in memory_locks:
         if name not in memory_files:
             raise Diagnostic(f"--memory-lock requires --memory-file {name}")
@@ -6291,12 +6367,13 @@ def compile_program(
             builtin_includes=builtin_includes,
             builtin_used=builtin_used,
             emulation=emulation,
+            **(unit_options or {}),
         )
         if browser and bool(i) != bool(unit.routine):
             if unit.routine:
                 unit.error("entry file must be a main program", unit.routine)
             raise Diagnostic(f"{path}:1:1: linked unit must declare a routine")
-        if len(paths) > 1 and unit.package_directives:
+        if len(paths) > 1 and unit.package_directives and not link_packages:
             unit.error(
                 "package-aware linkage is unsupported",
                 unit.package_directives[0],
@@ -6348,6 +6425,7 @@ def compile_program(
     runtime = read_runtime()
     prototypes = [u.signature() + ";" for u in routines.values()]
     prototypes.append(render_indirect_calls(units))
+    prototypes.append(render_utf_targets(units, utf_aliases))
     prototypes.append(render_exit_callbacks(units))
     prototypes.append(render_subroutine_exists(units))
     prototypes.append(
@@ -6410,6 +6488,8 @@ def runtime_features(units):
         flags.append("#define JBC_SESSION 1")
     if any(unit.uses_userstats for unit in units):
         flags.append("#define JBC_USERSTATS 1")
+    if any(unit.uses_utf for unit in units):
+        flags.append("#define JBC_UTF 1")
     return "\n".join(flags)
 
 

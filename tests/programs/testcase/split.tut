@@ -1,0 +1,24 @@
+TESTCASE SAMPLE.SPLIT_1
+* Independent samples in the shape of T24 unit tests (TUT.md).
+    UTF.setTarget("SAMPLE.SPLIT")
+    FIRST = ''
+    REST = ''
+    COUNT = ''
+    UTF.addParam("a,b,c")
+    UTF.addParam(FIRST)
+    UTF.addParam(REST)
+    UTF.addParam(COUNT)
+    UTF.runTest("split three")
+    UTF.assertEquals(FIRST, "a")
+    UTF.assertEquals(REST, "b,c")
+    UTF.assertEquals(COUNT, 3)
+    UTF.assertContains(REST, ",")
+    UTF.reset()
+    UTF.addParam("x")
+    UTF.addParam(FIRST)
+    UTF.addParam(REST)
+    UTF.addParam(COUNT)
+    UTF.runTest()
+    UTF.assertEquals(FIRST, "x", "first of one")
+    UTF.assertEquals(COUNT, 2, "deliberately wrong")
+END

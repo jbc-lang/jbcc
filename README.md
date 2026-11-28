@@ -3259,11 +3259,16 @@ Add `--t24-tests` to scan R19's 26,307 unit tests (`*.tut`) instead of the
 production sources. A test is a `TESTCASE name` program that drives T24's
 UTF framework through `UTF.method(...)` calls; jbcc passes each argument
 that is a variable by reference and accepts whole matrices, written
-`MAT X` or just `X`. The UTF runtime itself is still to come, so a built
-test stops at its first UTF call. On 2026-11-27 the scan translated
-25,875 of the tests, excluded 23 and rejected 409, most of them for
-source errors that TAFC PB201214 rejects too. [TUT.md](TUT.md) has the
-details and the plan for running them.
+`MAT X` or just `X`. On 2026-11-27 the scan translated 25,875 of the
+tests, excluded 23 and rejected 409, most of them for source errors that
+TAFC PB201214 rejects too.
+
+`just tut report.json` (`tools/run_tuts.py`) goes further: it builds each
+test with the routine it names in `UTF.setTarget`, runs it, and records
+the UTF runtime's verdict. On 2026-11-28, 745 tests passed and 26 failed;
+most of the rest call routines that aren't linked yet, chiefly R19's
+component property accessors. [TUT.md](TUT.md) has the details and the
+plan.
 
 Indexed lookup checks the including file's directory, its catalogued
 component, the ordinary include search paths and then the release-wide
