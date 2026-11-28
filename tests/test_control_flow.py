@@ -90,6 +90,22 @@ def test_example_program(compiler, program):
     )
 
 
+@pytest.mark.parametrize('program', ['map-coloring'])
+def test_example_program_with_input(compiler, program):
+    """A program in its own folder, with NAME.input as standard input and
+    NAME.output as the exact expected standard output."""
+    folder = ROOT / 'tests/programs' / program
+    result = compiler.run_native(
+        folder / f'{program}.b',
+        stdin=(folder / f'{program}.input').read_bytes(),
+    )
+    assert (result.returncode, result.stdout, result.stderr) == (
+        0,
+        (folder / f'{program}.output').read_bytes(),
+        b'',
+    )
+
+
 def test_exit_status_from_subroutine(compiler):
     main = ROOT / 'tests/routines/exit-status/main.b'
     sub = ROOT / 'tests/routines/exit-status/finish.b'

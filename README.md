@@ -3510,6 +3510,16 @@ These snippets have yet to be run on a reference jBC implementation.
 - `hanoi.b` solves the Towers of Hanoi for four disks. `GOSUB` has no local
   variables, so the recursion saves its arguments in dimensioned arrays
   indexed by depth.
+- `map-coloring/map-coloring.b` reads a map of the 48 contiguous US states
+  and Washington, DC from standard input, prints its adjacency matrix and
+  colors it greedily with four colors. It splits input lines into tokens
+  with `TRIM` and `FIELD` and sizes its arrays with `DIM` at run time. It is
+  a port of the map coloring test of the
+  [Easy language compiler](https://github.com/begoon/easy), and
+  `map-coloring.input` and `map-coloring.output` are that test's input and
+  expected output, unchanged; the output keeps the carriage return the Easy
+  program writes after reading each state. Run it with
+  `./jbcc --run tests/programs/map-coloring/map-coloring.b < tests/programs/map-coloring/map-coloring.input`.
 
 SIN and COS take degrees. INT truncates toward zero. Explicit two-argument
 substring selection and replacement use one-based byte positions (negative

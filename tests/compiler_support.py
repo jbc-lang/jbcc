@@ -22,7 +22,7 @@ class NativeCompiler:
         self.runtime = runtime
         self.c = work / 'generated.c'
 
-    def run_native(self, *sources, options=(), env=None, cwd=None):
+    def run_native(self, *sources, options=(), env=None, cwd=None, stdin=None):
         subprocess.run([CLI, *options, *sources, '-o', self.c], check=True)
         binary = self.work / 'program'
         inputs = (
@@ -32,7 +32,12 @@ class NativeCompiler:
             ['cc', *C_FLAGS, *inputs, '-lm', '-o', binary], check=True
         )
         return subprocess.run(
-            [binary], capture_output=True, timeout=5, env=env, cwd=cwd
+            [binary],
+            input=stdin,
+            capture_output=True,
+            timeout=5,
+            env=env,
+            cwd=cwd,
         )
 
 
