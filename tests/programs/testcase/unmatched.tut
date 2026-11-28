@@ -1,0 +1,10 @@
+TESTCASE SAMPLE.LOOKUP_2
+* A call that no stub matches fails the test; matches() checks a pattern.
+    UTF.setTarget("SAMPLE.LOOKUP")
+    FETCH = UTF.addStub("SAMPLE.FETCH")
+    UTF.addStubParam(FETCH, UTF.matches("1A1N"), "BOB")
+    UTF.addParam("KX")
+    UTF.addParam(NAME)
+    UTF.addParam(STATUS)
+    UTF.runTest()
+END

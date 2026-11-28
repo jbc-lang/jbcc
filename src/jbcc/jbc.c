@@ -1282,6 +1282,7 @@ void jbc_matrix_fill(jbc_variable *dest, size_t count, const char *value)
     for (size_t i = 0; i < count; ++i) assign_value(&dest[i], value);
 }
 
+
 /* Convert a zero-based ordinal among the one-based elements to a storage
    offset. Each dimension also has a zero subscript in jbcc's storage. */
 static size_t matrix_element_offset(size_t ordinal, int rank, const int *bounds)
@@ -1383,21 +1384,50 @@ const char *jbc_matbuild(const jbc_variable *src, int rank, const int *bounds,
     return out;
 }
 
-size_t jbc_matrix_index(int rank, const int *bounds, int count, const char **indices,
-                 const char *file, int line, int column)
+static int64_t index_value(const char *text);
+
+static size_t matrix_index(int rank, const int *bounds, int count, const char **indices,
+                           int reading, const char *file, int line, int column)
 {
     if (rank != count)
         numeric_error(file, line, column, "COMMON matrix subscript count is unsupported");
     size_t offset = 0;
     for (int i = 0; i < rank; ++i) {
+        /* TAFC: '' is 0 and a fraction truncates, but other text is an
+           ARRAY_SUBS error (tests/tafc/array-index-conversion.b). */
         struct decimal n;
-        if (!parse_decimal(indices[i], &n) || n.places || n.sign < 0 || n.digits > 10)
-            numeric_error(file, line, column, "invalid matrix subscript");
-        int64_t v = strtoll(indices[i], NULL, 10);
+        const char *text = trim_blanks(indices[i]);
+        if (*text && !parse_decimal(text, &n)) {
+            char message[96];
+            snprintf(message, sizeof message, "invalid matrix subscript '%.40s'", indices[i]);
+            numeric_error(file, line, column, message);
+        }
+        int64_t v = index_value(indices[i]);
+        /* TAFC reads a negative subscript as 1 (T24 code reads R.NEW(V-9)
+           before V is set) and stops when one is assigned
+           (tests/tafc/array-index-conversion.b). */
+        if (v < 0 && reading) v = 1;
+        if (v < 0 || v > INT32_MAX) {
+            char message[96];
+            snprintf(message, sizeof message, "invalid matrix subscript '%.40s'", indices[i]);
+            numeric_error(file, line, column, message);
+        }
         if (v > bounds[i]) numeric_error(file, line, column, "matrix subscript out of bounds");
         offset = offset * ((size_t)bounds[i] + 1) + (size_t)v;
     }
     return offset;
+}
+
+size_t jbc_matrix_index(int rank, const int *bounds, int count, const char **indices,
+                        const char *file, int line, int column)
+{
+    return matrix_index(rank, bounds, count, indices, 0, file, line, column);
+}
+
+size_t jbc_matrix_read_index(int rank, const int *bounds, int count, const char **indices,
+                             const char *file, int line, int column)
+{
+    return matrix_index(rank, bounds, count, indices, 1, file, line, column);
 }
 
 /* Keep live values and leave allocations made by calling bodies alone. */
@@ -1475,16 +1505,40 @@ static const char *array_part(const char *s, size_t len, const int64_t *index,
     return finish_bytes(out, kept + padding + bytes);
 }
 
+/* A dynamic-array index or matrix subscript as TAFC PB201214 takes it
+   (tests/tafc/array-index-conversion.b): blanks around a number are
+   skipped, a fraction is truncated, and text that is not a number is 0. */
+static int64_t index_value(const char *text)
+{
+    struct decimal n;
+    text = trim_blanks(text);
+    if (!*text || !parse_decimal(text, &n)) return 0;
+    if (n.digits > 18) return n.sign < 0 ? INT64_MIN : INT64_MAX;
+    int64_t value = 0;
+    for (size_t i = 0; i < n.digits; ++i) value = value * 10 + (n.whole[i] - '0');
+    return n.sign * value;
+}
+
 const char *jbc_array(const char *s, const char **indices, int count, const char *replacement)
 {
     int64_t index[3];
     for (int i = 0; i < count; ++i) {
-        char *end;
-        errno = 0;
-        intmax_t n = strtoimax(indices[i], &end, 10);
-        if (errno || end == indices[i] || *end || n > INT64_MAX || n < -1)
-            fail("expected an integer dynamic-array index");
-        if (replacement && n == 0) fail("dynamic-array indices start at one");
+        int64_t n = index_value(indices[i]);
+        if (n < -1) {
+            if (replacement) fail("expected an integer dynamic-array index");
+            n = 0;
+        }
+        if (n == 0) {
+            /* TAFC: a leading 0 reads '' and, assigned, prepends the value
+               without a delimiter; a later 0 means the whole element
+               before it, as X<2,0> is X<2>. */
+            if (i > 0) {
+                count = i;
+                break;
+            }
+            if (!replacement) return "";
+            return jbc_concat(replacement, s);
+        }
         index[i] = n;
     }
     return array_part(s, jbc_size(s), index, count, 0, replacement, 0);
@@ -2650,9 +2704,15 @@ static const char *absolute_value(const char *value, const char *error,
     return fmt_decimal(n, n.places);
 }
 
+/* TAFC PB201214 (tests/tafc/abs-non-numeric.b): ABS('') is 0, and text
+   that is not a number comes back unchanged, without a warning. */
 const char *jbc_abs(const char *value, const char *file, int line, int column)
 {
-    return absolute_value(value, "ABS requires a numeric value", file, line, column);
+    struct decimal n;
+    const char *number = jbc_emulation_prime ? trim_blanks(value) : value;
+    if (!*value) return "0";
+    if (!parse_decimal(number, &n)) return value;
+    return absolute_value(number, "ABS requires a numeric value", file, line, column);
 }
 
 static const char *negate_decimal(struct decimal n)
@@ -8847,6 +8907,26 @@ typedef struct {
 static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,
                                const char **result);
 
+/* A stub for a routine the target calls (UTF.addStub). Each
+   addStubParam describes the next parameter: the value the call must
+   pass, or any() or matches(pattern), and the value it returns there, or
+   same(). A stub answers once unless setRepeatable; a call takes the first
+   stub of its name that matches and is not used up (inferred). */
+struct utf_change {
+    jbc_variable *variable; /* addStubCommonChange */
+    char *accessor;         /* addStubPropertyChange: the set accessor */
+    char *value;
+};
+
+struct utf_stub {
+    char *name;
+    char **expected, **returned;
+    int count, invocations, repeatable;
+    char *result; /* setStubReturnValue */
+    struct utf_change *changes;
+    int change_count;
+};
+
 /* The test's state. Text is copied with malloc, outside the collector. */
 static struct {
     char *target;
@@ -8855,7 +8935,22 @@ static struct {
     int runs, assertions, failures;
     char *failure;     /* the first failing check */
     char *unsupported; /* the first UTF method jbcc can't run yet */
+    struct utf_stub *stubs;
+    int stub_count, ignore_missing;
+    struct utf_calls { char *name; int count; } *calls; /* by routine name */
+    int call_count;
+    struct utf_record { char *file, *key, *value; } *records; /* setRecord */
+    int record_count;
 } utf;
+
+/* any(), same() and matches(pattern) as values: ESC and a tag. */
+#define UTF_MARK "\033UTF."
+static const char utf_any[] = UTF_MARK "any";
+static const char utf_same[] = UTF_MARK "same";
+static const char utf_matches[] = UTF_MARK "matches:";
+static const char utf_contains[] = UTF_MARK "contains:";
+static const char utf_greater[] = UTF_MARK "greaterThan:";
+static const char utf_less[] = UTF_MARK "lessThan:";
 
 static char *utf_copy(const char *text)
 {
@@ -8952,6 +9047,299 @@ static void utf_check(int holds, const char *check, const char *actual, const ch
     utf.failure = utf_copy(text);
 }
 
+static int utf_lower(int c)
+{
+    return c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c;
+}
+
+/* Stub names match a call whatever their case: tests name a component
+   method AA.Framework.GetX, and component calls name it in lower case. */
+static int jbc_strcasecmp(const char *a, const char *b)
+{
+    for (; *a && utf_lower((unsigned char)*a) == utf_lower((unsigned char)*b); ++a, ++b) {}
+    return utf_lower((unsigned char)*a) - utf_lower((unsigned char)*b);
+}
+
+static int jbc_strncasecmp(const char *a, const char *b, size_t n)
+{
+    for (; n && *a && utf_lower((unsigned char)*a) == utf_lower((unsigned char)*b); ++a, ++b, --n) {}
+    return n ? utf_lower((unsigned char)*a) - utf_lower((unsigned char)*b) : 0;
+}
+
+static int utf_marked(const char *value, const char *mark)
+{
+    return !strncmp(value, mark, strlen(mark));
+}
+
+static void utf_fail(const char *text)
+{
+    ++utf.failures;
+    if (!utf.failure) utf.failure = utf_copy(text);
+}
+
+/* The stub a handle from addStub names, or NULL. */
+static struct utf_stub *utf_find_stub(const char *handle)
+{
+    char *end;
+    long n = strtol(handle, &end, 10);
+    return *handle && !*end && n >= 1 && n <= utf.stub_count ? &utf.stubs[n - 1] : NULL;
+}
+
+static int jbc_strcasecmp(const char *a, const char *b);
+
+/* Calls to a routine the program doesn't define, stubbed or not:
+   getNbInvocation also takes a routine name. */
+static int *utf_calls_to(const char *name)
+{
+    for (int i = 0; i < utf.call_count; ++i)
+        if (!jbc_strcasecmp(utf.calls[i].name, name)) return &utf.calls[i].count;
+    utf.calls = realloc(utf.calls, (size_t)(utf.call_count + 1) * sizeof *utf.calls);
+    if (!utf.calls) fail("out of memory");
+    utf.calls[utf.call_count] = (struct utf_calls){utf_copy(name), 0};
+    return &utf.calls[utf.call_count++].count;
+}
+
+static void utf_append(char ***list, int count, const char *value)
+{
+    *list = realloc(*list, (size_t)(count + 1) * sizeof **list);
+    if (!*list) fail("out of memory");
+    (*list)[count] = utf_copy(value);
+}
+
+static int utf_stub_matches(const struct utf_stub *stub, int count, const jbc_utf_argument *args)
+{
+    for (int i = 0; i < stub->count && i < count; ++i) {
+        const char *expected = stub->expected[i];
+        if (!strcmp(expected, utf_any)) continue;
+        if (!args[i].scalar) return 0;
+        const char *actual = utf_value(&args[i]);
+        if (utf_marked(expected, utf_matches)) {
+            if (!jbc_truth(jbc_matches(actual, expected + strlen(utf_matches)))) return 0;
+        } else if (utf_marked(expected, utf_contains)) {
+            const char *part = expected + strlen(utf_contains);
+            if (!find_bytes(actual, jbc_size(actual), part, strlen(part))) return 0;
+        } else if (utf_marked(expected, utf_greater)) {
+            if (jbc_compare(actual, expected + strlen(utf_greater), jbc_precision) <= 0) return 0;
+        } else if (utf_marked(expected, utf_less)) {
+            if (jbc_compare(actual, expected + strlen(utf_less), jbc_precision) >= 0) return 0;
+        } else if (jbc_compare(actual, expected, jbc_precision) != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,
+                               const char **result);
+
+static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
+                           const char **result);
+
+/* Called by the generated body of each routine the program doesn't
+   define: answers from the stubs, then from the test's records for the
+   data-access routines, or fails the test. */
+const char *jbc_utf_stub(const char *name, int count, jbc_utf_argument *args)
+{
+    struct utf_stub *found = NULL;
+    ++*utf_calls_to(name);
+    for (int i = 0; i < utf.stub_count && !found; ++i) {
+        struct utf_stub *stub = &utf.stubs[i];
+        if (!jbc_strcasecmp(stub->name, name) && (stub->repeatable || !stub->invocations) &&
+            utf_stub_matches(stub, count, args))
+            found = stub;
+    }
+    if (getenv("JBCC_UTF_TRACE")) {
+        /* Each call, its arguments and the stub that answers. */
+        char shown[80];
+        fprintf(stderr, "UTF trace: %s(", name);
+        for (int i = 0; i < count; ++i) {
+            utf_show(shown, sizeof shown, args[i].scalar ? utf_value(&args[i]) : "MAT");
+            fprintf(stderr, "%s%s", i ? ", " : "", shown);
+        }
+        fprintf(stderr, ") -> %s\n", found ? "stub" : "no stub");
+    }
+    const char *answer = "";
+    if (!found && utf_data_access(name, count, args, &answer)) return answer;
+    if (!found) {
+        if (!utf.ignore_missing) {
+            char text[400], shown[80];
+            int n = snprintf(text, sizeof text, "the target called %.100s(", name);
+            for (int i = 0; i < count && i < 3; ++i) {
+                utf_show(shown, sizeof shown, args[i].scalar ? utf_value(&args[i]) : "MAT");
+                n += snprintf(text + n, sizeof text - (size_t)n, "%s%s", i ? ", " : "", shown);
+            }
+            snprintf(text + n, sizeof text - (size_t)n, "%s), which no stub matches",
+                     count > 3 ? ", ..." : "");
+            utf_fail(text);
+        }
+        return "";
+    }
+    ++found->invocations;
+    for (int i = 0; i < found->count && i < count; ++i)
+        /* same(), or any() as the returned value, leaves the argument. */
+        if (args[i].scalar && strcmp(found->returned[i], utf_same) &&
+            strcmp(found->returned[i], utf_any))
+            assign_value(args[i].scalar, copy_value(found->returned[i]));
+    for (int i = 0; i < found->change_count; ++i) {
+        struct utf_change *change = &found->changes[i];
+        if (change->variable) {
+            assign_value(change->variable, copy_value(change->value));
+        } else {
+            jbc_variable value = {copy_value(change->value), 0, 0};
+            jbc_utf_argument argument = {&value, {0}, 0};
+            const char *ignored = "";
+            if (jbc_utf_call_target(change->accessor, 1, &argument, &ignored) != 1) {
+                char text[200];
+                snprintf(text, sizeof text, "no property accessor %.100s", change->accessor);
+                utf_fail(text);
+            }
+        }
+    }
+    return found->result ? copy_value(found->result) : "";
+}
+
+/* A file as setRecord and the data-access routines name it, without its
+   company prefix: F.ACCOUNT and FBNK.ACCOUNT are ACCOUNT. */
+static const char *utf_file(const char *name)
+{
+    const char *dot = strchr(name, '.');
+    if (name[0] == 'F' && dot && dot - name <= 4) {
+        for (const char *c = name + 1; c < dot; ++c)
+            if (!((*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9'))) return name;
+        return dot + 1;
+    }
+    return name;
+}
+
+static struct utf_record *utf_record(const char *file, const char *key)
+{
+    file = utf_file(file);
+    for (int i = 0; i < utf.record_count; ++i)
+        if (!strcmp(utf.records[i].file, file) && !strcmp(utf.records[i].key, key))
+            return &utf.records[i];
+    return NULL;
+}
+
+static void utf_write(const char *file, const char *key, const char *value)
+{
+    struct utf_record *record = utf_record(file, key);
+    if (record) {
+        free(record->value);
+    } else {
+        utf.records = realloc(utf.records, (size_t)(utf.record_count + 1) * sizeof *utf.records);
+        if (!utf.records) fail("out of memory");
+        record = &utf.records[utf.record_count++];
+        record->file = utf_copy(utf_file(file));
+        record->key = utf_copy(key);
+    }
+    record->value = utf_copy(value);
+}
+
+static void utf_delete(const char *file, const char *key)
+{
+    struct utf_record *record = utf_record(file, key);
+    if (!record) return;
+    free(record->file);
+    free(record->key);
+    free(record->value);
+    *record = utf.records[--utf.record_count];
+}
+
+/* Reads a record into a variable and sets the error variable, as F.READ
+   does: '' when found, else RECORD NOT FOUND (inferred). */
+static const char *utf_read(const char *file, const char *key, jbc_variable *into,
+                            jbc_variable *error)
+{
+    struct utf_record *record = utf_record(file, key);
+    const char *value = record ? copy_value(record->value) : "";
+    if (into) assign_value(into, value);
+    if (error) assign_value(error, record ? "" : "RECORD NOT FOUND");
+    return value;
+}
+
+static const char *jbc_utf_table_file(const char *table);
+
+/* The T24 data-access routines over the test's records, for a call that
+   no stub answers: F.READ and the like, and a component table's
+   operations, such as AC.AccountOpening.Account.Read(id, error). Returns
+   1 when name is one of them. */
+static int utf_data_access(const char *name, int count, jbc_utf_argument *args,
+                           const char **result)
+{
+    static const struct {
+        const char *name;
+        int count, file, key, record, error; /* positions, or -1 */
+    } routines[] = {
+        {"f.read", 5, 0, 1, 2, 4},          {"eb.dataaccess.fread", 5, 0, 1, 2, 4},
+        {"f.readu", 6, 0, 1, 2, 4},         {"eb.dataaccess.freadu", 6, 0, 1, 2, 4},
+        {"cache.read", 4, 0, 1, 2, 3},      {"eb.dataaccess.cacheread", 4, 0, 1, 2, 3},
+        {"f.write", 3, 0, 1, 2, -1},        {"eb.dataaccess.fwrite", 3, 0, 1, 2, -1},
+        {"f.delete", 2, 0, 1, -1, -1},      {"eb.dataaccess.fdelete", 2, 0, 1, -1, -1},
+        {"opf", 2, 0, -1, -1, -1},          {"eb.dataaccess.opf", 2, 0, -1, -1, -1},
+    };
+    for (size_t i = 0; i < sizeof routines / sizeof routines[0]; ++i) {
+        if (jbc_strcasecmp(name, routines[i].name) || count != routines[i].count) continue;
+        for (int j = 0; j < count; ++j)
+            if (!args[j].scalar) return 0;
+        const char *file = utf_value(&args[routines[i].file]);
+        if (routines[i].key < 0) {
+            /* OPF(name, handle): the handle is the file's name. */
+            assign_value(args[1].scalar, copy_value(file));
+            return 1;
+        }
+        const char *key = utf_value(&args[routines[i].key]);
+        if (strstr(routines[i].name, "write"))
+            utf_write(file, key, utf_value(&args[routines[i].record]));
+        else if (strstr(routines[i].name, "delete"))
+            utf_delete(file, key);
+        else
+            utf_read(file, key, args[routines[i].record].scalar,
+                     args[routines[i].error].scalar);
+        return 1;
+    }
+    /* <component>.<table>.<operation> */
+    const char *dot = strrchr(name, '.');
+    if (!dot || dot - name >= 200) return 0;
+    char table[200];
+    memcpy(table, name, (size_t)(dot - name));
+    table[dot - name] = '\0';
+    for (char *c = table; *c; ++c) *c = (char)utf_lower((unsigned char)*c);
+    const char *bound = jbc_utf_table_file(table);
+    if (!bound) return 0;
+    const char *operation = dot + 1;
+    char file[240];
+    const char *suffix = "";
+    size_t length = strlen(operation);
+    if (length > 3 && !jbc_strcasecmp(operation + length - 3, "nau")) suffix = "$NAU";
+    if (length > 3 && !jbc_strcasecmp(operation + length - 3, "his")) suffix = "$HIS";
+    snprintf(file, sizeof file, "%s%s", bound, suffix);
+    for (int j = 0; j < count; ++j)
+        if (!args[j].scalar) return 0;
+    if (!jbc_strcasecmp(operation, "read") || !jbc_strcasecmp(operation, "cacheread") ||
+        !jbc_strncasecmp(operation, "readnau", 7) || !jbc_strncasecmp(operation, "readhis", 7) ||
+        !jbc_strncasecmp(operation, "readu", 5)) {
+        if (count < 2) return 0;
+        *result = utf_read(file, utf_value(&args[0]), NULL, args[1].scalar);
+        return 1;
+    }
+    if (!jbc_strncasecmp(operation, "write", 5) && count == 2) {
+        utf_write(file, utf_value(&args[0]), utf_value(&args[1]));
+        return 1;
+    }
+    if (!jbc_strncasecmp(operation, "delete", 6) && count == 1) {
+        utf_delete(file, utf_value(&args[0]));
+        return 1;
+    }
+    return 0;
+}
+
+static void utf_add_change(struct utf_stub *stub, struct utf_change change)
+{
+    stub->changes = realloc(stub->changes, (size_t)(stub->change_count + 1) * sizeof *stub->changes);
+    if (!stub->changes) fail("out of memory");
+    stub->changes[stub->change_count++] = change;
+}
+
 static const char *utf_run(int count, jbc_utf_argument *args, const char *file, int line,
                            int column)
 {
@@ -8971,8 +9359,7 @@ static const char *utf_run(int count, jbc_utf_argument *args, const char *file, 
                  ran ? "takes other arguments than the test's parameters"
                      : "is not a routine of the program");
     }
-    ++utf.failures;
-    if (!utf.failure) utf.failure = utf_copy(text);
+    utf_fail(text);
     return "";
 }
 
@@ -9033,10 +9420,80 @@ const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const
     } else if (utf_is(method, "assertLessThan") && count >= 2) {
         utf_check(jbc_compare(a, b, jbc_precision) < 0, method, a, b,
                   count > 2 ? utf_value(&args[2]) : "", file, line, column);
+    } else if (utf_is(method, "any") && count == 0) {
+        return utf_any;
+    } else if (utf_is(method, "same") && count == 0) {
+        return utf_same;
+    } else if ((utf_is(method, "matches") || utf_is(method, "contains") ||
+                utf_is(method, "greaterThan") || utf_is(method, "lessThan")) && count == 1) {
+        /* A matcher for addStubParam: the mark, then its operand. */
+        const char *mark = utf_is(method, "matches")    ? utf_matches
+                           : utf_is(method, "contains") ? utf_contains
+                           : utf_is(method, "greaterThan") ? utf_greater
+                                                           : utf_less;
+        size_t n = strlen(mark), m = strlen(a);
+        char *out = allocate(n + m);
+        memcpy(out, mark, n);
+        memcpy(out + n, a, m + 1);
+        return out;
+    } else if (utf_is(method, "addStub") && count == 1) {
+        utf.stubs = realloc(utf.stubs, (size_t)(utf.stub_count + 1) * sizeof *utf.stubs);
+        if (!utf.stubs) fail("out of memory");
+        utf.stubs[utf.stub_count] = (struct utf_stub){.name = utf_copy(a)};
+        char handle[16];
+        snprintf(handle, sizeof handle, "%d", ++utf.stub_count);
+        return copy_value(handle);
+    } else if (utf_is(method, "addStubParam") && count == 3) {
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub) {
+            utf_append(&stub->expected, stub->count, b);
+            utf_append(&stub->returned, stub->count, utf_value(&args[2]));
+            ++stub->count;
+        }
+    } else if (utf_is(method, "setRepeatable") && count == 1) {
+        /* Tests pass unassigned handles, as setRepeatable(stub) after
+           STUB = addStub(...): ignored (inferred). */
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub) stub->repeatable = 1;
+    } else if (utf_is(method, "getNbInvocation") && count == 1) {
+        struct utf_stub *stub = utf_find_stub(a);
+        char text[16];
+        snprintf(text, sizeof text, "%d", stub ? stub->invocations : *utf_calls_to(a));
+        return copy_value(text);
+    } else if (utf_is(method, "setStubReturnValue") && count == 2) {
+        struct utf_stub *stub = utf_find_stub(a);
+        if (stub) {
+            free(stub->result);
+            stub->result = utf_copy(b);
+        }
+    } else if (utf_is(method, "addStubCommonChange") && count == 3 && args[1].scalar &&
+               !args[1].by_value) {
+        if (utf_find_stub(a))
+            utf_add_change(utf_find_stub(a), (struct utf_change){args[1].scalar, NULL,
+                                                                 utf_copy(utf_value(&args[2]))});
+    } else if (utf_is(method, "addStubPropertyChange") && count == 4) {
+        /* (stub, component, property, value): set<Property> of the
+           component, as the generated accessor names it. */
+        const char *property = utf_value(&args[2]);
+        char *accessor = malloc(strlen(b) + strlen(property) + 6);
+        if (!accessor) fail("out of memory");
+        sprintf(accessor, "%s.set%s", b, property);
+        for (char *c = accessor; *c; ++c) *c = (char)utf_lower((unsigned char)*c);
+        if (utf_find_stub(a))
+            utf_add_change(utf_find_stub(a),
+                           (struct utf_change){NULL, accessor, utf_copy(utf_value(&args[3]))});
+        else
+            free(accessor);
+    } else if (utf_is(method, "ignoreMissingStubs") && count == 0) {
+        utf.ignore_missing = 1;
+    } else if (utf_is(method, "setRecord") && count >= 3) {
+        utf_write(a, b, utf_value(&args[2]));
+    } else if (utf_is(method, "getRecord") && count == 2) {
+        struct utf_record *record = utf_record(a, b);
+        return record ? copy_value(record->value) : "";
     } else {
-        /* Stubs, records and the rest come in later steps of TUT.md. */
+        /* Records and the rest come in later steps of TUT.md. */
         utf_unsupported(method);
-        if (utf_is(method, "getNbInvocation")) return "0";
     }
     return "";
 }
@@ -9061,6 +9518,31 @@ static int utf_report(void)
     }
     fflush(stderr);
     for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
+    for (int i = 0; i < utf.stub_count; ++i) {
+        struct utf_stub *stub = &utf.stubs[i];
+        for (int j = 0; j < stub->count; ++j) {
+            free(stub->expected[j]);
+            free(stub->returned[j]);
+        }
+        for (int j = 0; j < stub->change_count; ++j) {
+            free(stub->changes[j].accessor);
+            free(stub->changes[j].value);
+        }
+        free(stub->expected);
+        free(stub->returned);
+        free(stub->changes);
+        free(stub->result);
+        free(stub->name);
+    }
+    free(utf.stubs);
+    for (int i = 0; i < utf.call_count; ++i) free(utf.calls[i].name);
+    for (int i = 0; i < utf.record_count; ++i) {
+        free(utf.records[i].file);
+        free(utf.records[i].key);
+        free(utf.records[i].value);
+    }
+    free(utf.records);
+    free(utf.calls);
     free(utf.params);
     free(utf.target);
     free(utf.failure);

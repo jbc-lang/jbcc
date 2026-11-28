@@ -317,6 +317,31 @@ Done for section 3 (2026-11-27):
 - Found on the way: an empty FMT, OCONV or ICONV mask returns the value
   unchanged (ICONV also sets STATUS 1 in TAFC; jbcc's conversion STATUS is
   section 5).
+- Indices that are not positive integers (2026-11-28, found by T24's unit
+  tests, TUT.md; `tests/tafc/array-index-conversion.b`):
+  - A dynamic-array index skips blanks and truncates a fraction; text
+    that is not a number is 0, with TAFC's non-numeric warning.
+  - Read at a leading 0, `X<0>` is `''`. A later 0 means the whole
+    element before it: `X<2,0>` is `X<2>`.
+  - Assigned at a leading 0, `Y<0> = 'Z'` puts the value before the
+    whole string with no delimiter (`ZA^B]C`). A later 0 replaces the
+    whole element before it: `Y<2,0> = 'R'` gives `A^R`.
+  - A matrix subscript skips blanks and truncates a fraction, and `''`
+    is 0, but other text stops with ARRAY_SUBS.
+  - Read, a negative matrix subscript is element 1, in local and COMMON
+    matrices alike; assigned, it stops with ARRAY_SUBS. T24 code reads
+    `R.NEW(V-9)` before the field count `V` is set.
+  - Not followed: in TAFC `MAT M = value` leaves `M(0)` alone, and
+    `Grid(0,0)` is ARRAY_SUBS on a two-dimensional matrix. jbcc's
+    snippets rely on element 0, so this needs its own change.
+- `ABS('')` is 0, and `ABS` of text that is not a number returns the text
+  unchanged, without a warning (`tests/tafc/abs-non-numeric.b`; jbcc
+  stopped with an error). A FOR loop whose bound is text that is not a
+  number never ends in TAFC; jbcc keeps its error.
+- A REMOVE loop over a list that the loop appends to with `L<1,-1> = X`
+  restarts after each append in TAFC too: the assignment resets the
+  REMOVE pointer. Checked because a T24 unit test's target looped that
+  way.
 
 ## 4. Fixes in implemented functions
 

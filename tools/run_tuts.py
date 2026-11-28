@@ -32,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections import Counter
+from collections import Counter, OrderedDict
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import closing, redirect_stderr
 from functools import partial
@@ -40,10 +40,10 @@ from pathlib import Path
 
 if __package__:
     from . import check_corpus
-    from .t24_components import read_component_members
+    from .t24_components import read_component_members, read_component_properties, read_component_tables
 else:
     import check_corpus
-    from t24_components import read_component_members
+    from t24_components import read_component_members, read_component_properties, read_component_tables
 
 COMPILER = check_corpus.COMPILER
 
@@ -117,6 +117,115 @@ def read_targets(catalogue, extract):
     return targets, aliases
 
 
+# Set in each worker by initialize_worker.
+properties = {}
+tables = {}
+unit_cache = OrderedDict()
+CACHE_SIZE = 3000
+synthesized = None
+next_index = 0
+
+
+def initialize_worker(include_index, members, accessors, table_files):
+    global properties, tables, synthesized
+    check_corpus.initialize_worker(include_index, members)
+    properties, tables = accessors, table_files
+    synthesized = Path(tempfile.mkdtemp(prefix="tut-units-"))
+
+
+def compile_cached(path, root, directories, *, cache=True):
+    """A compiled unit, from the worker's cache when it has one. Each unit
+    gets an index of its own, so cached units link together."""
+    global next_index
+    if cache and path in unit_cache:
+        unit_cache.move_to_end(path)
+        return unit_cache[path]
+    next_index += 1
+    resolver = check_corpus.worker_include_index
+    unit = COMPILER.compile_unit(
+        path,
+        directories,
+        next_index,
+        source_encoding="bytes",
+        defer_unassigned_reads=True,
+        source_filter=lambda source_path, source: check_corpus.fix_t24_source(
+            source_path, source, root=root, fixes=[]
+        ),
+        include_resolver=partial(resolver.resolve, lookups=[]) if resolver else None,
+        builtin_includes=False,
+        component_members=check_corpus.worker_component_members,
+        stub_void_results=True,
+        relax_access=True,
+        next_warning=lambda _message: None,
+    )
+    if cache:
+        unit_cache[path] = unit
+        if len(unit_cache) > CACHE_SIZE:
+            unit_cache.popitem(last=False)
+    return unit
+
+
+def accessor_source(name, binding):
+    """jBC for a component property accessor, such as
+    EB.SystemTables.setRNew(field, value) over R.NEW in I_COMMON."""
+    operation, insert, variable, rank = binding
+    indices = [f"I{i + 1}" for i in range(rank)]
+    element = f"{variable}({', '.join(indices)})" if rank else variable
+    if operation == "get":
+        header, body = f"FUNCTION {name}({', '.join(indices)})", f"RETURN {element}"
+    elif operation == "set":
+        header = f"SUBROUTINE {name}({', '.join(indices + ['VALUE'])})"
+        body = f"{element} = VALUE"
+    elif operation == "clear":
+        header = f"SUBROUTINE {name}()"
+        body = f"MAT {variable} = ''" if rank else f"{variable} = ''"
+    elif operation == "getDynArrayFrom":
+        header = f"FUNCTION {name}()"
+        body = f"MATBUILD RESULT FROM {variable}\nRETURN RESULT"
+    else:
+        header = f"SUBROUTINE {name}(VALUE)"
+        body = f"MATPARSE {variable} FROM VALUE"
+    tail = "" if header.startswith("FUNCTION") else "\nRETURN"
+    # I_COMMON and I_EQUATE first, as T24 routines include them: other
+    # inserts size their COMMON matrices with I_COMMON's EQU C$SYSDIM.
+    inserts = "".join(
+        f"$INSERT {name}\n" for name in dict.fromkeys(["I_COMMON", "I_EQUATE", insert])
+    )
+    return f"{header}\n{inserts}{body}{tail}\nEND\n"
+
+
+def synthesized_path(name, source):
+    path = synthesized / (name.encode("utf-8").hex() + ".b")
+    if not path.exists():
+        path.write_text(source, encoding="utf-8")
+    return path
+
+
+PROPERTY_CHANGE = re.compile(
+    rb"""UTF\.addStubPropertyChange\(\s*[^,()]+,\s*(["'])([\w.]+)\1\s*,\s*(["'])(\w+)\3"""
+)
+
+
+def link_units(test, target, root, directories):
+    """The test, its target and the component property accessors they
+    use, as synthesized units. Every other routine they call is a stub
+    that the UTF runtime answers (TUT.md)."""
+    units = [
+        compile_cached(test, root, directories, cache=False),
+        compile_cached(target, root, directories),
+    ]
+    accessors = {call.word for unit in units for call, _, _ in unit.calls}
+    accessors.update(
+        f"{match[2].decode()}.set{match[4].decode()}".casefold()
+        for match in PROPERTY_CHANGE.finditer(test.read_bytes())
+    )
+    for name in sorted(accessors):
+        if name in properties:
+            path = synthesized_path(name, accessor_source(name, properties[name]))
+            units.append(compile_cached(path, root, directories))
+    return units
+
+
 def first_line(text):
     return next((line for line in text.splitlines() if line.strip()), "")
 
@@ -143,36 +252,24 @@ def run_test(relative, *, root, directories, targets, aliases, timeout, keep):
         aliases = {**aliases, target: routine}
     target_path = root / target_path
 
-    def source_filter(source_path, source):
-        return check_corpus.fix_t24_source(source_path, source, root=root, fixes=[])
-
-    resolver = check_corpus.worker_include_index
     try:
         # jbcc's warnings about the corpus sources are not the test's result.
         with redirect_stderr(io.StringIO()):
-            source, libraries = COMPILER.compile_program(
-                [path, target_path],
-                directories,
-                source_encoding="bytes",
-                defer_unassigned_reads=True,
-                source_filter=source_filter,
-                include_resolver=partial(resolver.resolve, lookups=[]) if resolver else None,
-                builtin_includes=False,
-                link_packages=True,
-                unit_options={
-                    "component_members": check_corpus.worker_component_members,
-                    "stub_void_results": True,
-                    "relax_access": True,
-                    "next_warning": lambda _message: None,
-                },
+            units = link_units(path, target_path, root, directories)
+            used = {
+                call.word.rsplit(".", 1)[0] for unit in units for call, _, _ in unit.calls
+            }
+            source, libraries = COMPILER.link_units(
+                units,
                 utf_aliases=aliases,
+                stub_missing=True,
+                utf_tables={table: tables[table] for table in used if table in tables},
             )
     except COMPILER.Diagnostic as error:
-        detail = str(error).replace(str(root) + os.sep, "")
-        missing = UNLINKED.search(detail)
-        if missing:
-            return relative, "unlinked", target, missing[1]
-        return relative, "rejected", target, first_line(detail)
+        detail = first_line(str(error).replace(str(root) + os.sep, ""))
+        if UNLINKED.search(detail) or "disagree" in detail or "argument" in detail:
+            return relative, "unlinked", target, detail
+        return relative, "rejected", target, detail
     with tempfile.TemporaryDirectory(prefix="tut-") as work:
         work = Path(work)
         c_file = work / "test.c"
@@ -193,8 +290,11 @@ def run_test(relative, *, root, directories, targets, aliases, timeout, keep):
                 capture_output=True,
                 timeout=timeout,
             )
-        except subprocess.TimeoutExpired:
-            return relative, "timeout", target, ""
+        except subprocess.TimeoutExpired as expired:
+            output = (expired.stdout or b"") + (expired.stderr or b"")
+            if keep:
+                (keep / Path(relative).with_suffix(".log").name).write_bytes(output)
+            return relative, "timeout", target, last_line((expired.stderr or b"").decode("latin-1"))[:200]
         if keep:
             (keep / Path(relative).with_suffix(".log").name).write_bytes(ran.stdout + ran.stderr)
     stderr = ran.stderr.decode("latin-1").replace(str(root) + os.sep, "")
@@ -232,6 +332,8 @@ def main():
         members = read_component_members(options.t24_catalog, root)
         check_corpus.stub_component_members(members)
         targets, aliases = read_targets(options.t24_catalog, root.name)
+        accessors = read_component_properties(options.t24_catalog, root)
+        table_files = read_component_tables(options.t24_catalog, root)
     except (sqlite3.Error, OSError, ValueError) as error:
         parser.error(str(error))
     tests = list(options.tests)
@@ -258,8 +360,8 @@ def main():
     results = {}
     with ProcessPoolExecutor(
         max_workers=options.j,
-        initializer=check_corpus.initialize_worker,
-        initargs=(include_index, members),
+        initializer=initialize_worker,
+        initargs=(include_index, members, accessors, table_files),
     ) as pool:
         for relative, state, target, detail in pool.map(run, tests, chunksize=4):
             counts[state] += 1

@@ -1,0 +1,10 @@
+    SUBROUTINE SAMPLE.LOOKUP(KEY, NAME, STATUS)
+* Looks a name up through two routines it doesn't define; a test stubs them.
+    COMMON /SAMPLE/ LAST.ERROR
+    CALL SAMPLE.FETCH(KEY, RECORD)
+    NAME = RECORD<1>
+    DEFFUN SAMPLE.CHECK(VALUE)
+    STATUS = SAMPLE.CHECK(NAME)
+    IF LAST.ERROR NE '' THEN STATUS = 'ERROR ' : LAST.ERROR
+    RETURN
+END

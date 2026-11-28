@@ -1202,8 +1202,8 @@ def test_corpus_checks_external_arities_and_reports_the_linkage_conflict(
 def test_testcase_units_translate(compiler):
     """A T24 unit test (*.tut, TUT.md) translates: TESTCASE names the
     program, UTF calls take scalars by reference, expressions by value and
-    whole matrices. A UTF method the runtime can't run yet, such as
-    addStub, makes the verdict "unsupported"."""
+    whole matrices. Built alone, the test fails at runTest: its target
+    isn't linked."""
     source = ROOT / 'tests/programs/testcase/sample.tut'
     generated = subprocess.run(
         [CLI, source, '-o', compiler.c], capture_output=True, text=True
@@ -1214,7 +1214,8 @@ def test_testcase_units_translate(compiler):
     assert 'jbc_utf("addParam", 1, (jbc_utf_argument[]){{&' in c
     assert c.count('jbc_utf("addParam", 1, (jbc_utf_argument[]){{NULL, (jbc_matrix)') == 2
     run = compiler.run_native(source)
-    assert (run.returncode, run.stderr) == (4, b'UTF: unsupported UTF.addStub\n')
+    assert run.returncode == 3
+    assert b"target 'SAMPLE.ROUTINE' is not a routine of the program" in run.stderr
 
 
 TESTCASES = ROOT / 'tests/programs/testcase'
@@ -1239,27 +1240,97 @@ def test_utf_runs_a_function_target(compiler):
     assert (run.returncode, run.stderr) == (0, b'UTF: passed 6 checks in 2 runs\n')
 
 
-def test_utf_target_aliases_and_missing_parameters(compiler):
-    """An alias names a routine, as an R19 component method does; missing
-    trailing parameters are empty, and setParam pads before its position."""
+def utf_build(compiler, *sources, **options):
+    """Build a unit test with compile_program's options, as
+    tools/run_tuts.py links one, and run it."""
     translate = (
-        "import sys; from pathlib import Path; from jbcc.compiler import compile_program; "
-        "source, _ = compile_program([Path(sys.argv[1]), Path(sys.argv[2])], [], "
-        "utf_aliases={'Sample.Split': 'SAMPLE.SPLIT'}); Path(sys.argv[3]).write_text(source)"
+        "import sys, json; from pathlib import Path; from jbcc.compiler import compile_program; "
+        "source, _ = compile_program([Path(p) for p in sys.argv[3:]], [], **json.loads(sys.argv[2])); "
+        "Path(sys.argv[1]).write_text(source)"
     )
     subprocess.run(
-        [sys.executable, '-c', translate, TESTCASES / 'padded.tut', TESTCASES / 'SAMPLE.SPLIT.b',
-         compiler.c],
+        [sys.executable, '-c', translate, compiler.c, json.dumps(options),
+         *(TESTCASES / source for source in sources)],
         check=True,
         env={**os.environ, 'PYTHONPATH': str(ROOT / 'src')},
     )
-    program = compiler.work / 'padded'
+    program = compiler.work / 'utf-test'
     subprocess.run(
         ['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-pedantic', compiler.c, '-o', program],
         check=True,
     )
-    run = subprocess.run([program], capture_output=True)
+    return subprocess.run([program], capture_output=True)
+
+
+def test_utf_target_aliases_and_missing_parameters(compiler):
+    """An alias names a routine, as an R19 component method does; missing
+    trailing parameters are empty, and setParam pads before its position."""
+    run = utf_build(
+        compiler, 'padded.tut', 'SAMPLE.SPLIT.b', utf_aliases={'Sample.Split': 'SAMPLE.SPLIT'}
+    )
     assert (run.returncode, run.stderr) == (0, b'UTF: passed 2 checks in 1 runs\n')
+
+
+def test_utf_stubs_answer_the_targets_calls(compiler):
+    """With stub_missing, each routine the program doesn't define answers
+    from the test's stubs: expected arguments (a value, any() or a
+    matcher), returned values or same(), a FUNCTION's result, a COMMON
+    change, setRepeatable and invocation counts. Stub names match calls
+    whatever their case."""
+    run = utf_build(compiler, 'stubbed.tut', 'SAMPLE.LOOKUP.b', stub_missing=True)
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 5 checks in 2 runs\n')
+
+
+def test_utf_call_that_no_stub_matches_fails(compiler):
+    run = utf_build(compiler, 'unmatched.tut', 'SAMPLE.LOOKUP.b', stub_missing=True)
+    assert run.returncode == 3
+    assert run.stderr.endswith(
+        b'UTF: failed 2, first at the target called SAMPLE.FETCH("KX", ""), '
+        b'which no stub matches\n'
+    ), run.stderr
+
+
+def test_utf_records_answer_data_access(compiler):
+    """setRecord seeds records that unstubbed F.READ, CACHE.READ and
+    component table reads return; F.WRITE stores one that getRecord reads
+    back. F.SAMPLE and FBNK.SAMPLE name the same file."""
+    run = utf_build(
+        compiler,
+        'records.tut',
+        'SAMPLE.LOAD.b',
+        stub_missing=True,
+        utf_tables={'sample.records.sample': 'SAMPLE'},
+    )
+    assert (run.returncode, run.stderr) == (0, b'UTF: passed 5 checks in 1 runs\n')
+
+
+def test_run_tuts_synthesizes_property_accessors(monkeypatch):
+    """A component property bound to an insert's variable gets get, set
+    and clear accessors, with indices for a matrix."""
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    import run_tuts
+    from t24_components import property_bindings
+
+    component = (
+        "public property readwrite Today : string {\n    jBC: I_SAMPLE ->TODAY\n}\n"
+        "public property readonly Rows : string {\njBC: I_SAMPLE ->ROWS()\n}\n"
+    )
+    bindings = dict(property_bindings(component))
+    assert bindings == {
+        'getToday': ('get', 'I_SAMPLE', 'TODAY', 0),
+        'setToday': ('set', 'I_SAMPLE', 'TODAY', 0),
+        'clearToday': ('clear', 'I_SAMPLE', 'TODAY', 0),
+        'getRows': ('get', 'I_SAMPLE', 'ROWS', 1),
+        'getDynArrayFromRows': ('getDynArrayFrom', 'I_SAMPLE', 'ROWS', 1),
+    }
+    assert run_tuts.accessor_source('x.settoday', bindings['setToday']) == (
+        'SUBROUTINE x.settoday(VALUE)\n$INSERT I_COMMON\n$INSERT I_EQUATE\n$INSERT I_SAMPLE\n'
+        'TODAY = VALUE\nRETURN\nEND\n'
+    )
+    assert run_tuts.accessor_source('x.getrows', bindings['getRows']) == (
+        'FUNCTION x.getrows(I1)\n$INSERT I_COMMON\n$INSERT I_EQUATE\n$INSERT I_SAMPLE\n'
+        'RETURN ROWS(I1)\nEND\n'
+    )
 
 
 def test_utf_without_its_target(compiler):

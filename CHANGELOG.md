@@ -11,9 +11,21 @@
   parameters, and the assertions decide the test's verdict, printed as the
   last stderr line and given as the exit status.
 - `tools/run_tuts.py` (`just tut`) builds each R19 unit test with its
-  target, runs it and writes a JSON report; 745 tests pass so far.
+  target, runs it and writes a JSON report.
+- UTF stubs: routines a unit test's target calls answer from the test's
+  `addStub` definitions, and data-access routines (`F.READ`, `CACHE.READ`,
+  component table reads and writes) from its `setRecord` records. R19
+  component property accessors are generated from the component
+  definitions. 14,865 of the 26,307 tests pass.
 
 ### Changed
+
+- Dynamic-array indices and matrix subscripts follow TAFC PB201214: text
+  that is not a number is 0 in an index, a fraction truncates, `X<0>`
+  reads `''` and assigned prepends, a later 0 means the whole element,
+  and a matrix read takes a negative subscript as 1.
+- `ABS('')` is 0, and `ABS` of text that is not a number returns it
+  unchanged, as in TAFC.
 
 - String literals longer than C99's 4,095-byte limit are emitted in
   pieces joined at run time.

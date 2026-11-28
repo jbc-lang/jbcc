@@ -1,0 +1,21 @@
+empty <>
+decimal <B]C>
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     9 , Source array-index-conversion.b
+Non-numeric value -- ZERO USED ,
+Variable '(UNKNOWN)' , Line     9 , Source array-index-conversion.b
+text <> <>
+blank <B]C>
+-1 <>
+2,0 <B]C> <B]C>
+0: ZA^B]C
+empty: ZA^B]C
+0,1: QA^B]C
+2,0: A^R
+1,0,0: S^B]C
+empty 0: T
+2.9,1.5: A^U]C
+Invalid or uninitialised variable -- NULL USED ,
+Var M(0) , Line    23 , Source array-index-conversion.b
+M('') <> M('2.7') <n> M(' 1') <m>
+R(-1) <one> R(-10) <one> M(-3) <m>

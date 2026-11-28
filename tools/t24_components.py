@@ -227,3 +227,71 @@ def read_component_members(catalogue, root):
                 owner,
             )
     return members
+
+
+BINDING = re.compile(
+    r"jBC\s*:\s*(?P<insert>[\w.$%]+)\s*->\s*(?P<variable>[\w.$%]+)"
+    r"(?:\((?P<rank>[0-9]*)\))?"
+)
+
+
+def property_bindings(source):
+    """(accessor name, (operation, insert, variable, rank)) for each
+    accessor of a property bound to an insert's variable, as
+    `jBC: I_COMMON ->R.NEW()`. operation is get, set, clear,
+    getDynArrayFrom or setDynArrayTo; rank is 0 for a scalar."""
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    for _access, mode, name, binding in PROPERTY.findall(source):
+        bound = BINDING.search(binding or "")
+        if not bound:
+            continue
+        rank = 0 if bound["rank"] is None else int(bound["rank"] or 1)
+        operations = []
+        if mode != "writeonly":
+            operations += ["get"] + (["getDynArrayFrom"] if rank else [])
+        if mode != "readonly":
+            operations += ["set", "clear"] + (["setDynArrayTo"] if rank else [])
+        for operation in operations:
+            yield operation + name, (operation, bound["insert"], bound["variable"], rank)
+
+
+def read_component_properties(catalogue, root):
+    """Accessor member (casefolded, as component calls name it) ->
+    (operation, insert, variable, rank), for every catalogued component."""
+    uri = catalogue.resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        components = db.execute(
+            "SELECT component_name, rel FROM file_path "
+            "WHERE extract = ? AND kind = 'component' AND component_name IS NOT NULL ORDER BY rel",
+            (root.name,),
+        ).fetchall()
+    accessors = {}
+    for component, relative in components:
+        source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
+        for name, binding in property_bindings(source):
+            accessors.setdefault(f"{component}.{name}".casefold(), binding)
+    return accessors
+
+
+TABLE_FILE = re.compile(r"^[ \t]*t24:[ \t]*([\w.$%]+)[ \t]*$", re.M)
+
+
+def read_component_tables(catalogue, root):
+    """Component table (casefolded, as component calls name it, such as
+    ac.accountopening.account) -> the T24 file it binds (ACCOUNT)."""
+    uri = catalogue.resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as db:
+        components = db.execute(
+            "SELECT component_name, rel FROM file_path "
+            "WHERE extract = ? AND kind = 'component' AND component_name IS NOT NULL ORDER BY rel",
+            (root.name,),
+        ).fetchall()
+    tables = {}
+    for component, relative in components:
+        source = (root / relative).read_text(encoding="utf-8", errors="surrogateescape")
+        source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+        for _access, table, body in TABLE.findall(source):
+            bound = TABLE_FILE.search(body)
+            if bound:
+                tables.setdefault(f"{component}.{table}".casefold(), bound[1])
+    return tables
