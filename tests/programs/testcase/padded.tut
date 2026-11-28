@@ -1,0 +1,9 @@
+TESTCASE SAMPLE.SPLIT_2
+* A target named as a component method, run with fewer parameters than
+* it takes: the missing ones are empty.
+    UTF.setTarget("Sample.Split")
+    UTF.setParam(1, "p,q")
+    FIRST = UTF.runTest()
+    UTF.assertEquals(FIRST, "")
+    UTF.assertTrue(1)
+END

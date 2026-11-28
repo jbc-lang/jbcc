@@ -191,6 +191,10 @@ static int compare_bytes(const char *left, const char *right)
 }
 
 static void free_storages(void);
+#ifdef JBC_UTF
+static int utf_holds(const char *value);
+static int utf_report(void);
+#endif
 #ifdef JBC_REPORT
 static void finish_reports(void);
 #endif
@@ -233,6 +237,9 @@ static void write_return_list(void);
 
 void jbc_finish(void)
 {
+#ifdef JBC_UTF
+    int utf_status = utf_report();
+#endif
     /* Before the buffers that hold the list are freed. */
     write_return_list();
     jbc_run_exit_callbacks();
@@ -252,6 +259,9 @@ void jbc_finish(void)
         free(buffers);
         buffers = next;
     }
+#ifdef JBC_UTF
+    if (utf_status) exit(utf_status);
+#endif
 }
 
 void jbc_init_arguments(int argc, char **argv)
@@ -1258,6 +1268,9 @@ static int held_in_storage(const char *value)
         || jbc_company_no.value == value) return 1;
     for (size_t i = 0; i < sizeof select_lists / sizeof select_lists[0]; ++i)
         if (select_lists[i].value == value) return 1;
+#ifdef JBC_UTF
+    if (utf_holds(value)) return 1;
+#endif
     for (struct jbc_slots *s = storages; s; s = s->next)
         for (size_t i = 0; i < s->count; ++i)
             if (s->values[i].value == value) return 1;
@@ -8815,26 +8828,247 @@ const char *jbc_crypt(const char *value, const char *key, const char *method, in
     return value;
 }
 
-/* UTF.method(arguments): the T24 unit-test framework that *.tut tests drive.
-   Its runtime is step 2 of TUT.md; until then a test translates and stops
-   at its first UTF call. */
-/* A UTF argument: a scalar by reference, or a whole matrix (scalar NULL). */
+/* UTF.method(arguments): the T24 unit-test framework that *.tut tests
+   drive (TUT.md). UTF has no reference implementation, so what each method
+   does is inferred from how the tests use it. A UTF argument is a scalar
+   by reference, or a whole matrix (scalar NULL); by_value marks an
+   expression, whose temporary the call copies before keeping it. */
 typedef struct {
     jbc_variable *scalar;
     jbc_matrix matrix;
+    int by_value;
 } jbc_utf_argument;
+
+#ifdef JBC_UTF
+/* Generated beside the routines: runs the named target with the
+   parameters and returns 1, or 0 when no routine of the program has that
+   name, or -1 when the parameters do not fit its arguments. Missing
+   trailing parameters are passed empty (inferred). */
+static int jbc_utf_call_target(const char *name, int count, const jbc_utf_argument *params,
+                               const char **result);
+
+/* The test's state. Text is copied with malloc, outside the collector. */
+static struct {
+    char *target;
+    jbc_utf_argument *params;
+    int count, capacity;
+    int runs, assertions, failures;
+    char *failure;     /* the first failing check */
+    char *unsupported; /* the first UTF method jbcc can't run yet */
+} utf;
+
+static char *utf_copy(const char *text)
+{
+    char *copy = malloc(strlen(text) + 1);
+    if (!copy) fail("out of memory");
+    return strcpy(copy, text);
+}
+
+static const char *utf_value(const jbc_utf_argument *argument)
+{
+    if (!argument->scalar) return "";
+    return argument->scalar->value ? argument->scalar->value : "";
+}
+
+/* Values of by_value parameters stay alive while UTF holds them. */
+static int utf_holds(const char *value)
+{
+    for (int i = 0; i < utf.count; ++i)
+        if (utf.params[i].by_value && utf.params[i].scalar->value == value) return 1;
+    return 0;
+}
+
+static void utf_release(jbc_utf_argument *argument)
+{
+    if (argument->by_value) free(argument->scalar);
+}
+
+static jbc_utf_argument utf_keep(const jbc_utf_argument *argument)
+{
+    jbc_utf_argument kept = *argument;
+    if (kept.by_value) {
+        kept.scalar = malloc(sizeof *kept.scalar);
+        if (!kept.scalar) fail("out of memory");
+        *kept.scalar = *argument->scalar;
+    }
+    return kept;
+}
+
+static void utf_add(const jbc_utf_argument *argument)
+{
+    if (utf.count == utf.capacity) {
+        utf.capacity = utf.capacity ? 2 * utf.capacity : 8;
+        utf.params = realloc(utf.params, (size_t)utf.capacity * sizeof *utf.params);
+        if (!utf.params) fail("out of memory");
+    }
+    utf.params[utf.count++] = utf_keep(argument);
+}
+
+static void utf_unsupported(const char *method)
+{
+    if (!utf.unsupported) {
+        char text[64];
+        snprintf(text, sizeof text, "UTF.%.40s", method);
+        utf.unsupported = utf_copy(text);
+    }
+}
+
+/* A shown value: at most 60 bytes, marks as ^ ] \ as in the debugger. */
+static void utf_show(char *out, size_t size, const char *value)
+{
+    size_t length = jbc_size(value), n = 0;
+    out[n++] = '"';
+    for (size_t i = 0; i < length && n + 5 < size; ++i) {
+        unsigned char byte = (unsigned char)value[i];
+        if (i == 60) {
+            memcpy(out + n, "...", 3);
+            n += 3;
+            break;
+        }
+        out[n++] = byte == 254 ? '^' : byte == 253 ? ']' : byte == 252 ? '\\'
+                   : byte < 32 || byte == 127 ? '?' : (char)byte;
+    }
+    out[n++] = '"';
+    out[n] = '\0';
+}
+
+static void utf_check(int holds, const char *check, const char *actual, const char *expected,
+                      const char *note, const char *file, int line, int column)
+{
+    ++utf.assertions;
+    if (holds) return;
+    ++utf.failures;
+    if (utf.failure) return;
+    char shown_actual[80], shown_expected[80], text[512];
+    utf_show(shown_actual, sizeof shown_actual, actual);
+    if (expected) {
+        utf_show(shown_expected, sizeof shown_expected, expected);
+        snprintf(text, sizeof text, "%s:%d:%d: UTF.%s(%s, %s)%s%.100s", file, line, column,
+                 check, shown_actual, shown_expected, *note ? ": " : "", note);
+    } else {
+        snprintf(text, sizeof text, "%s:%d:%d: UTF.%s(%s)%s%.100s", file, line, column, check,
+                 shown_actual, *note ? ": " : "", note);
+    }
+    utf.failure = utf_copy(text);
+}
+
+static const char *utf_run(int count, jbc_utf_argument *args, const char *file, int line,
+                           int column)
+{
+    (void)count;
+    (void)args;
+    const char *result = "";
+    ++utf.runs;
+    char text[256];
+    if (!utf.target) {
+        snprintf(text, sizeof text, "%s:%d:%d: UTF.runTest without UTF.setTarget", file, line,
+                 column);
+    } else {
+        int ran = jbc_utf_call_target(utf.target, utf.count, utf.params, &result);
+        if (ran == 1) return result;
+        snprintf(text, sizeof text, "%s:%d:%d: target '%.100s' %s", file, line, column,
+                 utf.target,
+                 ran ? "takes other arguments than the test's parameters"
+                     : "is not a routine of the program");
+    }
+    ++utf.failures;
+    if (!utf.failure) utf.failure = utf_copy(text);
+    return "";
+}
+
+static int utf_is(const char *method, const char *name)
+{
+    return !strcmp(method, name);
+}
 
 const char *jbc_utf(const char *method, int count, jbc_utf_argument *args, const char *file,
                     int line, int column)
 {
-    (void)count;
-    (void)args;
-    char message[96];
-    snprintf(message, sizeof message, "UTF.%.40s requires the unit-test runtime (TUT.md)",
-             method);
-    numeric_error(file, line, column, message);
+    const char *a = count > 0 ? utf_value(&args[0]) : "";
+    const char *b = count > 1 ? utf_value(&args[1]) : "";
+    if (utf_is(method, "setTarget")) {
+        free(utf.target);
+        utf.target = utf_copy(a);
+    } else if (utf_is(method, "addParam") && count == 1) {
+        utf_add(&args[0]);
+    } else if (utf_is(method, "setParam") && count == 2) {
+        /* Sets the parameter at a position (1 is the first), adding empty
+           ones before it as needed (inferred). */
+        int64_t position = truncated(a, file, line, column);
+        if (position < 1 || position > 1000)
+            numeric_error(file, line, column, "UTF.setParam position out of range");
+        while (utf.count < position) {
+            jbc_variable empty = {"", 0, 0};
+            utf_add(&(jbc_utf_argument){&empty, {0}, 1});
+        }
+        utf_release(&utf.params[position - 1]);
+        utf.params[position - 1] = utf_keep(&args[1]);
+    } else if (utf_is(method, "reset")) {
+        for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
+        utf.count = 0;
+    } else if (utf_is(method, "runTest")) {
+        return utf_run(count, args, file, line, column);
+    } else if (utf_is(method, "setTestNumber") || utf_is(method, "setDescription")) {
+        /* Labels only. */
+    } else if ((utf_is(method, "assertEquals") || utf_is(method, "assertNotEquals")) &&
+               count >= 2) {
+        int equal = jbc_compare(a, b, jbc_precision) == 0;
+        utf_check(equal == utf_is(method, "assertEquals"), method, a, b,
+                  count > 2 ? utf_value(&args[2]) : "", file, line, column);
+    } else if ((utf_is(method, "assertTrue") || utf_is(method, "assertFalse")) && count >= 1) {
+        utf_check(jbc_truth(a) == utf_is(method, "assertTrue"), method, a, NULL,
+                  count > 1 ? b : "", file, line, column);
+    } else if ((utf_is(method, "assertContains") || utf_is(method, "assertStartsWith") ||
+                utf_is(method, "assertEndsWith")) && count >= 2) {
+        size_t n = jbc_size(a), m = jbc_size(b);
+        int holds = utf_is(method, "assertContains") ? find_bytes(a, n, b, m) != NULL
+                    : m > n                          ? 0
+                    : utf_is(method, "assertStartsWith") ? !memcmp(a, b, m)
+                                                         : !memcmp(a + n - m, b, m);
+        utf_check(holds, method, a, b, count > 2 ? utf_value(&args[2]) : "", file, line,
+                  column);
+    } else if (utf_is(method, "assertMatches") && count >= 2) {
+        utf_check(jbc_truth(jbc_matches(a, b)), method, a, b,
+                  count > 2 ? utf_value(&args[2]) : "", file, line, column);
+    } else if (utf_is(method, "assertLessThan") && count >= 2) {
+        utf_check(jbc_compare(a, b, jbc_precision) < 0, method, a, b,
+                  count > 2 ? utf_value(&args[2]) : "", file, line, column);
+    } else {
+        /* Stubs, records and the rest come in later steps of TUT.md. */
+        utf_unsupported(method);
+        if (utf_is(method, "getNbInvocation")) return "0";
+    }
     return "";
 }
+
+/* The outcome, as the last line on stderr, which tools/run_tuts.py reads,
+   and the exit status: 0 passed, 3 failed, 4 unsupported, 5 not run. */
+static int utf_report(void)
+{
+    int status;
+    if (utf.unsupported) {
+        fprintf(stderr, "UTF: unsupported %s\n", utf.unsupported);
+        status = 4;
+    } else if (utf.failures) {
+        fprintf(stderr, "UTF: failed %d, first at %s\n", utf.failures, utf.failure);
+        status = 3;
+    } else if (!utf.runs) {
+        fprintf(stderr, "UTF: not run\n");
+        status = 5;
+    } else {
+        fprintf(stderr, "UTF: passed %d checks in %d runs\n", utf.assertions, utf.runs);
+        status = 0;
+    }
+    fflush(stderr);
+    for (int i = 0; i < utf.count; ++i) utf_release(&utf.params[i]);
+    free(utf.params);
+    free(utf.target);
+    free(utf.failure);
+    free(utf.unsupported);
+    memset(&utf, 0, sizeof utf);
+    return status;
+}
+#endif
 
 const char *jbc_itype(const char *descriptor, const char *file, int line, int column)
 {

@@ -1,0 +1,13 @@
+TESTCASE SAMPLE.TWICE_1
+    DIM ROWS(2)
+    UTF.setTarget("SAMPLE.TWICE")
+    UTF.addParam(21)
+    RESULT = UTF.runTest()
+    UTF.assertEquals(RESULT, 42)
+    UTF.assertTrue(RESULT GT 40)
+    UTF.assertFalse(RESULT EQ 0)
+    UTF.assertNotEquals(RESULT, 41)
+    UTF.setParam(1, 5)
+    UTF.assertEquals(UTF.runTest(), 10)
+    UTF.assertMatches(RESULT, "2N")
+END

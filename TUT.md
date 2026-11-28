@@ -122,18 +122,57 @@ statement forms are the only ones to look at later.
 
 ### 2. A UTF runtime and a test runner
 
-- [ ] **UTF state:** the target, its parameters (as references), the stubs
-      with their expected and returned arguments, the seeded records, and
-      the assertion results.
-- [ ] **`runTest`:** call the target, a SUBROUTINE or FUNCTION built from
-      the corpus, with the parameters. Then mark the test passed if every
-      assertion holds, and failed with the first failing assertion
-      otherwise.
-- [ ] **A runner** (`tools/run_tuts.py` and a `just tut` recipe):
-  - build each test with its target;
-  - run it with a time limit;
-  - write a JSON report with these states per test: translated, built,
-    ran, passed, failed (with the assertion), crashed.
+- [x] **UTF state:** the target, its parameters (as references), the
+      runs and checks, and the first failure. In the runtime, under
+      `JBC_UTF`, which only programs that call UTF get.
+- [x] **`runTest`:** calls the target, a SUBROUTINE or FUNCTION of the
+      program, with the parameters, and returns a FUNCTION's result. The
+      program ends with a verdict as its last stderr line and exit status:
+      passed (0), failed with the first failing check (3), unsupported (4:
+      a UTF method of a later step, such as `addStub`) or not run (5).
+      Checks: `assertEquals` and `assertNotEquals` (jBC `=`, so `"01"`
+      equals `1`), `assertTrue`, `assertFalse`, `assertContains`,
+      `assertStartsWith`, `assertEndsWith`, `assertMatches` (jBC
+      `MATCHES`) and `assertLessThan`.
+- [x] **A runner:** `tools/run_tuts.py`, or `just tut report.json`:
+  - finds the target in `UTF.setTarget`, a literal or a variable assigned
+    one; a component method (`AA.Account.AccountMaintain`) maps to its
+    routine through the catalog's method table, or by the test's own
+    name (`AA.ACCOUNT.VALIDATE.BUNDLE.HIERARCHY_1`) when the exported
+    definition leaves the method out;
+  - builds the test with its target, with the R19 scan's settings;
+  - runs it with a time limit (10 s), in a fresh directory;
+  - writes a JSON report with one state per test: no target, target
+    missing, rejected, unlinked (with the first routine missing),
+    not built, passed, failed (with the check), unsupported, not run,
+    error (a runtime stop), crashed or timeout.
+
+Inferred behaviour, to revisit as more tests run:
+
+- `runTest` passes missing trailing parameters empty: some tests run a
+  target with fewer parameters than it takes.
+- `setParam(n, value)` sets parameter n, adding empty ones before it: a
+  test calls it after `reset`, with no parameters left.
+- `reset` clears the parameters and keeps the target.
+
+#### Step 2 baseline (2026-11-28)
+
+All 26,307 tests in 2 min 53 s with 8 workers:
+
+| State | Tests | Main causes |
+|---|---:|---|
+| passed | 745 | the target ran and every check held |
+| failed | 26 | 11 in `EB.TABLE.DEF.MULTI.SUB.VALIDATE` (a count of 4 against 3), 2 UTF-8 transliterations in `SepaUtf8Process`, single date and code values |
+| unsupported | 86 | `setEASYQAMode` (25), `addStub` (22), `ignoreMissingStubs` (19), `setRecord` (10) |
+| error | 56 | `expected an integer dynamic-array index` (31), `PWR` out of range, DYNTOXML and calendar backends |
+| timeout | 24 | |
+| unlinked | 24,885 | 2,487 distinct first missing routines; 17,577 tests stop at an R19 component property accessor such as `EB.SystemTables.setRNew` (1,786) or `setIdNew` (1,431), and 2,087 at `TPSLogging`, a PP logging subroutine that linking on demand will bring in |
+| rejected | 457 | the step 1 source errors, as with `--t24-tests` |
+| target missing, no target | 28 | |
+
+The accessors are the next blocker (step 4): R19 generates a `get`/`set`
+pair for each component property, over a COMMON variable of the
+component's insert.
 
 ### 3. A first set: no stubs, no records
 

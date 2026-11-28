@@ -88,6 +88,12 @@ routine: (run "tests/routines/caller.b" "tests/routines/get.status.b")
 corpus directory jobs="8":
     @python3 tools/check_corpus.py "$1" -j "$2"
 
+# Build and run R19's unit tests (*.tut) with their targets and write a JSON report (TUT.md).
+tut report *args:
+    @report="$1"; shift; python3 tools/run_tuts.py ../t24-extract/201809-R19 \
+        --t24-catalog ../t24-extract/catalog.sqlite -I .cache/PB201214/include \
+        --t24-domain-inserts .cache/domain-inserts/201809-R19 -o "$report" "$@"
+
 # Unpack the PB201214 jBC headers (JBC.h, jportB.h, jimiB.h) from a jbc-extract checkout.
 tafc-headers extract="../jbc-extract":
     #!/usr/bin/env sh

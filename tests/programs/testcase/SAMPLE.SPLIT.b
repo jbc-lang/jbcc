@@ -1,0 +1,7 @@
+    SUBROUTINE SAMPLE.SPLIT(TEXT, FIRST, REST, COUNT)
+* Splits TEXT at its first comma.
+    FIRST = FIELD(TEXT, ',', 1)
+    REST = TEXT[COL2() + 1, LEN(TEXT)]
+    COUNT = DCOUNT(TEXT, ',')
+    RETURN
+END
